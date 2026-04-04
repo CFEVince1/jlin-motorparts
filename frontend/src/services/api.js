@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: 'http://localhost:5000/api', // ensure backend runs here
+    baseURL: 'https://jlin-motorparts.onrender.com', // ensure backend runs here
     headers: {
         'Content-Type': 'application/json',
     },
