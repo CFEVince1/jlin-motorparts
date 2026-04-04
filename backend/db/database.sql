@@ -1,0 +1,48 @@
+CREATE DATABASE IF NOT EXISTS jlin_inventory_db;
+USE jlin_inventory_db;
+
+CREATE TABLE IF NOT EXISTS users (
+id INT AUTO_INCREMENT PRIMARY KEY,
+username VARCHAR(50) NOT NULL,
+password VARCHAR(255) NOT NULL,
+role ENUM('admin','staff','user','student') NOT NULL,
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS suppliers (
+id INT AUTO_INCREMENT PRIMARY KEY,
+supplier_name VARCHAR(100),
+contact VARCHAR(100),
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS products (
+id INT AUTO_INCREMENT PRIMARY KEY,
+product_name VARCHAR(100),
+brand VARCHAR(100),
+category VARCHAR(100),
+price DECIMAL(10,2),
+stock INT DEFAULT 0,
+supplier_id INT,
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+);
+
+CREATE TABLE IF NOT EXISTS sales (
+id INT AUTO_INCREMENT PRIMARY KEY,
+user_id INT,
+total_amount DECIMAL(10,2),
+sale_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS sales_items (
+id INT AUTO_INCREMENT PRIMARY KEY,
+sale_id INT,
+product_id INT,
+quantity INT,
+price DECIMAL(10,2),
+subtotal DECIMAL(10,2),
+FOREIGN KEY (sale_id) REFERENCES sales(id),
+FOREIGN KEY (product_id) REFERENCES products(id)
+);
