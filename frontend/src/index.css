@@ -274,3 +274,23 @@ tr:hover td {
     display: none;
   }
 }
+
+/* This target Tablets and Phones */
+@media (max-width: 1024px) {
+  /* 1. Force the Sidebar to the top or hide it in a menu */
+  .main-layout {
+    flex-direction: column !important;
+  }
+
+  /* 2. Make the POS Product Cards bigger for fingers to tap */
+  .product-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important;
+    gap: 10px;
+  }
+
+  /* 3. Fix the "Current Order" (Cart) so it doesn't get cut off */
+  .cart-container {
+    width: 100% !important;
+    margin-top: 20px;
+  }
+}
