@@ -8,7 +8,14 @@ app.set('trust proxy', 1);
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:5173', // For when you are coding locally
+    'https://jlin-motorparts.vercel.app' // Your live Vercel frontend!
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true 
+}));
 app.use(express.json());
 app.use(helmet({
     contentSecurityPolicy: {
