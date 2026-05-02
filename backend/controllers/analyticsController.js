@@ -15,13 +15,12 @@ exports.getDashboardData = async (req, res) => {
 
         // Top Moving Product (Last 30 days)
         const [topMovingData] = await connection.query(`
-            SELECT p.product_name, pv.brand, SUM(si.quantity) as total_sold
-            FROM sales_items si
+            SELECT p.name as product_name, p.brand, SUM(si.quantity) as total_sold
+            FROM sale_items si
             JOIN sales s ON si.sale_id = s.id
-            JOIN product_variants pv ON si.variant_id = pv.id
-            JOIN products p ON pv.product_id = p.id
+            JOIN products p ON si.product_id = p.id
             WHERE s.sale_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-            GROUP BY pv.id
+            GROUP BY p.id
             ORDER BY total_sold DESC
             LIMIT 1
         `);
@@ -33,10 +32,9 @@ exports.getDashboardData = async (req, res) => {
         const [refurbData] = await connection.query(`
             SELECT 
                 COALESCE(SUM(si.subtotal), 0) as total_refurb_revenue,
-                COALESCE(SUM(pv.repair_cost * si.quantity), 0) as total_refurb_cost
-            FROM sales_items si
-            JOIN product_variants pv ON si.variant_id = pv.id
-            WHERE pv.part_condition = 'refurbished'
+                COALESCE(SUM(p.cost_price * si.quantity), 0) as total_refurb_cost
+            FROM sale_items si
+            JOIN products p ON si.product_id = p.id
         `);
         
         let refurbROI = 0;
@@ -57,13 +55,11 @@ exports.getDashboardData = async (req, res) => {
         // 2. Cost vs Profit Tracking (Bar Chart Data)
         const [refurbItems] = await connection.query(`
             SELECT 
-                p.product_name as name, 
-                pv.brand,
-                pv.repair_cost as cost, 
-                pv.price as retail_price
-            FROM product_variants pv
-            JOIN products p ON pv.product_id = p.id
-            WHERE pv.part_condition = 'refurbished'
+                p.name, 
+                p.brand,
+                p.cost_price as cost, 
+                p.selling_price as retail_price
+            FROM products p
         `);
         const costVsProfit = refurbItems.map(item => ({
             name: item.brand ? `${item.name} (${item.brand})` : item.name,
@@ -106,11 +102,10 @@ exports.getDashboardData = async (req, res) => {
 
         // 4. Low Stock Alerts
         const [lowStock] = await connection.query(`
-            SELECT p.product_name, pv.brand, pv.stock
-            FROM product_variants pv
-            JOIN products p ON pv.product_id = p.id
-            WHERE pv.stock <= 5
-            ORDER BY pv.stock ASC
+            SELECT p.name as product_name, p.brand, p.stock
+            FROM products p
+            WHERE p.stock <= p.reorder_level AND p.is_active = true
+            ORDER BY p.stock ASC
         `);
 
         // 5. Daily Transactions

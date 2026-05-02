@@ -3,7 +3,7 @@ const db = require('../config/db');
 exports.getDailySales = async (req, res) => {
     try {
         let query = `
-            SELECT DATE(sale_date) as date, COALESCE(SUM(total_amount), 0) as total_revenue, COUNT(id) as total_transactions
+            SELECT CURDATE() as date, COALESCE(SUM(total_amount), 0) as total_revenue, COUNT(id) as total_transactions
             FROM sales WHERE DATE(sale_date) = CURDATE()
         `;
         const params = [];
@@ -24,7 +24,7 @@ exports.getDailySales = async (req, res) => {
 exports.getMonthlySales = async (req, res) => {
     try {
         const [sales] = await db.query(`
-            SELECT DATE_FORMAT(sale_date, '%Y-%m') as month, COALESCE(SUM(total_amount), 0) as total_revenue, COUNT(id) as total_transactions
+            SELECT DATE_FORMAT(CURDATE(), '%Y-%m') as month, COALESCE(SUM(total_amount), 0) as total_revenue, COUNT(id) as total_transactions
             FROM sales WHERE YEAR(sale_date) = YEAR(CURDATE()) AND MONTH(sale_date) = MONTH(CURDATE())
         `);
         res.json(sales[0] || { month: new Date().toISOString().slice(0, 7), total_revenue: 0, total_transactions: 0 });
