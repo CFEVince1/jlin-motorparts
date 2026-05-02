@@ -135,12 +135,12 @@ const Users = () => {
 
                     <select
                         className="input-premium"
-                        style={{ background: 'var(--surface)' }}
+                        style={{ background: 'var(--surface)', cursor: 'not-allowed', opacity: 0.7 }}
                         value={formData.role}
                         onChange={e => setFormData({ ...formData, role: e.target.value })}
+                        disabled
                     >
                         <option value="staff">Staff / Cashier</option>
-                        <option value="admin">Admin</option>
                     </select>
 
                     <div style={{ display: 'flex', gap: '8px' }}>
