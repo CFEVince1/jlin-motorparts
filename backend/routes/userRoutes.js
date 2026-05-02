@@ -4,7 +4,7 @@ const userController = require('../controllers/userController');
 const authMiddleware = require('../middleware/authMiddleware');
 const roleMiddleware = require('../middleware/roleMiddleware');
 
-// Only super_admin can manage users
+// Only admin can manage users
 router.use(authMiddleware);
 router.use(roleMiddleware(['admin']));
 

@@ -1,29 +1,36 @@
 import { useState, useEffect, useContext } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { PackagePlus, Edit2, Trash2, ChevronDown, ChevronRight, PlusCircle } from 'lucide-react';
+import { PackagePlus, Trash2, Edit2, Search } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import Spinner from '../components/Spinner';
 
-import { z } from 'zod';
-
-const productSchema = z.object({
-    product_name: z.string().min(1, 'Product Name is required'),
-    brand: z.string().min(1, 'Brand is required'),
-    category: z.string().min(1, 'Category is required'),
-    price: z.coerce.number({ required_error: "Price is required", invalid_type_error: "Price must be a number" }).positive('Price must be greater than zero'),
-    stock: z.coerce.number({ required_error: "Stock is required", invalid_type_error: "Stock must be a number" }).nonnegative('Stock cannot be negative').int('Stock must be a whole number')
-});
+const formatSKU = (category, id) => {
+    if (!category) return `PRT-${String(id).padStart(4, '0')}`;
+    return `${category.substring(0, 3).toUpperCase()}-${String(id).padStart(4, '0')}`;
+};
 
 const Products = () => {
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const { user } = useContext(AuthContext);
 
-    // Form State
-    const [formData, setFormData] = useState({ product_name: '', brand: '', category: '', price: '', stock: 0 });
-    const [editingId, setEditingId] = useState(null); // This is variant ID
-    const [expandedProducts, setExpandedProducts] = useState(new Set());
+    const initialFormState = { 
+        name: '', 
+        brand: '',
+        category: '', 
+        selling_price: '', 
+        stock: '', 
+        is_serialized: false, 
+        serial_numbers: ''
+    };
+    
+    const [formData, setFormData] = useState(initialFormState);
+    const [editingId, setEditingId] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [categoryFilter, setCategoryFilter] = useState('All');
+    const [brandFilter, setBrandFilter] = useState('All');
+    const [typeFilter, setTypeFilter] = useState('All');
 
     const fetchProducts = async () => {
         try {
@@ -40,196 +47,237 @@ const Products = () => {
         fetchProducts();
     }, []);
 
-    const toggleExpand = (productId) => {
-        const newExpanded = new Set(expandedProducts);
-        if (newExpanded.has(productId)) newExpanded.delete(productId);
-        else newExpanded.add(productId);
-        setExpandedProducts(newExpanded);
-    };
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            // Validate data
-            const validatedData = productSchema.parse(formData);
+            // Format payload for the new backend
+            const payload = {
+                name: formData.name,
+                brand: formData.brand,
+                category: formData.category,
+                cost_price: 0,
+                selling_price: Number(formData.selling_price),
+                reorder_level: 5,
+                is_serialized: formData.is_serialized,
+                stock: Number(formData.stock)
+            };
+
+            // Process serial numbers if the item is serialized
+            if (formData.is_serialized) {
+                const serialsArray = formData.serial_numbers
+                    .split(/[\n,]+/)
+                    .map(s => s.trim())
+                    .filter(s => s.length > 0);
+                
+                payload.serial_numbers = serialsArray;
+                payload.stock = serialsArray.length; // Override stock with exact serial count
+            }
 
             if (editingId) {
-                await api.put(`/products/${editingId}`, validatedData);
-                toast.success('Variant updated');
+                await api.put(`/products/${editingId}`, payload);
+                toast.success('Product updated successfully');
             } else {
-                await api.post('/products', validatedData);
-                toast.success('Product/Variant added');
+                await api.post('/products', payload);
+                toast.success('Product added successfully');
             }
-            setFormData({ product_name: '', brand: '', category: '', price: '', stock: 0 });
+            
+            setFormData(initialFormState);
             setEditingId(null);
             fetchProducts();
         } catch (err) {
-            if (err.errors && Array.isArray(err.errors)) {
-                err.errors.forEach(e => toast.error(e.message));
-                return;
-            }
             toast.error(err.response?.data?.message || 'Action failed');
         }
     };
 
-    const handleDeleteParent = async (id, productName) => {
-        if (!window.confirm(`Are you sure you want to delete ${productName} and ALL its variants? This will hide them from the system.`)) return;
-        try {
-            await api.delete(`/products/parent/${id}`);
-            toast.success('Product group deleted');
-            fetchProducts();
-        } catch (err) {
-            toast.error(err.response?.data?.message || 'Failed to delete product group');
-        }
-    };
-
-    const handleDeleteVariant = async (id, brand) => {
-        if (!window.confirm(`Are you sure you want to delete only the ${brand} variant?`)) return;
+    const handleDelete = async (id, name) => {
+        if (!window.confirm(`Are you sure you want to delete ${name}? This will hide it from the system.`)) return;
         try {
             await api.delete(`/products/${id}`);
-            toast.success('Variant deleted');
+            toast.success('Product deleted');
             fetchProducts();
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Failed to delete variant');
+            toast.error(err.response?.data?.message || 'Failed to delete product');
         }
     };
 
-    const handleEditVariant = (parentProduct, variant) => {
+    const handleEdit = (product) => {
         setFormData({
-            product_name: parentProduct.product_name,
-            category: parentProduct.category,
-            brand: variant.brand,
-            price: variant.price,
-            stock: variant.stock
+            name: product.product_name, 
+            brand: product.brand || '',
+            category: product.category,
+            selling_price: product.price, 
+            stock: product.stock,
+            is_serialized: product.is_serialized === 1,
+            serial_numbers: '' // We don't allow editing serials directly from here yet
         });
-        setEditingId(variant.id);
-    };
-
-    const prefillAddVariant = (parentProduct) => {
-        setFormData({
-            product_name: parentProduct.product_name,
-            category: parentProduct.category,
-            brand: '',
-            price: '',
-            stock: 0
-        });
-        setEditingId(null);
+        setEditingId(product.id);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const isAdmin = user.role === 'admin';
+    
+    const uniqueCategories = ['All', ...new Set(products.map(p => p.category).filter(Boolean))];
+    const uniqueBrands = ['All', ...new Set(products.map(p => p.brand).filter(Boolean))];
+    
+    const filteredProducts = products.filter(p => {
+        const matchesSearch = p.product_name?.toLowerCase().includes(searchQuery.toLowerCase()) || p.brand?.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesCategory = categoryFilter === 'All' || p.category === categoryFilter;
+        const matchesBrand = brandFilter === 'All' || p.brand === brandFilter;
+        
+        let matchesType = true;
+        if (typeFilter === 'Serialized') matchesType = p.is_serialized === 1 || p.is_serialized === true;
+        if (typeFilter === 'Bulk') matchesType = p.is_serialized === 0 || p.is_serialized === false;
+
+        return matchesSearch && matchesCategory && matchesBrand && matchesType;
+    });
 
     return (
         <div>
-            <h1 style={{ marginBottom: '24px' }}>Products & Variants</h1>
+            <h1 style={{ marginBottom: '24px' }}>Products Directory</h1>
 
             {isAdmin && (
                 <div className="glass-panel" style={{ padding: '24px', marginBottom: '24px' }}>
-                    <h3 style={{ marginBottom: '16px' }}>{editingId ? 'Edit Product Variant' : 'Add New Product / Variant'}</h3>
-                    <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-                        <input type="text" placeholder="Product Name (e.g. Brake Pad)" className="input-premium" required
-                            value={formData.product_name} onChange={e => setFormData({ ...formData, product_name: e.target.value })} disabled={editingId} />
-                        <input type="text" placeholder="Brand / Variant" className="input-premium"
-                            value={formData.brand} onChange={e => setFormData({ ...formData, brand: e.target.value })} />
-                        <input type="text" placeholder="Category" className="input-premium"
-                            value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} disabled={editingId} />
-                        <input type="number" placeholder="Price" className="input-premium" required min="0" step="0.01"
-                            value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} />
+                    <h3 style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <PackagePlus size={20} /> {editingId ? 'Edit Product' : 'Add New Product'}
+                    </h3>
+                    
+                    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div className="responsive-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                            <input type="text" placeholder="Product Name" className="input-premium" required
+                                value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                            
+                            <input type="text" placeholder="Brand" className="input-premium" required
+                                value={formData.brand} onChange={e => setFormData({ ...formData, brand: e.target.value })} />
+                            
+                            <input type="text" placeholder="Category (e.g. Engine, Tires)" className="input-premium" required
+                                value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} />
+                            
+                            <input type="number" placeholder="Selling Price (₱)" className="input-premium" required min="0" step="0.01"
+                                value={formData.selling_price} onChange={e => setFormData({ ...formData, selling_price: e.target.value })} />
+                        </div>
 
-                        {!editingId && (
-                            <input type="number" placeholder="Initial Stock" className="input-premium" min="0"
-                                value={formData.stock} onChange={e => setFormData({ ...formData, stock: e.target.value })} />
+                        <div style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', gap: '16px', alignItems: 'center', padding: '8px 16px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', flexWrap: 'wrap' }}>
+                                <label style={{ color: 'var(--text-muted)' }}>Type:</label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                    <input type="radio" name="product_type" checked={!formData.is_serialized} onChange={() => setFormData({ ...formData, is_serialized: false, serial_numbers: '' })} style={{ accentColor: 'var(--primary)', width: '18px', height: '18px' }} disabled={editingId !== null} />
+                                    Bulk
+                                </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                    <input type="radio" name="product_type" checked={formData.is_serialized} onChange={() => setFormData({ ...formData, is_serialized: true })} style={{ accentColor: 'var(--primary)', width: '18px', height: '18px' }} disabled={editingId !== null} />
+                                    Serialized
+                                </label>
+                            </div>
+                            <input type="number" placeholder="Stock Level" className="input-premium" required min="0"
+                                disabled={formData.is_serialized}
+                                style={{ width: '200px', opacity: formData.is_serialized ? 0.5 : 1, cursor: formData.is_serialized ? 'not-allowed' : 'text' }}
+                                value={formData.is_serialized ? '' : formData.stock} 
+                                onChange={e => setFormData({ ...formData, stock: e.target.value })} />
+                        </div>
+
+                        {formData.is_serialized && !editingId && (
+                            <div style={{ padding: '16px', background: 'rgba(255, 214, 10, 0.05)', borderRadius: '8px', border: '1px solid rgba(255, 214, 10, 0.2)' }}>
+                                <label style={{ color: 'var(--accent)', marginBottom: '8px', display: 'block' }}>Serial Numbers (Comma separated or one per line) *</label>
+                                <textarea 
+                                    placeholder="e.g., SN001, SN002, SN003"
+                                    className="input-premium"
+                                    style={{ height: '80px', resize: 'vertical' }}
+                                    required
+                                    value={formData.serial_numbers}
+                                    onChange={e => setFormData({ ...formData, serial_numbers: e.target.value })}
+                                />
+                            </div>
                         )}
 
-                        <button type="submit" className="btn-primary" style={{ gridColumn: '1 / -1' }}>
-                            <PackagePlus size={20} /> {editingId ? 'Save Variant Changes' : 'Add Product'}
-                        </button>
-
-                        {editingId && (
-                            <button type="button" className="btn-secondary" style={{ gridColumn: '1 / -1' }} onClick={() => { setEditingId(null); setFormData({ product_name: '', brand: '', category: '', price: '', stock: 0 }) }}>
-                                Cancel Edit
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                            <button type="submit" className="btn-primary">
+                                {editingId ? 'Save Changes' : 'Add to Catalog'}
                             </button>
-                        )}
+
+                            {editingId && (
+                                <button type="button" className="btn-secondary" onClick={() => { setEditingId(null); setFormData(initialFormState); }}>
+                                    Cancel Edit
+                                </button>
+                            )}
+                        </div>
                     </form>
                 </div>
             )}
 
+            <div className="responsive-filter-row" style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                <div style={{ position: 'relative', flex: '1 1 250px' }}>
+                    <Search size={20} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                    <input type="text" className="input-premium" placeholder="Search products by Parts No., name or brand..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ paddingLeft: '48px', width: '100%' }} />
+                </div>
+                <div style={{ flex: '1 1 150px' }}>
+                    <select className="input-premium" value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)} style={{ width: '100%', cursor: 'pointer' }}>
+                        {uniqueBrands.map(brand => (
+                            <option key={brand} value={brand}>{brand === 'All' ? 'All Brands' : brand}</option>
+                        ))}
+                    </select>
+                </div>
+                <div style={{ flex: '1 1 150px' }}>
+                    <select className="input-premium" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} style={{ width: '100%', cursor: 'pointer' }}>
+                        {uniqueCategories.map(cat => (
+                            <option key={cat} value={cat}>{cat === 'All' ? 'All Categories' : cat}</option>
+                        ))}
+                    </select>
+                </div>
+                <div style={{ flex: '1 1 150px' }}>
+                    <select className="input-premium" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={{ width: '100%', cursor: 'pointer' }}>
+                        <option value="All">All Types</option>
+                        <option value="Bulk">Bulk Only</option>
+                        <option value="Serialized">Serialized Only</option>
+                    </select>
+                </div>
+            </div>
+
             <div className="glass-panel" style={{ padding: '0' }}>
                 {loading ? (
-                    <div style={{ padding: '24px' }}><Spinner text="Loading grouped products..." /></div>
+                    <div style={{ padding: '24px' }}><Spinner text="Loading catalog..." /></div>
                 ) : (
-                    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: '800px' }}>
-                        {/* Headers */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '50px 2fr 1fr 1fr 1fr', background: 'rgba(255,255,255,0.05)', padding: '16px', fontWeight: 'bold' }}>
-                            <div></div>
-                            <div>Product Name</div>
-                            <div>Category</div>
-                            <div>Total Variants</div>
-                            {isAdmin && <div style={{ textAlign: 'right' }}>Actions</div>}
-                        </div>
-                        
-                        {/* Parent Rows */}
-                        {products.map(p => {
-                            const isExpanded = expandedProducts.has(p.id);
-                            const totalStock = p.variants.reduce((sum, v) => sum + v.stock, 0);
-
-                            return (
-                                <div key={p.id}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '50px 2fr 1fr 1fr 1fr', padding: '16px', borderTop: '1px solid var(--border)', alignItems: 'center', background: isExpanded ? 'rgba(255, 59, 48, 0.05)' : 'transparent', transition: 'background 0.2s', cursor: 'pointer' }} onClick={() => toggleExpand(p.id)}>
-                                        <div style={{ color: 'var(--text-muted)' }}>
-                                            {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                                        </div>
-                                        <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{p.product_name}</div>
-                                        <div style={{ color: 'var(--text-muted)' }}>{p.category}</div>
-                                        <div style={{ color: 'var(--primary)' }}>{p.variants.length} Brands ({totalStock} items)</div>
-                                        
+                    <div className="table-container" style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Parts No.</th>
+                                    <th>Product Name</th>
+                                    <th>Brand</th>
+                                    <th>Category</th>
+                                    <th>Price</th>
+                                    <th>Stock</th>
+                                    <th>Type</th>
+                                    {isAdmin && <th>Actions</th>}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredProducts.length > 0 ? filteredProducts.map(p => (
+                                    <tr key={p.id}>
+                                        <td style={{ color: 'var(--text-muted)', fontWeight: '500' }}>{formatSKU(p.category, p.id)}</td>
+                                        <td style={{ fontWeight: '500' }}>{p.product_name}</td>
+                                        <td style={{ color: 'var(--text-muted)' }}>{p.brand}</td>
+                                        <td>{p.category}</td>
+                                        <td style={{ color: 'var(--primary)', fontWeight: 'bold' }}>₱{Number(p.price).toFixed(2)}</td>
+                                        <td style={{ color: p.stock <= p.reorder_level ? 'var(--danger)' : 'var(--success)', fontWeight: 'bold' }}>
+                                            {p.stock}
+                                        </td>
+                                        <td>
+                                            <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', background: p.is_serialized ? 'rgba(255, 214, 10, 0.2)' : 'rgba(255, 255, 255, 0.1)', color: p.is_serialized ? 'var(--accent)' : 'var(--text-main)' }}>
+                                                {p.is_serialized ? 'Serialized' : 'Bulk'}
+                                            </span>
+                                        </td>
                                         {isAdmin && (
-                                            <div style={{ textAlign: 'right', display: 'flex', gap: '8px', justifyContent: 'flex-end' }} onClick={e => e.stopPropagation()}>
-                                                <button onClick={() => prefillAddVariant(p)} style={{ background: 'none', border: 'none', color: 'var(--success)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }} title="Add Variant">
-                                                    <PlusCircle size={18} />
-                                                </button>
-                                                <button onClick={() => handleDeleteParent(p.id, p.product_name)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer' }} title="Delete Entire Group">
-                                                    <Trash2 size={18} />
-                                                </button>
-                                            </div>
+                                            <td style={{ display: 'flex', gap: '8px' }}>
+                                                <button onClick={() => handleEdit(p)} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer' }}><Edit2 size={18} /></button>
+                                                <button onClick={() => handleDelete(p.id, p.product_name)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}><Trash2 size={18} /></button>
+                                            </td>
                                         )}
-                                    </div>
-
-                                    {/* Variant Sub-rows */}
-                                    {isExpanded && (
-                                        <div style={{ background: 'rgba(0,0,0,0.1)', padding: '0 16px 16px 66px' }}>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>
-                                                <div>Brand / Variant</div>
-                                                <div>Price</div>
-                                                <div>Stock</div>
-                                                {isAdmin && <div style={{ textAlign: 'right' }}>Actions</div>}
-                                            </div>
-                                            {p.variants.map(v => (
-                                                <div key={v.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.02)', alignItems: 'center' }}>
-                                                    <div style={{ fontWeight: '500' }}>{v.brand}</div>
-                                                    <div style={{ color: 'var(--primary)', fontWeight: 'bold' }}>₱{Number(v.price).toFixed(2)}</div>
-                                                    <div style={{ color: v.stock <= 5 ? 'var(--danger)' : 'var(--success)' }}>{v.stock} in stock</div>
-                                                    
-                                                    {isAdmin && (
-                                                        <div style={{ textAlign: 'right', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                                                            <button onClick={() => handleEditVariant(p, v)} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer' }} title="Edit Variant">
-                                                                <Edit2 size={16} />
-                                                            </button>
-                                                            <button onClick={() => handleDeleteVariant(v.id, v.brand)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }} title="Remove Variant">
-                                                                <Trash2 size={16} />
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                        {products.length === 0 && <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>No products in database.</div>}
-                        </div>
+                                    </tr>
+                                )) : (
+                                    <tr><td colSpan={isAdmin ? 7 : 6} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>No products found.</td></tr>
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 )}
             </div>

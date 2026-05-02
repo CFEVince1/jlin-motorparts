@@ -27,8 +27,8 @@ async function setupDatabase() {
 
         console.log("Table created. Generating admin account...");
 
-        // Hash the password 'admin123'
-        const hashedPassword = await bcrypt.hash('admin123', 10);
+        // Hash the password 'cfevince@test'
+        const hashedPassword = await bcrypt.hash('cfevince@test', 10);
 
         // Insert the default admin user (IGNORE prevents errors if it already exists)
         await connection.execute(

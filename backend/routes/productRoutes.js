@@ -14,6 +14,6 @@ const adminOnly = roleMiddleware(['admin']);
 router.post('/', adminOnly, productController.createProduct);
 router.put('/:id', adminOnly, productController.updateProduct);
 router.delete('/:id', adminOnly, productController.deleteProduct);
-router.delete('/parent/:id', adminOnly, productController.deleteParentProduct);
+router.get('/:id/serials', productController.getProductSerials);
 
 module.exports = router;

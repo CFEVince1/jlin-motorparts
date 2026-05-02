@@ -9,12 +9,17 @@ router.use(authMiddleware);
 // Only Admin can view reports
 const adminOnly = roleMiddleware(['admin']);
 
-router.get('/daily', adminOnly, reportController.getDailySales);
+// Allow staff to view their daily sales and global low stock
+router.get('/daily', reportController.getDailySales);
 router.get('/monthly', adminOnly, reportController.getMonthlySales);
-router.get('/low-stock', adminOnly, reportController.getLowStock);
+router.get('/low-stock', reportController.getLowStock);
 router.get('/best-selling', adminOnly, reportController.getBestSelling);
 
 // ADD THIS NEW ROUTE
 router.get('/by-cashier', adminOnly, reportController.getSalesByCashier);
+router.get('/categories', adminOnly, reportController.getCategories);
+
+// Admin Dashboard stats
+router.get('/admin-stats', adminOnly, reportController.getAdminStats);
 
 module.exports = router;

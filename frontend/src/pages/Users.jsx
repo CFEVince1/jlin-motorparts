@@ -9,20 +9,33 @@ import { z } from 'zod';
 const userSchema = z.object({
     username: z.string().min(3, 'Username must be at least 3 characters'),
     password: z.string().min(5, 'Password must be at least 5 characters'),
+    confirmPassword: z.string(),
     role: z.enum(['admin', 'staff'], { errorMap: () => ({ message: "Invalid role selected" }) })
+}).refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
 });
 
 const userUpdateSchema = z.object({
     username: z.string().min(3, 'Username must be at least 3 characters'),
     password: z.string().min(5, 'Password must be at least 5 characters').or(z.literal('')),
+    confirmPassword: z.string().or(z.literal('')),
     role: z.enum(['admin', 'staff'], { errorMap: () => ({ message: "Invalid role selected" }) })
+}).refine((data) => {
+    if (data.password && data.password !== data.confirmPassword) {
+        return false;
+    }
+    return true;
+}, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
 });
 
 const Users = () => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    const [formData, setFormData] = useState({ username: '', password: '', role: 'staff' });
+    const [formData, setFormData] = useState({ username: '', password: '', confirmPassword: '', role: 'staff' });
     const [editingId, setEditingId] = useState(null);
 
     const fetchUsers = async () => {
@@ -55,7 +68,7 @@ const Users = () => {
                 await api.post('/users', formData);
                 toast.success('User created');
             }
-            setFormData({ username: '', password: '', role: 'staff' });
+            setFormData({ username: '', password: '', confirmPassword: '', role: 'staff' });
             setEditingId(null);
             fetchUsers();
         } catch (err) {
@@ -79,7 +92,7 @@ const Users = () => {
     };
 
     const handleEdit = (user) => {
-        setFormData({ username: user.username, password: '', role: user.role });
+        setFormData({ username: user.username, password: '', confirmPassword: '', role: user.role });
         setEditingId(user.id);
     };
 
@@ -92,7 +105,7 @@ const Users = () => {
                     <Shield size={20} /> {editingId ? 'Edit User' : 'Add New User'}
                 </h3>
 
-                <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1fr) minmax(200px, 1fr) minmax(200px, 1fr) auto', gap: '16px', alignItems: 'center' }}>
+                <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', alignItems: 'center' }}>
                     <input
                         type="text"
                         placeholder="Username"
@@ -111,13 +124,21 @@ const Users = () => {
                         onChange={e => setFormData({ ...formData, password: e.target.value })}
                     />
 
+                    <input
+                        type="password"
+                        placeholder={editingId ? "Confirm New Password" : "Confirm Password"}
+                        className="input-premium"
+                        required={!editingId || formData.password.length > 0}
+                        value={formData.confirmPassword}
+                        onChange={e => setFormData({ ...formData, confirmPassword: e.target.value })}
+                    />
+
                     <select
                         className="input-premium"
                         style={{ background: 'var(--surface)' }}
                         value={formData.role}
                         onChange={e => setFormData({ ...formData, role: e.target.value })}
                     >
-                        {/* ONLY STAFF AND ADMIN REMAIN */}
                         <option value="staff">Staff / Cashier</option>
                         <option value="admin">Admin</option>
                     </select>
@@ -127,7 +148,7 @@ const Users = () => {
                             <UserPlus size={20} /> {editingId ? 'Update' : 'Add'}
                         </button>
                         {editingId && (
-                            <button type="button" className="btn-secondary" onClick={() => { setEditingId(null); setFormData({ username: '', password: '', role: 'staff' }) }}>
+                            <button type="button" className="btn-secondary" onClick={() => { setEditingId(null); setFormData({ username: '', password: '', confirmPassword: '', role: 'staff' }) }}>
                                 Cancel
                             </button>
                         )}
@@ -168,20 +189,14 @@ const Users = () => {
                                         </td>
                                         <td>{new Date(u.created_at).toLocaleDateString()}</td>
                                         <td style={{ display: 'flex', gap: '8px' }}>
-                                            <button onClick={() => handleEdit(u)} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer' }}><Edit2 size={18} /></button>
-                                            
-                                            <button 
-                                                onClick={() => handleDelete(u.id)} 
-                                                disabled={u.username === 'admin'} 
-                                                style={{ 
-                                                    background: 'none', 
-                                                    border: 'none', 
-                                                    color: u.username === 'admin' ? 'var(--text-muted)' : 'var(--danger)', 
-                                                    cursor: u.username === 'admin' ? 'not-allowed' : 'pointer' 
-                                                }}
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
+                                            {(u.username === 'admin' || u.username === 'allen') ? (
+                                                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic' }}>Protected</span>
+                                            ) : (
+                                                <>
+                                                    <button onClick={() => handleEdit(u)} title="Edit User" style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer' }}><Edit2 size={18} /></button>
+                                                    <button onClick={() => handleDelete(u.id)} title="Delete User" style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}><Trash2 size={18} /></button>
+                                                </>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}

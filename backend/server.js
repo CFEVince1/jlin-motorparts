@@ -37,6 +37,7 @@ app.use('/api/products', require('./routes/productRoutes'));
 app.use('/api/inventory', require('./routes/inventoryRoutes'));
 app.use('/api/sales', require('./routes/salesRoutes'));
 app.use('/api/reports', require('./routes/reportRoutes'));
+app.use('/api/analytics', require('./routes/analyticsRoutes'));
 
 // Basic health check
 app.get('/', (req, res) => {

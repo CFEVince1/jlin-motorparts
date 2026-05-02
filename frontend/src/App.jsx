@@ -34,12 +34,11 @@ function App() {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/pos" element={<POS />} />
-              <Route path="/products" element={<Products />} />
-
+              <Route path="/transactions" element={<Transactions />} />
+              <Route path="/inventory" element={<Inventory />} />
               {/* Admin Roles */}
               <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
-                <Route path="/transactions" element={<Transactions />} />
-                <Route path="/inventory" element={<Inventory />} />
+                <Route path="/products" element={<Products />} />
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/users" element={<Users />} />
               </Route>

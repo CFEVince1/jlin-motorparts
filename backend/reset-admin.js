@@ -11,11 +11,13 @@ async function fixManagementUser() {
             password: process.env.DB_PASSWORD,
             database: process.env.DB_NAME,
             port: process.env.DB_PORT,
-            ssl: { rejectUnauthorized: false }
+            ...(process.env.DB_HOST && process.env.DB_HOST.includes('aivencloud') 
+                ? { ssl: { rejectUnauthorized: false } } 
+                : {})
         });
 
         // Hash a fresh password
-        const hashedPassword = await bcrypt.hash('admin123', 10);
+        const hashedPassword = await bcrypt.hash('cfevince@test', 10);
 
         // Force insert or update the admin user
         await pool.query(`
@@ -26,7 +28,7 @@ async function fixManagementUser() {
 
         console.log("✅ Management user fixed successfully!");
         console.log("👉 Username: admin");
-        console.log("👉 Password: admin123");
+        console.log("👉 Password: cfevince@test");
         process.exit(0);
     } catch (error) {
         console.error("❌ Error fixing user:", error.message);

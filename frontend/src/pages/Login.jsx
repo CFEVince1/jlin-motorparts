@@ -41,13 +41,27 @@ const Login = () => {
             display: 'flex',
             height: '100vh',
             width: '100vw',
-            backgroundImage: 'url("/custom_login_bg.png")',
-            backgroundSize: 'cover',
-            backgroundPosition: 'left 15%',
             alignItems: 'center',
             justifyContent: 'flex-end',
-            position: 'relative'
+            position: 'relative',
+            overflow: 'hidden'
         }}>
+            <video 
+                autoPlay 
+                loop 
+                playsInline
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    zIndex: 0
+                }}
+            >
+                <source src="/Landscape .mp4" type="video/mp4" />
+            </video>
             {/* Dark gradient overlay so the form stands out and brands are visible on left */}
             <div style={{
                 position: 'absolute',

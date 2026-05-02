@@ -10,9 +10,11 @@ const pool = mysql.createPool({
     connectionLimit: 10,
     queueLimit: 0,
     flags: '-LOCAL_INFILE=0',
-    acquireTimeout: 60000,
-    timeout: 60000,
-    ssl: { rejectUnauthorized: false }
+    // acquireTimeout: 60000,
+    // timeout: 60000,
+    ...(process.env.DB_HOST && process.env.DB_HOST.includes('aivencloud') 
+        ? { ssl: { rejectUnauthorized: false } } 
+        : {})
 });
 
 // Promise wrapper for easier async/await usage

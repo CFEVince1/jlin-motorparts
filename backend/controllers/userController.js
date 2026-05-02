@@ -1,5 +1,5 @@
 const db = require('../config/db');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 exports.getAllUsers = async (req, res) => {
     try {
@@ -13,8 +13,14 @@ exports.getAllUsers = async (req, res) => {
 exports.createUser = async (req, res) => {
     const { username, password, role } = req.body;
 
-    if (!username || !password || !role) {
-        return res.status(400).json({ message: 'Please provide all fields' });
+    if (!username || username.length < 3) {
+        return res.status(400).json({ message: 'Username must be at least 3 characters' });
+    }
+    if (!password || password.length < 5) {
+        return res.status(400).json({ message: 'Password must be at least 5 characters' });
+    }
+    if (!role || !['admin', 'staff'].includes(role)) {
+        return res.status(400).json({ message: 'Invalid role' });
     }
 
     try {
@@ -35,6 +41,16 @@ exports.createUser = async (req, res) => {
 exports.updateUser = async (req, res) => {
     const { id } = req.params;
     const { username, password, role } = req.body;
+
+    if (!username || username.length < 3) {
+        return res.status(400).json({ message: 'Username must be at least 3 characters' });
+    }
+    if (password && password.length < 5) {
+        return res.status(400).json({ message: 'Password must be at least 5 characters' });
+    }
+    if (!role || !['admin', 'staff'].includes(role)) {
+        return res.status(400).json({ message: 'Invalid role' });
+    }
 
     try {
         let query = 'UPDATE users SET username = ?, role = ? WHERE id = ?';

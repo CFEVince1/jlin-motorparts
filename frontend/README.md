@@ -21,6 +21,5 @@ The following credentials are created by default when the database is seeded:
 
 | Username   | Password | Role        |
 |------------|----------|-------------|
-| superadmin | 12345    | super_admin |
 | admin1     | 12345    | admin       |
 | staff1     | 12345    | staff       |
