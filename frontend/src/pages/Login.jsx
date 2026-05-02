@@ -49,6 +49,7 @@ const Login = () => {
             <video 
                 autoPlay 
                 loop 
+                muted
                 playsInline
                 style={{
                     position: 'absolute',
