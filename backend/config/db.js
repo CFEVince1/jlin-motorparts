@@ -13,7 +13,10 @@ const pool = mysql.createPool({
     // acquireTimeout: 60000,
     // timeout: 60000,
     ...(process.env.DB_HOST && process.env.DB_HOST.includes('aivencloud') 
-        ? { ssl: { rejectUnauthorized: false } } 
+        ? { ssl: { 
+            ca: require('fs').readFileSync(require('path').join(__dirname, '..', 'ca.pem')),
+            rejectUnauthorized: true 
+        } } 
         : {})
 });
 
