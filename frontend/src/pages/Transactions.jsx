@@ -280,6 +280,10 @@ const Transactions = () => {
 
             <style>
                 {`
+  #printable-receipt * {
+    color: black !important;
+  }
+
   @media print {
     /* Hide everything globally first */
     body * {
