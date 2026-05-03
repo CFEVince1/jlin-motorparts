@@ -147,7 +147,7 @@ const Users = () => {
                         {formErrors.username && <span style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{formErrors.username}</span>}
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
                         <div style={{ position: 'relative', width: '100%' }}>
                             <input
                                 type={showPassword ? "text" : "password"}
@@ -178,7 +178,23 @@ const Users = () => {
                         </div>
                         {formErrors.password && <span style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{formErrors.password}</span>}
                         {(!editingId || formData.password.length > 0) && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '4px', fontSize: '0.75rem' }}>
+                            <div style={{ 
+                                position: 'absolute',
+                                top: '100%',
+                                left: 0,
+                                width: '100%',
+                                zIndex: 10,
+                                background: 'var(--surface)',
+                                border: '1px solid var(--border)',
+                                borderRadius: '8px',
+                                padding: '12px',
+                                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+                                display: 'flex', 
+                                flexDirection: 'column', 
+                                gap: '6px', 
+                                marginTop: '4px', 
+                                fontSize: '0.75rem' 
+                            }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: formData.password.length >= 8 ? 'var(--success)' : 'var(--text-muted)' }}>
                                     {formData.password.length >= 8 ? <Check size={12} /> : <X size={12} />} 8+ characters
                                 </div>
