@@ -129,7 +129,7 @@ const Users = () => {
         <div>
             <h1 style={{ marginBottom: '24px' }}>System Users</h1>
 
-            <div className="glass-panel" style={{ padding: '24px', marginBottom: '24px' }}>
+            <div className="glass-panel" style={{ padding: '24px', marginBottom: '24px', position: 'relative', zIndex: 20 }}>
                 <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Shield size={20} /> {editingId ? 'Edit User' : 'Add New User'}
                 </h3>
@@ -177,7 +177,7 @@ const Users = () => {
                             </button>
                         </div>
                         {formErrors.password && <span style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{formErrors.password}</span>}
-                        {(!editingId || formData.password.length > 0) && (
+                        {formData.password.length > 0 && (
                             <div style={{ 
                                 position: 'absolute',
                                 top: '100%',
