@@ -19,8 +19,16 @@ async function fixManagementUser() {
                 : {})
         });
 
-        // Hash a fresh password
-        const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'fallback_dev_password', 10);
+        // CRITICAL FIX: Pull from environment, fail safely if missing.
+        const adminPassword = process.env.ADMIN_PASSWORD;
+
+        if (!adminPassword || adminPassword.length < 8) {
+            console.error("❌ FATAL ERROR: ADMIN_PASSWORD environment variable is missing or too short.");
+            console.error("Please add ADMIN_PASSWORD=your_secure_password to your .env file.");
+            process.exit(1); 
+        }
+
+        const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
         // Force insert or update the admin user
         await pool.query(`

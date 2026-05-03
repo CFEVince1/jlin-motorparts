@@ -164,19 +164,29 @@ exports.getSales = async (req, res) => {
 };
 
 // ==========================================
-// GET SALE BY ID (For Receipt Printing)
+// GET SALE BY ID (For Receipt Printing) - SECURED
 // ==========================================
 exports.getSaleById = async (req, res) => {
     const { id } = req.params;
+    const userId = req.user.id;
+    const role = req.user.role;
+
     try {
+        // We added s.user_id to the SELECT so we can verify ownership
         const [saleRows] = await db.query(`
-            SELECT s.id, s.total_amount, s.tendered_amount, s.change_due, s.payment_method, s.sale_date, u.username as cashier
+            SELECT s.id, s.total_amount, s.tendered_amount, s.change_due, s.payment_method, s.sale_date, s.user_id, u.username as cashier
             FROM sales s
             JOIN users u ON s.user_id = u.id
             WHERE s.id = ?
         `, [id]);
 
         if (saleRows.length === 0) return res.status(404).json({ message: 'Sale not found' });
+
+        // CRITICAL FIX: IDOR Guard. 
+        // If the user isn't an admin, they can only view sales they processed.
+        if (role !== 'admin' && saleRows[0].user_id !== userId) {
+            return res.status(403).json({ message: 'Access denied: You can only view your own transactions.' });
+        }
 
         const [items] = await db.query(`
             SELECT si.quantity, si.price, si.subtotal, p.name AS product_name, '' AS brand
