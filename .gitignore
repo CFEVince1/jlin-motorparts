@@ -3,3 +3,10 @@ node_modules/
 .env.production
 dist/
 *.log
+
+# Security & Certificates
+ca.pem
+*.pem
+*.key
+*.cert
+.env.*
