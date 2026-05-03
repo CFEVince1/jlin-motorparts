@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
+const { validatePassword } = require('../utils/passwordValidation');
 
 exports.getAllUsers = async (req, res) => {
     try {
@@ -16,8 +17,12 @@ exports.createUser = async (req, res) => {
     if (!username || username.length < 3) {
         return res.status(400).json({ message: 'Username must be at least 3 characters' });
     }
-    if (!password || password.length < 5) {
-        return res.status(400).json({ message: 'Password must be at least 5 characters' });
+    if (!password) {
+        return res.status(400).json({ message: 'Password is required' });
+    }
+    const pwdCheck = await validatePassword(password, username);
+    if (!pwdCheck.valid) {
+        return res.status(400).json({ message: pwdCheck.message });
     }
     if (!role || !['admin', 'staff'].includes(role)) {
         return res.status(400).json({ message: 'Invalid role' });
@@ -45,8 +50,11 @@ exports.updateUser = async (req, res) => {
     if (!username || username.length < 3) {
         return res.status(400).json({ message: 'Username must be at least 3 characters' });
     }
-    if (password && password.length < 5) {
-        return res.status(400).json({ message: 'Password must be at least 5 characters' });
+    if (password) {
+        const pwdCheck = await validatePassword(password, username);
+        if (!pwdCheck.valid) {
+            return res.status(400).json({ message: pwdCheck.message });
+        }
     }
     if (!role || !['admin', 'staff'].includes(role)) {
         return res.status(400).json({ message: 'Invalid role' });

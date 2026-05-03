@@ -11,9 +11,8 @@ exports.createSale = async (req, res) => {
         return res.status(400).json({ message: 'No items in sale' });
     }
 
-    const validMethods = ['Cash'];
-    if (!validMethods.includes(payment_method)) {
-        return res.status(400).json({ message: "Invalid payment method selected." });
+    if (payment_method !== 'Cash') {
+        return res.status(400).json({ message: "Invalid payment method. Only Cash is accepted." });
     }
 
     const connection = await db.getConnection();
@@ -62,15 +61,10 @@ exports.createSale = async (req, res) => {
         let change_due = 0;
         let final_tendered = Number(tendered_amount) || 0;
 
-        if (payment_method === 'Cash') {
-            if (final_tendered < total_amount) {
-                throw new Error("Insufficient payment. Transaction cancelled.");
-            }
-            change_due = final_tendered - total_amount;
-        } else {
-            final_tendered = total_amount;
-            change_due = 0;
+        if (final_tendered < total_amount) {
+            throw new Error("Insufficient payment. Transaction cancelled.");
         }
+        change_due = final_tendered - total_amount;
 
         // 3. Create the Main Sale Record
         const [saleResult] = await connection.query(

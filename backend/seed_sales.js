@@ -55,8 +55,6 @@ async function seedTransactions() {
 
         console.log(`Found ${products.length} products. Seeding 100 transactions...`);
 
-        const paymentMethods = ['Cash'];
-
         for (let i = 0; i < 100; i++) {
             const numItems = Math.floor(Math.random() * 3) + 1; // 1 to 3 items per transaction
             let totalAmount = 0;
@@ -77,8 +75,8 @@ async function seedTransactions() {
                 });
             }
 
-            const paymentMethod = paymentMethods[Math.floor(Math.random() * paymentMethods.length)];
-            const tendered = paymentMethod === 'Cash' ? totalAmount + (Math.random() > 0.5 ? 100 : 0) : totalAmount;
+            const paymentMethod = 'Cash';
+            const tendered = totalAmount + (Math.random() > 0.5 ? 100 : 0);
             const change = tendered - totalAmount;
             const saleDate = getRandomDate();
 

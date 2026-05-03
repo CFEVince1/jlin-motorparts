@@ -71,11 +71,10 @@ exports.getDashboardData = async (req, res) => {
         const [salesTrendsRaw] = await connection.query(`
             SELECT 
                 DATE(sale_date) as date,
-                payment_method,
                 SUM(total_amount) as amount
             FROM sales
             WHERE sale_date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
-            GROUP BY DATE(sale_date), payment_method
+            GROUP BY DATE(sale_date)
             ORDER BY DATE(sale_date) ASC
         `);
 
@@ -92,9 +91,8 @@ exports.getDashboardData = async (req, res) => {
 
         salesTrendsRaw.forEach(row => {
             const dateStr = new Date(row.date).toISOString().split('T')[0];
-            const pMethod = row.payment_method || 'Cash';
             if (salesTrendsMap[dateStr]) {
-                salesTrendsMap[dateStr][pMethod] += Number(row.amount);
+                salesTrendsMap[dateStr].Cash += Number(row.amount);
                 salesTrendsMap[dateStr].Total += Number(row.amount);
             }
         });

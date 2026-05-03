@@ -1,6 +1,7 @@
 require('dotenv').config();
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs'); // Assumes you use bcryptjs for passwords
+const { validatePassword } = require('./utils/passwordValidation');
 
 async function setupDatabase() {
     try {
@@ -30,10 +31,17 @@ async function setupDatabase() {
         // CRITICAL FIX: Pull from environment, fail safely if missing.
         const adminPassword = process.env.ADMIN_PASSWORD;
 
-        if (!adminPassword || adminPassword.length < 8) {
-            console.error("❌ FATAL ERROR: ADMIN_PASSWORD environment variable is missing or too short.");
+        if (!adminPassword) {
+            console.error("❌ FATAL ERROR: ADMIN_PASSWORD environment variable is missing.");
             console.error("Please add ADMIN_PASSWORD=your_secure_password to your .env file.");
             process.exit(1); 
+        }
+
+        const pwdCheck = await validatePassword(adminPassword);
+        if (!pwdCheck.valid) {
+            console.error("❌ FATAL ERROR: ADMIN_PASSWORD is too weak or has been pwned.");
+            console.error(pwdCheck.message);
+            process.exit(1);
         }
 
         const hashedPassword = await bcrypt.hash(adminPassword, 10);

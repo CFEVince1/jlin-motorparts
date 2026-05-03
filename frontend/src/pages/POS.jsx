@@ -286,8 +286,7 @@ const POS = () => {
                                 <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>₱{totalAmount.toFixed(2)}</span>
                             </div>
                             
-                            {paymentMethod === 'Cash' && (
-                                <>
+                            <>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                                         <span style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>Amount Tendered:</span>
                                         <div style={{ position: 'relative' }}>
@@ -306,14 +305,13 @@ const POS = () => {
                                             Insufficient amount
                                         </div>
                                     )}
-                                </>
-                            )}
+                            </>
                         </div>
                         <div style={{ display: 'flex', gap: '12px' }}>
                             <button className="btn-secondary" style={{ flex: 1, padding: '12px' }} onClick={() => setShowConfirmModal(false)}>
                                 Cancel
                             </button>
-                            <button className="btn-primary" style={{ flex: 1, padding: '12px' }} onClick={processPayment} disabled={paymentMethod === 'Cash' && (tenderedAmount === '' || Number(tenderedAmount) < totalAmount)}>
+                            <button className="btn-primary" style={{ flex: 1, padding: '12px' }} onClick={processPayment} disabled={tenderedAmount === '' || Number(tenderedAmount) < totalAmount}>
                                 Confirm & Pay
                             </button>
                         </div>
@@ -380,18 +378,16 @@ const POS = () => {
                                     <span>Payment Method:</span>
                                     <span>{lastTransaction.paymentMethod}</span>
                                 </div>
-                                {lastTransaction.paymentMethod === 'Cash' && (
-                                    <>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span>Tendered:</span>
-                                            <span>₱{lastTransaction.tenderedAmount.toFixed(2)}</span>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span>Change:</span>
-                                            <span>₱{lastTransaction.changeDue.toFixed(2)}</span>
-                                        </div>
-                                    </>
-                                )}
+                                <>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>Tendered:</span>
+                                        <span>₱{lastTransaction.tenderedAmount.toFixed(2)}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>Change:</span>
+                                        <span>₱{lastTransaction.changeDue.toFixed(2)}</span>
+                                    </div>
+                                </>
                             </div>
 
                             <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '0.85rem', fontStyle: 'italic' }}>

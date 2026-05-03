@@ -19,6 +19,7 @@ const Products = () => {
         name: '', 
         brand: '',
         category: '', 
+        cost_price: '',
         selling_price: '', 
         stock: '', 
         is_serialized: false, 
@@ -55,9 +56,9 @@ const Products = () => {
                 name: formData.name,
                 brand: formData.brand,
                 category: formData.category,
-                cost_price: 0,
+                cost_price: Number(formData.cost_price) || 0,
                 selling_price: Number(formData.selling_price),
-                reorder_level: 5,
+                reorder_level: Number(formData.reorder_level) || 5,
                 is_serialized: formData.is_serialized,
                 stock: Number(formData.stock)
             };
@@ -154,6 +155,20 @@ const Products = () => {
                             
                             <input type="number" placeholder="Selling Price (₱)" className="input-premium" required min="0" step="0.01"
                                 value={formData.selling_price} onChange={e => setFormData({ ...formData, selling_price: e.target.value })} />
+                            
+                            <div className="form-group">
+                                <label>Cost Price (₱)</label>
+                                <input 
+                                    type="number" 
+                                    step="0.01" 
+                                    min="0" 
+                                    placeholder="Enter cost price" 
+                                    className="input-premium"
+                                    value={formData.cost_price} 
+                                    onChange={e => setFormData({ ...formData, cost_price: e.target.value })} 
+                                    required 
+                                />
+                            </div>
                         </div>
 
                         <div style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' }}>

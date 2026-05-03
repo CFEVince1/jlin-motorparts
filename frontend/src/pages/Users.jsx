@@ -1,24 +1,34 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { UserPlus, Shield, Trash2, Edit2 } from 'lucide-react';
+import { UserPlus, Shield, Trash2, Edit2, Eye, EyeOff, Check, X } from 'lucide-react';
 import Spinner from '../components/Spinner';
 
 import { z } from 'zod';
 
+const passwordValidation = z.string()
+    .min(8, 'Password must be at least 8 characters')
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).*$/, 'Password must contain uppercase, lowercase, numbers, and special characters')
+    .refine((val) => !/password|12345678|qwerty/i.test(val), {
+        message: 'Password contains common patterns that are easy to guess'
+    });
+
 const userSchema = z.object({
     username: z.string().min(3, 'Username must be at least 3 characters'),
-    password: z.string().min(5, 'Password must be at least 5 characters'),
+    password: passwordValidation,
     confirmPassword: z.string(),
     role: z.enum(['admin', 'staff'], { errorMap: () => ({ message: "Invalid role selected" }) })
 }).refine((data) => data.password === data.confirmPassword, {
     message: "Passwords don't match",
     path: ["confirmPassword"],
+}).refine((data) => data.password.toLowerCase() !== data.username.toLowerCase(), {
+    message: "Password cannot be the same as the username",
+    path: ["password"],
 });
 
 const userUpdateSchema = z.object({
     username: z.string().min(3, 'Username must be at least 3 characters'),
-    password: z.string().min(5, 'Password must be at least 5 characters').or(z.literal('')),
+    password: passwordValidation.or(z.literal('')),
     confirmPassword: z.string().or(z.literal('')),
     role: z.enum(['admin', 'staff'], { errorMap: () => ({ message: "Invalid role selected" }) })
 }).refine((data) => {
@@ -29,6 +39,14 @@ const userUpdateSchema = z.object({
 }, {
     message: "Passwords don't match",
     path: ["confirmPassword"],
+}).refine((data) => {
+    if (data.password && data.password.toLowerCase() === data.username.toLowerCase()) {
+        return false;
+    }
+    return true;
+}, {
+    message: "Password cannot be the same as the username",
+    path: ["password"],
 });
 
 const Users = () => {
@@ -37,6 +55,9 @@ const Users = () => {
 
     const [formData, setFormData] = useState({ username: '', password: '', confirmPassword: '', role: 'staff' });
     const [editingId, setEditingId] = useState(null);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [formErrors, setFormErrors] = useState({});
 
     const fetchUsers = async () => {
         try {
@@ -56,6 +77,7 @@ const Users = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
+            setFormErrors({});
             // Validate data
             if (editingId) {
                 userUpdateSchema.parse(formData);
@@ -72,8 +94,14 @@ const Users = () => {
             setEditingId(null);
             fetchUsers();
         } catch (err) {
-            if (err.errors && Array.isArray(err.errors)) {
-                err.errors.forEach(e => toast.error(e.message));
+            if (err instanceof z.ZodError) {
+                const errors = {};
+                err.errors.forEach(e => {
+                    if (e.path.length > 0) {
+                        errors[e.path[0]] = e.message;
+                    }
+                });
+                setFormErrors(errors);
                 return;
             }
             toast.error(err.response?.data?.message || 'Action failed');
@@ -94,6 +122,7 @@ const Users = () => {
     const handleEdit = (user) => {
         setFormData({ username: user.username, password: '', confirmPassword: '', role: user.role });
         setEditingId(user.id);
+        setFormErrors({});
     };
 
     return (
@@ -105,37 +134,96 @@ const Users = () => {
                     <Shield size={20} /> {editingId ? 'Edit User' : 'Add New User'}
                 </h3>
 
-                <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', alignItems: 'center' }}>
-                    <input
-                        type="text"
-                        placeholder="Username"
-                        className="input-premium"
-                        required
-                        value={formData.username}
-                        onChange={e => setFormData({ ...formData, username: e.target.value })}
-                    />
+                <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <input
+                            type="text"
+                            placeholder="Username"
+                            className="input-premium"
+                            required
+                            value={formData.username}
+                            onChange={e => setFormData({ ...formData, username: e.target.value })}
+                        />
+                        {formErrors.username && <span style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{formErrors.username}</span>}
+                    </div>
 
-                    <input
-                        type="password"
-                        placeholder={editingId ? "New Password (Optional)" : "Password"}
-                        className="input-premium"
-                        required={!editingId}
-                        value={formData.password}
-                        onChange={e => setFormData({ ...formData, password: e.target.value })}
-                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ position: 'relative', width: '100%' }}>
+                            <input
+                                type={showPassword ? "text" : "password"}
+                                placeholder={editingId ? "New Password (Optional)" : "Password"}
+                                className="input-premium"
+                                style={{ width: '100%', paddingRight: '40px' }}
+                                required={!editingId}
+                                value={formData.password}
+                                onChange={e => setFormData({ ...formData, password: e.target.value })}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                style={{
+                                    position: 'absolute',
+                                    right: '10px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--text-muted)',
+                                    cursor: 'pointer',
+                                    padding: '4px'
+                                }}
+                            >
+                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                        </div>
+                        {formErrors.password && <span style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{formErrors.password}</span>}
+                        {(!editingId || formData.password.length > 0) && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '4px', fontSize: '0.75rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: formData.password.length >= 8 ? 'var(--success)' : 'var(--text-muted)' }}>
+                                    {formData.password.length >= 8 ? <Check size={12} /> : <X size={12} />} 8+ characters
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).*$/.test(formData.password) ? 'var(--success)' : 'var(--text-muted)' }}>
+                                    {/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).*$/.test(formData.password) ? <Check size={12} /> : <X size={12} />} Uppercase, lowercase, number & special char
+                                </div>
+                            </div>
+                        )}
+                    </div>
 
-                    <input
-                        type="password"
-                        placeholder={editingId ? "Confirm New Password" : "Confirm Password"}
-                        className="input-premium"
-                        required={!editingId || formData.password.length > 0}
-                        value={formData.confirmPassword}
-                        onChange={e => setFormData({ ...formData, confirmPassword: e.target.value })}
-                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ position: 'relative', width: '100%' }}>
+                            <input
+                                type={showConfirmPassword ? "text" : "password"}
+                                placeholder={editingId ? "Confirm New Password" : "Confirm Password"}
+                                className="input-premium"
+                                style={{ width: '100%', paddingRight: '40px' }}
+                                required={!editingId || formData.password.length > 0}
+                                value={formData.confirmPassword}
+                                onChange={e => setFormData({ ...formData, confirmPassword: e.target.value })}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                style={{
+                                    position: 'absolute',
+                                    right: '10px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--text-muted)',
+                                    cursor: 'pointer',
+                                    padding: '4px'
+                                }}
+                            >
+                                {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                        </div>
+                        {formErrors.confirmPassword && <span style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{formErrors.confirmPassword}</span>}
+                    </div>
 
                     <select
                         className="input-premium"
-                        style={{ background: 'var(--surface)', cursor: 'not-allowed', opacity: 0.7 }}
+                        style={{ background: 'var(--surface)' }}
                         value={formData.role}
                         onChange={e => setFormData({ ...formData, role: e.target.value })}
                         disabled
@@ -148,7 +236,7 @@ const Users = () => {
                             <UserPlus size={20} /> {editingId ? 'Update' : 'Add'}
                         </button>
                         {editingId && (
-                            <button type="button" className="btn-secondary" onClick={() => { setEditingId(null); setFormData({ username: '', password: '', confirmPassword: '', role: 'staff' }) }}>
+                            <button type="button" className="btn-secondary" onClick={() => { setEditingId(null); setFormData({ username: '', password: '', confirmPassword: '', role: 'staff' }); setFormErrors({}); }}>
                                 Cancel
                             </button>
                         )}
