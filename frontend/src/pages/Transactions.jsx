@@ -250,12 +250,12 @@ const Transactions = () => {
                             <tbody>
                                 {receiptDetails.items.map((item, idx) => (
                                     <tr key={idx}>
-                                        <td style={{ padding: '8px 0', borderBottom: 'none' }}>
+                                        <td style={{ padding: '8px 0', borderBottom: 'none', color: 'black' }}>
                                             <div>{item.product_name}</div>
                                             <div style={{ fontSize: '0.8em', color: '#666' }}>{item.brand}</div>
                                         </td>
-                                        <td style={{ padding: '8px 0', textAlign: 'center', borderBottom: 'none' }}>{item.quantity}</td>
-                                        <td style={{ padding: '8px 0', textAlign: 'right', borderBottom: 'none' }}>₱{Number(item.subtotal).toFixed(2)}</td>
+                                        <td style={{ padding: '8px 0', textAlign: 'center', borderBottom: 'none', color: 'black' }}>{item.quantity}</td>
+                                        <td style={{ padding: '8px 0', textAlign: 'right', borderBottom: 'none', color: 'black' }}>₱{Number(item.subtotal).toFixed(2)}</td>
                                     </tr>
                                 ))}
                             </tbody>
