@@ -79,7 +79,7 @@ exports.getDashboardData = async (req, res) => {
             ORDER BY DATE(sale_date) ASC
         `);
 
-        // Format for recharts: { date: 'Mon', Cash: 500, GCash: 200, Card: 0 }
+        // Format for recharts: { date: 'Mon', Cash: 500, Total: 500 }
         const salesTrendsMap = {};
         // Initialize last 7 days
         for (let i = 6; i >= 0; i--) {
@@ -87,7 +87,7 @@ exports.getDashboardData = async (req, res) => {
             d.setDate(d.getDate() - i);
             const dateStr = d.toISOString().split('T')[0];
             const displayDate = d.toLocaleDateString('en-US', { weekday: 'short' });
-            salesTrendsMap[dateStr] = { date: displayDate, _dateStr: dateStr, Cash: 0, GCash: 0, Card: 0, Total: 0 };
+            salesTrendsMap[dateStr] = { date: displayDate, _dateStr: dateStr, Cash: 0, Total: 0 };
         }
 
         salesTrendsRaw.forEach(row => {

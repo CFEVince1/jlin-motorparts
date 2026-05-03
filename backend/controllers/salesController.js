@@ -11,7 +11,7 @@ exports.createSale = async (req, res) => {
         return res.status(400).json({ message: 'No items in sale' });
     }
 
-    const validMethods = ['Cash', 'GCash', 'Card'];
+    const validMethods = ['Cash'];
     if (!validMethods.includes(payment_method)) {
         return res.status(400).json({ message: "Invalid payment method selected." });
     }
