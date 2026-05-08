@@ -8,12 +8,14 @@ router.use(authMiddleware);
 
 // All authenticated users can GET products
 router.get('/', productController.getAllProducts);
+router.get('/motorcycle-units', productController.getMotorcycleUnits);
+router.get('/compatibility-groups', productController.getCompatibilityGroups);
 
 // Only admin can create, update, delete
 const adminOnly = roleMiddleware(['admin']);
 router.post('/', adminOnly, productController.createProduct);
 router.put('/:id', adminOnly, productController.updateProduct);
 router.delete('/:id', adminOnly, productController.deleteProduct);
-router.delete('/parent/:id', adminOnly, productController.deleteParentProduct);
+router.get('/:id/serials', productController.getProductSerials);
 
 module.exports = router;

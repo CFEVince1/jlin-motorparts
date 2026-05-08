@@ -2,6 +2,11 @@ require('dotenv').config();
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs'); // Assumes you use bcryptjs for passwords
 
+// NOTE:
+// Full schema is managed in /db/database.sql.
+// setupDb.js is only for initial minimal bootstrap (users table).
+// Do NOT rely on this for full schema setup.
+
 async function setupDatabase() {
     try {
         console.log("Connecting to Aiven Cloud Database...");

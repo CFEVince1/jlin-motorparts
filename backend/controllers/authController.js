@@ -1,4 +1,4 @@
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 
@@ -6,7 +6,7 @@ exports.login = async (req, res) => {
     const { username, password } = req.body;
 
     try {
-        // Check if user exists
+        // 1. Check if user exists
         const [users] = await db.query('SELECT * FROM users WHERE username = ?', [username]);
 
         if (users.length === 0) {
@@ -15,14 +15,14 @@ exports.login = async (req, res) => {
 
         const user = users[0];
 
-        // Check password
+        // 2. Check password
         const isMatch = await bcrypt.compare(password, user.password);
 
         if (!isMatch) {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
-        // Generate JWT
+        // 3. Generate JWT
         const payload = {
             id: user.id,
             username: user.username,

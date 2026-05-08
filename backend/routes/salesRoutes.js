@@ -5,7 +5,7 @@ const authMiddleware = require('../middleware/authMiddleware');
 
 router.use(authMiddleware);
 
-// Staff, Admin, Super Admin can process and view sales
+// Staff, Admin can process and view sales
 router.post('/', salesController.createSale);
 router.get('/', salesController.getSales);
 router.get('/:id', salesController.getSaleById);
