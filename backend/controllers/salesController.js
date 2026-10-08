@@ -452,7 +452,7 @@ exports.getBestSellers = async (req, res) => {
                 CAST(COUNT(DISTINCT so.id) AS SIGNED) AS order_count
             FROM sales_order_items soi
             JOIN sales_orders so ON soi.sales_order_id = so.id
-            JOIN items i ON (soi.item_id = i.id OR soi.product_id = i.id)
+            JOIN items i ON soi.product_id = i.id
             ${whereClause}
             GROUP BY i.id, i.sku, i.part_number, i.name, i.brand, i.category, i.retail_price, i.selling_price, i.current_stock, i.stock
             ORDER BY units_sold DESC
