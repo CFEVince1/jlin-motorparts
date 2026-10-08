@@ -1,7 +1,7 @@
 import { useState, useEffect, useContext } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { PackagePlus, Trash2, Edit2, Search, BookOpen } from 'lucide-react';
+import { PackagePlus, Trash2, Edit2, Search, History } from 'lucide-react';
 import { AuthContext } from '../context/AuthContextValue';
 import Spinner from '../components/Spinner';
 import { filterProducts } from '../utils/productFilter';
@@ -420,7 +420,7 @@ const Products = () => {
                                         {isAdmin && (
                                             <td style={{ textAlign: 'center' }}>
                                                 <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
-                                                    <button onClick={() => setLedgerTarget(p)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }} title="View Immutable Ledger"><BookOpen size={16} /></button>
+                                                    <button onClick={() => setLedgerTarget(p)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }} title="View Stock Movement History"><History size={16} /></button>
                                                     <button onClick={() => setEditingProductModal(p)} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer' }} title="Edit Product Metadata"><Edit2 size={16} /></button>
                                                     <button onClick={() => handleDelete(p.id, p.product_name)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer' }} title="Delete Product"><Trash2 size={16} /></button>
                                                 </div>
