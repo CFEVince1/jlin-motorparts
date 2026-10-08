@@ -295,7 +295,7 @@ exports.recordAdjustment = async (req, res, next) => {
         if (resolvedType === 'FOUND') {
             if (!resolvedLossTxId && resolvedLossRef) {
                 const [lossLookup] = await connection.query(
-                    'SELECT id FROM inventory_transactions WHERE transaction_type = "LOSS" AND product_id = ? AND reference_no = ? ORDER BY id DESC LIMIT 1',
+                    "SELECT id FROM inventory_transactions WHERE transaction_type = 'LOSS' AND product_id = ? AND reference_no = ? ORDER BY id DESC LIMIT 1",
                     [resolvedId, resolvedLossRef]
                 );
                 if (lossLookup.length > 0) {
