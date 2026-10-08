@@ -428,7 +428,7 @@ exports.deleteProduct = async (req, res) => {
 exports.getProductSerials = async (req, res) => {
     const { id } = req.params;
     try {
-        const [serials] = await db.query('SELECT id, serial_number FROM product_serials WHERE product_id = ? AND status = "available"', [id]);
+        const [serials] = await db.query("SELECT id, serial_number FROM product_serials WHERE product_id = ? AND status = 'available'", [id]);
         res.json(serials);
     } catch (err) {
         res.status(500).json({ message: 'Error fetching serial numbers', error: err.message });
