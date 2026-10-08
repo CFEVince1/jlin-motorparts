@@ -149,67 +149,6 @@ const Login = () => {
                         <button type="submit" className="btn-primary" style={{ marginTop: '10px' }}>
                             <LogIn size={20} /> Login
                         </button>
-
-                        {/* Demo Mode / Quick Test Credentials (for Vercel & Defense Panel) */}
-                        <div style={{
-                            marginTop: '16px',
-                            paddingTop: '14px',
-                            borderTop: '1px solid var(--border)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '8px'
-                        }}>
-                            <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                fontSize: '0.72rem',
-                                color: 'var(--text-muted)'
-                            }}>
-                                <span>Quick Credentials:</span>
-                                <span style={{
-                                    fontSize: '0.68rem',
-                                    padding: '2px 6px',
-                                    borderRadius: '4px',
-                                    background: 'rgba(16, 185, 129, 0.12)',
-                                    color: '#10b981',
-                                    border: '1px solid rgba(16, 185, 129, 0.25)'
-                                }}>
-                                    🟢 Live Cloud Database
-                                </span>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                                <button
-                                    type="button"
-                                    onClick={() => { setUsername('admin'); setPassword('admin123'); }}
-                                    className="btn-secondary"
-                                    style={{
-                                        fontSize: '0.74rem',
-                                        height: '28px',
-                                        padding: '0 8px',
-                                        cursor: 'pointer'
-                                    }}
-                                    title="Fill admin credentials"
-                                >
-                                    Admin (admin123)
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => { setUsername('staff'); setPassword('staff123'); }}
-                                    className="btn-secondary"
-                                    style={{
-                                        fontSize: '0.74rem',
-                                        height: '28px',
-                                        padding: '0 8px',
-                                        cursor: 'pointer'
-                                    }}
-                                    title="Fill staff credentials"
-                                >
-                                    Staff (staff123)
-                                </button>
-                            </div>
-                        </div>
                     </form>
                 </div>
             </div>
