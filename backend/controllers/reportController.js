@@ -115,7 +115,7 @@ exports.getDailySales = async (req, res) => {
         const { where, params } = buildDateAndUserFilters(req);
         const dateFilter = where.length ? `AND ${where.join(' AND ')}` : '';
         let query = `
-            SELECT DATE(sale_date) as date, COALESCE(SUM(total_amount), 0) as total_revenue, COUNT(id) as total_transactions
+            SELECT CURDATE() as date, COALESCE(SUM(total_amount), 0) as total_revenue, COUNT(id) as total_transactions
             FROM sales s WHERE DATE(sale_date) = CURDATE()
             ${dateFilter}
         `;
@@ -132,7 +132,7 @@ exports.getMonthlySales = async (req, res) => {
         const { where, params } = buildDateAndUserFilters(req);
         const dateFilter = where.length ? `AND ${where.join(' AND ')}` : '';
         const [sales] = await db.query(`
-            SELECT DATE_FORMAT(sale_date, '%Y-%m') as month, COALESCE(SUM(total_amount), 0) as total_revenue, COUNT(id) as total_transactions
+            SELECT DATE_FORMAT(CURDATE(), '%Y-%m') as month, COALESCE(SUM(total_amount), 0) as total_revenue, COUNT(id) as total_transactions
             FROM sales s WHERE YEAR(sale_date) = YEAR(CURDATE()) AND MONTH(sale_date) = MONTH(CURDATE())
             ${dateFilter}
         `, params);
@@ -305,7 +305,7 @@ exports.getSalesByCashier = async (req, res) => {
             FROM sales s
             JOIN users u ON s.user_id = u.id
             ${dateFilter}
-            GROUP BY u.id
+            GROUP BY u.id, u.username
             ORDER BY total_revenue DESC
         `, params);
         res.json(sales);
