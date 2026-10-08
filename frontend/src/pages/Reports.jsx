@@ -424,8 +424,8 @@ const Reports = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {salesByMotorcycle.length > 0 ? salesByMotorcycle.map(row => (
-                                    <tr key={row.motorcycle_unit_id}>
+                                {salesByMotorcycle.length > 0 ? salesByMotorcycle.map((row, idx) => (
+                                    <tr key={row.motorcycle_unit_id || row.model || row.motorcycle_model || idx}>
                                         <td>
                                             <div>{row.motorcycle_display || row.motorcycle_model}</div>
                                             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{row.part_numbers || 'No parts'}</div>

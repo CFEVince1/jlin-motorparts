@@ -182,7 +182,7 @@ export default function BestSellersBar({ onAddToCart }) {
 
             return (
               <div
-                key={item.id}
+                key={item.product_id || item.id || index}
                 onClick={() => !isOutOfStock && (onAddToCart ? onAddToCart(item) : navigate('/pos'))}
                 className={`relative flex flex-col justify-between rounded-lg border p-2.5 transition cursor-pointer select-none ${
                   isOutOfStock

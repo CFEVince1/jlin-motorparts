@@ -389,6 +389,7 @@ exports.getAdjustmentsReport = async (req, res, next) => {
                 p.brand,
                 p.category,
                 it.transaction_type,
+                it.transaction_type AS movement_type,
                 it.quantity,
                 it.quantity_change,
                 it.balance_before,
@@ -396,11 +397,13 @@ exports.getAdjustmentsReport = async (req, res, next) => {
                 it.unit_cost,
                 (it.quantity * COALESCE(it.unit_cost, 0)) AS total_value,
                 it.reference_type,
+                it.reference_type AS reference_code,
                 it.loss_transaction_id,
                 it.remarks,
                 it.notes,
                 it.created_at,
-                u.username AS created_by_username
+                u.username AS created_by_username,
+                u.username AS staff_name
             FROM inventory_transactions it
             JOIN products p ON p.id = it.product_id
             LEFT JOIN users u ON u.id = it.created_by
@@ -424,8 +427,19 @@ exports.getAdjustmentsReport = async (req, res, next) => {
         const summary = {
             total_adjustments: adjustments.length,
             total_units: adjustments.reduce((acc, a) => acc + Number(a.quantity), 0),
-            total_value: adjustments.reduce((acc, a) => acc + Number(a.total_value), 0)
+            total_value: adjustments.reduce((acc, a) => acc + Number(a.total_value), 0),
+            DAMAGE: 0,
+            LOSS: 0,
+            RETURN_TO_SUPPLIER: 0,
+            FOUND: 0
         };
+
+        groupedTotals.forEach(gt => {
+            const key = gt.transaction_type?.toUpperCase();
+            if (key) {
+                summary[key] = Number(gt.total_quantity || 0);
+            }
+        });
 
         res.json({
             adjustments,

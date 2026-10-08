@@ -1,12 +1,22 @@
 import axios from 'axios';
 import { isMockModeActive, handleMockRequest } from './mockEngine';
 
+const getBaseURL = () => {
+    if (import.meta.env.VITE_API_URL) {
+        return import.meta.env.VITE_API_URL;
+    }
+    if (typeof window !== 'undefined' && window.location.hostname && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        return 'https://jlin-motorparts.onrender.com/api';
+    }
+    return 'http://localhost:5000/api';
+};
+
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+    baseURL: getBaseURL(),
     headers: {
         'Content-Type': 'application/json',
     },
-    timeout: 10000 // 10s timeout to avoid hanging if free tier backend is sleeping
+    timeout: 15000 // 15s to allow Render cold-start wake-up
 });
 
 // Custom adapter to intercept requests in Mock Mode before hitting network
