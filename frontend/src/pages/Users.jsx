@@ -3,6 +3,7 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import { UserPlus, Shield, Trash2, Edit2, Eye, EyeOff, Check, X } from 'lucide-react';
 import Spinner from '../components/Spinner';
+import useForm from '../hooks/useForm';
 
 import { z } from 'zod';
 
@@ -49,15 +50,24 @@ const userUpdateSchema = z.object({
     path: ["password"],
 });
 
+const initialUserState = { username: '', password: '', confirmPassword: '', role: 'staff' };
+
 const Users = () => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    const [formData, setFormData] = useState({ username: '', password: '', confirmPassword: '', role: 'staff' });
+    const {
+        values: formData,
+        setValues: setFormData,
+        errors: formErrors,
+        setErrors: setFormErrors,
+        handleChange,
+        resetForm
+    } = useForm(initialUserState);
+
     const [editingId, setEditingId] = useState(null);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    const [formErrors, setFormErrors] = useState({});
 
     const fetchUsers = async () => {
         try {
@@ -90,7 +100,7 @@ const Users = () => {
                 await api.post('/users', formData);
                 toast.success('User created');
             }
-            setFormData({ username: '', password: '', confirmPassword: '', role: 'staff' });
+            resetForm();
             setEditingId(null);
             fetchUsers();
         } catch (err) {
@@ -138,11 +148,12 @@ const Users = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <input
                             type="text"
+                            name="username"
                             placeholder="Username"
                             className="input-premium"
                             required
                             value={formData.username}
-                            onChange={e => setFormData({ ...formData, username: e.target.value })}
+                            onChange={handleChange}
                         />
                         {formErrors.username && <span style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{formErrors.username}</span>}
                     </div>
@@ -151,12 +162,13 @@ const Users = () => {
                         <div style={{ position: 'relative', width: '100%' }}>
                             <input
                                 type={showPassword ? "text" : "password"}
+                                name="password"
                                 placeholder={editingId ? "New Password (Optional)" : "Password"}
                                 className="input-premium"
                                 style={{ width: '100%', paddingRight: '40px' }}
                                 required={!editingId}
                                 value={formData.password}
-                                onChange={e => setFormData({ ...formData, password: e.target.value })}
+                                onChange={handleChange}
                             />
                             <button
                                 type="button"
@@ -209,12 +221,13 @@ const Users = () => {
                         <div style={{ position: 'relative', width: '100%' }}>
                             <input
                                 type={showConfirmPassword ? "text" : "password"}
+                                name="confirmPassword"
                                 placeholder={editingId ? "Confirm New Password" : "Confirm Password"}
                                 className="input-premium"
                                 style={{ width: '100%', paddingRight: '40px' }}
                                 required={!editingId || formData.password.length > 0}
                                 value={formData.confirmPassword}
-                                onChange={e => setFormData({ ...formData, confirmPassword: e.target.value })}
+                                onChange={handleChange}
                             />
                             <button
                                 type="button"
@@ -238,10 +251,10 @@ const Users = () => {
                     </div>
 
                     <select
+                        name="role"
                         className="input-premium"
-                        style={{ background: 'var(--surface)' }}
                         value={formData.role}
-                        onChange={e => setFormData({ ...formData, role: e.target.value })}
+                        onChange={handleChange}
                         disabled
                     >
                         <option value="staff">Staff / Cashier</option>
@@ -252,7 +265,7 @@ const Users = () => {
                             <UserPlus size={20} /> {editingId ? 'Update' : 'Add'}
                         </button>
                         {editingId && (
-                            <button type="button" className="btn-secondary" onClick={() => { setEditingId(null); setFormData({ username: '', password: '', confirmPassword: '', role: 'staff' }); setFormErrors({}); }}>
+                            <button type="button" className="btn-secondary" onClick={() => { setEditingId(null); resetForm(); }}>
                                 Cancel
                             </button>
                         )}

@@ -4,10 +4,12 @@ import Sidebar from './Sidebar';
 const MainLayout = () => {
     return (
         <div className="app-container">
-            <Sidebar />
-            <div className="main-content">
+            <aside className="print-hide" style={{ height: '100vh', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+                <Sidebar />
+            </aside>
+            <main className="main-content">
                 <Outlet />
-            </div>
+            </main>
         </div>
     );
 };

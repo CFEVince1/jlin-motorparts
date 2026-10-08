@@ -1,25 +1,28 @@
 const express = require('express');
 const router = express.Router();
 const compatibilityController = require('../controllers/compatibilityController');
-const authMiddleware = require('../middleware/authMiddleware');
+const { authenticateToken } = require('../middleware/auth');
 const roleMiddleware = require('../middleware/roleMiddleware');
 
-router.use(authMiddleware);
+router.use(authenticateToken);
 
-// Only admin can manage compatibility structures
+// Accessible by all authenticated staff & admins
+router.get('/options', compatibilityController.getCompatibilityOptions);
+router.get('/search', compatibilityController.searchCompatibility);
+
+// Admin-only management routes
 const adminOnly = roleMiddleware(['admin']);
-router.use(adminOnly);
 
 // Motorcycle Units CRUD
-router.get('/motorcycle-units', compatibilityController.getMotorcycleUnits);
-router.post('/motorcycle-units', compatibilityController.createMotorcycleUnit);
-router.put('/motorcycle-units/:id', compatibilityController.updateMotorcycleUnit);
-router.delete('/motorcycle-units/:id', compatibilityController.deleteMotorcycleUnit);
+router.get('/motorcycle-units', adminOnly, compatibilityController.getMotorcycleUnits);
+router.post('/motorcycle-units', adminOnly, compatibilityController.createMotorcycleUnit);
+router.put('/motorcycle-units/:id', adminOnly, compatibilityController.updateMotorcycleUnit);
+router.delete('/motorcycle-units/:id', adminOnly, compatibilityController.deleteMotorcycleUnit);
 
 // Compatibility Groups CRUD
-router.get('/groups', compatibilityController.getCompatibilityGroups);
-router.post('/groups', compatibilityController.createCompatibilityGroup);
-router.put('/groups/:id', compatibilityController.updateCompatibilityGroup);
-router.delete('/groups/:id', compatibilityController.deleteCompatibilityGroup);
+router.get('/groups', adminOnly, compatibilityController.getCompatibilityGroups);
+router.post('/groups', adminOnly, compatibilityController.createCompatibilityGroup);
+router.put('/groups/:id', adminOnly, compatibilityController.updateCompatibilityGroup);
+router.delete('/groups/:id', adminOnly, compatibilityController.deleteCompatibilityGroup);
 
 module.exports = router;

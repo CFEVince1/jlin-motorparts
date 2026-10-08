@@ -13,6 +13,11 @@ import Reports from './pages/Reports';
 import Users from './pages/Users';
 import Transactions from './pages/Transactions';
 import ManageCompatibility from './pages/ManageCompatibility';
+import StockReceiveScreen from './pages/StockReceiveScreen';
+import CompatibilitySearch from './pages/CompatibilitySearch';
+import AdjustmentsReport from './pages/AdjustmentsReport';
+import StaffProfileScreen from './pages/StaffProfileScreen';
+import Suppliers from './pages/Suppliers';
 
 function App() {
   return (
@@ -20,8 +25,9 @@ function App() {
       <Router>
         <Toaster position="top-right" toastOptions={{
           style: {
-            background: '#333',
-            color: '#fff',
+            background: 'var(--surface)',
+            color: 'var(--text-main)',
+            border: '1px solid var(--border)',
             borderRadius: '8px'
           }
         }}
@@ -36,12 +42,17 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/pos" element={<POS />} />
               <Route path="/transactions" element={<Transactions />} />
+              <Route path="/compatibility-search" element={<CompatibilitySearch />} />
+              <Route path="/profile" element={<StaffProfileScreen />} />
               <Route path="/inventory" element={<Inventory />} />
               {/* Admin Roles */}
               <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
                 <Route path="/products" element={<Products />} />
+                <Route path="/suppliers" element={<Suppliers />} />
+                <Route path="/stock-receive" element={<StockReceiveScreen />} />
                 <Route path="/manage-compatibility" element={<ManageCompatibility />} />
                 <Route path="/reports" element={<Reports />} />
+                <Route path="/reports/adjustments" element={<AdjustmentsReport />} />
                 <Route path="/users" element={<Users />} />
               </Route>
             </Route>

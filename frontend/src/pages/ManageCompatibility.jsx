@@ -3,21 +3,33 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import { Settings2, Trash2, Edit2, Plus, Bike } from 'lucide-react';
 import Spinner from '../components/Spinner';
+import useForm from '../hooks/useForm';
 
 const formatMotorcycleUnit = (unit) => `${unit.brand} ${unit.model} ${unit.year_model || ''}`.trim();
+
+const initialUnitForm = { brand: '', model: '', year_model: '' };
+const initialGroupForm = { group_name: '', description: '', motorcycle_unit_ids: [] };
 
 const ManageCompatibility = () => {
     const [motorcycleUnits, setMotorcycleUnits] = useState([]);
     const [compatibilityGroups, setCompatibilityGroups] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // Form states
-    const initialUnitForm = { brand: '', model: '', year_model: '' };
-    const [unitForm, setUnitForm] = useState(initialUnitForm);
+    // Form states using useForm
+    const {
+        values: unitForm,
+        setValues: setUnitForm,
+        handleChange: handleUnitChange,
+        resetForm: resetUnitForm
+    } = useForm(initialUnitForm);
     const [editingUnitId, setEditingUnitId] = useState(null);
 
-    const initialGroupForm = { group_name: '', description: '', motorcycle_unit_ids: [] };
-    const [groupForm, setGroupForm] = useState(initialGroupForm);
+    const {
+        values: groupForm,
+        setValues: setGroupForm,
+        handleChange: handleGroupChange,
+        resetForm: resetGroupForm
+    } = useForm(initialGroupForm);
     const [editingGroupId, setEditingGroupId] = useState(null);
 
     const fetchData = async () => {
@@ -52,7 +64,7 @@ const ManageCompatibility = () => {
                 await api.post('/compatibility/motorcycle-units', unitForm);
                 toast.success('Motorcycle unit added');
             }
-            setUnitForm(initialUnitForm);
+            resetUnitForm();
             setEditingUnitId(null);
             fetchData();
         } catch (err) {
@@ -104,7 +116,7 @@ const ManageCompatibility = () => {
                 await api.post('/compatibility/groups', groupForm);
                 toast.success('Platform group added');
             }
-            setGroupForm(initialGroupForm);
+            resetGroupForm();
             setEditingGroupId(null);
             fetchData();
         } catch (err) {
@@ -156,25 +168,25 @@ const ManageCompatibility = () => {
                     <form onSubmit={handleUnitSubmit} style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
                         <div style={{ flex: '1 1 200px' }}>
                             <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Brand *</label>
-                            <input type="text" className="input-premium" required placeholder="e.g., Yamaha"
-                                value={unitForm.brand} onChange={e => setUnitForm({ ...unitForm, brand: e.target.value })} />
+                            <input type="text" name="brand" className="input-premium" required placeholder="e.g., Yamaha"
+                                value={unitForm.brand} onChange={handleUnitChange} />
                         </div>
                         <div style={{ flex: '1 1 200px' }}>
                             <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Model *</label>
-                            <input type="text" className="input-premium" required placeholder="e.g., Mio i125"
-                                value={unitForm.model} onChange={e => setUnitForm({ ...unitForm, model: e.target.value })} />
+                            <input type="text" name="model" className="input-premium" required placeholder="e.g., Mio i125"
+                                value={unitForm.model} onChange={handleUnitChange} />
                         </div>
                         <div style={{ flex: '1 1 200px' }}>
                             <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Year (Optional)</label>
-                            <input type="text" className="input-premium" placeholder="e.g., 2023"
-                                value={unitForm.year_model} onChange={e => setUnitForm({ ...unitForm, year_model: e.target.value })} />
+                            <input type="text" name="year_model" className="input-premium" placeholder="e.g., 2023"
+                                value={unitForm.year_model} onChange={handleUnitChange} />
                         </div>
                         <div style={{ display: 'flex', gap: '8px' }}>
                             <button type="submit" className="btn-primary" style={{ height: '42px' }}>
                                 {editingUnitId ? 'Save Changes' : <><Plus size={18} /> Add Unit</>}
                             </button>
                             {editingUnitId && (
-                                <button type="button" className="btn-secondary" style={{ height: '42px' }} onClick={() => { setEditingUnitId(null); setUnitForm(initialUnitForm); }}>
+                                <button type="button" className="btn-secondary" style={{ height: '42px' }} onClick={() => { setEditingUnitId(null); resetUnitForm(); }}>
                                     Cancel
                                 </button>
                             )}
@@ -200,7 +212,7 @@ const ManageCompatibility = () => {
                                         <td>{unit.model}</td>
                                         <td style={{ color: 'var(--text-muted)' }}>{unit.year_model || '-'}</td>
                                         <td style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                                            <button onClick={() => handleUnitEdit(unit)} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer' }}><Edit2 size={18} /></button>
+                                            <button onClick={() => handleUnitEdit(unit)} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer' }}><Edit2 size={18} /></button>
                                             <button onClick={() => handleUnitDelete(unit.id, formatMotorcycleUnit(unit))} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}><Trash2 size={18} /></button>
                                         </td>
                                     </tr>
@@ -220,20 +232,20 @@ const ManageCompatibility = () => {
                 </h2>
 
                 <div className="glass-panel" style={{ padding: '24px', marginBottom: '24px' }}>
-                    <h3 style={{ marginBottom: '16px', color: 'var(--accent)' }}>
+                    <h3 style={{ marginBottom: '16px', color: 'var(--primary)', fontWeight: 600 }}>
                         {editingGroupId ? 'Edit Platform Group' : 'Add New Platform Group'}
                     </h3>
                     <form onSubmit={handleGroupSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
                             <div style={{ flex: '1 1 300px' }}>
                                 <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Platform Name *</label>
-                                <input type="text" className="input-premium" required placeholder="e.g., Yamaha Mio Platform"
-                                    value={groupForm.group_name} onChange={e => setGroupForm({ ...groupForm, group_name: e.target.value })} />
+                                <input type="text" name="group_name" className="input-premium" required placeholder="e.g., Yamaha Mio Platform"
+                                    value={groupForm.group_name} onChange={handleGroupChange} />
                             </div>
                             <div style={{ flex: '2 1 400px' }}>
                                 <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Description</label>
-                                <input type="text" className="input-premium" placeholder="e.g., Shared parts for Mio family scooters"
-                                    value={groupForm.description} onChange={e => setGroupForm({ ...groupForm, description: e.target.value })} />
+                                <input type="text" name="description" className="input-premium" placeholder="e.g., Shared parts for Mio family scooters"
+                                    value={groupForm.description} onChange={handleGroupChange} />
                             </div>
                         </div>
 
@@ -244,12 +256,12 @@ const ManageCompatibility = () => {
                                     const unitId = Number(unit.id);
                                     const checked = groupForm.motorcycle_unit_ids.map(Number).includes(unitId);
                                     return (
-                                        <label key={unit.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: checked ? 'var(--accent)' : 'var(--text-main)' }}>
+                                        <label key={unit.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: checked ? 'var(--primary)' : 'var(--text-main)' }}>
                                             <input
                                                 type="checkbox"
                                                 checked={checked}
                                                 onChange={() => toggleGroupUnit(unitId)}
-                                                style={{ accentColor: 'var(--accent)', width: '18px', height: '18px' }}
+                                                style={{ accentColor: 'var(--primary)', width: '18px', height: '18px' }}
                                             />
                                             {formatMotorcycleUnit(unit)}
                                         </label>
@@ -262,11 +274,11 @@ const ManageCompatibility = () => {
                         </div>
 
                         <div style={{ display: 'flex', gap: '8px' }}>
-                            <button type="submit" className="btn-primary" style={{ background: 'var(--accent)' }}>
+                            <button type="submit" className="btn-primary">
                                 {editingGroupId ? 'Save Platform' : <><Plus size={18} /> Add Platform</>}
                             </button>
                             {editingGroupId && (
-                                <button type="button" className="btn-secondary" onClick={() => { setEditingGroupId(null); setGroupForm(initialGroupForm); }}>
+                                <button type="button" className="btn-secondary" onClick={() => { setEditingGroupId(null); resetGroupForm(); }}>
                                     Cancel
                                 </button>
                             )}
@@ -288,7 +300,7 @@ const ManageCompatibility = () => {
                             <tbody>
                                 {compatibilityGroups.length > 0 ? compatibilityGroups.map(group => (
                                     <tr key={group.id}>
-                                        <td style={{ fontWeight: 'bold', color: 'var(--accent)' }}>{group.group_name}</td>
+                                        <td style={{ fontWeight: '600', color: 'var(--primary)' }}>{group.group_name}</td>
                                         <td style={{ color: 'var(--text-muted)' }}>{group.description || '-'}</td>
                                         <td>
                                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
@@ -300,7 +312,7 @@ const ManageCompatibility = () => {
                                             </div>
                                         </td>
                                         <td style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                                            <button onClick={() => handleGroupEdit(group)} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer' }}><Edit2 size={18} /></button>
+                                            <button onClick={() => handleGroupEdit(group)} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer' }}><Edit2 size={18} /></button>
                                             <button onClick={() => handleGroupDelete(group.id, group.group_name)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}><Trash2 size={18} /></button>
                                         </td>
                                     </tr>

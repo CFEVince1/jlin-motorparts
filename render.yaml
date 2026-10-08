@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: jlin-inventory-api
+    env: node
+    plan: free
+    region: singapore # or oregon / frankfurt
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: JWT_SECRET
+        generateValue: true
+      # Connect with Aiven MySQL:
+      # Set DATABASE_URL in Render dashboard environment settings
+      # Value: mysql://avnadmin:PASSWORD@HOST:PORT/defaultdb?ssl-mode=REQUIRED

@@ -1,17 +1,26 @@
 const express = require('express');
 const router = express.Router();
 const inventoryController = require('../controllers/inventoryController');
-const authMiddleware = require('../middleware/authMiddleware');
+const { authenticateToken } = require('../middleware/auth');
 const roleMiddleware = require('../middleware/roleMiddleware');
-const { validateStock } = require('../middleware/validation');
 
-router.use(authMiddleware);
+router.use(authenticateToken);
 
-// Admin can manage inventory
 const adminOnly = roleMiddleware(['admin']);
 
-router.get('/', adminOnly, inventoryController.getInventory);
-router.post('/stock-in', adminOnly, validateStock, inventoryController.stockIn);
-router.post('/stock-out', adminOnly, validateStock, inventoryController.stockOut);
+// Core inventory listing
+router.get('/', inventoryController.getInventory);
+
+// Stock receiving & adjustments
+router.post('/receive', adminOnly, inventoryController.receiveStock);
+router.post('/adjustments', adminOnly, inventoryController.recordAdjustment);
+
+// Audit & loss recovery
+router.get('/items/:id/open-losses', inventoryController.getOpenLosses);
+router.get('/items/:id/ledger', inventoryController.getItemLedger);
+
+// Legacy direct stock in / stock out endpoints
+router.post('/stock-in', adminOnly, inventoryController.stockIn);
+router.post('/stock-out', adminOnly, inventoryController.stockOut);
 
 module.exports = router;
