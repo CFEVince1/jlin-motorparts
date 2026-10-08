@@ -2,6 +2,9 @@ import { useState, useEffect, useContext } from 'react';
 import api from '../services/api';
 import { TrendingUp, AlertTriangle, DollarSign, ShoppingCart, Award, ChevronLeft, ChevronRight } from 'lucide-react';
 import { AuthContext } from '../context/AuthContextValue';
+import { formatCurrency } from '../utils/formatters';
+import BestSellersBar from '../components/BestSellersBar';
+import FitmentSearchWidget from '../components/FitmentSearchWidget';
 
 const Dashboard = () => {
     const { user } = useContext(AuthContext);
@@ -59,66 +62,96 @@ const Dashboard = () => {
 
     return (
         <div>
-            <h1 style={{ marginBottom: '24px' }}>{user?.role === 'admin' ? 'Admin Dashboard' : 'Staff Dashboard'}</h1>
+            <h1>{user?.role === 'admin' ? 'Admin Dashboard' : 'Staff Dashboard'}</h1>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '24px', marginBottom: '32px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '24px' }}>
 
                 {user?.role === 'admin' ? (
                     <>
-                        <div className="glass-panel" style={{ padding: '24px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                            <div style={{ background: 'rgba(50, 215, 75, 0.2)', padding: '16px', borderRadius: '12px', color: 'var(--success)' }}>
-                                <TrendingUp size={32} />
+                        <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ background: 'rgba(5, 150, 105, 0.15)', padding: '10px', borderRadius: '8px', color: 'var(--primary)' }}>
+                                <TrendingUp size={22} />
                             </div>
                             <div>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '4px' }}>Total Sales</div>
-                                <div style={{ fontSize: '1.6rem', fontWeight: '700' }}>₱{Number(stats.adminStats?.total_sales || 0).toLocaleString()}</div>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Total Sales</div>
+                                <div style={{ fontSize: '1.5rem', fontWeight: '700', lineHeight: 1.2 }}>{formatCurrency(stats.adminStats?.total_sales || 0)}</div>
                             </div>
                         </div>
 
-                        <div className="glass-panel" style={{ padding: '24px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                            <div style={{ background: 'rgba(255, 214, 10, 0.2)', padding: '16px', borderRadius: '12px', color: 'var(--accent)' }}>
-                                <DollarSign size={32} />
+                        <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ background: 'rgba(16, 185, 129, 0.15)', padding: '10px', borderRadius: '8px', color: 'var(--success)' }}>
+                                <DollarSign size={22} />
                             </div>
                             <div>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '4px' }}>Total Profit</div>
-                                <div style={{ fontSize: '1.6rem', fontWeight: '700' }}>₱{Number(stats.adminStats?.total_profit || 0).toLocaleString()}</div>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Total Profit</div>
+                                <div style={{ fontSize: '1.5rem', fontWeight: '700', lineHeight: 1.2 }}>{formatCurrency(stats.adminStats?.total_profit || 0)}</div>
                             </div>
                         </div>
 
-                        <div className="glass-panel" style={{ padding: '24px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                            <div style={{ background: 'rgba(10, 132, 255, 0.2)', padding: '16px', borderRadius: '12px', color: '#0a84ff' }}>
-                                <ShoppingCart size={32} />
+                        <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ background: 'rgba(10, 132, 255, 0.15)', padding: '10px', borderRadius: '8px', color: 'var(--accent)' }}>
+                                <ShoppingCart size={22} />
                             </div>
                             <div>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '4px' }}>Total Transactions</div>
-                                <div style={{ fontSize: '1.6rem', fontWeight: '700' }}>{stats.adminStats?.total_transactions || 0}</div>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Total Transactions</div>
+                                <div style={{ fontSize: '1.5rem', fontWeight: '700', lineHeight: 1.2 }}>{stats.adminStats?.total_transactions || 0}</div>
+                            </div>
+                        </div>
+
+                        <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ background: 'rgba(239, 68, 68, 0.15)', padding: '10px', borderRadius: '8px', color: 'var(--danger)' }}>
+                                <AlertTriangle size={22} />
+                            </div>
+                            <div>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Low Stock Items</div>
+                                <div style={{ fontSize: '1.5rem', fontWeight: '700', lineHeight: 1.2, color: stats.lowStock.length > 0 ? 'var(--danger)' : 'var(--success)' }}>
+                                    {stats.lowStock.length}
+                                </div>
                             </div>
                         </div>
                     </>
                 ) : (
                     <>
-                        <div className="glass-panel" style={{ padding: '24px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                            <div style={{ background: 'rgba(50, 215, 75, 0.2)', padding: '16px', borderRadius: '12px', color: 'var(--success)' }}>
-                                <TrendingUp size={32} />
+                        <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ background: 'rgba(5, 150, 105, 0.15)', padding: '10px', borderRadius: '8px', color: 'var(--primary)' }}>
+                                <TrendingUp size={22} />
                             </div>
                             <div>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '4px' }}>Today's Sales</div>
-                                <div style={{ fontSize: '1.8rem', fontWeight: '700' }}>₱{Number(stats.dailySales.total_revenue || 0).toLocaleString()}</div>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Today's Sales</div>
+                                <div style={{ fontSize: '1.5rem', fontWeight: '700', lineHeight: 1.2 }}>{formatCurrency(stats.dailySales.total_revenue || 0)}</div>
                             </div>
                         </div>
 
-                        <div className="glass-panel" style={{ padding: '24px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                            <div style={{ background: 'rgba(10, 132, 255, 0.2)', padding: '16px', borderRadius: '12px', color: '#0a84ff' }}>
-                                <ShoppingCart size={32} />
+                        <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ background: 'rgba(10, 132, 255, 0.15)', padding: '10px', borderRadius: '8px', color: 'var(--accent)' }}>
+                                <ShoppingCart size={22} />
                             </div>
                             <div>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '4px' }}>Today's Transactions</div>
-                                <div style={{ fontSize: '1.8rem', fontWeight: '700' }}>{stats.dailySales.total_transactions || 0}</div>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Today's Transactions</div>
+                                <div style={{ fontSize: '1.5rem', fontWeight: '700', lineHeight: 1.2 }}>{stats.dailySales.total_transactions || 0}</div>
+                            </div>
+                        </div>
+
+                        <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ background: 'rgba(239, 68, 68, 0.15)', padding: '10px', borderRadius: '8px', color: 'var(--danger)' }}>
+                                <AlertTriangle size={22} />
+                            </div>
+                            <div>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Low Stock Items</div>
+                                <div style={{ fontSize: '1.5rem', fontWeight: '700', lineHeight: 1.2, color: stats.lowStock.length > 0 ? 'var(--danger)' : 'var(--success)' }}>
+                                    {stats.lowStock.length}
+                                </div>
                             </div>
                         </div>
                     </>
                 )}
             </div>
+
+            {/* Upper Section: Motorcycle Fitment Search Widget */}
+            <FitmentSearchWidget />
+
+            {/* Staff Quick Guide: Top Selling Items Widget */}
+            <BestSellersBar />
 
             <div style={{ display: 'grid', gridTemplateColumns: user?.role === 'admin' ? 'repeat(auto-fit, minmax(400px, 1fr))' : '1fr', gap: '24px' }}>
                 {user?.role === 'admin' && (
@@ -204,7 +237,6 @@ const Dashboard = () => {
                     )}
                 </div>
             </div>
-
         </div>
     );
 };

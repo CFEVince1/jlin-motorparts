@@ -1,38 +1,87 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
-:root {
-  --primary: #32D74B;
-  /* Vibrant Green */
-  --primary-hover: #28a745;
-  --secondary: #0A0A0A;
-  /* Deep pitch black for backgrounds */
-  --bg-dark: #000000;
-  --surface: #121212;
-  --surface-hover: #1A1A1A;
-  --text-main: #FFFFFF;
-  --text-muted: #A0A0A0;
-  --accent: #FFD60A;
-  --success: #32D74B;
-  --danger: #FF453A;
-  --border: rgba(255, 255, 255, 0.1);
-  --glass-bg: rgba(10, 10, 10, 0.8);
-  --input-bg: rgba(0, 0, 0, 0.2);
-  --th-bg: rgba(255, 255, 255, 0.05);
-  --tr-hover: rgba(50, 215, 75, 0.08);
+:root, [data-theme='dark'], .dark {
+  --primary: #059669; /* Emerald 600 */
+  --primary-hover: #10b981; /* Emerald 500 */
+  --secondary: #09090b;
+  --bg-dark: #09090b;
+  --surface: #18181b; /* zinc-900 */
+  --surface-hover: #27272a; /* zinc-800 */
+  --text-main: #f4f4f5; /* text-zinc-100 / white */
+  --text-muted: #a1a1aa; /* text-zinc-400 */
+  --accent: #10b981;
+  --success: #10b981;
+  --danger: #ef4444;
+  --border: #27272a; /* border-zinc-800 */
+  --glass-bg: #18181b;
+  --glass-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  --input-bg: #18181b; /* bg-zinc-900 */
+  --input-border: #27272a; /* border-zinc-800 */
+  --input-color: #f4f4f5; /* text-zinc-100 */
+  --input-placeholder: #71717a;
+  --th-bg: rgba(39, 39, 42, 0.6); /* bg-zinc-800/60 */
+  --th-color: #d4d4d8; /* text-zinc-300 */
+  --td-color: #e4e4e7; /* text-zinc-200 */
+  --td-border: rgba(39, 39, 42, 0.5); /* border-zinc-800/50 */
+  --td-muted: #a1a1aa; /* text-zinc-400 */
+  --tr-hover: rgba(16, 185, 129, 0.06);
+  --badge-non-serialized-bg: #27272a; /* bg-zinc-800 */
+  --badge-non-serialized-color: #d4d4d8; /* text-zinc-300 */
+  --badge-non-serialized-border: #3f3f46; /* border-zinc-700 */
+  --badge-serialized-bg: rgba(120, 53, 15, 0.3); /* bg-amber-900/30 */
+  --badge-serialized-color: #fbbf24; /* text-amber-400 */
+  --badge-serialized-border: rgba(217, 119, 6, 0.5); /* border-amber-700/50 */
+  --btn-secondary-bg: #18181b; /* bg-zinc-900 */
+  --btn-secondary-hover: #27272a; /* hover:bg-zinc-800 */
+  --btn-secondary-color: #e4e4e7; /* text-zinc-200 */
+  --btn-secondary-border: #27272a; /* border-zinc-800 */
+  --sidebar-bg: #09090b; /* bg-zinc-950 */
+  --sidebar-border: #27272a; /* border-zinc-800 */
+  --sidebar-link: #a1a1aa; /* text-zinc-400 */
+  --sidebar-link-hover: #ffffff; /* hover:text-white */
+  --sidebar-link-hover-bg: #18181b; /* hover:bg-zinc-900 */
 }
 
-[data-theme='light'] {
-  --secondary: #F3F4F6;
-  --bg-dark: #F3F4F6;
-  --surface: #FFFFFF;
-  --surface-hover: #F9FAFB;
-  --text-main: #111827;
-  --text-muted: #6B7280;
-  --border: #E5E7EB;
-  --glass-bg: rgba(255, 255, 255, 1);
-  --input-bg: #FFFFFF;
-  --th-bg: #F9FAFB;
-  --tr-hover: #F3F4F6;
+[data-theme='light'], .light {
+  --primary: #059669; /* Emerald 600 */
+  --primary-hover: #10b981; /* Emerald 500 */
+  --secondary: #f4f4f5;
+  --bg-dark: #f4f4f5; /* zinc-100 */
+  --surface: #ffffff; /* bg-white */
+  --surface-hover: #f4f4f5; /* zinc-100 */
+  --text-main: #18181b; /* text-zinc-900 - high contrast page headers */
+  --text-muted: #52525b; /* text-zinc-600 - high contrast subheadings */
+  --accent: #059669;
+  --success: #059669;
+  --danger: #dc2626;
+  --border: #e4e4e7; /* border-zinc-200 */
+  --glass-bg: #ffffff;
+  --glass-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.05); /* shadow-sm */
+  --input-bg: #fafafa; /* bg-zinc-50 - eliminates black hole controls */
+  --input-border: #d4d4d8; /* border-zinc-300 */
+  --input-color: #18181b; /* text-zinc-900 */
+  --input-placeholder: #a1a1aa; /* placeholder:text-zinc-400 */
+  --th-bg: #f4f4f5; /* bg-zinc-100 - soft contrast instead of solid black */
+  --th-color: #3f3f46; /* text-zinc-700 */
+  --td-color: #18181b; /* text-zinc-900 - high contrast table rows */
+  --td-border: #f4f4f5; /* border-zinc-100 */
+  --td-muted: #52525b; /* text-zinc-600 */
+  --tr-hover: #f4f4f5;
+  --badge-non-serialized-bg: #f4f4f5; /* bg-zinc-100 */
+  --badge-non-serialized-color: #3f3f46; /* text-zinc-700 */
+  --badge-non-serialized-border: #d4d4d8; /* border-zinc-300 */
+  --badge-serialized-bg: #fffbeb; /* bg-amber-50 */
+  --badge-serialized-color: #b45309; /* text-amber-700 */
+  --badge-serialized-border: #fcd34d; /* border-amber-300 */
+  --btn-secondary-bg: #f4f4f5; /* bg-zinc-100 - eliminates orphan dark logout button */
+  --btn-secondary-hover: #e4e4e7; /* hover:bg-zinc-200 */
+  --btn-secondary-color: #27272a; /* text-zinc-800 */
+  --btn-secondary-border: #d4d4d8; /* border-zinc-300 */
+  --sidebar-bg: #ffffff; /* bg-white */
+  --sidebar-border: #e4e4e7; /* border-zinc-200 */
+  --sidebar-link: #52525b; /* text-zinc-600 */
+  --sidebar-link-hover: #18181b; /* hover:text-zinc-900 */
+  --sidebar-link-hover-bg: #f4f4f5; /* hover:bg-zinc-100 */
 }
 
 * {
@@ -47,79 +96,146 @@ body {
   color: var(--text-main);
   min-height: 100vh;
   overflow-x: hidden;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Glassmorphism Utilities */
-.glass-panel {
-  background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
-  transition: background 0.3s ease, border 0.3s ease;
+/* Page Headings: text-zinc-900 dark:text-white */
+h1 {
+  font-size: 1.25rem !important; /* text-xl */
+  font-weight: 700 !important;
+  letter-spacing: -0.025em !important;
+  color: var(--text-main) !important;
+  margin-bottom: 16px !important;
+  transition: color 0.2s ease;
 }
 
-/* Premium Inputs */
-.input-premium {
-  width: 100%;
-  padding: 12px 16px;
-  background: var(--input-bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+h2, h3, h4, h5, h6 {
   color: var(--text-main);
-  font-size: 1rem;
-  transition: all 0.3s ease;
+  letter-spacing: -0.015em;
+  transition: color 0.2s ease;
+}
+
+/* Card Surfaces: bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm */
+.glass-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--glass-shadow);
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Form Inputs & Select Controls:
+   h-9 px-2.5 py-1.5 text-xs rounded-md bg-zinc-50 dark:bg-zinc-900
+   border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100
+   placeholder:text-zinc-400 focus:ring-1 focus:ring-emerald-500 focus:outline-none */
+.input-premium,
+input.input-premium,
+select.input-premium,
+textarea.input-premium {
+  width: 100%;
+  height: 36px; /* h-9 */
+  padding: 6px 10px; /* px-2.5 py-1.5 */
+  font-size: 0.75rem; /* text-xs */
+  border-radius: 6px; /* rounded-md */
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--input-color);
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
   outline: none;
 }
 
-.input-premium:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(50, 215, 75, 0.2);
+.input-premium::placeholder {
+  color: var(--input-placeholder);
+  opacity: 1;
 }
 
-/* Buttons */
+.input-premium:focus {
+  border-color: #059669;
+  box-shadow: 0 0 0 1px #059669;
+  outline: none;
+}
+
+.input-premium:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+select.input-premium {
+  cursor: pointer;
+}
+
+select.input-premium option {
+  background-color: var(--surface);
+  color: var(--text-main);
+}
+
+/* Native Date Picker Theme Normalization */
+[data-theme='light'] input[type="date"].input-premium,
+.light input[type="date"].input-premium {
+  color-scheme: light;
+}
+
+[data-theme='dark'] input[type="date"].input-premium,
+.dark input[type="date"].input-premium {
+  color-scheme: dark;
+}
+
+/* Buttons - Emerald Brand Accent */
 .btn-primary {
-  background: linear-gradient(135deg, var(--primary) 0%, #157324 100%);
-  color: white;
+  background-color: #059669;
+  color: #ffffff;
   border: none;
-  padding: 12px 24px;
-  border-radius: 8px;
+  height: 36px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: background-color 0.2s ease, transform 0.1s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(50, 215, 75, 0.4);
+  background-color: #10b981;
 }
 
+/* Secondary / Logout Button:
+   bg-zinc-100 hover:bg-zinc-200 text-zinc-800
+   dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-200
+   border border-zinc-300 dark:border-zinc-800 */
 .btn-secondary {
-  background: var(--surface);
-  color: var(--text-main);
-  border: 1px solid var(--border);
-  padding: 10px 20px;
-  border-radius: 8px;
+  background-color: var(--btn-secondary-bg);
+  color: var(--btn-secondary-color);
+  border: 1px solid var(--btn-secondary-border);
+  height: 36px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .btn-secondary:hover {
-  background: var(--surface-hover);
+  background-color: var(--btn-secondary-hover);
+  color: var(--btn-secondary-color);
 }
 
-/* Tables */
+/* High-Density Tables */
 .table-container {
+  width: 100%;
   overflow-x: auto;
-  border-radius: 12px;
+  border-radius: 8px;
   border: 1px solid var(--border);
+  background-color: var(--surface);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 table {
@@ -127,21 +243,33 @@ table {
   border-collapse: collapse;
 }
 
-th,
-td {
-  padding: 16px;
-  text-align: left;
+/* Table Headers (<thead>):
+   bg-zinc-100 dark:bg-zinc-800/60 text-zinc-700 dark:text-zinc-300
+   border-b border-zinc-200 dark:border-zinc-800 */
+th {
+  background-color: var(--th-bg);
+  color: var(--th-color);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  padding: 8px 12px; /* px-3 py-2 */
   border-bottom: 1px solid var(--border);
-  color: var(--text-main);
+  text-align: left;
+  vertical-align: middle;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
-th {
-  background: var(--th-bg);
-  color: var(--text-muted);
-  font-weight: 500;
-  text-transform: uppercase;
-  font-size: 0.85rem;
-  letter-spacing: 0.05em;
+/* Table Body Cells (<td>):
+   text-zinc-900 dark:text-zinc-200 border-b border-zinc-100 dark:border-zinc-800/50 */
+td {
+  padding: 8px 12px; /* px-3 py-2 */
+  text-align: left;
+  border-bottom: 1px solid var(--td-border);
+  color: var(--td-color);
+  font-size: 0.75rem; /* text-xs */
+  vertical-align: middle;
+  transition: color 0.2s ease, border-color 0.2s ease;
 }
 
 tr:last-child td {
@@ -149,8 +277,177 @@ tr:last-child td {
 }
 
 tr:hover td {
-  background: var(--tr-hover);
+  background-color: var(--tr-hover);
 }
+
+/* Status Badges:
+   Non-Serialized: bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 border border-zinc-300 dark:border-zinc-700
+   Serialized: bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-300 dark:border-amber-700/50 */
+.badge-pill {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.badge-non-serialized {
+  background-color: var(--badge-non-serialized-bg);
+  color: var(--badge-non-serialized-color);
+  border: 1px solid var(--badge-non-serialized-border);
+}
+
+.badge-serialized {
+  background-color: var(--badge-serialized-bg);
+  color: var(--badge-serialized-color);
+  border: 1px solid var(--badge-serialized-border);
+}
+
+/* Sidebar & Navigation Chrome:
+   Sidebar Surface: bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-zinc-800
+   Inactive Links: text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-zinc-900
+   Active Link: Emerald */
+.sidebar {
+  width: 250px;
+  background-color: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  padding: 14px 0 0 0;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.sidebar-nav {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--sidebar-link);
+  background-color: transparent;
+  border-left: 3px solid transparent;
+  transition: all 0.2s ease;
+  font-weight: 400;
+  white-space: nowrap;
+  font-size: 0.83rem;
+}
+
+.sidebar-link:hover {
+  color: var(--sidebar-link-hover);
+  background-color: var(--sidebar-link-hover-bg);
+}
+
+.sidebar-link.active {
+  color: var(--primary) !important;
+  background-color: rgba(5, 150, 105, 0.12) !important;
+  border-left: 3px solid var(--primary) !important;
+  font-weight: 600 !important;
+}
+
+.sidebar-submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 18px;
+  margin-top: 1px;
+  margin-bottom: 4px;
+}
+
+.sidebar-sublink {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 5px;
+  text-decoration: none;
+  color: var(--sidebar-link);
+  font-size: 0.78rem;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.sidebar-sublink:hover {
+  color: var(--sidebar-link-hover);
+  background-color: var(--sidebar-link-hover-bg);
+}
+
+.sidebar-sublink.active {
+  color: var(--primary) !important;
+  font-weight: 600 !important;
+  background-color: rgba(5, 150, 105, 0.12) !important;
+}
+
+.sidebar-user {
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  background-color: var(--sidebar-bg);
+  flex-shrink: 0;
+}
+
+/* ====================================================
+   ADAPTIVE TAILWIND COMPATIBILITY UTILITIES
+   ==================================================== */
+.text-zinc-900 { color: #18181b !important; }
+.text-zinc-800 { color: #27272a !important; }
+.text-zinc-700 { color: #3f3f46 !important; }
+.text-zinc-600 { color: #52525b !important; }
+.text-zinc-400 { color: #a1a1aa !important; }
+.text-zinc-300 { color: #d4d4d8 !important; }
+.text-zinc-200 { color: #e4e4e7 !important; }
+.text-zinc-100 { color: #f4f4f5 !important; }
+.text-white { color: #ffffff !important; }
+.text-amber-700 { color: #b45309 !important; }
+
+.dark .dark\:text-white, [data-theme='dark'] .dark\:text-white { color: #ffffff !important; }
+.dark .dark\:text-zinc-100, [data-theme='dark'] .dark\:text-zinc-100 { color: #f4f4f5 !important; }
+.dark .dark\:text-zinc-200, [data-theme='dark'] .dark\:text-zinc-200 { color: #e4e4e7 !important; }
+.dark .dark\:text-zinc-300, [data-theme='dark'] .dark\:text-zinc-300 { color: #d4d4d8 !important; }
+.dark .dark\:text-zinc-400, [data-theme='dark'] .dark\:text-zinc-400 { color: #a1a1aa !important; }
+.dark .dark\:text-amber-400, [data-theme='dark'] .dark\:text-amber-400 { color: #fbbf24 !important; }
+
+.bg-white { background-color: #ffffff !important; }
+.bg-zinc-50 { background-color: #fafafa !important; }
+.bg-zinc-100 { background-color: #f4f4f5 !important; }
+.bg-zinc-800 { background-color: #27272a !important; }
+.bg-zinc-900 { background-color: #18181b !important; }
+.bg-zinc-950 { background-color: #09090b !important; }
+.bg-amber-50 { background-color: #fffbeb !important; }
+
+.dark .dark\:bg-zinc-900, [data-theme='dark'] .dark\:bg-zinc-900 { background-color: #18181b !important; }
+.dark .dark\:bg-zinc-950, [data-theme='dark'] .dark\:bg-zinc-950 { background-color: #09090b !important; }
+.dark .dark\:bg-zinc-800, [data-theme='dark'] .dark\:bg-zinc-800 { background-color: #27272a !important; }
+.dark .dark\:bg-zinc-800\/60, [data-theme='dark'] .dark\:bg-zinc-800\/60 { background-color: rgba(39, 39, 42, 0.6) !important; }
+.dark .dark\:bg-amber-900\/30, [data-theme='dark'] .dark\:bg-amber-900\/30 { background-color: rgba(120, 53, 15, 0.3) !important; }
+
+.border-zinc-100 { border-color: #f4f4f5 !important; }
+.border-zinc-200 { border-color: #e4e4e7 !important; }
+.border-zinc-300 { border-color: #d4d4d8 !important; }
+.border-zinc-700 { border-color: #3f3f46 !important; }
+.border-zinc-800 { border-color: #27272a !important; }
+.border-amber-300 { border-color: #fcd34d !important; }
+
+.dark .dark\:border-zinc-700, [data-theme='dark'] .dark\:border-zinc-700 { border-color: #3f3f46 !important; }
+.dark .dark\:border-zinc-800, [data-theme='dark'] .dark\:border-zinc-800 { border-color: #27272a !important; }
+.dark .dark\:border-zinc-800\/50, [data-theme='dark'] .dark\:border-zinc-800\/50 { border-color: rgba(39, 39, 42, 0.5) !important; }
+.dark .dark\:border-amber-700\/50, [data-theme='dark'] .dark\:border-amber-700\/50 { border-color: rgba(217, 119, 6, 0.5) !important; }
 
 /* Spinner */
 .spinner {
@@ -307,5 +604,225 @@ tr:hover td {
   .cart-container {
     width: 100% !important;
     margin-top: 20px;
+  }
+}
+
+/* ====================================================
+   RECEIPT MODAL & PRINT STYLING (Force High Contrast Text)
+   ==================================================== */
+.receipt-container,
+#printable-receipt,
+.receipt-modal,
+.receipt-overlay {
+  color: #000000 !important;
+}
+
+.receipt-container *,
+#printable-receipt * {
+  color: #000000;
+}
+
+.receipt-container table,
+#printable-receipt table {
+  background: transparent !important;
+}
+
+.receipt-container th,
+#printable-receipt th {
+  background: transparent !important;
+  color: #000000 !important;
+  border-bottom: 1px solid #000000 !important;
+}
+
+.receipt-container td,
+#printable-receipt td {
+  color: #000000 !important;
+  background: transparent !important;
+}
+
+.receipt-container tr:hover td,
+#printable-receipt tr:hover td {
+  background: transparent !important;
+}
+
+.receipt-subtext {
+  color: #444444 !important;
+}
+
+/* Responsive Grid Utilities for Dense Layouts */
+.grid-cols-filter-6 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+@media (min-width: 768px) {
+  .grid-cols-filter-6 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid-cols-filter-6 {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+.grid-cols-filter-4 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+@media (min-width: 768px) {
+  .grid-cols-filter-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.text-right {
+  text-align: right !important;
+}
+
+/* ====================================================
+   TABLE EMPTY STATES
+   ==================================================== */
+.table-empty-state {
+  text-align: center !important;
+  padding: 36px 16px !important;
+  color: var(--text-muted) !important;
+  font-size: 0.85rem !important;
+  font-weight: 500 !important;
+  vertical-align: middle !important;
+}
+
+/* =========================================================
+   ROCK-SOLID THERMAL PRINT ENGINE (58mm)
+   ========================================================= */
+@media print {
+  @page {
+    size: 58mm auto;
+    margin: 0mm;
+  }
+
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    width: 100% !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* 1. Hide full screen chrome by default */
+  body * {
+    visibility: hidden;
+  }
+
+  /* 2. Neutralize modal wrappers so they DO NOT hide their children */
+  .receipt-overlay,
+  .receipt-modal,
+  .modal-backdrop,
+  [role="dialog"] {
+    visibility: visible !important;
+    display: block !important;
+    position: static !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    transform: none !important;
+  }
+
+  /* 3. Make the receipt wrapper and ALL its descendants visible */
+  #printable-receipt,
+  #printable-receipt *,
+  .printable-receipt,
+  .printable-receipt * {
+    visibility: visible !important;
+  }
+
+  /* 4. Pin the receipt to the top-left of the 58mm roll */
+  #printable-receipt,
+  .printable-receipt {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 48mm !important;
+    max-width: 48mm !important;
+    margin: 0 !important;
+    padding: 2mm 1mm !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: 'Courier New', Courier, monospace !important;
+    font-size: 10px !important;
+    line-height: 1.25 !important;
+    z-index: 999999 !important;
+    box-shadow: none !important;
+    border: none !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  #printable-receipt div,
+  .printable-receipt div {
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    color: #000000 !important;
+  }
+
+  #printable-receipt div[style*="display: flex"],
+  .printable-receipt div[style*="display: flex"] {
+    display: flex !important;
+  }
+
+  #printable-receipt table,
+  .printable-receipt table {
+    display: table !important;
+    width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: fixed !important;
+  }
+
+  #printable-receipt thead,
+  .printable-receipt thead {
+    display: table-header-group !important;
+  }
+
+  #printable-receipt tbody,
+  .printable-receipt tbody {
+    display: table-row-group !important;
+  }
+
+  #printable-receipt tr,
+  .printable-receipt tr {
+    display: table-row !important;
+  }
+
+  #printable-receipt td, 
+  #printable-receipt th,
+  .printable-receipt td, 
+  .printable-receipt th {
+    display: table-cell !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    color: #000000 !important;
+  }
+
+  /* 5. Hide ONLY external chrome, buttons, headers, and navigation */
+  button,
+  .no-print,
+  header,
+  nav,
+  aside,
+  .sidebar {
+    display: none !important;
+    visibility: hidden !important;
   }
 }

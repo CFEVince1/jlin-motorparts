@@ -22,18 +22,25 @@ exports.login = async (req, res) => {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
-        // 3. Generate JWT
+        // 3. Generate JWT with tokenVersion
+        const tokenVersion = user.token_version !== undefined && user.token_version !== null ? user.token_version : 1;
         const payload = {
             id: user.id,
             username: user.username,
-            role: user.role
+            role: user.role,
+            tokenVersion
         };
 
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
 
         res.json({
             token,
-            user: payload
+            user: {
+                id: user.id,
+                username: user.username,
+                role: user.role,
+                token_version: tokenVersion
+            }
         });
 
     } catch (error) {

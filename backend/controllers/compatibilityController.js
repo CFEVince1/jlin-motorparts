@@ -218,3 +218,160 @@ exports.deleteCompatibilityGroup = async (req, res) => {
         res.status(500).json({ message: 'Error deleting compatibility group', error: err.message });
     }
 };
+
+/**
+ * GET /api/compatibility/options
+ * Return a hierarchical tree (Brand -> Model -> Version) where each version node includes its database id.
+ */
+exports.getCompatibilityOptions = async (req, res, next) => {
+    try {
+        const [models] = await db.query(`
+            SELECT id, brand, model, year_model
+            FROM motorcycle_models
+            ORDER BY brand ASC, model ASC, year_model ASC
+        `);
+
+        // Build hierarchical tree: Brand -> Model -> Versions
+        const brandMap = new Map();
+
+        for (const row of models) {
+            const brand = (row.brand || 'Other').trim();
+            // Clean model name: if model contains "Aerox 155 V1", baseModel could be "Aerox 155"
+            let baseModel = row.model.trim();
+            let version = row.year_model ? row.year_model.trim() : '';
+
+            // Extract version suffix from model string (e.g. "Aerox 155 V1" -> baseModel: "Aerox 155", version: "V1")
+            const versionMatch = baseModel.match(/\s+(V\d+|v\d+|Gen\s*\d+|FI|\d{4})$/i);
+            if (versionMatch) {
+                if (!version || version === 'Standard') {
+                    version = versionMatch[1];
+                }
+                baseModel = baseModel.slice(0, versionMatch.index).trim();
+            } else if (!version) {
+                version = 'Standard';
+            }
+
+            if (!brandMap.has(brand)) {
+                brandMap.set(brand, new Map());
+            }
+
+            const modelMap = brandMap.get(brand);
+            if (!modelMap.has(baseModel)) {
+                modelMap.set(baseModel, []);
+            }
+
+            modelMap.get(baseModel).push({
+                id: row.id,
+                version: version || row.year_model || 'Standard',
+                model_name: row.model,
+                full_name: `${row.brand} ${row.model} ${row.year_model || ''}`.trim()
+            });
+        }
+
+        const tree = [];
+        const treeObject = {};
+
+        for (const [brand, modelMap] of brandMap.entries()) {
+            const modelList = [];
+            treeObject[brand] = {};
+
+            for (const [model, versions] of modelMap.entries()) {
+                modelList.push({
+                    model,
+                    versions
+                });
+                treeObject[brand][model] = versions.map(v => ({
+                    id: v.id,
+                    version: v.version,
+                    yearRange: v.yearRange || v.year_range || v.year_model || ''
+                }));
+            }
+            tree.push({
+                brand,
+                models: modelList
+            });
+        }
+
+        // Return tree array with treeObject available on query param ?format=tree or header, or attach as properties
+        if (req.query.format === 'tree' || req.query.format === 'object') {
+            return res.json(treeObject);
+        }
+
+        // Default: return array with tree property for dual compatibility
+        res.json(tree);
+    } catch (err) {
+        next(err);
+    }
+};
+
+/**
+ * GET /api/compatibility/search?modelId=...
+ * Return { compatible: [...], incompatible: [...] } containing
+ * item_id, sku, name, brand, current_stock, and compatibility notes, ordered by name.
+ */
+exports.searchCompatibility = async (req, res, next) => {
+    try {
+        const modelId = Number(req.query.modelId || req.query.model_id);
+        if (!modelId) {
+            return res.status(400).json({ 
+                message: 'modelId query parameter is required',
+                errors: [{ field: 'modelId', message: 'modelId is required' }]
+            });
+        }
+
+        // Query products associated with this motorcycle model in product_compatibilities
+        const [rows] = await db.query(`
+            SELECT 
+                p.id AS item_id,
+                COALESCE(p.sku, p.part_number) AS sku,
+                p.name,
+                p.brand,
+                COALESCE(p.retail_price, p.selling_price) AS retail_price,
+                COALESCE(p.current_stock, p.stock) AS current_stock,
+                pc.compatibility_status,
+                COALESCE(pc.notes, pc.compatibility_status) AS notes
+            FROM products p
+            JOIN product_compatibilities pc ON pc.product_id = p.id
+            WHERE pc.motorcycle_model_id = ? AND p.is_active = true
+            ORDER BY p.name ASC
+        `, [modelId]);
+
+        const compatible = [];
+        const incompatible = [];
+
+        for (const item of rows) {
+            const entry = {
+                item_id: item.item_id,
+                sku: item.sku,
+                name: item.name,
+                part_name: item.name,
+                brand: item.brand,
+                part_brand: item.brand,
+                retail_price: Number(item.retail_price || 0.00),
+                current_stock: Number(item.current_stock),
+                compatibility_status: item.compatibility_status,
+                compatibility_notes: item.notes,
+                notes: item.notes
+            };
+
+            if (item.compatibility_status === 'COMPATIBLE') {
+                compatible.push(entry);
+            } else if (item.compatibility_status === 'NOT_COMPATIBLE') {
+                incompatible.push(entry);
+            } else {
+                compatible.push(entry);
+            }
+        }
+
+        res.json({
+            model_id: modelId,
+            compatible,
+            incompatible,
+            notCompatible: incompatible
+        });
+
+    } catch (err) {
+        next(err);
+    }
+};
+

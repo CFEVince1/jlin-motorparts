@@ -4,7 +4,14 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "dev": "node server.js",
+    "db:setup": "node scripts/setup_aiven_db.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "migrate": "node ../migrations/20261007_comprehensive_inventory_pos.js",
+    "seed": "node seeds/01_defense_demo_seed.js",
+    "snapshot": "node ../scripts/snapshot.js",
+    "reset-demo": "node ../scripts/reset_demo.js"
   },
   "keywords": [],
   "author": "",

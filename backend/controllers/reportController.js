@@ -1,18 +1,26 @@
 const db = require('../config/db');
 
 const buildDateAndUserFilters = (req, tableAlias = 's') => {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, period } = req.query;
     const where = [];
     const params = [];
 
-    if (startDate) {
-        where.push(`DATE(${tableAlias}.sale_date) >= ?`);
-        params.push(startDate);
-    }
+    if (period === 'daily' && !startDate && !endDate) {
+        where.push(`DATE(${tableAlias}.sale_date) = CURDATE()`);
+    } else if (period === 'weekly' && !startDate && !endDate) {
+        where.push(`DATE(${tableAlias}.sale_date) >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)`);
+    } else if (period === 'monthly' && !startDate && !endDate) {
+        where.push(`YEAR(${tableAlias}.sale_date) = YEAR(CURDATE()) AND MONTH(${tableAlias}.sale_date) = MONTH(CURDATE())`);
+    } else {
+        if (startDate) {
+            where.push(`DATE(${tableAlias}.sale_date) >= ?`);
+            params.push(startDate);
+        }
 
-    if (endDate) {
-        where.push(`DATE(${tableAlias}.sale_date) <= ?`);
-        params.push(endDate);
+        if (endDate) {
+            where.push(`DATE(${tableAlias}.sale_date) <= ?`);
+            params.push(endDate);
+        }
     }
 
     if (req.user.role !== 'admin') {
@@ -290,14 +298,16 @@ exports.getBrands = async (req, res) => {
 
 exports.getSalesByCashier = async (req, res) => {
     try {
+        const { where, params } = buildDateAndUserFilters(req, 's');
+        const dateFilter = where.length ? `WHERE ${where.join(' AND ')}` : '';
         const [sales] = await db.query(`
             SELECT u.username as cashier, COUNT(s.id) as total_transactions, COALESCE(SUM(s.total_amount), 0) as total_revenue
             FROM sales s
             JOIN users u ON s.user_id = u.id
-            WHERE DATE(s.sale_date) = CURDATE()
+            ${dateFilter}
             GROUP BY u.id
             ORDER BY total_revenue DESC
-        `);
+        `, params);
         res.json(sales);
     } catch (err) {
         res.status(500).json({ message: 'Error fetching sales by cashier', error: err.message });
@@ -331,3 +341,100 @@ exports.getAdminStats = async (req, res) => {
         res.status(500).json({ message: 'Error fetching admin stats', error: err.message });
     }
 };
+
+/**
+ * GET /api/reports/adjustments
+ * Return non-sales adjustments filtered by date (created_at < to::date + INTERVAL '1 day')
+ * and transaction type, including grouped totals.
+ */
+exports.getAdjustmentsReport = async (req, res, next) => {
+    try {
+        const { from, to, startDate, endDate, type, transaction_type } = req.query;
+        const fromDate = from || startDate;
+        const toDate = to || endDate;
+        const targetType = type || transaction_type;
+
+        const where = ["it.transaction_type != 'SALE'"];
+        const params = [];
+
+        if (fromDate) {
+            where.push("it.created_at >= ?");
+            params.push(`${fromDate} 00:00:00`);
+        }
+
+        if (toDate) {
+            // Equivalent to created_at < to::date + INTERVAL '1 day'
+            where.push("it.created_at < DATE_ADD(?, INTERVAL 1 DAY)");
+            params.push(toDate);
+        }
+
+        if (targetType && targetType !== 'ALL') {
+            where.push("it.transaction_type = ?");
+            params.push(targetType.toUpperCase());
+        }
+
+        const whereSql = `WHERE ${where.join(' AND ')}`;
+
+        // 1. Detailed adjustments list
+        const [adjustments] = await db.query(`
+            SELECT 
+                it.id,
+                it.transaction_number,
+                it.reference_no,
+                it.product_id,
+                p.id AS item_id,
+                COALESCE(p.sku, p.part_number) AS sku,
+                p.part_number,
+                p.name AS product_name,
+                p.brand,
+                p.category,
+                it.transaction_type,
+                it.quantity,
+                it.quantity_change,
+                it.balance_before,
+                it.balance_after,
+                it.unit_cost,
+                (it.quantity * COALESCE(it.unit_cost, 0)) AS total_value,
+                it.reference_type,
+                it.loss_transaction_id,
+                it.remarks,
+                it.notes,
+                it.created_at,
+                u.username AS created_by_username
+            FROM inventory_transactions it
+            JOIN products p ON p.id = it.product_id
+            LEFT JOIN users u ON u.id = it.created_by
+            ${whereSql}
+            ORDER BY it.created_at DESC, it.id DESC
+        `, params);
+
+        // 2. Grouped totals by transaction type
+        const [groupedTotals] = await db.query(`
+            SELECT 
+                it.transaction_type,
+                COUNT(*) AS count,
+                COALESCE(SUM(it.quantity), 0) AS total_quantity,
+                COALESCE(SUM(it.quantity * COALESCE(it.unit_cost, 0)), 0) AS total_cost_value
+            FROM inventory_transactions it
+            ${whereSql}
+            GROUP BY it.transaction_type
+            ORDER BY it.transaction_type ASC
+        `, params);
+
+        const summary = {
+            total_adjustments: adjustments.length,
+            total_units: adjustments.reduce((acc, a) => acc + Number(a.quantity), 0),
+            total_value: adjustments.reduce((acc, a) => acc + Number(a.total_value), 0)
+        };
+
+        res.json({
+            adjustments,
+            grouped_totals: groupedTotals,
+            summary
+        });
+
+    } catch (err) {
+        next(err);
+    }
+};
+

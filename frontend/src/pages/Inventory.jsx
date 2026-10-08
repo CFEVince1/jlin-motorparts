@@ -1,28 +1,56 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { ArrowUpCircle, ArrowDownCircle, Search } from 'lucide-react';
+import { Search, SlidersHorizontal, BookOpen, Printer, ChevronDown, Layers, History, Package, Building2, Truck } from 'lucide-react';
 import Spinner from '../components/Spinner';
 import { filterProducts, getStockStatus } from '../utils/productFilter';
-import useDebouncedValue from '../hooks/useDebouncedValue';
+import useTableFilter from '../hooks/useTableFilter';
+import { formatCurrency } from '../utils/formatters';
+import AdjustmentModal from '../components/AdjustmentModal';
+import ItemLedgerDrawer from '../components/ItemLedgerDrawer';
+import PrintInventoryModal from '../components/PrintInventoryModal';
 
 const Inventory = () => {
+    const { user } = useContext(AuthContext);
+    const isAdmin = user?.role === 'admin';
+    const navigate = useNavigate();
     const [products, setProducts] = useState([]);
-    const [selectedProduct, setSelectedProduct] = useState('');
-    const [quantity, setQuantity] = useState('');
-    const [searchQuery, setSearchQuery] = useState('');
-    const [categoryFilter, setCategoryFilter] = useState('All');
-    const [brandFilter, setBrandFilter] = useState('All');
-    const [typeFilter, setTypeFilter] = useState('All');
-    const [adjustSearch, setAdjustSearch] = useState('');
-    const [showDropdown, setShowDropdown] = useState(false);
+    const [printModalOpen, setPrintModalOpen] = useState(false);
+    const [printFilterType, setPrintFilterType] = useState('out_of_stock');
     const [loading, setLoading] = useState(true);
-    const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 12;
-    const debouncedSearchQuery = useDebouncedValue(searchQuery, 250);
-    const debouncedAdjustSearch = useDebouncedValue(adjustSearch, 250);
+    const [navDropdownOpen, setNavDropdownOpen] = useState(false);
+    const navDropdownRef = useRef(null);
 
+    // Phase 3 Modal and Drawer state
+    const [adjustmentTarget, setAdjustmentTarget] = useState(null);
+    const [ledgerTarget, setLedgerTarget] = useState(null);
 
+    const {
+        searchQuery,
+        handleSearchChange,
+        filters,
+        setFilter,
+        filteredItems: filteredProducts,
+        paginatedItems: currentItems,
+        currentPage,
+        totalPages,
+        paginate
+    } = useTableFilter({
+        items: products,
+        initialFilters: { category: 'All', brand: 'All', type: 'All' },
+        itemsPerPage: 12,
+        filterFn: (items, query, f) => filterProducts(items, query, {
+            category: f.category,
+            brand: f.brand,
+            type: f.type
+        })
+    });
+
+    const categoryFilter = filters.category;
+    const brandFilter = filters.brand;
+    const typeFilter = filters.type;
 
     const fetchInventory = async () => {
         try {
@@ -39,200 +67,254 @@ const Inventory = () => {
         fetchInventory();
     }, []);
 
-    const handleStockAction = async (action) => {
-        if (!selectedProduct || !quantity || quantity <= 0) {
-            return toast.error('Please select a product and enter valid quantity');
-        }
-
-        try {
-            await api.post(`/inventory/stock-${action}`, {
-                product_id: selectedProduct,
-                quantity: Number(quantity)
-            });
-            toast.success(`Stock ${action === 'in' ? 'added' : 'deducted'} successfully`);
-            setQuantity('');
-            setAdjustSearch('');
-            setSelectedProduct('');
-            fetchInventory();
-        } catch (err) {
-            toast.error(err.response?.data?.message || 'Action failed');
-        }
-    };
-
-
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (navDropdownRef.current && !navDropdownRef.current.contains(e.target)) {
+                setNavDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const uniqueCategories = ['All', ...new Set(products.map(p => p.category).filter(Boolean))];
     const uniqueBrands = ['All', ...new Set(products.map(p => p.brand).filter(Boolean))];
 
-    const filteredProducts = filterProducts(products, debouncedSearchQuery, {
-        category: categoryFilter,
-        brand: brandFilter,
-        type: typeFilter
-    });
-
-    const indexOfLastItem = currentPage * itemsPerPage;
-    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentItems = filteredProducts.slice(indexOfFirstItem, indexOfLastItem);
-    const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-
-    const paginate = (pageNumber) => setCurrentPage(pageNumber);
-
-    // Filter products for the custom dropdown
-    const dropdownFiltered = filterProducts(products, debouncedAdjustSearch);
-
-    // Handler for selecting a product from the custom dropdown
-    const handleSelectProduct = (product) => {
-        setSelectedProduct(product.id); // Save the ID for the backend
-        setAdjustSearch(`${product.part_number} - ${product.product_name} (${product.brand})`); // Show the selected product
-        setShowDropdown(false); // Hide the dropdown
+    const handleOpenPrint = (type) => {
+        setPrintFilterType(type);
+        setPrintModalOpen(true);
     };
 
     return (
         <div>
-            <h1 style={{ marginBottom: '24px' }}>Inventory Management</h1>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
+                <h1 style={{ margin: 0 }}>Inventory Management</h1>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px' }}>
+                {/* Top Action Bar: Dropdown Navigation & Print Stock */}
+                <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    {/* Inventory Navigation Dropdown */}
+                    <div style={{ position: 'relative' }} ref={navDropdownRef}>
+                        <button
+                            type="button"
+                            onClick={() => setNavDropdownOpen(prev => !prev)}
+                            className="btn-secondary"
+                            id="inventory-modules-dropdown-btn"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '7px',
+                                fontSize: '0.82rem',
+                                padding: '7px 14px',
+                                cursor: 'pointer',
+                                borderRadius: '8px',
+                                fontWeight: 500,
+                                background: 'var(--surface)',
+                                border: '1px solid var(--border)',
+                                color: 'var(--text-main)',
+                                transition: 'all 0.2s ease'
+                            }}
+                            title="Quick navigate to related inventory modules"
+                        >
+                            <Layers size={15} style={{ color: 'var(--primary)' }} />
+                            <span>Inventory Modules</span>
+                            <ChevronDown
+                                size={14}
+                                style={{
+                                    transform: navDropdownOpen ? 'rotate(180deg)' : 'none',
+                                    transition: 'transform 0.2s ease',
+                                    color: 'var(--text-muted)'
+                                }}
+                            />
+                        </button>
 
-                {/* Actions & Adding Column */}
-                <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                        {navDropdownOpen && (
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    top: 'calc(100% + 6px)',
+                                    right: 0,
+                                    minWidth: '220px',
+                                    background: 'var(--surface)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: '10px',
+                                    boxShadow: '0 12px 30px rgba(0, 0, 0, 0.35)',
+                                    padding: '6px',
+                                    zIndex: 1000
+                                }}
+                            >
+                                <div style={{
+                                    padding: '6px 10px 4px 10px',
+                                    fontSize: '0.7rem',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.6px',
+                                    color: 'var(--text-muted)',
+                                    fontWeight: 600
+                                }}>
+                                    Inventory Modules
+                                </div>
 
-
-
-                    {/* Adjust Stock Panel */}
-                    <div className="glass-panel" style={{ padding: '24px', height: 'fit-content' }}>
-                        <h3 style={{ marginBottom: '16px' }}>Adjust Existing Stock</h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                            {/* Custom Searchable Dropdown */}
-                            <div style={{ position: 'relative' }}>
-                                <input
-                                    type="text"
-                                    className="input-premium"
-                                    placeholder="Search product to adjust..."
-                                    value={adjustSearch}
-                                    onChange={e => {
-                                        setAdjustSearch(e.target.value);
-                                        setShowDropdown(true);
-                                        if (e.target.value === '') setSelectedProduct(''); // clear ID if they delete text
+                                <button
+                                    type="button"
+                                    onClick={() => { setNavDropdownOpen(false); navigate('/transactions'); }}
+                                    style={{
+                                        width: '100%',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        padding: '9px 12px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        color: 'var(--text-main)',
+                                        cursor: 'pointer',
+                                        fontSize: '0.84rem',
+                                        textAlign: 'left',
+                                        transition: 'background 0.15s ease'
                                     }}
-                                    onFocus={() => setShowDropdown(true)}
-                                    // Delay onBlur so the onClick event on the dropdown items can fire first
-                                    onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
-                                />
+                                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                                >
+                                    <History size={16} style={{ color: '#38bdf8' }} />
+                                    <span style={{ fontWeight: 500 }}>Transactions</span>
+                                </button>
 
-                                {/* Floating Dropdown Menu */}
-                                {showDropdown && adjustSearch && (
-                                    <div style={{
-                                        position: 'absolute', top: '100%', left: 0, right: 0,
-                                        background: 'var(--surface)', border: '1px solid var(--border)',
-                                        borderRadius: '8px', zIndex: 50, maxHeight: '250px', overflowY: 'auto',
-                                        boxShadow: '0 8px 32px rgba(0,0,0,0.5)', marginTop: '4px'
-                                    }}>
-                                        {dropdownFiltered.length > 0 ? (
-                                            dropdownFiltered.map(p => (
-                                                <div
-                                                    key={p.id}
-                                                    onMouseDown={(e) => {
-                                                        // use onMouseDown instead of onClick to fire before onBlur of input
-                                                        e.preventDefault();
-                                                        handleSelectProduct(p);
-                                                    }}
-                                                    style={{
-                                                        padding: '12px 16px',
-                                                        cursor: 'pointer',
-                                                        borderBottom: '1px solid rgba(255,255,255,0.05)',
-                                                        transition: 'background 0.2s'
-                                                    }}
-                                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                                >
-                                                    <div style={{ fontWeight: '500' }}>{p.part_number} - {p.product_name}</div>
-                                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                                                        {p.brand} | {p.size || 'No size'} | {p.compatibility_display || 'No compatibility'} | <span style={{color: getStockStatus(p) === 'low_stock' || getStockStatus(p) === 'out_of_stock' ? 'var(--danger)' : 'var(--success)'}}>Stock: {p.stock}</span>
-                                                    </div>
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <div style={{ padding: '16px', color: 'var(--text-muted)', textAlign: 'center' }}>No matching products</div>
-                                        )}
-                                    </div>
+                                {isAdmin && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setNavDropdownOpen(false); navigate('/products'); }}
+                                            style={{
+                                                width: '100%',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '10px',
+                                                padding: '9px 12px',
+                                                background: 'transparent',
+                                                border: 'none',
+                                                borderRadius: '6px',
+                                                color: 'var(--text-main)',
+                                                cursor: 'pointer',
+                                                fontSize: '0.84rem',
+                                                textAlign: 'left',
+                                                transition: 'background 0.15s ease'
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                                        >
+                                            <Package size={16} style={{ color: '#10b981' }} />
+                                            <span style={{ fontWeight: 500 }}>Product directory</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => { setNavDropdownOpen(false); navigate('/suppliers'); }}
+                                            style={{
+                                                width: '100%',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '10px',
+                                                padding: '9px 12px',
+                                                background: 'transparent',
+                                                border: 'none',
+                                                borderRadius: '6px',
+                                                color: 'var(--text-main)',
+                                                cursor: 'pointer',
+                                                fontSize: '0.84rem',
+                                                textAlign: 'left',
+                                                transition: 'background 0.15s ease'
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                                        >
+                                            <Building2 size={16} style={{ color: '#f59e0b' }} />
+                                            <span style={{ fontWeight: 500 }}>Suppliers</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => { setNavDropdownOpen(false); navigate('/stock-receive'); }}
+                                            style={{
+                                                width: '100%',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '10px',
+                                                padding: '9px 12px',
+                                                background: 'transparent',
+                                                border: 'none',
+                                                borderRadius: '6px',
+                                                color: 'var(--text-main)',
+                                                cursor: 'pointer',
+                                                fontSize: '0.84rem',
+                                                textAlign: 'left',
+                                                transition: 'background 0.15s ease'
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                                        >
+                                            <Truck size={16} style={{ color: '#a855f7' }} />
+                                            <span style={{ fontWeight: 500 }}>Stock receive</span>
+                                        </button>
+                                    </>
                                 )}
                             </div>
-
-                            <input
-                                type="number"
-                                placeholder="Quantity to Add/Remove"
-                                className="input-premium"
-                                min="1"
-                                value={quantity}
-                                onChange={e => setQuantity(e.target.value)}
-                            />
-
-                            <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-                                <button
-                                    className="btn-primary"
-                                    style={{ flex: 1, background: 'linear-gradient(135deg, var(--success) 0%, #28a745 100%)' }}
-                                    onClick={() => handleStockAction('in')}
-                                >
-                                    <ArrowUpCircle size={20} /> Stock In
-                                </button>
-                                <button
-                                    className="btn-primary"
-                                    style={{ flex: 1 }}
-                                    onClick={() => handleStockAction('out')}
-                                >
-                                    <ArrowDownCircle size={20} /> Stock Out
-                                </button>
-                            </div>
-                        </div>
+                        )}
                     </div>
+
+                    {/* Print Stock Actions (Both Admin and Staff) */}
+                    <button
+                        type="button"
+                        onClick={() => handleOpenPrint('out_of_stock')}
+                        className="btn-secondary"
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', padding: '7px 14px', cursor: 'pointer' }}
+                        title="Print Stock or Out of Stock Inventory Report"
+                    >
+                        <Printer size={15} /> Print Stock/Out of Stock
+                    </button>
                 </div>
+            </div>
 
-                {/* Inventory List Column */}
-                <div className="glass-panel" style={{ flex: '2 1 500px', padding: '24px', overflowX: 'auto', minWidth: '300px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '16px' }}>
-                        <h3 style={{ margin: 0 }}>Current Stock Levels</h3>
+            {/* Inventory List Table (Full Width) */}
+            <div className="glass-panel" style={{ padding: '20px', width: '100%' }}>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: '1rem', fontWeight: 600 }}>Current Stock Levels</h3>
 
-                        <div className="responsive-filter-row" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', flex: 1, justifyContent: 'flex-end' }}>
-                            <div style={{ position: 'relative', flex: '1 1 200px', maxWidth: '300px' }}>
-                                <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                                <input
-                                    type="text"
-                                    placeholder="Search Part No., Motorcycle, Name, Brand or Size..."
-                                    className="input-premium"
-                                    style={{ paddingLeft: '40px', width: '100%' }}
-                                    value={searchQuery}
-                                    onChange={e => {
-                                        setSearchQuery(e.target.value);
-                                        setCurrentPage(1);
-                                    }}
-                                />
-                            </div>
-                            <div style={{ flex: '1 1 120px', maxWidth: '200px' }}>
-                                <select className="input-premium" value={brandFilter} onChange={(e) => { setBrandFilter(e.target.value); setCurrentPage(1); }} style={{ width: '100%', cursor: 'pointer' }}>
-                                    {uniqueBrands.map(brand => (
-                                        <option key={brand} value={brand}>{brand === 'All' ? 'All Brands' : brand}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div style={{ flex: '1 1 120px', maxWidth: '200px' }}>
-                                <select className="input-premium" value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }} style={{ width: '100%', cursor: 'pointer' }}>
-                                    {uniqueCategories.map(cat => (
-                                        <option key={cat} value={cat}>{cat === 'All' ? 'All Categories' : cat}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div style={{ flex: '1 1 120px', maxWidth: '200px' }}>
-                                <select className="input-premium" value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setCurrentPage(1); }} style={{ width: '100%', cursor: 'pointer' }}>
-                                    <option value="All">All Types</option>
-                                    <option value="Non-Serialized">Non-Serialized Only</option>
-                                    <option value="Serialized">Serialized Only</option>
-                                </select>
-                            </div>
+                    {/* Responsive 4-column filter grid below title */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '10px', alignItems: 'center', width: '100%', marginBottom: '14px' }}>
+                        <div style={{ position: 'relative', width: '100%' }}>
+                            <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                            <input
+                                type="text"
+                                placeholder="Search Part #, Model, Name..."
+                                className="input-premium"
+                                style={{ paddingLeft: '32px', width: '100%' }}
+                                value={searchQuery}
+                                onChange={handleSearchChange}
+                            />
+                        </div>
+                        <div style={{ width: '100%' }}>
+                            <select className="input-premium" value={brandFilter} onChange={(e) => setFilter('brand', e.target.value)} style={{ width: '100%', cursor: 'pointer' }}>
+                                {uniqueBrands.map(brand => (
+                                    <option key={brand} value={brand}>{brand === 'All' ? 'All Brands' : brand}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div style={{ width: '100%' }}>
+                            <select className="input-premium" value={categoryFilter} onChange={(e) => setFilter('category', e.target.value)} style={{ width: '100%', cursor: 'pointer' }}>
+                                {uniqueCategories.map(cat => (
+                                    <option key={cat} value={cat}>{cat === 'All' ? 'All Categories' : cat}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div style={{ width: '100%' }}>
+                            <select className="input-premium" value={typeFilter} onChange={(e) => setFilter('type', e.target.value)} style={{ width: '100%', cursor: 'pointer' }}>
+                                <option value="All">All Types</option>
+                                <option value="Non-Serialized">Non-Serialized Only</option>
+                                <option value="Serialized">Serialized Only</option>
+                            </select>
                         </div>
                     </div>
 
                     {loading ? <Spinner text="Loading inventory..." /> : (
-                        <div className="table-container">
+                        <div className="table-container" style={{ width: '100%', overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border)' }}>
                             <table>
                                 <thead>
                                     <tr>
@@ -241,32 +323,57 @@ const Inventory = () => {
                                         <th>Brand</th>
                                         <th>Size</th>
                                         <th>Compatibility</th>
-                                        <th>Price</th>
+                                        <th style={{ textAlign: 'right' }}>Price</th>
                                         <th>Stock Label</th>
+                                        <th style={{ textAlign: 'center' }}>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {currentItems.map(p => (
                                         <tr key={p.id}>
-                                            <td style={{ color: 'var(--text-muted)', fontWeight: '500' }}>{p.part_number}</td>
-                                            <td>{p.product_name}</td>
+                                            <td style={{ color: 'var(--text-muted)', fontWeight: '600' }}>{p.part_number}</td>
+                                            <td style={{ fontWeight: '500' }}>{p.product_name}</td>
                                             <td>{p.brand}</td>
                                             <td>{p.size || '-'}</td>
                                             <td>{p.compatibility_display || '-'}</td>
-                                            <td>₱{Number(p.price).toFixed(2)}</td>
+                                            <td style={{ textAlign: 'right', fontWeight: '600', color: 'var(--primary)' }}>{formatCurrency(p.price)}</td>
                                             <td style={{
                                                 color: getStockStatus(p) === 'low_stock' || getStockStatus(p) === 'out_of_stock' ? 'var(--danger)' : 'var(--success)',
                                                 fontWeight: 'bold',
                                             }}>
                                                 {p.stock} in stock
-                                                {getStockStatus(p) === 'low_stock' && <span style={{marginLeft: '8px', fontSize: '0.75rem', padding: '2px 6px', background: 'var(--danger)', color: 'white', borderRadius: '4px'}}>LOW</span>}
-                                                {getStockStatus(p) === 'out_of_stock' && <span style={{marginLeft: '8px', fontSize: '0.75rem', padding: '2px 6px', background: 'var(--danger)', color: 'white', borderRadius: '4px'}}>OUT</span>}
+                                                {getStockStatus(p) === 'low_stock' && <span className="badge-pill" style={{marginLeft: '8px', background: 'var(--danger)', color: 'white'}}>LOW</span>}
+                                                {getStockStatus(p) === 'out_of_stock' && <span className="badge-pill" style={{marginLeft: '8px', background: 'var(--danger)', color: 'white'}}>OUT</span>}
+                                            </td>
+                                            <td style={{ textAlign: 'center' }}>
+                                                <div style={{ display: 'inline-flex', gap: '6px' }}>
+                                                    <button
+                                                        onClick={() => setLedgerTarget(p)}
+                                                        className="btn-secondary"
+                                                        style={{ padding: '4px 8px', fontSize: '0.75rem', height: '28px' }}
+                                                        title="View Item Ledger"
+                                                    >
+                                                        <BookOpen size={14} /> Ledger
+                                                    </button>
+                                                    {isAdmin && (
+                                                        <button
+                                                            onClick={() => setAdjustmentTarget(p)}
+                                                            className="btn-secondary"
+                                                            style={{ padding: '4px 8px', fontSize: '0.75rem', height: '28px' }}
+                                                            title="Adjust Stock (Damage, Loss, Return, Found)"
+                                                        >
+                                                            <SlidersHorizontal size={14} /> Adjust
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
                                     {filteredProducts.length === 0 && (
                                         <tr>
-                                            <td colSpan="7" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }}>No products found.</td>
+                                            <td colSpan={8} className="table-empty-state">
+                                                No inventory stock matches your search or filter criteria.
+                                            </td>
                                         </tr>
                                     )}
                                 </tbody>
@@ -307,7 +414,29 @@ const Inventory = () => {
                     )}
                 </div>
 
-            </div>
+            {/* Adjustment Modal */}
+            <AdjustmentModal
+                isOpen={adjustmentTarget !== null}
+                onClose={() => setAdjustmentTarget(null)}
+                product={adjustmentTarget}
+                onSuccess={fetchInventory}
+            />
+
+            {/* Item Ledger Drawer */}
+            <ItemLedgerDrawer
+                isOpen={ledgerTarget !== null}
+                onClose={() => setLedgerTarget(null)}
+                product={ledgerTarget}
+            />
+
+            {/* Print Inventory Stock Report Modal */}
+            <PrintInventoryModal
+                isOpen={printModalOpen}
+                onClose={() => setPrintModalOpen(false)}
+                products={products}
+                initialFilter={printFilterType}
+                user={user}
+            />
         </div>
     );
 };
