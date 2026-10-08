@@ -99,7 +99,7 @@ export default function FitmentSearchWidget() {
         borderRadius: '12px',
         border: '1px solid var(--border)',
         background: 'var(--surface)',
-        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)'
+        boxShadow: 'var(--glass-shadow)'
       }}
     >
       {/* Header */}
