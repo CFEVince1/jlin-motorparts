@@ -37,7 +37,24 @@ export const AdjustmentsReport = () => {
       if (selectedType !== 'ALL') params.append('movementType', selectedType);
 
       const res = await api.get(`/reports/adjustments?${params.toString()}`);
-      setData(res.data || { summary: {}, adjustments: [] });
+      const raw = res.data;
+      const adjustmentsList = Array.isArray(raw) ? raw : (raw?.adjustments || []);
+      const summaryObj = (raw && !Array.isArray(raw) && raw.summary) ? raw.summary : {};
+
+      const normalizedSummary = {
+        DAMAGE: summaryObj.DAMAGE ?? adjustmentsList.filter(a => (a.movement_type || a.transaction_type) === 'DAMAGE').reduce((s, a) => s + Math.abs(Number(a.quantity_change || a.quantity || 0)), 0),
+        LOSS: summaryObj.LOSS ?? adjustmentsList.filter(a => (a.movement_type || a.transaction_type) === 'LOSS').reduce((s, a) => s + Math.abs(Number(a.quantity_change || a.quantity || 0)), 0),
+        RETURN_TO_SUPPLIER: summaryObj.RETURN_TO_SUPPLIER ?? adjustmentsList.filter(a => (a.movement_type || a.transaction_type) === 'RETURN_TO_SUPPLIER').reduce((s, a) => s + Math.abs(Number(a.quantity_change || a.quantity || 0)), 0),
+        FOUND: summaryObj.FOUND ?? adjustmentsList.filter(a => (a.movement_type || a.transaction_type) === 'FOUND').reduce((s, a) => s + Math.abs(Number(a.quantity_change || a.quantity || 0)), 0),
+      };
+
+      setData({
+        summary: normalizedSummary,
+        adjustments: adjustmentsList.map(a => ({
+          ...a,
+          movement_type: a.movement_type || a.transaction_type || 'ADJUSTMENT'
+        }))
+      });
     } catch (err) {
       console.error('Failed to load adjustments report', err);
       toast.error('Failed to load adjustments audit report');
@@ -216,12 +233,12 @@ export const AdjustmentsReport = () => {
                 <tr>
                   <td colSpan={9} className="table-empty-state">Loading discrepancy records...</td>
                 </tr>
-              ) : data.adjustments?.length === 0 ? (
+              ) : (!data.adjustments || data.adjustments.length === 0) ? (
                 <tr>
                   <td colSpan={9} className="table-empty-state">No adjustments found matching filter dates.</td>
                 </tr>
               ) : (
-                data.adjustments.map((adj) => {
+                (data.adjustments || []).map((adj) => {
                   const style = getMovementColor(adj.movement_type);
                   const isPositive = Number(adj.quantity_change) > 0;
 

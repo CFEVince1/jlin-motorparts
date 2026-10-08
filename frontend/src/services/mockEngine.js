@@ -236,6 +236,87 @@ const VEHICLE_OPTIONS = [
     }
 ];
 
+const DEFAULT_MOTORCYCLE_UNITS = [
+    { id: 1, brand: 'Yamaha', model: 'Aerox 155', year_model: 'V1', notes: 'Liquid cooled 155cc' },
+    { id: 2, brand: 'Yamaha', model: 'Aerox 155', year_model: 'V2', notes: 'Connected 155cc' },
+    { id: 3, brand: 'Yamaha', model: 'NMAX 155', year_model: 'V1', notes: 'Maxi scooter' },
+    { id: 4, brand: 'Yamaha', model: 'Mio i125', year_model: '2022', notes: 'M3 platform' },
+    { id: 5, brand: 'Suzuki', model: 'Raider 150', year_model: '2012', notes: 'Carburetor DOHC' },
+    { id: 6, brand: 'Suzuki', model: 'Raider 150', year_model: '2022 FI', notes: 'Fuel Injected DOHC' },
+    { id: 7, brand: 'Honda', model: 'Click 125', year_model: 'V2', notes: 'Game changer eSP' },
+    { id: 8, brand: 'Honda', model: 'Click 150', year_model: 'V2', notes: 'Game changer 150' }
+];
+
+const DEFAULT_COMPATIBILITY_GROUPS = [
+    {
+        id: 1,
+        group_name: 'Aerox 155 Series',
+        description: 'All Yamaha Aerox 155 generations (V1 / V2 / V3)',
+        member_units: [
+            { id: 1, brand: 'Yamaha', model: 'Aerox 155', year_model: 'V1' },
+            { id: 2, brand: 'Yamaha', model: 'Aerox 155', year_model: 'V2' }
+        ]
+    },
+    {
+        id: 2,
+        group_name: 'Raider 150 DOHC',
+        description: 'Suzuki Underbone Raider 150 Carb & FI',
+        member_units: [
+            { id: 5, brand: 'Suzuki', model: 'Raider 150', year_model: '2012' },
+            { id: 6, brand: 'Suzuki', model: 'Raider 150', year_model: '2022 FI' }
+        ]
+    }
+];
+
+const DEFAULT_ADJUSTMENTS = [
+    {
+        id: 1,
+        transaction_number: 'ADJ-20261001-001',
+        reference_code: 'RMA-2026-001',
+        reference_no: 'RMA-2026-001',
+        product_id: 1,
+        part_number: 'BLT-M8-001',
+        product_name: 'Bolt M8',
+        brand: 'JRP',
+        category: 'Bolts',
+        movement_type: 'DAMAGE',
+        transaction_type: 'DAMAGE',
+        quantity: 2,
+        quantity_change: -2,
+        balance_before: 155,
+        balance_after: 153,
+        unit_cost: 8.00,
+        staff_name: 'admin',
+        created_by_username: 'admin',
+        remarks: 'Thread damaged during transport',
+        notes: 'Thread damaged during transport',
+        created_at: new Date(Date.now() - 86400000 * 2).toISOString()
+    },
+    {
+        id: 2,
+        transaction_number: 'ADJ-20261002-002',
+        reference_code: 'AUDIT-OCT-01',
+        reference_no: 'AUDIT-OCT-01',
+        product_id: 2,
+        part_number: 'SP-001',
+        product_name: 'Spark Plug',
+        brand: 'NGK',
+        category: 'Ignition',
+        movement_type: 'FOUND',
+        transaction_type: 'FOUND',
+        quantity: 3,
+        quantity_change: 3,
+        balance_before: 24,
+        balance_after: 27,
+        unit_cost: 75.00,
+        staff_name: 'admin',
+        created_by_username: 'admin',
+        remarks: 'Found in back shelf during physical inventory',
+        notes: 'Found in back shelf during physical inventory',
+        created_at: new Date(Date.now() - 86400000).toISOString()
+    }
+];
+
 // In-memory or localStorage initializers
 function getStored(key, defaultVal) {
     try {
@@ -311,7 +392,24 @@ export async function handleMockRequest(config) {
         };
     }
 
-    // 3. Products & Inventory: /inventory or /products
+    // 3. Motorcycle Units & Compatibility Groups (must match before generic /products)
+    if (url.includes('/products/motorcycle-units')) {
+        return {
+            status: 200,
+            statusText: 'OK',
+            data: DEFAULT_MOTORCYCLE_UNITS
+        };
+    }
+
+    if (url.includes('/products/compatibility-groups')) {
+        return {
+            status: 200,
+            statusText: 'OK',
+            data: DEFAULT_COMPATIBILITY_GROUPS
+        };
+    }
+
+    // 4. Products & Inventory: /inventory or /products
     if (url.includes('/inventory') || url.includes('/products')) {
         let products = getStored(STORAGE_KEYS.PRODUCTS, DEFAULT_PRODUCTS);
 
@@ -326,16 +424,16 @@ export async function handleMockRequest(config) {
                 setStored(STORAGE_KEYS.PRODUCTS, products);
 
                 // Record adjustment
-                const adjustments = getStored(STORAGE_KEYS.ADJUSTMENTS, []);
+                const adjustments = getStored(STORAGE_KEYS.ADJUSTMENTS, DEFAULT_ADJUSTMENTS);
                 adjustments.unshift({
                     id: Date.now(),
                     product_id: id,
                     product_name: product.name,
                     part_number: product.part_number,
-                    quantity_adjusted: quantity,
-                    reason: reason || 'Audit Adjustment',
-                    notes: notes || '',
-                    adjusted_by: 'admin',
+                    quantity_change: Number(quantity) || 0,
+                    movement_type: reason || 'Audit Adjustment',
+                    remarks: notes || '',
+                    staff_name: 'admin',
                     created_at: new Date().toISOString()
                 });
                 setStored(STORAGE_KEYS.ADJUSTMENTS, adjustments);
@@ -370,7 +468,23 @@ export async function handleMockRequest(config) {
         };
     }
 
-    // 4. POS Checkout: POST /sales/checkout
+    // 5. Sales: Best Sellers (must match before generic /sales)
+    if (url.includes('/sales/best-sellers')) {
+        return {
+            status: 200,
+            statusText: 'OK',
+            data: {
+                success: true,
+                data: [
+                    { product_id: 1, name: 'Bolt M8', part_number: 'BLT-M8-001', brand: 'JRP', total_sold: 45, total_revenue: 675.00, price: 15.00, stock: 153 },
+                    { product_id: 2, name: 'Spark Plug', part_number: 'SP-001', brand: 'NGK', total_sold: 18, total_revenue: 2160.00, price: 120.00, stock: 27 },
+                    { product_id: 4, name: 'block', part_number: '0A123D21', brand: 'jvt', total_sold: 3, total_revenue: 22500.00, price: 7500.00, stock: 4 }
+                ]
+            }
+        };
+    }
+
+    // 6. POS Checkout: POST /sales/checkout
     if (url.includes('/sales/checkout') && method === 'post') {
         const products = getStored(STORAGE_KEYS.PRODUCTS, DEFAULT_PRODUCTS);
         const transactions = getStored(STORAGE_KEYS.TRANSACTIONS, DEFAULT_TRANSACTIONS);
@@ -435,7 +549,7 @@ export async function handleMockRequest(config) {
         };
     }
 
-    // 5. Sales / Transactions: /sales
+    // 7. Generic Sales / Transactions: /sales
     if (url.includes('/sales') && method === 'get') {
         const transactions = getStored(STORAGE_KEYS.TRANSACTIONS, DEFAULT_TRANSACTIONS);
         return {
@@ -445,7 +559,7 @@ export async function handleMockRequest(config) {
         };
     }
 
-    // 6. Suppliers: /suppliers
+    // 8. Suppliers: /suppliers
     if (url.includes('/suppliers')) {
         let suppliers = getStored(STORAGE_KEYS.SUPPLIERS, DEFAULT_SUPPLIERS);
         if (method === 'post') {
@@ -465,7 +579,7 @@ export async function handleMockRequest(config) {
         };
     }
 
-    // 7. Reports: /reports
+    // 9. Reports: /reports
     if (url.includes('/reports/admin-stats')) {
         return {
             status: 200,
@@ -474,6 +588,17 @@ export async function handleMockRequest(config) {
                 total_sales: 8470.00,
                 total_transactions: 14,
                 total_profit: 2150.00
+            }
+        };
+    }
+
+    if (url.includes('/reports/daily')) {
+        return {
+            status: 200,
+            statusText: 'OK',
+            data: {
+                total_revenue: 8470.00,
+                total_transactions: 14
             }
         };
     }
@@ -540,11 +665,25 @@ export async function handleMockRequest(config) {
     }
 
     if (url.includes('/reports/adjustments')) {
-        const adjustments = getStored(STORAGE_KEYS.ADJUSTMENTS, []);
+        const adjustments = getStored(STORAGE_KEYS.ADJUSTMENTS, DEFAULT_ADJUSTMENTS);
+        const damageCount = adjustments.filter(a => (a.movement_type || a.transaction_type) === 'DAMAGE').reduce((s, a) => s + Math.abs(Number(a.quantity_change || a.quantity || 0)), 0);
+        const lossCount = adjustments.filter(a => (a.movement_type || a.transaction_type) === 'LOSS').reduce((s, a) => s + Math.abs(Number(a.quantity_change || a.quantity || 0)), 0);
+        const returnCount = adjustments.filter(a => (a.movement_type || a.transaction_type) === 'RETURN_TO_SUPPLIER').reduce((s, a) => s + Math.abs(Number(a.quantity_change || a.quantity || 0)), 0);
+        const foundCount = adjustments.filter(a => (a.movement_type || a.transaction_type) === 'FOUND').reduce((s, a) => s + Math.abs(Number(a.quantity_change || a.quantity || 0)), 0);
+
         return {
             status: 200,
             statusText: 'OK',
-            data: adjustments
+            data: {
+                adjustments,
+                summary: {
+                    DAMAGE: damageCount,
+                    LOSS: lossCount,
+                    RETURN_TO_SUPPLIER: returnCount,
+                    FOUND: foundCount
+                },
+                grouped_totals: []
+            }
         };
     }
 
