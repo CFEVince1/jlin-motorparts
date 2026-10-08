@@ -266,7 +266,7 @@ const Products = () => {
                                     const checked = formData.compatibility_group_ids.map(Number).includes(groupId);
 
                                     return (
-                                        <label key={group.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--primary)', fontSize: '0.8rem' }}>
+                                        <label key={group.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--text-main)', fontSize: '0.8rem' }}>
                                             <input
                                                 type="checkbox"
                                                 checked={checked}
