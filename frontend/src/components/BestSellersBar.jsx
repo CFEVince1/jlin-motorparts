@@ -48,14 +48,14 @@ export default function BestSellersBar({ onAddToCart }) {
 
   return (
     <div
-      className="mb-4 rounded-xl border border-zinc-800 bg-zinc-900/90 p-3 shadow-lg best-sellers-widget"
+      className="glass-panel best-sellers-widget"
       style={{
         marginBottom: '16px',
         borderRadius: '12px',
         border: '1px solid var(--border)',
         background: 'var(--surface)',
         padding: '12px 14px',
-        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)'
+        boxShadow: 'var(--glass-shadow)'
       }}
     >
       <div
@@ -184,21 +184,16 @@ export default function BestSellersBar({ onAddToCart }) {
               <div
                 key={item.product_id || item.id || index}
                 onClick={() => !isOutOfStock && (onAddToCart ? onAddToCart(item) : navigate('/pos'))}
-                className={`relative flex flex-col justify-between rounded-lg border p-2.5 transition cursor-pointer select-none ${
-                  isOutOfStock
-                    ? 'border-red-950/40 bg-zinc-950/40 opacity-60 cursor-not-allowed'
-                    : 'border-zinc-800 bg-zinc-950/80 hover:border-amber-500/60 hover:bg-zinc-800/80'
-                }`}
                 style={{
                   position: 'relative',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
                   borderRadius: '8px',
-                  border: isOutOfStock ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--border)',
-                  background: isOutOfStock ? 'rgba(0,0,0,0.4)' : 'var(--surface-hover)',
+                  border: isOutOfStock ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid var(--border)',
+                  background: isOutOfStock ? 'rgba(239, 68, 68, 0.08)' : 'var(--surface-hover)',
                   padding: '10px 12px',
-                  opacity: isOutOfStock ? 0.6 : 1,
+                  opacity: isOutOfStock ? 0.8 : 1,
                   cursor: isOutOfStock ? 'not-allowed' : 'pointer',
                   userSelect: 'none',
                   transition: 'all 0.15s ease'
@@ -227,7 +222,6 @@ export default function BestSellersBar({ onAddToCart }) {
 
                 <div>
                   <div
-                    className="truncate text-xs font-semibold text-zinc-100"
                     title={item.name}
                     style={{
                       fontSize: '0.82rem',
@@ -241,7 +235,6 @@ export default function BestSellersBar({ onAddToCart }) {
                     {item.name}
                   </div>
                   <div
-                    className="text-[10px] text-zinc-400 flex justify-between mt-0.5"
                     style={{
                       fontSize: '0.72rem',
                       color: 'var(--text-muted)',
@@ -252,7 +245,6 @@ export default function BestSellersBar({ onAddToCart }) {
                   >
                     <span>{item.brand || 'Generic'}</span>
                     <span
-                      className="font-mono text-zinc-300"
                       style={{
                         fontFamily: 'monospace',
                         fontWeight: '600',
@@ -265,7 +257,6 @@ export default function BestSellersBar({ onAddToCart }) {
                 </div>
 
                 <div
-                  className="mt-2 flex items-center justify-between border-t border-zinc-800/60 pt-1.5 text-[10px]"
                   style={{
                     marginTop: '8px',
                     display: 'flex',

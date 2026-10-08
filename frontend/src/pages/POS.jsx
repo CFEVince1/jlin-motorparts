@@ -475,11 +475,29 @@ const POS = () => {
                         .pos-catalog-wrapper { grid-column: span 8 / span 12 !important; }
                         .pos-cart-wrapper { grid-column: span 4 / span 12 !important; }
                     }
+                    .pos-filters-grid {
+                        display: grid;
+                        grid-template-columns: repeat(4, minmax(0, 1fr));
+                        gap: 8px;
+                        align-items: center;
+                        width: 100%;
+                        margin-bottom: 12px;
+                    }
+                    @media (max-width: 900px) {
+                        .pos-filters-grid {
+                            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+                        }
+                    }
+                    @media (max-width: 480px) {
+                        .pos-filters-grid {
+                            grid-template-columns: 1fr !important;
+                        }
+                    }
                 `}</style>
                 <h1>Point of Sale</h1>
 
-                {/* Filter bar on a single compact row: grid-cols-2 md:grid-cols-4 gap-2.5 */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '10px', alignItems: 'center', width: '100%', marginBottom: '12px' }}>
+                {/* Filter bar on a single compact row: 4 columns on desktop */}
+                <div className="pos-filters-grid">
                     <div style={{ position: 'relative', width: '100%' }}>
                         <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                         <input
@@ -579,14 +597,75 @@ const POS = () => {
                                             Serials ({item.quantity})
                                         </button>
                                     ) : (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <button onClick={() => updateQuantity(item.product_id, -1)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'white', width: '24px', height: '24px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Minus size={12} /></button>
-                                            <input type="number" min="1" max={item.maxStock} value={item.quantity} onChange={(e) => setQuantityDirect(item.product_id, e.target.value)} style={{ width: '40px', height: '26px', textAlign: 'center', background: 'var(--surface)', border: '1px solid var(--border)', color: 'white', borderRadius: '4px', padding: '2px', fontSize: '0.8rem' }} />
-                                            <button onClick={() => updateQuantity(item.product_id, 1)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'white', width: '24px', height: '24px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={12} /></button>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                            <button 
+                                                type="button"
+                                                onClick={() => updateQuantity(item.product_id, -1)} 
+                                                className="btn-secondary"
+                                                style={{ 
+                                                    width: '26px', 
+                                                    height: '26px', 
+                                                    padding: 0, 
+                                                    borderRadius: '4px', 
+                                                    cursor: 'pointer', 
+                                                    display: 'flex', 
+                                                    alignItems: 'center', 
+                                                    justifyContent: 'center', 
+                                                    flexShrink: 0 
+                                                }}
+                                                title="Decrease quantity"
+                                            >
+                                                <Minus size={13} />
+                                            </button>
+                                            <input 
+                                                type="number" 
+                                                min="1" 
+                                                max={item.maxStock} 
+                                                value={item.quantity} 
+                                                onChange={(e) => setQuantityDirect(item.product_id, e.target.value)} 
+                                                className="input-premium"
+                                                style={{ 
+                                                    width: '42px', 
+                                                    height: '26px', 
+                                                    textAlign: 'center', 
+                                                    padding: '2px', 
+                                                    fontSize: '0.82rem', 
+                                                    fontWeight: '600',
+                                                    borderRadius: '4px'
+                                                }} 
+                                            />
+                                            <button 
+                                                type="button"
+                                                onClick={() => updateQuantity(item.product_id, 1)} 
+                                                className="btn-secondary"
+                                                style={{ 
+                                                    width: '26px', 
+                                                    height: '26px', 
+                                                    padding: 0, 
+                                                    borderRadius: '4px', 
+                                                    cursor: 'pointer', 
+                                                    display: 'flex', 
+                                                    alignItems: 'center', 
+                                                    justifyContent: 'center', 
+                                                    flexShrink: 0 
+                                                }}
+                                                title="Increase quantity"
+                                            >
+                                                <Plus size={13} />
+                                            </button>
                                         </div>
                                     )}
-                                    <div style={{ width: '80px', textAlign: 'right', fontWeight: 'bold', fontSize: '0.85rem' }}>{formatCurrency(item.subtotal)}</div>
-                                    <button onClick={() => removeFromCart(item.product_id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', marginLeft: '6px' }}><Trash2 size={15} /></button>
+                                    <div style={{ width: '80px', textAlign: 'right', fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--text-main)' }}>{formatCurrency(item.subtotal)}</div>
+                                    <button 
+                                        type="button"
+                                        onClick={() => removeFromCart(item.product_id)} 
+                                        style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', marginLeft: '6px', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.85, transition: 'opacity 0.2s' }}
+                                        onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                                        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.85'}
+                                        title="Remove item"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
                                 </div>
                             ))}
                         </div>

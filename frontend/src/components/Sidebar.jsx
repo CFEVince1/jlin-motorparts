@@ -110,9 +110,9 @@ const Sidebar = () => {
                         position: 'absolute',
                         top: 0,
                         right: '12px',
-                        background: 'transparent',
+                        background: 'var(--surface-hover)',
                         border: '1px solid var(--border)',
-                        color: 'var(--text-muted)',
+                        color: 'var(--text-main)',
                         cursor: 'pointer',
                         padding: '5px',
                         borderRadius: '6px',
@@ -121,7 +121,7 @@ const Sidebar = () => {
                         justifyContent: 'center',
                         transition: 'all 0.2s ease'
                     }}
-                    title="Toggle Theme"
+                    title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                 >
                     {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
                 </button>
