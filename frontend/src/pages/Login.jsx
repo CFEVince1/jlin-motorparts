@@ -18,8 +18,14 @@ const Login = () => {
     const { login } = useContext(AuthContext);
     const navigate = useNavigate();
 
+    useEffect(() => {
+        // Ensure real cloud database mode is active
+        localStorage.removeItem('jlin_use_mock');
+    }, []);
+
     const handleLogin = async (e) => {
         e.preventDefault();
+        localStorage.removeItem('jlin_use_mock');
         try {
             // Validate data
             loginSchema.parse({ username, password });
@@ -160,7 +166,7 @@ const Login = () => {
                                 fontSize: '0.72rem',
                                 color: 'var(--text-muted)'
                             }}>
-                                <span>Demo Fast-Fill:</span>
+                                <span>Quick Credentials:</span>
                                 <span style={{
                                     fontSize: '0.68rem',
                                     padding: '2px 6px',
@@ -169,7 +175,7 @@ const Login = () => {
                                     color: '#10b981',
                                     border: '1px solid rgba(16, 185, 129, 0.25)'
                                 }}>
-                                    ⚡ Mock Data Ready
+                                    🟢 Live Cloud Database
                                 </span>
                             </div>
 
