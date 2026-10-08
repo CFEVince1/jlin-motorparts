@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { X, Clock, FileText, ArrowUpRight, ArrowDownRight, RefreshCw } from 'lucide-react';
+import { X, History, FileText, ArrowUpRight, ArrowDownRight, RefreshCw } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { formatAuditDate } from '../utils/formatters';
 
 /**
- * ItemLedgerDrawer Component
+ * ItemLedgerDrawer Component (Renamed to History)
  * 
- * Slide-out drawer displaying immutable transaction history for an item.
- * - Queries GET /api/items/:id/ledger (sorted strictly it.id ASC).
+ * Slide-out drawer displaying stock movement history for an item.
+ * - Queries GET /api/items/:id/ledger (or /api/inventory/items/:id/ledger).
  * - Badges: OPENING_BALANCE, STOCK_IN, SALE, DAMAGE, LOSS, RETURN_TO_SUPPLIER, FOUND.
  * - Displays quantity change, balance after, reference number, cashier/staff username, and timestamp.
  */
@@ -26,8 +26,13 @@ export const ItemLedgerDrawer = ({
     if (!itemId) return;
     setLoading(true);
     try {
-      const res = await api.get(`/items/${itemId}/ledger`);
-      const raw = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      let res;
+      try {
+        res = await api.get(`/items/${itemId}/ledger`);
+      } catch (firstErr) {
+        res = await api.get(`/inventory/items/${itemId}/ledger`);
+      }
+      const raw = Array.isArray(res.data) ? res.data : (res.data?.data || res.data?.transactions || []);
       const normalized = raw.map(entry => ({
         ...entry,
         movement_type: entry.movement_type || entry.transaction_type,
@@ -35,8 +40,8 @@ export const ItemLedgerDrawer = ({
       }));
       setLedger(normalized);
     } catch (err) {
-      console.error('Ledger fetch error:', err);
-      toast.error('Failed to load item ledger entries');
+      console.error('History fetch error:', err);
+      toast.error('Failed to load item movement history');
       setLedger([]);
     } finally {
       setLoading(false);
@@ -102,9 +107,9 @@ export const ItemLedgerDrawer = ({
         }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Clock size={20} style={{ color: 'var(--primary)' }} />
+              <History size={20} style={{ color: 'var(--primary)' }} />
               <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: 0, color: 'var(--text-main)' }}>
-                Immutable Stock Ledger
+                Stock Movement History
               </h2>
             </div>
             <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -119,7 +124,7 @@ export const ItemLedgerDrawer = ({
               onClick={fetchLedger}
               className="btn-secondary"
               style={{ padding: '6px 10px', height: '32px' }}
-              title="Refresh ledger"
+              title="Refresh history"
             >
               <RefreshCw size={14} />
             </button>
@@ -132,15 +137,15 @@ export const ItemLedgerDrawer = ({
           </div>
         </div>
 
-        {/* Ledger Content Area */}
+        {/* History Content Area */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
           {loading ? (
             <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
-              Loading audit ledger...
+              Loading movement history...
             </div>
           ) : ledger.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
-              No ledger entries recorded for this item yet.
+              No movement history recorded for this item yet.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -231,10 +236,10 @@ export const ItemLedgerDrawer = ({
           alignItems: 'center'
         }}>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            Total Recorded Events: <strong>{ledger.length}</strong>
+            Total Movement Events: <strong>{ledger.length}</strong>
           </span>
           <button className="btn-secondary" onClick={onClose}>
-            Close Drawer
+            Close History
           </button>
         </div>
       </div>

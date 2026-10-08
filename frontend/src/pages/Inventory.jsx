@@ -351,20 +351,18 @@ const Inventory = () => {
                                                         onClick={() => setLedgerTarget(p)}
                                                         className="btn-secondary"
                                                         style={{ padding: '4px 8px', fontSize: '0.75rem', height: '28px' }}
-                                                        title="View Item Ledger"
+                                                        title="View Stock Movement History"
                                                     >
-                                                        <BookOpen size={14} /> Ledger
+                                                        <History size={14} /> History
                                                     </button>
-                                                    {isAdmin && (
-                                                        <button
-                                                            onClick={() => setAdjustmentTarget(p)}
-                                                            className="btn-secondary"
-                                                            style={{ padding: '4px 8px', fontSize: '0.75rem', height: '28px' }}
-                                                            title="Adjust Stock (Damage, Loss, Return, Found)"
-                                                        >
-                                                            <SlidersHorizontal size={14} /> Adjust
-                                                        </button>
-                                                    )}
+                                                    <button
+                                                        onClick={() => setAdjustmentTarget(p)}
+                                                        className="btn-secondary"
+                                                        style={{ padding: '4px 8px', fontSize: '0.75rem', height: '28px' }}
+                                                        title="Adjust Stock (Damage, Loss, Return, Found)"
+                                                    >
+                                                        <SlidersHorizontal size={14} /> Adjust
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>
