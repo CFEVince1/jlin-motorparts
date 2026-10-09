@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Banknote, Smartphone, AlertCircle, X, Printer, CheckCircle } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 import { calculatePaymentDetails, roundCurrency } from '../utils/calculations';
@@ -27,6 +27,15 @@ export const CheckoutModal = ({
   const [cashTendered, setCashTendered] = useState('');
   const [gcashRef, setGcashRef] = useState('');
 
+  // Reset fields whenever modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setCashTendered('');
+      setGcashRef('');
+      setPaymentMethod('Cash');
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const isCash = (paymentMethod || '').toUpperCase() === 'CASH';
@@ -39,6 +48,12 @@ export const CheckoutModal = ({
   const isGcashValid = isGcash && gcashRef.trim().length >= 6;
   const canSubmit = !loading && (isCashValid || isGcashValid);
 
+  const handleClose = () => {
+    setCashTendered('');
+    setGcashRef('');
+    if (onClose) onClose();
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!canSubmit) return;
@@ -49,6 +64,9 @@ export const CheckoutModal = ({
       changeDue: isCash ? paymentDetails.changeDue : 0,
       gcashReference: isGcash ? gcashRef.trim() : null,
     });
+
+    setCashTendered('');
+    setGcashRef('');
   };
 
   return (
@@ -82,7 +100,7 @@ export const CheckoutModal = ({
             </p>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             disabled={loading}
             style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
           >
