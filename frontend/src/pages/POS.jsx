@@ -1,8 +1,9 @@
 import { useState, useEffect, useContext, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { ShoppingCart, Printer, Search, Plus, Minus, Trash2, CheckCircle2, X, AlertCircle, Banknote, CreditCard, Smartphone } from 'lucide-react';
+import { ShoppingCart, Printer, Search, Plus, Minus, Trash2, CheckCircle2, X, AlertCircle, Banknote, CreditCard, Smartphone, History } from 'lucide-react';
 import { filterProducts, isSerializedProduct, normalizePartNumberSearch } from '../utils/productFilter';
 import useTableFilter from '../hooks/useTableFilter';
 import { calculateCartTotals, calculateItemSubtotal, calculatePaymentDetails } from '../utils/calculations';
@@ -17,6 +18,7 @@ const formatSerialNumbers = (serialNumbers) => {
 };
 
 const POS = () => {
+    const navigate = useNavigate();
     const { user } = useContext(AuthContext);
     const [products, setProducts] = useState([]);
     const [cart, setCart] = useState([]);
@@ -494,7 +496,18 @@ const POS = () => {
                         }
                     }
                 `}</style>
-                <h1>Point of Sale</h1>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h1 style={{ margin: 0 }}>Point of Sale</h1>
+                    <button
+                        onClick={() => navigate('/transactions')}
+                        className="btn-secondary"
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', padding: '6px 14px' }}
+                        title={user?.role === 'staff' ? 'View My Sales History' : 'View All Transaction History'}
+                    >
+                        <History size={16} />
+                        <span>{user?.role === 'staff' ? 'Self History' : 'Recent Sales'}</span>
+                    </button>
+                </div>
 
                 {/* Filter bar on a single compact row: 4 columns on desktop */}
                 <div className="pos-filters-grid">
