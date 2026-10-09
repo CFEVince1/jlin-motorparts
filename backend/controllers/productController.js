@@ -196,10 +196,6 @@ exports.createProduct = async (req, res) => {
         const unitIds = normalizeMotorcycleUnitIds(motorcycle_unit_ids);
         const groupIds = normalizeCompatibilityGroupIds(req.body.compatibility_group_ids);
 
-        if (unitIds.length === 0 && groupIds.length === 0) {
-            throw new Error('At least one motorcycle compatibility or group is required');
-        }
-
         const serialized = normalizeBoolean(is_serialized);
         const cleanedSerials = normalizeSerialNumbers(serial_numbers);
         const uniqueSerials = new Set(cleanedSerials);
@@ -257,6 +253,10 @@ exports.createProduct = async (req, res) => {
             await connection.query(
                 'INSERT INTO product_compatibility (product_id, motorcycle_unit_id) VALUES ?',
                 [compatibilityValues]
+            );
+            await connection.query(
+                'INSERT IGNORE INTO product_compatibilities (product_id, motorcycle_model_id, compatibility_status) VALUES ?',
+                [unitIds.map(unitId => [productId, unitId, 'COMPATIBLE'])]
             );
         }
 
@@ -324,10 +324,6 @@ exports.updateProduct = async (req, res) => {
         const unitIds = normalizeMotorcycleUnitIds(motorcycle_unit_ids);
         const groupIds = normalizeCompatibilityGroupIds(req.body.compatibility_group_ids);
 
-        if (unitIds.length === 0 && groupIds.length === 0) {
-            throw new Error('At least one motorcycle compatibility or group is required');
-        }
-
         await connection.beginTransaction();
 
         const [existingRows] = await connection.query(
@@ -376,10 +372,15 @@ exports.updateProduct = async (req, res) => {
         );
 
         await connection.query('DELETE FROM product_compatibility WHERE product_id = ?', [id]);
+        await connection.query('DELETE FROM product_compatibilities WHERE product_id = ?', [id]);
         if (unitIds.length > 0) {
             await connection.query(
                 'INSERT INTO product_compatibility (product_id, motorcycle_unit_id) VALUES ?',
                 [unitIds.map(unitId => [id, unitId])]
+            );
+            await connection.query(
+                'INSERT IGNORE INTO product_compatibilities (product_id, motorcycle_model_id, compatibility_status) VALUES ?',
+                [unitIds.map(unitId => [id, unitId, 'COMPATIBLE'])]
             );
         }
 
