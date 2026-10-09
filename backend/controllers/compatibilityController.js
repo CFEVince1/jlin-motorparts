@@ -319,22 +319,24 @@ exports.searchCompatibility = async (req, res, next) => {
             });
         }
 
-        // Query products associated with this motorcycle model in product_compatibilities
+        // Query products associated with this motorcycle model in product_compatibilities or product_compatibility
         const [rows] = await db.query(`
             SELECT 
                 p.id AS item_id,
                 COALESCE(p.sku, p.part_number) AS sku,
+                COALESCE(p.part_number, p.sku) AS part_number,
                 p.name,
                 p.brand,
                 COALESCE(p.retail_price, p.selling_price) AS retail_price,
                 COALESCE(p.current_stock, p.stock) AS current_stock,
-                pc.compatibility_status,
-                COALESCE(pc.notes, pc.compatibility_status) AS notes
+                COALESCE(pc.compatibility_status, 'COMPATIBLE') AS compatibility_status,
+                COALESCE(pc.notes, 'COMPATIBLE') AS notes
             FROM products p
-            JOIN product_compatibilities pc ON pc.product_id = p.id
-            WHERE pc.motorcycle_model_id = ? AND p.is_active = true
+            LEFT JOIN product_compatibilities pc ON pc.product_id = p.id AND pc.motorcycle_model_id = ?
+            LEFT JOIN product_compatibility pc_leg ON pc_leg.product_id = p.id AND pc_leg.motorcycle_unit_id = ?
+            WHERE (pc.motorcycle_model_id = ? OR pc_leg.motorcycle_unit_id = ?) AND p.is_active = true
             ORDER BY p.name ASC
-        `, [modelId]);
+        `, [modelId, modelId, modelId, modelId]);
 
         const compatible = [];
         const incompatible = [];
@@ -342,13 +344,19 @@ exports.searchCompatibility = async (req, res, next) => {
         for (const item of rows) {
             const entry = {
                 item_id: item.item_id,
+                id: item.item_id,
                 sku: item.sku,
+                part_number: item.part_number,
                 name: item.name,
+                product_name: item.name,
                 part_name: item.name,
                 brand: item.brand,
                 part_brand: item.brand,
                 retail_price: Number(item.retail_price || 0.00),
-                current_stock: Number(item.current_stock),
+                price: Number(item.retail_price || 0.00),
+                selling_price: Number(item.retail_price || 0.00),
+                current_stock: Number(item.current_stock || 0),
+                stock: Number(item.current_stock || 0),
                 compatibility_status: item.compatibility_status,
                 compatibility_notes: item.notes,
                 notes: item.notes
