@@ -125,7 +125,7 @@ exports.checkout = async (req, res, next) => {
                 throw new AppValidationError(`Insufficient stock for ${product.name} (SKU: ${product.sku || product.part_number}). On hand: ${currentStock}, Requested: ${qty}`);
             }
 
-            const unitPrice = Number(product.retail_price ?? product.selling_price ?? 0.00);
+            const unitPrice = Number(product.selling_price || product.retail_price || item.price || item.unit_price || 0.00);
             const unitPriceCentavos = Math.round(unitPrice * 100);
             const lineSubtotalCentavos = unitPriceCentavos * qty;
             totalAmountCentavos += lineSubtotalCentavos;
@@ -155,11 +155,15 @@ exports.checkout = async (req, res, next) => {
         if (method === 'Cash') {
             tenderedCentavos = Math.round(Number(rawTendered || 0) * 100);
             if (tenderedCentavos < totalAmountCentavos) {
-                throw new AppValidationError(
-                    `Insufficient cash tendered. Total: ₱${totalAmount.toFixed(2)}, Tendered: ₱${(tenderedCentavos / 100).toFixed(2)}`
-                );
+                if (totalAmountCentavos - tenderedCentavos <= 1) {
+                    tenderedCentavos = totalAmountCentavos;
+                } else {
+                    throw new AppValidationError(
+                        `Insufficient cash tendered. Total: ₱${totalAmount.toFixed(2)}, Tendered: ₱${(tenderedCentavos / 100).toFixed(2)}`
+                    );
+                }
             }
-            changeDueCentavos = tenderedCentavos - totalAmountCentavos;
+            changeDueCentavos = Math.max(0, tenderedCentavos - totalAmountCentavos);
         } else if (method === 'GCash') {
             // Invariant: GCash requires exact amount, zero change, and reference number >= 6 chars
             tenderedCentavos = totalAmountCentavos;
