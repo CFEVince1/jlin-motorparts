@@ -109,6 +109,7 @@ async function syncAiven() {
         id INT AUTO_INCREMENT PRIMARY KEY,
         product_id INT NOT NULL,
         motorcycle_model_id INT NOT NULL,
+        compatibility_status ENUM('COMPATIBLE', 'NOT_COMPATIBLE') NOT NULL DEFAULT 'COMPATIBLE',
         notes VARCHAR(255) DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY unique_prod_compat (product_id, motorcycle_model_id),
@@ -120,14 +121,27 @@ async function syncAiven() {
     `);
 
     await pool.query(`
-      INSERT IGNORE INTO product_compatibilities (product_id, motorcycle_model_id)
-      SELECT pc.product_id, pc.motorcycle_unit_id
+      INSERT IGNORE INTO product_compatibilities (product_id, motorcycle_model_id, compatibility_status)
+      SELECT pc.product_id, pc.motorcycle_unit_id, 'COMPATIBLE'
       FROM product_compatibility pc
       JOIN motorcycle_models mm ON mm.id = pc.motorcycle_unit_id
     `);
     console.log('`product_compatibilities` table created and populated!');
   } catch (err) {
     console.error('Error creating product_compatibilities:', err.message);
+  }
+
+  // 4b. Create `sales_order_seq` sequence table
+  try {
+    console.log('Creating `sales_order_seq` table...');
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sales_order_seq (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log('`sales_order_seq` table ready!');
+  } catch (err) {
+    console.error('Error creating sales_order_seq:', err.message);
   }
 
   // 5. Create `sales_orders` and `sales_order_items`
@@ -224,6 +238,7 @@ async function syncAiven() {
         id INT AUTO_INCREMENT PRIMARY KEY,
         supplier_id INT NOT NULL,
         reference_number VARCHAR(100) NOT NULL UNIQUE,
+        reference_no VARCHAR(100) NULL,
         received_by INT DEFAULT NULL,
         received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         total_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
@@ -236,11 +251,19 @@ async function syncAiven() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
+    // Ensure reference_no exists and is backfilled
+    const [rrCols] = await pool.query("SHOW COLUMNS FROM receiving_records LIKE 'reference_no'");
+    if (rrCols.length === 0) {
+      await pool.query("ALTER TABLE receiving_records ADD COLUMN reference_no VARCHAR(100) NULL AFTER reference_number");
+      await pool.query("UPDATE receiving_records SET reference_no = reference_number WHERE reference_no IS NULL");
+    }
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS receiving_record_items (
         id INT AUTO_INCREMENT PRIMARY KEY,
         receiving_record_id INT NOT NULL,
         product_id INT NOT NULL,
+        item_id INT NULL,
         quantity INT NOT NULL,
         cost_price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
         subtotal DECIMAL(12,2) NOT NULL DEFAULT 0.00,
@@ -249,6 +272,13 @@ async function syncAiven() {
         FOREIGN KEY (product_id) REFERENCES products(id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
+
+    // Ensure item_id exists and is backfilled
+    const [rriCols] = await pool.query("SHOW COLUMNS FROM receiving_record_items LIKE 'item_id'");
+    if (rriCols.length === 0) {
+      await pool.query("ALTER TABLE receiving_record_items ADD COLUMN item_id INT NULL AFTER product_id");
+      await pool.query("UPDATE receiving_record_items SET item_id = product_id WHERE item_id IS NULL");
+    }
     console.log('`receiving_records` ready!');
   } catch (err) {
     console.error('Error on receiving_records:', err.message);

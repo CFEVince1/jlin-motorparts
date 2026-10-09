@@ -180,11 +180,15 @@ exports.checkout = async (req, res, next) => {
         // 4. Generate order_no via sales_order_seq sequence (SO-YYYY-NNNN)
         let nextSeqVal;
         try {
-            const [seqRows] = await connection.query('SELECT NEXT VALUE FOR sales_order_seq AS next_val');
-            nextSeqVal = seqRows[0].next_val;
-        } catch (seqErr) {
             const [fallbackRows] = await connection.query('INSERT INTO sales_order_seq VALUES (NULL)');
             nextSeqVal = fallbackRows.insertId;
+        } catch (seqErr) {
+            try {
+                const [seqRows] = await connection.query('SELECT NEXT VALUE FOR sales_order_seq AS next_val');
+                nextSeqVal = seqRows[0].next_val;
+            } catch (err2) {
+                nextSeqVal = Math.floor(1000 + Math.random() * 9000);
+            }
         }
 
         const year = new Date().getFullYear();
