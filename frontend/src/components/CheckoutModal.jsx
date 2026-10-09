@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Banknote, Smartphone, AlertCircle, X, Printer, CheckCircle } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
-import { calculatePaymentDetails } from '../utils/calculations';
+import { calculatePaymentDetails, roundCurrency } from '../utils/calculations';
 
 /**
  * CheckoutModal Component
@@ -23,18 +23,20 @@ export const CheckoutModal = ({
   onProcessPayment,
   loading = false,
 }) => {
-  const [paymentMethod, setPaymentMethod] = useState('CASH'); // 'CASH' | 'GCASH'
+  const [paymentMethod, setPaymentMethod] = useState('Cash'); // 'Cash' | 'GCash'
   const [cashTendered, setCashTendered] = useState('');
   const [gcashRef, setGcashRef] = useState('');
 
   if (!isOpen) return null;
 
-  const tenderedNumeric = paymentMethod === 'CASH' ? Number(cashTendered) || 0 : totalAmount;
+  const isCash = (paymentMethod || '').toUpperCase() === 'CASH';
+  const isGcash = (paymentMethod || '').toUpperCase() === 'GCASH';
+  const tenderedNumeric = isCash ? (Number(cashTendered) || 0) : totalAmount;
   const paymentDetails = calculatePaymentDetails(totalAmount, tenderedNumeric, paymentMethod);
 
   // Validation rules
-  const isCashValid = paymentMethod === 'CASH' && cashTendered !== '' && tenderedNumeric >= totalAmount;
-  const isGcashValid = paymentMethod === 'GCASH' && gcashRef.trim().length >= 6;
+  const isCashValid = isCash && cashTendered !== '' && roundCurrency(tenderedNumeric) >= roundCurrency(totalAmount);
+  const isGcashValid = isGcash && gcashRef.trim().length >= 6;
   const canSubmit = !loading && (isCashValid || isGcashValid);
 
   const handleSubmit = (e) => {
@@ -42,10 +44,10 @@ export const CheckoutModal = ({
     if (!canSubmit) return;
 
     onProcessPayment({
-      paymentMethod,
+      paymentMethod: isCash ? 'Cash' : 'GCash',
       tenderedAmount: tenderedNumeric,
-      changeDue: paymentMethod === 'CASH' ? paymentDetails.changeDue : 0,
-      gcashReference: paymentMethod === 'GCASH' ? gcashRef.trim() : null,
+      changeDue: isCash ? paymentDetails.changeDue : 0,
+      gcashReference: isGcash ? gcashRef.trim() : null,
     });
   };
 
@@ -113,13 +115,13 @@ export const CheckoutModal = ({
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <button
                 type="button"
-                onClick={() => setPaymentMethod('CASH')}
+                onClick={() => setPaymentMethod('Cash')}
                 style={{
                   padding: '10px 12px',
                   borderRadius: '8px',
-                  border: paymentMethod === 'CASH' ? '2px solid var(--primary)' : '1px solid var(--border)',
-                  background: paymentMethod === 'CASH' ? 'rgba(5, 150, 105, 0.12)' : 'var(--input-bg)',
-                  color: paymentMethod === 'CASH' ? 'var(--primary)' : 'var(--text-main)',
+                  border: isCash ? '2px solid var(--primary)' : '1px solid var(--border)',
+                  background: isCash ? 'rgba(5, 150, 105, 0.12)' : 'var(--input-bg)',
+                  color: isCash ? 'var(--primary)' : 'var(--text-main)',
                   fontWeight: '600',
                   fontSize: '0.85rem',
                   display: 'flex',
@@ -133,13 +135,13 @@ export const CheckoutModal = ({
               </button>
               <button
                 type="button"
-                onClick={() => setPaymentMethod('GCASH')}
+                onClick={() => setPaymentMethod('GCash')}
                 style={{
                   padding: '10px 12px',
                   borderRadius: '8px',
-                  border: paymentMethod === 'GCASH' ? '2px solid #0284c7' : '1px solid var(--border)',
-                  background: paymentMethod === 'GCASH' ? 'rgba(2, 132, 199, 0.12)' : 'var(--input-bg)',
-                  color: paymentMethod === 'GCASH' ? '#0284c7' : 'var(--text-main)',
+                  border: isGcash ? '2px solid #0284c7' : '1px solid var(--border)',
+                  background: isGcash ? 'rgba(2, 132, 199, 0.12)' : 'var(--input-bg)',
+                  color: isGcash ? '#0284c7' : 'var(--text-main)',
                   fontWeight: '600',
                   fontSize: '0.85rem',
                   display: 'flex',
@@ -155,7 +157,7 @@ export const CheckoutModal = ({
           </div>
 
           {/* Conditional Method Inputs */}
-          {paymentMethod === 'CASH' ? (
+          {isCash ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div>
                 <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
@@ -172,6 +174,29 @@ export const CheckoutModal = ({
                   autoFocus
                   required
                 />
+
+                {/* Quick Cash Suggestions */}
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setCashTendered(String(totalAmount))}
+                    className="btn-secondary"
+                    style={{ padding: '3px 8px', fontSize: '0.72rem', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                    Exact ({formatCurrency(totalAmount)})
+                  </button>
+                  {[50, 100, 200, 500, 1000].filter(amt => amt >= totalAmount).map(amt => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setCashTendered(String(amt))}
+                      className="btn-secondary"
+                      style={{ padding: '3px 8px', fontSize: '0.72rem', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      ₱{amt}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Change calculation */}
@@ -187,7 +212,8 @@ export const CheckoutModal = ({
                 <span style={{ color: 'var(--text-muted)' }}>Change Due:</span>
                 <span style={{
                   fontWeight: 'bold',
-                  color: isCashValid ? 'var(--success)' : 'var(--danger)'
+                  fontSize: '1rem',
+                  color: isCashValid ? 'var(--success)' : 'var(--text-muted)'
                 }}>
                   {formatCurrency(paymentDetails.changeDue)}
                 </span>

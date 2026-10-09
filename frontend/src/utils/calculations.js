@@ -73,8 +73,10 @@ export const calculateCartTotals = (cart = [], discount = 0) => {
 export const calculatePaymentDetails = (totalAmount, tenderedAmount, paymentMethod = 'Cash') => {
     const total = roundCurrency(totalAmount);
     const tendered = roundCurrency(tenderedAmount);
+    const normMethod = String(paymentMethod || '').trim().toUpperCase();
+    const isCash = normMethod === 'CASH' || normMethod === '';
 
-    if (paymentMethod !== 'Cash') {
+    if (!isCash) {
         return {
             isValid: true,
             totalAmount: total,

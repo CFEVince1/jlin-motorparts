@@ -298,12 +298,16 @@ const POS = () => {
                     variant_id: item.product_id,
                     product_id: item.product_id,
                     quantity: item.quantity,
+                    price: item.price,
+                    unit_price: item.price,
                     serial_ids: item.serial_ids || []
                 })),
                 payment_method: method,
                 paymentMethod: method,
                 tendered_amount: Number(amount) || 0,
                 tenderedAmount: Number(amount) || 0,
+                customer_name: customerName || 'Walk-in Customer',
+                customer_address: customerAddress || undefined,
                 gcash_reference_no: gcashRef || undefined
             };
 
@@ -316,12 +320,12 @@ const POS = () => {
                 orderNumber: res.data.order_number,
                 date: new Date(),
                 items: [...cart],
-                total: totalAmount,
-                paymentMethod: method,
+                total: res.data.total_amount ?? totalAmount,
+                paymentMethod: res.data.payment_method ?? method,
                 tenderedAmount: res.data.tendered_amount ?? amount,
-                changeDue: res.data.change_due ?? change,
+                changeDue: res.data.change_due !== undefined ? res.data.change_due : change,
                 gcashReference: gcashRef,
-                customerName,
+                customerName: customerName || 'Walk-in Customer',
                 customerAddress,
                 cashier: user.username
             });

@@ -226,10 +226,11 @@ exports.createProduct = async (req, res) => {
                 thread_type,
                 cost_price,
                 selling_price,
+                retail_price,
                 stock,
                 reorder_level,
                 is_serialized
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 String(part_number).trim(),
                 String(name).trim(),
@@ -239,6 +240,7 @@ exports.createProduct = async (req, res) => {
                 isMissing(measurement) ? null : String(measurement).trim(),
                 isMissing(thread_type) ? null : String(thread_type).trim(),
                 Number(cost_price),
+                Number(selling_price),
                 Number(selling_price),
                 finalStock,
                 Number(reorder_level),
@@ -352,6 +354,7 @@ exports.updateProduct = async (req, res) => {
                 thread_type = ?,
                 cost_price = ?,
                 selling_price = ?,
+                retail_price = ?,
                 stock = ?,
                 reorder_level = ?
              WHERE id = ? AND is_active = true`,
@@ -364,6 +367,7 @@ exports.updateProduct = async (req, res) => {
                 isMissing(measurement) ? null : String(measurement).trim(),
                 isMissing(thread_type) ? null : String(thread_type).trim(),
                 Number(cost_price),
+                Number(selling_price),
                 Number(selling_price),
                 finalStock,
                 Number(reorder_level),
