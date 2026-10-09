@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useContext } from 'react';
+import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { History, Receipt, X, Printer, Search, Calendar } from 'lucide-react';
@@ -10,6 +11,8 @@ import { formatCurrency, formatAuditDate } from '../utils/formatters';
 import ReceiptPrint from '../components/ReceiptPrint';
 
 const Transactions = () => {
+    const { user } = useContext(AuthContext);
+    const isStaff = user?.role === 'staff';
     const [transactions, setTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -114,10 +117,17 @@ const Transactions = () => {
 
     return (
         <div className={selectedTransaction ? 'receipt-modal-active' : ''} style={{ position: 'relative', height: '100%' }}>
-            <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 0 }}>
-                    <History size={32} color="var(--primary)" /> Transaction History
-                </h1>
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
+                <div>
+                    <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 0 }}>
+                        <History size={32} color="var(--primary)" /> {isStaff ? 'Self History' : 'Transaction History'}
+                    </h1>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0 44px' }}>
+                        {isStaff
+                            ? `Personal sales and checkout records for ${user?.username || 'your cashier account'}.`
+                            : 'Complete audit log of all store sales transactions and cashier records.'}
+                    </p>
+                </div>
 
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                     <select className="input-premium" value={timeframe} onChange={e => setTimeframe(e.target.value)}>
@@ -126,7 +136,7 @@ const Transactions = () => {
                         <option value="Yearly">Yearly Report</option>
                     </select>
                     <button onClick={handlePrint} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Printer size={16} /> Print {timeframe} Transactions
+                        <Printer size={16} /> Print {timeframe} {isStaff ? 'Self Records' : 'Transactions'}
                     </button>
                 </div>
             </div>

@@ -55,7 +55,7 @@ const Sidebar = () => {
     const location = useLocation();
 
     // Check if current route is part of Inventory group
-    const inventoryRoutes = ['/inventory', '/transactions', '/products', '/suppliers', '/stock-receive'];
+    const inventoryRoutes = ['/inventory', '/products', '/suppliers', '/stock-receive'];
     const isInventoryRouteActive = inventoryRoutes.includes(location.pathname);
     const [inventoryOpen, setInventoryOpen] = useState(true);
 
@@ -67,20 +67,21 @@ const Sidebar = () => {
     }, [location.pathname, isInventoryRouteActive]);
 
     const primaryLinks = [
+        { name: 'Fitment', path: '/compatibility-search', icon: <Search size={20} />, roles: ['admin', 'staff'] },
         { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={20} />, roles: ['admin', 'staff'] },
         { name: 'Sales (POS)', path: '/pos', icon: <ShoppingCart size={20} />, roles: ['admin', 'staff'] },
+        { name: 'Self History', path: '/transactions', icon: <History size={20} />, roles: ['staff'] },
     ];
 
     const inventorySubLinks = [
         { name: 'Current Stock', path: '/inventory', icon: <Archive size={16} />, roles: ['admin', 'staff'] },
-        { name: 'Transactions', path: '/transactions', icon: <History size={16} />, roles: ['admin', 'staff'] },
         { name: 'Product Directory', path: '/products', icon: <Package size={16} />, roles: ['admin'] },
         { name: 'Suppliers', path: '/suppliers', icon: <Building2 size={16} />, roles: ['admin'] },
         { name: 'Stock Receive', path: '/stock-receive', icon: <Truck size={16} />, roles: ['admin'] },
     ];
 
     const secondaryLinks = [
-        { name: 'Fitment Search', path: '/compatibility-search', icon: <Search size={20} />, roles: ['admin'] },
+        { name: 'Transaction History', path: '/transactions', icon: <History size={20} />, roles: ['admin'] },
         { name: 'Sales Reports', path: '/reports', icon: <TrendingUp size={20} />, roles: ['admin'] },
         { name: 'Discrepancy Audit', path: '/reports/adjustments', icon: <AlertOctagon size={20} />, roles: ['admin'] },
         { name: 'Compatibility Rules', path: '/manage-compatibility', icon: <Settings2 size={20} />, roles: ['admin'] },
