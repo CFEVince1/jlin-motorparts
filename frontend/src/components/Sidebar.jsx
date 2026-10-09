@@ -67,7 +67,7 @@ const Sidebar = () => {
     }, [location.pathname, isInventoryRouteActive]);
 
     const primaryLinks = [
-        { name: 'Fitment', path: '/compatibility-search', icon: <Search size={20} />, roles: ['admin', 'staff'] },
+        { name: 'Fitment', path: '/compatibility-search', icon: <Search size={20} />, roles: ['admin'] },
         { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={20} />, roles: ['admin', 'staff'] },
         { name: 'Sales (POS)', path: '/pos', icon: <ShoppingCart size={20} />, roles: ['admin', 'staff'] },
         { name: 'Self History', path: '/transactions', icon: <History size={20} />, roles: ['staff'] },
