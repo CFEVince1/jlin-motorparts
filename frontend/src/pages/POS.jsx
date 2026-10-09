@@ -330,20 +330,20 @@ const POS = () => {
                 cashier: user.username
             });
 
-            // Close modal & clear cart
+            // Close modal & clear cart and inputs
             setShowConfirmModal(false);
             setCart([]);
+            setTenderedAmount('');
+            setCustomerName('');
+            setCustomerAddress('');
 
             // Refresh products catalog
             const resProducts = await api.get('/products');
             const activeProducts = resProducts.data.filter(p => p.stock > 0);
             setProducts(activeProducts);
 
-            // Display receipt & auto-trigger print
+            // Display receipt modal on screen for review before printing
             setShowReceipt(true);
-            setTimeout(() => {
-                window.print();
-            }, 300);
 
         } catch (err) {
             toast.error(err.response?.data?.message || err.response?.data?.error || 'Transaction failed');
@@ -753,18 +753,23 @@ const POS = () => {
             )}
 
             {/* CHECKOUT MODAL */}
-            <CheckoutModal
-                isOpen={showConfirmModal}
-                onClose={() => setShowConfirmModal(false)}
-                totalAmount={totalAmount}
-                cart={cart}
-                customerName={customerName}
-                customerAddress={customerAddress}
-                onCustomerNameChange={setCustomerName}
-                onCustomerAddressChange={setCustomerAddress}
-                onProcessPayment={processPayment}
-                loading={submittingPayment}
-            />
+            {showConfirmModal && (
+                <CheckoutModal
+                    isOpen={showConfirmModal}
+                    onClose={() => {
+                        setShowConfirmModal(false);
+                        setTenderedAmount('');
+                    }}
+                    totalAmount={totalAmount}
+                    cart={cart}
+                    customerName={customerName}
+                    customerAddress={customerAddress}
+                    onCustomerNameChange={setCustomerName}
+                    onCustomerAddressChange={setCustomerAddress}
+                    onProcessPayment={processPayment}
+                    loading={submittingPayment}
+                />
+            )}
 
             {/* RECEIPT MODAL */}
             {showReceipt && lastTransaction && (
