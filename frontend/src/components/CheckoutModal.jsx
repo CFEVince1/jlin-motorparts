@@ -48,6 +48,24 @@ export const CheckoutModal = ({
   const isGcashValid = isGcash && gcashRef.trim().length >= 6;
   const canSubmit = !loading && (isCashValid || isGcashValid);
 
+  const handleAddCash = (increment) => {
+    const current = parseFloat(cashTendered) || 0;
+    const nextVal = current === 0 ? Math.max(totalAmount, increment) : current + increment;
+    setCashTendered(String(Math.round(nextVal)));
+  };
+
+  const handleCashKeyDown = (e) => {
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const current = parseFloat(cashTendered) || 0;
+      setCashTendered(String(Math.round(current + 10)));
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const current = parseFloat(cashTendered) || 0;
+      setCashTendered(String(Math.max(0, Math.round(current - 10))));
+    }
+  };
+
   const handleClose = () => {
     setCashTendered('');
     setGcashRef('');
@@ -80,6 +98,16 @@ export const CheckoutModal = ({
       justifyContent: 'center',
       padding: '16px'
     }}>
+      <style>{`
+        .cash-input-no-spin::-webkit-inner-spin-button,
+        .cash-input-no-spin::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        .cash-input-no-spin {
+          -moz-appearance: textfield;
+        }
+      `}</style>
       <div className="glass-panel" style={{
         background: 'var(--surface)',
         padding: '24px',
@@ -183,37 +211,64 @@ export const CheckoutModal = ({
                 </label>
                 <input
                   type="number"
-                  step="0.01"
-                  min={totalAmount}
+                  step="any"
                   placeholder="Enter cash received"
-                  className="input-premium"
+                  className="input-premium cash-input-no-spin"
                   value={cashTendered}
                   onChange={(e) => setCashTendered(e.target.value)}
+                  onKeyDown={handleCashKeyDown}
                   autoFocus
                   required
                 />
 
-                {/* Quick Cash Suggestions */}
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setCashTendered(String(totalAmount))}
-                    className="btn-secondary"
-                    style={{ padding: '3px 8px', fontSize: '0.72rem', borderRadius: '4px', cursor: 'pointer' }}
-                  >
-                    Exact ({formatCurrency(totalAmount)})
-                  </button>
-                  {[50, 100, 200, 500, 1000].filter(amt => amt >= totalAmount).map(amt => (
+                {/* Quick Cash Presets & Quick Add */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>Set:</span>
                     <button
-                      key={amt}
                       type="button"
-                      onClick={() => setCashTendered(String(amt))}
+                      onClick={() => setCashTendered(String(totalAmount))}
                       className="btn-secondary"
                       style={{ padding: '3px 8px', fontSize: '0.72rem', borderRadius: '4px', cursor: 'pointer' }}
                     >
-                      ₱{amt}
+                      Exact ({formatCurrency(totalAmount)})
                     </button>
-                  ))}
+                    {[50, 100, 200, 500, 1000].filter(amt => amt >= totalAmount).map(amt => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => setCashTendered(String(amt))}
+                        className="btn-secondary"
+                        style={{ padding: '3px 8px', fontSize: '0.72rem', borderRadius: '4px', cursor: 'pointer' }}
+                      >
+                        ₱{amt}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>Add:</span>
+                    {[20, 50, 100, 500, 1000].map(addAmt => (
+                      <button
+                        key={addAmt}
+                        type="button"
+                        onClick={() => handleAddCash(addAmt)}
+                        className="btn-secondary"
+                        style={{ padding: '3px 8px', fontSize: '0.72rem', borderRadius: '4px', cursor: 'pointer' }}
+                      >
+                        +₱{addAmt}
+                      </button>
+                    ))}
+                    {cashTendered !== '' && (
+                      <button
+                        type="button"
+                        onClick={() => setCashTendered('')}
+                        style={{ padding: '3px 8px', fontSize: '0.72rem', borderRadius: '4px', cursor: 'pointer', background: 'none', border: '1px solid var(--border)', color: 'var(--danger)' }}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -221,17 +276,18 @@ export const CheckoutModal = ({
               <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
-                padding: '10px 12px',
-                borderRadius: '6px',
-                background: 'var(--surface-hover)',
-                border: '1px solid var(--border)',
-                fontSize: '0.9rem'
+                alignItems: 'center',
+                padding: '12px 14px',
+                borderRadius: '8px',
+                background: isCashValid && paymentDetails.changeDue > 0 ? 'rgba(16, 185, 129, 0.15)' : 'var(--surface-hover)',
+                border: isCashValid && paymentDetails.changeDue > 0 ? '1.5px solid var(--primary)' : '1px solid var(--border)',
+                fontSize: '0.95rem'
               }}>
-                <span style={{ color: 'var(--text-muted)' }}>Change Due:</span>
+                <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Change Due:</span>
                 <span style={{
                   fontWeight: 'bold',
-                  fontSize: '1rem',
-                  color: isCashValid ? 'var(--success)' : 'var(--text-muted)'
+                  fontSize: '1.25rem',
+                  color: isCashValid ? 'var(--primary)' : 'var(--text-muted)'
                 }}>
                   {formatCurrency(paymentDetails.changeDue)}
                 </span>
