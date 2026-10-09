@@ -208,11 +208,7 @@ const Reports = () => {
                         <div style={{
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '4px',
-                            background: 'rgba(255, 255, 255, 0.03)',
-                            padding: '3px',
-                            borderRadius: '8px',
-                            border: '1px solid var(--border)'
+                            gap: '6px'
                         }}>
                             <button
                                 type="button"

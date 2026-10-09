@@ -174,8 +174,8 @@ export const StockReceiveScreen = () => {
     <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div>
         <h1 style={{ marginBottom: '6px' }}>Stock Receiving (Deliveries)</h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
-          Receive wholesale parts shipments and record atomic STOCK_IN transactions into the inventory ledger.
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>
+          Receive wholesale parts shipments and record STOCK IN transactions into the inventory ledger.
         </p>
       </div>
 
