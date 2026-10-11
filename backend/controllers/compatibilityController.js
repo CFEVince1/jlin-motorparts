@@ -293,7 +293,8 @@ exports.getCompatibilityOptions = async (req, res, next) => {
         }
 
         // Return tree array with treeObject available on query param ?format=tree or header, or attach as properties
-        if (req.query.format === 'tree' || req.query.format === 'object') {
+        const queryFormat = req.query?.format;
+        if (queryFormat === 'tree' || queryFormat === 'object') {
             return res.json(treeObject);
         }
 

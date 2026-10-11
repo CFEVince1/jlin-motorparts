@@ -139,6 +139,8 @@ CREATE TABLE sales (
     tendered_amount DECIMAL(10,2) NOT NULL,
     change_due DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     payment_method ENUM('Cash', 'GCash', 'Card') NOT NULL DEFAULT 'Cash',
+    order_number VARCHAR(100) DEFAULT NULL,
+    payment_reference VARCHAR(100) DEFAULT NULL,
     sale_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
@@ -250,4 +252,32 @@ WHERE cg.group_name = 'Honda Click Platform' AND mu.brand = 'Honda' AND mu.model
 INSERT INTO compatibility_group_units (compatibility_group_id, motorcycle_unit_id)
 SELECT cg.id, mu.id FROM compatibility_groups cg, motorcycle_units mu
 WHERE cg.group_name = 'Suzuki Raider Platform' AND mu.brand = 'Suzuki' AND mu.model = 'Raider FI';
+
+-- ==========================================
+-- 10. COMPATIBILITY VIEW: items
+-- Aliases products table for backward-compatible queries
+-- ==========================================
+CREATE OR REPLACE VIEW items AS
+SELECT 
+    id,
+    id AS item_id,
+    COALESCE(sku, part_number) AS sku,
+    part_number,
+    name,
+    brand,
+    category,
+    size,
+    measurement,
+    thread_type,
+    cost_price,
+    COALESCE(retail_price, selling_price) AS retail_price,
+    selling_price,
+    COALESCE(current_stock, stock) AS current_stock,
+    stock,
+    reorder_level,
+    is_serialized,
+    is_active,
+    created_at,
+    updated_at
+FROM products;
 

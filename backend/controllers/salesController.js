@@ -181,31 +181,19 @@ exports.checkout = async (req, res, next) => {
         const finalTendered = tenderedCentavos / 100;
         const finalChangeDue = changeDueCentavos / 100;
 
-        // 4. Generate order_no via sales_order_seq sequence (SO-YYYY-NNNN)
-        let nextSeqVal;
-        try {
-            const [fallbackRows] = await connection.query('INSERT INTO sales_order_seq VALUES (NULL)');
-            nextSeqVal = fallbackRows.insertId;
-        } catch (seqErr) {
-            try {
-                const [seqRows] = await connection.query('SELECT NEXT VALUE FOR sales_order_seq AS next_val');
-                nextSeqVal = seqRows[0].next_val;
-            } catch (err2) {
-                nextSeqVal = Math.floor(1000 + Math.random() * 9000);
-            }
-        }
-
-        const year = new Date().getFullYear();
-        const orderNo = `SO-${year}-${String(nextSeqVal).padStart(4, '0')}`;
-
-        // 5. Insert single source of truth sales record
+        // 4. Insert single source of truth sales record first to obtain atomic auto-increment ID
         const [saleResult] = await connection.query(
             `INSERT INTO sales (
                 user_id, total_amount, tendered_amount, change_due, payment_method, order_number, payment_reference, sale_date
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
-            [userId, totalAmount, finalTendered, finalChangeDue, method, orderNo, refNo || null]
+            ) VALUES (?, ?, ?, ?, ?, NULL, ?, NOW())`,
+            [userId, totalAmount, finalTendered, finalChangeDue, method, refNo || null]
         );
         const saleId = saleResult.insertId;
+
+        // 5. Generate deterministic, collision-free order_no from saleId (SO-YYYY-NNNN)
+        const year = new Date().getFullYear();
+        const orderNo = `SO-${year}-${String(saleId).padStart(4, '0')}`;
+        await connection.query('UPDATE sales SET order_number = ? WHERE id = ?', [orderNo, saleId]);
 
         // 6. Insert line items into sale_items and call applyMovement (SALE) atomically for each line
         for (const item of validatedItems) {
