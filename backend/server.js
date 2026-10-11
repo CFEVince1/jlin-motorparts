@@ -8,6 +8,11 @@ const app = express();
 app.set('trust proxy', 1);
 const PORT = process.env.PORT || 5000;
 
+// Allowed origins configuration
+const allowedCustomOrigins = process.env.FRONTEND_URL 
+  ? process.env.FRONTEND_URL.split(',').map(o => o.trim()).filter(Boolean)
+  : [];
+
 // Middleware
 app.use(cors({
   origin: (origin, callback) => {
@@ -20,17 +25,26 @@ app.use(cors({
     }
     
     // Allow custom FRONTEND_URL if defined
-    if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
+    if (allowedCustomOrigins.includes(origin)) {
       return callback(null, true);
     }
     
-    // Allow all Vercel deployments (*.vercel.app)
-    if (origin.endsWith('.vercel.app')) {
+    // Allow official production frontend and Vercel preview deployments
+    if (
+      origin === 'https://jlin-motorparts.vercel.app' ||
+      /^https:\/\/jlin-motorparts(-[a-z0-9-]+)?\.vercel\.app$/.test(origin) ||
+      origin.endsWith('.vercel.app')
+    ) {
       return callback(null, true);
     }
     
-    // Default allow for testing / portfolio previews
-    return callback(null, true);
+    // In production, reject disallowed origins
+    if (process.env.NODE_ENV === 'production') {
+      return callback(new Error('Not allowed by CORS'));
+    }
+
+    // Default reject in development for unknown origins as well
+    return callback(new Error('Not allowed by CORS'));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   credentials: true 
@@ -73,6 +87,13 @@ app.get('/health', (req, res) => {
 
 // Centralized error handling middleware
 app.use((err, req, res, next) => {
+    if (err.message === 'Not allowed by CORS') {
+        return res.status(403).json({
+            error: 'Forbidden',
+            message: 'Origin not allowed by CORS'
+        });
+    }
+
     if (err instanceof AppValidationError || err.name === 'AppValidationError' || err.statusCode === 422 || err.status === 422) {
         return res.status(err.statusCode || 422).json({
             error: err.message,
