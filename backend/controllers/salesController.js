@@ -198,66 +198,23 @@ exports.checkout = async (req, res, next) => {
         const year = new Date().getFullYear();
         const orderNo = `SO-${year}-${String(nextSeqVal).padStart(4, '0')}`;
 
-        // 5. Insert sales_orders header record
-        const [orderResult] = await connection.query(
-            `INSERT INTO sales_orders (
-                order_number, user_id, customer_name, total_amount, subtotal_amount,
-                discount_amount, tax_amount, payment_method, payment_status,
-                tendered_amount, change_due, payment_reference, payment_provider,
-                paid_at, status, notes, created_at
-            ) VALUES (?, ?, ?, ?, ?, 0.00, 0.00, ?, 'paid', ?, ?, ?, ?, NOW(), 'completed', ?, NOW())`,
-            [
-                orderNo,
-                userId,
-                customer_name || 'Walk-in Customer',
-                totalAmount,
-                totalAmount,
-                method,
-                finalTendered,
-                finalChangeDue,
-                refNo || null,
-                method,
-                notes || null
-            ]
-        );
-        const salesOrderId = orderResult.insertId;
-
-        // Also insert into sales table for backwards compatibility
-        const [legacySaleResult] = await connection.query(
+        // 5. Insert single source of truth sales record
+        const [saleResult] = await connection.query(
             `INSERT INTO sales (
                 user_id, total_amount, tendered_amount, change_due, payment_method, order_number, payment_reference, sale_date
             ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
             [userId, totalAmount, finalTendered, finalChangeDue, method, orderNo, refNo || null]
         );
-        const legacySaleId = legacySaleResult.insertId;
+        const saleId = saleResult.insertId;
 
-        // 6. Insert line items and call applyMovement (SALE) atomically for each line
+        // 6. Insert line items into sale_items and call applyMovement (SALE) atomically for each line
         for (const item of validatedItems) {
-            // Insert sales_order_items
-            await connection.query(
-                `INSERT INTO sales_order_items (
-                    sales_order_id, product_id, part_number, product_name, brand, size, quantity, price, subtotal, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-                [
-                    salesOrderId,
-                    item.product_id,
-                    item.part_number,
-                    item.product_name,
-                    item.brand,
-                    item.size,
-                    item.quantity,
-                    item.unit_price,
-                    item.subtotal
-                ]
-            );
-
-            // Insert legacy sale_items
             const [saleItemResult] = await connection.query(
                 `INSERT INTO sale_items (
                     sale_id, product_id, part_number, product_name, brand, size, quantity, price, subtotal
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
-                    legacySaleId,
+                    saleId,
                     item.product_id,
                     item.part_number,
                     item.product_name,
@@ -268,7 +225,7 @@ exports.checkout = async (req, res, next) => {
                     item.subtotal
                 ]
             );
-            const legacySaleItemId = saleItemResult.insertId;
+            const saleItemId = saleItemResult.insertId;
 
             // Handle Serials if serialized
             if (item.is_serialized && item.serial_ids.length > 0) {
@@ -279,7 +236,7 @@ exports.checkout = async (req, res, next) => {
                     [item.product_id, ...item.serial_ids]
                 );
 
-                const serialValues = item.serial_ids.map(sId => [legacySaleItemId, sId]);
+                const serialValues = item.serial_ids.map(sId => [saleItemId, sId]);
                 await connection.query('INSERT INTO sale_item_serials (sale_item_id, serial_id) VALUES ?', [serialValues]);
             }
 
@@ -289,8 +246,8 @@ exports.checkout = async (req, res, next) => {
                 transactionType: 'SALE',
                 quantityChange: -item.quantity,
                 referenceNo: orderNo,
-                referenceType: 'SALES_ORDER',
-                referenceId: salesOrderId,
+                referenceType: 'SALE',
+                referenceId: saleId,
                 unitCost: item.cost_price,
                 remarks: `POS Sale: ${orderNo} (${item.quantity}x ${item.product_name})`,
                 createdBy: userId
@@ -300,11 +257,10 @@ exports.checkout = async (req, res, next) => {
         await connection.commit();
 
         const orderSummary = {
-            id: salesOrderId,
+            id: saleId,
             order_number: orderNo,
             order_no: orderNo,
-            sales_order_id: salesOrderId,
-            sale_id: legacySaleId,
+            sale_id: saleId,
             payment_method: method,
             total_amount: totalAmount,
             tendered_amount: finalTendered,
@@ -315,10 +271,10 @@ exports.checkout = async (req, res, next) => {
 
         res.status(201).json({
             message: 'Transaction completed successfully.',
+            id: saleId,
             order_no: orderNo,
             order_number: orderNo,
-            sales_order_id: salesOrderId,
-            sale_id: legacySaleId,
+            sale_id: saleId,
             payment_method: method,
             total_amount: totalAmount,
             tendered_amount: finalTendered,
@@ -452,7 +408,7 @@ exports.getBestSellers = async (req, res) => {
         const params = [];
 
         if (days && Number.isInteger(days) && days > 0) {
-            whereClause += ' AND so.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)';
+            whereClause += ' AND s.sale_date >= DATE_SUB(NOW(), INTERVAL ? DAY)';
             params.push(days);
         }
 
@@ -460,79 +416,46 @@ exports.getBestSellers = async (req, res) => {
 
         let [bestSellers] = await db.query(`
             SELECT 
-                i.id,
-                COALESCE(i.sku, i.part_number) AS sku,
-                i.name,
-                i.brand,
-                i.category,
-                CAST(COALESCE(i.retail_price, i.selling_price) AS DOUBLE) AS retail_price,
-                CAST(COALESCE(i.current_stock, i.stock) AS SIGNED) AS current_stock,
-                CAST(COALESCE(SUM(soi.quantity), 0) AS SIGNED) AS units_sold,
-                CAST(COUNT(DISTINCT so.id) AS SIGNED) AS order_count
-            FROM sales_order_items soi
-            JOIN sales_orders so ON soi.sales_order_id = so.id
-            JOIN items i ON soi.product_id = i.id
+                COALESCE(p.id, si.product_id) AS id,
+                COALESCE(p.sku, si.part_number) AS sku,
+                COALESCE(p.name, si.product_name) AS name,
+                COALESCE(p.brand, si.brand) AS brand,
+                COALESCE(p.category, 'General') AS category,
+                CAST(COALESCE(p.selling_price, si.price) AS DOUBLE) AS retail_price,
+                CAST(COALESCE(p.stock, 0) AS SIGNED) AS current_stock,
+                CAST(COALESCE(SUM(si.quantity), 0) AS SIGNED) AS units_sold,
+                CAST(COUNT(DISTINCT s.id) AS SIGNED) AS order_count
+            FROM sale_items si
+            JOIN sales s ON si.sale_id = s.id
+            LEFT JOIN products p ON si.product_id = p.id
             ${whereClause}
-            GROUP BY i.id, i.sku, i.part_number, i.name, i.brand, i.category, i.retail_price, i.selling_price, i.current_stock, i.stock
+            GROUP BY 
+                p.id, si.product_id, p.sku, si.part_number, p.name, si.product_name,
+                p.brand, si.brand, p.category, p.selling_price, si.price, p.stock
             ORDER BY units_sold DESC
             LIMIT ?
         `, params);
 
-        // Fallback to legacy sale_items if sales_order_items has no records
-        if (bestSellers.length === 0) {
-            let legacyWhere = 'WHERE 1=1';
-            const legacyParams = [];
-            if (days && Number.isInteger(days) && days > 0) {
-                legacyWhere += ' AND s.sale_date >= DATE_SUB(NOW(), INTERVAL ? DAY)';
-                legacyParams.push(days);
-            }
-            legacyParams.push(limit);
-
-            const [legacyRows] = await db.query(`
-                SELECT 
-                    i.id,
-                    COALESCE(i.sku, i.part_number) AS sku,
-                    i.name,
-                    i.brand,
-                    i.category,
-                    CAST(COALESCE(i.retail_price, i.selling_price) AS DOUBLE) AS retail_price,
-                    CAST(COALESCE(i.current_stock, i.stock) AS SIGNED) AS current_stock,
-                    CAST(COALESCE(SUM(si.quantity), 0) AS SIGNED) AS units_sold,
-                    CAST(COUNT(DISTINCT s.id) AS SIGNED) AS order_count
-                FROM sale_items si
-                JOIN sales s ON si.sale_id = s.id
-                JOIN items i ON (si.product_id = i.id)
-                ${legacyWhere}
-                GROUP BY i.id, i.sku, i.part_number, i.name, i.brand, i.category, i.retail_price, i.selling_price, i.current_stock, i.stock
-                ORDER BY units_sold DESC
-                LIMIT ?
-            `, legacyParams);
-
-            if (legacyRows.length > 0) {
-                bestSellers = legacyRows;
-            }
-        }
-
         // Ensure all slots up to limit are populated so Top 1 to Top 5 are always returned
         if (bestSellers.length < limit) {
-            const existingIds = bestSellers.map(b => b.id);
+            const existingIds = bestSellers.map(b => b.id).filter(Boolean);
             const remainingCount = limit - bestSellers.length;
-            const notInClause = existingIds.length > 0 ? `AND i.id NOT IN (${existingIds.join(',')})` : '';
+            const notInClause = existingIds.length > 0 ? `AND p.id NOT IN (${existingIds.join(',')})` : '';
 
             const [fillRows] = await db.query(`
                 SELECT 
-                    i.id,
-                    COALESCE(i.sku, i.part_number) AS sku,
-                    i.name,
-                    i.brand,
-                    i.category,
-                    CAST(COALESCE(i.retail_price, i.selling_price) AS DOUBLE) AS retail_price,
-                    CAST(COALESCE(i.current_stock, i.stock) AS SIGNED) AS current_stock,
+                    p.id,
+                    COALESCE(p.sku, p.part_number) AS sku,
+                    p.name,
+                    p.brand,
+                    p.category,
+                    CAST(p.selling_price AS DOUBLE) AS retail_price,
+                    CAST(p.stock AS SIGNED) AS current_stock,
                     0 AS units_sold,
                     0 AS order_count
-                FROM items i
-                WHERE i.is_active = 1 ${notInClause}
-                ORDER BY i.current_stock DESC, i.id ASC
+                FROM products p
+                WHERE p.is_active = 1 ${notInClause}
+                ORDER BY p.stock DESC, p.id ASC
                 LIMIT ?
             `, [remainingCount]);
 
