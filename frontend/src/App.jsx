@@ -43,6 +43,7 @@ function App() {
               <Route path="/pos" element={<POS />} />
               <Route path="/transactions" element={<Transactions />} />
               <Route path="/compatibility-search" element={<CompatibilitySearch />} />
+              <Route path="/fitment" element={<Navigate to="/compatibility-search" replace />} />
               <Route path="/profile" element={<StaffProfileScreen />} />
               <Route path="/inventory" element={<Inventory />} />
               {/* Admin Roles */}

@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { Settings2, Trash2, Edit2, Plus, Bike } from 'lucide-react';
 import Spinner from '../components/Spinner';
 import useForm from '../hooks/useForm';
+import FitmentHeaderTabs from '../components/FitmentHeaderTabs';
 
 const formatMotorcycleUnit = (unit) => `${unit.brand} ${unit.model} ${unit.year_model || ''}`.trim();
 
@@ -151,7 +152,8 @@ const ManageCompatibility = () => {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', paddingBottom: '40px' }}>
             <div>
-                <h1 style={{ marginBottom: '8px' }}>Manage Compatibility</h1>
+                <FitmentHeaderTabs />
+                <h1 style={{ marginBottom: '8px' }}>Compatibility Rules</h1>
                 <p style={{ color: 'var(--text-muted)' }}>Configure exact motorcycle units and shared compatibility platforms.</p>
             </div>
 

@@ -54,6 +54,18 @@ const Sidebar = () => {
 
     const location = useLocation();
 
+    // Check if current route is part of Fitment group
+    const fitmentRoutes = ['/compatibility-search', '/manage-compatibility'];
+    const isFitmentRouteActive = fitmentRoutes.includes(location.pathname);
+    const [fitmentOpen, setFitmentOpen] = useState(true);
+
+    // Keep dropdown open if user navigates to a fitment sub-module
+    useEffect(() => {
+        if (isFitmentRouteActive) {
+            setFitmentOpen(true);
+        }
+    }, [location.pathname, isFitmentRouteActive]);
+
     // Check if current route is part of Inventory group
     const isStaff = user?.role === 'staff';
     const inventoryRoutes = isStaff
@@ -69,8 +81,12 @@ const Sidebar = () => {
         }
     }, [location.pathname, isInventoryRouteActive]);
 
+    const fitmentSubLinks = [
+        { name: 'Fitment Search', path: '/compatibility-search', icon: <Search size={16} />, roles: ['admin'] },
+        { name: 'Compatibility Rules', path: '/manage-compatibility', icon: <Settings2 size={16} />, roles: ['admin'] },
+    ];
+
     const primaryLinks = [
-        { name: 'Fitment', path: '/compatibility-search', icon: <Search size={20} />, roles: ['admin'] },
         { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={20} />, roles: ['admin', 'staff'] },
         { name: 'Sales (POS)', path: '/pos', icon: <ShoppingCart size={20} />, roles: ['admin', 'staff'] },
     ];
@@ -87,7 +103,6 @@ const Sidebar = () => {
         { name: 'Transaction History', path: '/transactions', icon: <History size={20} />, roles: ['admin'] },
         { name: 'Sales Reports', path: '/reports', icon: <TrendingUp size={20} />, roles: ['admin'] },
         { name: 'Discrepancy Audit', path: '/reports/adjustments', icon: <AlertOctagon size={20} />, roles: ['admin'] },
-        { name: 'Compatibility Rules', path: '/manage-compatibility', icon: <Settings2 size={20} />, roles: ['admin'] },
         { name: 'Manage Users', path: '/users', icon: <Users size={20} />, roles: ['admin'] },
     ];
 
@@ -167,6 +182,46 @@ const Sidebar = () => {
             </div>
 
             <nav className="sidebar-nav" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', padding: '0 10px', overflowY: 'auto' }}>
+                {/* Fitment Expandable Dropdown Module (Admin Only) */}
+                {user.role === 'admin' && (
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div
+                            onClick={() => setFitmentOpen(prev => !prev)}
+                            className={`sidebar-link ${isFitmentRouteActive ? 'active' : ''}`}
+                            style={{ cursor: 'pointer', justifyContent: 'space-between', userSelect: 'none' }}
+                            title="Motorcycle Fitment & Compatibility Rules"
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <Search size={18} />
+                                <span className="link-text">Fitment</span>
+                            </div>
+                            <ChevronDown
+                                size={15}
+                                style={{
+                                    transform: fitmentOpen ? 'rotate(180deg)' : 'none',
+                                    transition: 'transform 0.2s ease',
+                                    color: 'var(--text-muted)'
+                                }}
+                            />
+                        </div>
+
+                        {fitmentOpen && (
+                            <div className="sidebar-submenu">
+                                {fitmentSubLinks.map(sub => (
+                                    <NavLink
+                                        key={sub.path}
+                                        to={sub.path}
+                                        className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                                    >
+                                        {sub.icon}
+                                        <span>{sub.name}</span>
+                                    </NavLink>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {primaryLinks.filter(link => link.roles.includes(user.role)).map(link => (
                     <NavLink
                         key={link.path}

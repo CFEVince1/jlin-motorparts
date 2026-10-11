@@ -3,6 +3,7 @@ import { Search, CheckCircle2, XCircle, AlertCircle, Layers } from 'lucide-react
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { formatCurrency } from '../utils/formatters';
+import FitmentHeaderTabs from '../components/FitmentHeaderTabs';
 
 /**
  * CompatibilitySearch Page
@@ -94,6 +95,7 @@ export const CompatibilitySearch = () => {
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div>
+        <FitmentHeaderTabs />
         <h1 style={{ marginBottom: '6px' }}>Motorcycle Fitment & Compatibility Search</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>
           Check parts compatibility by motorcycle brand, model, and version to prevent wrong orders.
