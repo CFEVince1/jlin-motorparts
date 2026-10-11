@@ -380,15 +380,26 @@ exports.getSales = async (req, res, next) => {
 // ==========================================
 exports.getSaleById = async (req, res, next) => {
     const { id } = req.params;
+    const userId = req.user?.id;
+    const role = req.user?.role;
+
     try {
-        const [saleRows] = await db.query(`
+        let query = `
             SELECT s.id, COALESCE(s.order_number, CONCAT('SO-', s.id)) AS order_number,
                    s.total_amount, s.tendered_amount, s.change_due, s.payment_method,
                    s.payment_reference, s.sale_date, u.username as cashier
             FROM sales s
             JOIN users u ON s.user_id = u.id
             WHERE s.id = ?
-        `, [id]);
+        `;
+        const queryParams = [id];
+
+        if (role !== 'admin') {
+            query += ` AND s.user_id = ? `;
+            queryParams.push(userId);
+        }
+
+        const [saleRows] = await db.query(query, queryParams);
 
         if (saleRows.length === 0) {
             return res.status(404).json({ message: 'Sale not found' });

@@ -1,37 +1,72 @@
 require('dotenv').config();
-const mysql = require('mysql2/promise');
+const readline = require('readline');
 const bcrypt = require('bcryptjs');
+const db = require('./config/db');
 
-async function fixManagementUser() {
-    try {
-        console.log("Connecting to Aiven Cloud Database...");
-        const pool = mysql.createPool({
-            host: process.env.DB_HOST,
-            user: process.env.DB_USER,
-            password: process.env.DB_PASSWORD,
-            database: process.env.DB_NAME,
-            port: process.env.DB_PORT,
-            ssl: { rejectUnauthorized: false }
+function askPassword(question) {
+    return new Promise((resolve) => {
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout
         });
+        rl.question(question, (answer) => {
+            rl.close();
+            resolve(answer.trim());
+        });
+    });
+}
 
-        // Hash a fresh password
-        const hashedPassword = await bcrypt.hash('admin123', 10);
+async function resetAdmin() {
+    try {
+        console.log('[reset-admin] Initializing password update...');
 
-        // Force insert or update the admin user
-        await pool.query(`
-            INSERT INTO users (username, password, role) 
-            VALUES ('admin', ?, 'admin') 
-            ON DUPLICATE KEY UPDATE password = ?, role = 'admin'
-        `, [hashedPassword, hashedPassword]);
+        // 1. Resolve password from CLI arg, ENV var, or interactive prompt
+        let newPassword = process.argv[2] || process.env.ADMIN_PASSWORD;
 
-        console.log("✅ Management user fixed successfully!");
-        console.log("👉 Username: admin");
-        console.log("👉 Password: admin123");
+        if (!newPassword) {
+            if (process.stdin.isTTY) {
+                newPassword = await askPassword('Enter new admin password: ');
+            } else {
+                console.error('❌ Error: Password not provided. Set ADMIN_PASSWORD environment variable or pass password as an argument: node reset-admin.js <password>');
+                process.exit(1);
+            }
+        }
+
+        if (!newPassword || newPassword.length < 8) {
+            console.error('❌ Error: Password must be at least 8 characters long.');
+            process.exit(1);
+        }
+
+        if (newPassword.toLowerCase() === 'admin123' || newPassword.toLowerCase() === 'password') {
+            console.error('❌ Error: Insecure default passwords like "admin123" are not allowed.');
+            process.exit(1);
+        }
+
+        const targetUser = process.env.ADMIN_USERNAME || 'admin';
+        console.log(`[reset-admin] Updating credentials for user "${targetUser}"...`);
+
+        // Hash new password
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        // Update password and increment token_version to invalidate prior sessions
+        await db.query(`
+            INSERT INTO users (username, password, role, token_version) 
+            VALUES (?, ?, 'admin', 1) 
+            ON DUPLICATE KEY UPDATE 
+                password = VALUES(password), 
+                role = 'admin',
+                token_version = token_version + 1
+        `, [targetUser, hashedPassword]);
+
+        console.log('✅ Admin password updated successfully!');
+        console.log(`👉 Username: ${targetUser}`);
+        console.log('👉 Password: [UPDATED]');
+        console.log('👉 Any existing active sessions have been invalidated (token_version incremented).');
         process.exit(0);
     } catch (error) {
-        console.error("❌ Error fixing user:", error.message);
+        console.error('❌ Error resetting admin user:', error.message);
         process.exit(1);
     }
 }
 
-fixManagementUser();
+resetAdmin();
