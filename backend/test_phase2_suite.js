@@ -238,6 +238,63 @@ async function runTestSuite() {
         });
         assert(cashInsufficientBlocked, 'Cash payment with tendered < total is rejected with 422');
 
+        // Test Cash non-numeric / NaN tender blocked by Number.isFinite
+        let cashBadInputBlocked = false;
+        const mockReqCashBad = {
+            user: { id: adminUser.id },
+            body: {
+                items: [{ product_id: 1, quantity: 1 }],
+                payment_method: 'Cash',
+                tendered_amount: 'invalid_amount'
+            }
+        };
+        const mockResCashBad = {
+            status: (code) => ({
+                json: (data) => {
+                    if (code === 422 || (data && data.message && data.message.includes('valid numeric cash amount'))) {
+                        cashBadInputBlocked = true;
+                    }
+                }
+            })
+        };
+        await salesController.checkout(mockReqCashBad, mockResCashBad, (err) => {
+            if (err instanceof AppValidationError && err.message.includes('valid numeric cash amount')) {
+                cashBadInputBlocked = true;
+            }
+        });
+        assert(cashBadInputBlocked, 'Cash payment with non-numeric / NaN tendered is rejected with 422');
+
+        // Test cart merging for identical product on multiple lines
+        let duplicateLinesSuccess = false;
+        let duplicateLinesResult = null;
+        const mockReqDupLines = {
+            user: { id: adminUser.id },
+            body: {
+                items: [
+                    { product_id: 1, quantity: 1 },
+                    { product_id: 1, quantity: 2 }
+                ],
+                payment_method: 'Cash',
+                tendered_amount: 100.00
+            }
+        };
+        const mockResDupLines = {
+            status: (code) => ({
+                json: (data) => {
+                    if (code === 201) {
+                        duplicateLinesSuccess = true;
+                        duplicateLinesResult = data;
+                    }
+                }
+            })
+        };
+        await salesController.checkout(mockReqDupLines, mockResDupLines, (err) => {
+            if (err) throw err;
+        });
+        assert(duplicateLinesSuccess, 'Cart with duplicate lines of same product merges and succeeds');
+        assert(duplicateLinesResult.items.length === 1, 'Merged items array has exactly 1 entry for product 1');
+        assert(duplicateLinesResult.items[0].quantity === 3, 'Merged quantity is 3 (1 + 2)');
+
         // -----------------------------------------------------------------
         // TEST 6: Non-sales Adjustments Report
         // -----------------------------------------------------------------

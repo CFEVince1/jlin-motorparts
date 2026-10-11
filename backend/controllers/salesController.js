@@ -52,29 +52,44 @@ exports.checkout = async (req, res, next) => {
     try {
         await connection.beginTransaction();
 
-        // 1. Sort cart lines by itemId before acquiring row locks (prevents lock-order deadlocks)
-        const sortedLines = [...cartItems].sort((a, b) => {
-            const idA = Number(a.product_id || a.productId || a.itemId || a.item_id);
-            const idB = Number(b.product_id || b.productId || b.itemId || b.item_id);
-            return idA - idB;
-        });
+        // 1. Merge cart lines by product ID first (prevents duplicate key errors on transaction_number and race conditions)
+        const mergedMap = new Map();
+        for (const item of cartItems) {
+            const productId = Number(item.product_id || item.productId || item.itemId || item.item_id);
+            if (!productId || !Number.isInteger(productId) || productId <= 0) {
+                throw new AppValidationError('A valid item/product ID is required for each cart line');
+            }
+            const qty = Number(item.quantity ?? item.qty);
+            if (!Number.isInteger(qty) || qty <= 0) {
+                throw new AppValidationError(`Invalid quantity (${item.quantity ?? item.qty}) for item ID ${productId}`);
+            }
+            const serialIds = normalizeSerialIds(item.serial_ids || item.serialIds);
+
+            if (mergedMap.has(productId)) {
+                const existing = mergedMap.get(productId);
+                existing.quantity += qty;
+                existing.serial_ids = [...existing.serial_ids, ...serialIds];
+            } else {
+                mergedMap.set(productId, {
+                    ...item,
+                    product_id: productId,
+                    quantity: qty,
+                    serial_ids: serialIds
+                });
+            }
+        }
+
+        // Sort merged cart lines by product_id to prevent lock-order deadlocks
+        const sortedLines = Array.from(mergedMap.values()).sort((a, b) => a.product_id - b.product_id);
 
         // 2. Validate line items and tally totals in integer centavos to eliminate floating-point drift
         let totalAmountCentavos = 0;
         const validatedItems = [];
 
         for (const item of sortedLines) {
-            const productId = Number(item.product_id || item.productId || item.itemId || item.item_id);
-            const qty = Number(item.quantity);
-            const serialIds = normalizeSerialIds(item.serial_ids);
-
-            if (!productId || !Number.isInteger(productId)) {
-                throw new AppValidationError('A valid item/product ID is required for each cart line');
-            }
-
-            if (!Number.isInteger(qty) || qty <= 0) {
-                throw new AppValidationError(`Invalid quantity (${qty}) for item ID ${productId}`);
-            }
+            const productId = item.product_id;
+            const qty = item.quantity;
+            const serialIds = item.serial_ids;
 
             // Acquire pessimistic row lock (FOR UPDATE)
             const [productRows] = await connection.query(
@@ -153,7 +168,14 @@ exports.checkout = async (req, res, next) => {
         let changeDueCentavos = 0;
 
         if (method === 'Cash') {
-            tenderedCentavos = Math.round(Number(rawTendered || 0) * 100);
+            if (rawTendered === null || rawTendered === undefined || rawTendered === '') {
+                throw new AppValidationError('A valid numeric cash amount tendered is required');
+            }
+            const numericTendered = Number(rawTendered);
+            if (!Number.isFinite(numericTendered) || numericTendered < 0) {
+                throw new AppValidationError('A valid numeric cash amount tendered is required');
+            }
+            tenderedCentavos = Math.round(numericTendered * 100);
             if (tenderedCentavos < totalAmountCentavos) {
                 if (totalAmountCentavos - tenderedCentavos <= 1) {
                     tenderedCentavos = totalAmountCentavos;
