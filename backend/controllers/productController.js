@@ -218,6 +218,7 @@ exports.createProduct = async (req, res) => {
         const [productResult] = await connection.query(
             `INSERT INTO products (
                 part_number,
+                sku,
                 name,
                 brand,
                 category,
@@ -228,10 +229,12 @@ exports.createProduct = async (req, res) => {
                 selling_price,
                 retail_price,
                 stock,
+                current_stock,
                 reorder_level,
                 is_serialized
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
+                String(part_number).trim(),
                 String(part_number).trim(),
                 String(name).trim(),
                 String(brand).trim(),
@@ -242,6 +245,7 @@ exports.createProduct = async (req, res) => {
                 Number(cost_price),
                 Number(selling_price),
                 Number(selling_price),
+                finalStock,
                 finalStock,
                 Number(reorder_level),
                 serialized
@@ -346,6 +350,7 @@ exports.updateProduct = async (req, res) => {
         await connection.query(
             `UPDATE products SET
                 part_number = ?,
+                sku = ?,
                 name = ?,
                 brand = ?,
                 category = ?,
@@ -356,9 +361,11 @@ exports.updateProduct = async (req, res) => {
                 selling_price = ?,
                 retail_price = ?,
                 stock = ?,
+                current_stock = ?,
                 reorder_level = ?
              WHERE id = ? AND is_active = true`,
             [
+                String(part_number).trim(),
                 String(part_number).trim(),
                 String(name).trim(),
                 String(brand).trim(),
@@ -369,6 +376,7 @@ exports.updateProduct = async (req, res) => {
                 Number(cost_price),
                 Number(selling_price),
                 Number(selling_price),
+                finalStock,
                 finalStock,
                 Number(reorder_level),
                 id

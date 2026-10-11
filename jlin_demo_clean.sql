@@ -23,13 +23,6 @@ CREATE DATABASE /*!32312 IF NOT EXISTS*/ `jlin_inventory_db` /*!40100 DEFAULT CH
 
 USE `jlin_inventory_db`;
 
---
--- Sequence structure for `sales_order_seq`
---
-
-DROP SEQUENCE IF EXISTS `sales_order_seq`;
-CREATE SEQUENCE `sales_order_seq` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB;
-SELECT SETVAL(`sales_order_seq`, 1001, 0);
 
 --
 -- Table structure for table `compatibility_group_units`

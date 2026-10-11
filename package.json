@@ -1,4 +1,10 @@
 {
+  "scripts": {
+    "start": "cd backend && npm start",
+    "dev": "cd backend && npm run dev",
+    "migrate": "node migrations/20261007_comprehensive_inventory_pos.js",
+    "test": "cd backend && node test_phase2_suite.js"
+  },
   "devDependencies": {
     "puppeteer-core": "^25.12.0"
   }

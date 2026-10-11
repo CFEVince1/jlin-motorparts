@@ -19,11 +19,13 @@ CREATE TABLE users (
 );
 
 -- ==========================================
--- 2. PRODUCTS (Flattened, no more variants)
+-- 2. PRODUCTS
+-- Canonical product catalog with stock & current_stock synchronization
 -- ==========================================
 CREATE TABLE products (
     id INT AUTO_INCREMENT PRIMARY KEY,
     part_number VARCHAR(100) NOT NULL,
+    sku VARCHAR(100) DEFAULT NULL,
     name VARCHAR(150) NOT NULL,
     brand VARCHAR(100) NOT NULL,
     category VARCHAR(100) NOT NULL,
@@ -32,22 +34,25 @@ CREATE TABLE products (
     thread_type VARCHAR(50),
     cost_price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     selling_price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    retail_price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     stock INT NOT NULL DEFAULT 0,
+    current_stock INT NOT NULL DEFAULT 0,
     reorder_level INT NOT NULL DEFAULT 5,
     is_serialized BOOLEAN NOT NULL DEFAULT FALSE,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE, -- For soft deletes instead of deleting sales history
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY unique_part_brand (part_number, brand),
     INDEX idx_part_number (part_number),
+    INDEX idx_sku (sku),
     INDEX idx_brand (brand),
     INDEX idx_name (name),
     INDEX idx_size (size)
 );
 
 -- ==========================================
--- 3. MOTORCYCLE UNITS
--- Source list for motorcycle compatibility
+-- 3. MOTORCYCLE UNITS & MODELS
+-- Compatibility catalog
 -- ==========================================
 CREATE TABLE motorcycle_units (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -58,9 +63,24 @@ CREATE TABLE motorcycle_units (
     INDEX idx_model (model)
 );
 
+CREATE TABLE motorcycle_models (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    brand VARCHAR(100) NOT NULL,
+    model VARCHAR(100) NOT NULL,
+    year_start INT DEFAULT NULL,
+    year_end INT DEFAULT NULL,
+    year_model VARCHAR(50) DEFAULT NULL,
+    engine_displacement VARCHAR(50) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_motorcycle_model (brand, model, year_model),
+    INDEX idx_model_brand (brand),
+    INDEX idx_model_name (model)
+);
+
 -- ==========================================
 -- 4. PRODUCT COMPATIBILITY
--- Maps one product to all motorcycle units it fits
+-- Direct unit mapping & hierarchical model mapping
 -- ==========================================
 CREATE TABLE product_compatibility (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -74,9 +94,22 @@ CREATE TABLE product_compatibility (
     FOREIGN KEY (motorcycle_unit_id) REFERENCES motorcycle_units(id) ON DELETE CASCADE
 );
 
+CREATE TABLE product_compatibilities (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    product_id INT NOT NULL,
+    motorcycle_model_id INT NOT NULL,
+    compatibility_status ENUM('COMPATIBLE', 'NOT_COMPATIBLE', 'CONDITIONAL') NOT NULL DEFAULT 'COMPATIBLE',
+    notes VARCHAR(255) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_prod_compat (product_id, motorcycle_model_id),
+    INDEX idx_compat_product (product_id),
+    INDEX idx_compat_model (motorcycle_model_id),
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+    FOREIGN KEY (motorcycle_model_id) REFERENCES motorcycle_models(id) ON DELETE CASCADE
+);
+
 -- ==========================================
--- 4.1 COMPATIBILITY GROUPS
--- Represents platforms or engine families
+-- 4.1 COMPATIBILITY GROUPS (Platforms / Engines)
 -- ==========================================
 CREATE TABLE compatibility_groups (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -85,10 +118,6 @@ CREATE TABLE compatibility_groups (
     INDEX idx_group_name (group_name)
 );
 
--- ==========================================
--- 4.2 COMPATIBILITY GROUP UNITS
--- Maps a platform to many motorcycle units
--- ==========================================
 CREATE TABLE compatibility_group_units (
     id INT AUTO_INCREMENT PRIMARY KEY,
     compatibility_group_id INT NOT NULL,
@@ -100,10 +129,6 @@ CREATE TABLE compatibility_group_units (
     FOREIGN KEY (motorcycle_unit_id) REFERENCES motorcycle_units(id) ON DELETE CASCADE
 );
 
--- ==========================================
--- 4.3 PRODUCT COMPATIBILITY GROUPS
--- Maps a product to platforms
--- ==========================================
 CREATE TABLE product_compatibility_groups (
     id INT AUTO_INCREMENT PRIMARY KEY,
     product_id INT NOT NULL,
@@ -117,7 +142,6 @@ CREATE TABLE product_compatibility_groups (
 
 -- ==========================================
 -- 5. PRODUCT SERIALS
--- Only populated if products.is_serialized = TRUE
 -- ==========================================
 CREATE TABLE product_serials (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -129,8 +153,59 @@ CREATE TABLE product_serials (
 );
 
 -- ==========================================
--- 6. SALES (POS Transactions)
--- Immutable. Connected to the user who processed it.
+-- 6. SUPPLIERS & RECEIVING RECORDS (Purchases / Stock In)
+-- ==========================================
+CREATE TABLE suppliers (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(150) NOT NULL UNIQUE,
+    contact_person VARCHAR(100) DEFAULT NULL,
+    email VARCHAR(100) DEFAULT NULL,
+    phone VARCHAR(50) DEFAULT NULL,
+    address TEXT DEFAULT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_supplier_name (name),
+    INDEX idx_supplier_active (is_active)
+);
+
+CREATE TABLE receiving_records (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    supplier_id INT NOT NULL,
+    reference_number VARCHAR(100) NOT NULL,
+    reference_no VARCHAR(100) DEFAULT NULL,
+    received_by INT DEFAULT NULL,
+    received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    total_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    status ENUM('draft', 'received', 'cancelled') NOT NULL DEFAULT 'received',
+    notes TEXT DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_supplier_ref (supplier_id, reference_no),
+    INDEX idx_rec_ref (reference_number),
+    INDEX idx_rec_supplier (supplier_id),
+    INDEX idx_rec_date (received_at),
+    FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
+    FOREIGN KEY (received_by) REFERENCES users(id)
+);
+
+CREATE TABLE receiving_record_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    receiving_record_id INT NOT NULL,
+    product_id INT NOT NULL,
+    item_id INT DEFAULT NULL,
+    quantity INT NOT NULL,
+    cost_price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    subtotal DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_rec_item_rec (receiving_record_id),
+    INDEX idx_rec_item_prod (product_id),
+    FOREIGN KEY (receiving_record_id) REFERENCES receiving_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id)
+);
+
+-- ==========================================
+-- 7. SALES (POS Transactions)
 -- ==========================================
 CREATE TABLE sales (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -141,14 +216,18 @@ CREATE TABLE sales (
     payment_method ENUM('Cash', 'GCash', 'Card') NOT NULL DEFAULT 'Cash',
     order_number VARCHAR(100) DEFAULT NULL,
     payment_reference VARCHAR(100) DEFAULT NULL,
+    payment_provider VARCHAR(50) DEFAULT NULL,
+    payment_status VARCHAR(50) DEFAULT 'paid',
+    subtotal_amount DECIMAL(10,2) DEFAULT NULL,
+    discount_amount DECIMAL(10,2) DEFAULT 0.00,
+    tax_amount DECIMAL(10,2) DEFAULT 0.00,
+    card_type VARCHAR(50) DEFAULT NULL,
+    card_last4 VARCHAR(4) DEFAULT NULL,
+    paid_at TIMESTAMP NULL DEFAULT NULL,
     sale_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
--- ==========================================
--- 7. SALE ITEMS
--- Snapshot of the product price and quantity at time of sale
--- ==========================================
 CREATE TABLE sale_items (
     id INT AUTO_INCREMENT PRIMARY KEY,
     sale_id INT NOT NULL,
@@ -158,16 +237,12 @@ CREATE TABLE sale_items (
     brand VARCHAR(100) NOT NULL,
     size VARCHAR(50) NOT NULL,
     quantity INT NOT NULL,
-    price DECIMAL(10,2) NOT NULL, -- Stored here so historical sales don't change if product price changes later
+    price DECIMAL(10,2) NOT NULL,
     subtotal DECIMAL(10,2) NOT NULL,
     FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES products(id)
 );
 
--- ==========================================
--- 8. SALE ITEM SERIALS
--- Maps the exact serial numbers sold in a specific transaction
--- ==========================================
 CREATE TABLE sale_item_serials (
     id INT AUTO_INCREMENT PRIMARY KEY,
     sale_item_id INT NOT NULL,
@@ -178,16 +253,122 @@ CREATE TABLE sale_item_serials (
 );
 
 -- ==========================================
--- 9. SAMPLE MOTORCYCLE PARTS DATA
--- Used for development, testing, and panel demonstrations
+-- 8. INVENTORY TRANSACTIONS (Append-only Ledger)
 -- ==========================================
-INSERT INTO motorcycle_units (brand, model, year_model) VALUES
-    ('Yamaha', 'Mio i125', '2023'),
-    ('Suzuki', 'Raider FI', '2022'),
-    ('Honda', 'Click 125', NULL),
-    ('Honda', 'XRM', NULL);
+CREATE TABLE inventory_transactions (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    transaction_number VARCHAR(100) UNIQUE NOT NULL,
+    reference_no VARCHAR(100) DEFAULT NULL,
+    product_id INT NOT NULL,
+    transaction_type VARCHAR(50) NOT NULL,
+    quantity INT NOT NULL,
+    quantity_change INT NOT NULL DEFAULT 0,
+    balance_before INT NOT NULL DEFAULT 0,
+    balance_after INT NOT NULL DEFAULT 0,
+    unit_cost DECIMAL(10,2) DEFAULT NULL,
+    reference_type VARCHAR(50) DEFAULT NULL,
+    reference_id INT DEFAULT NULL,
+    loss_transaction_id BIGINT DEFAULT NULL,
+    notes TEXT DEFAULT NULL,
+    remarks TEXT DEFAULT NULL,
+    created_by INT DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_it_product (product_id),
+    INDEX idx_it_type (transaction_type),
+    INDEX idx_it_created (created_at),
+    INDEX idx_it_ref (reference_type, reference_id),
+    FOREIGN KEY (product_id) REFERENCES products(id),
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
 
-INSERT INTO products (
+-- Sentinel table to block TRUNCATE via foreign key reference
+CREATE TABLE inventory_transactions_lock (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    transaction_id BIGINT DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_inv_tx_lock FOREIGN KEY (transaction_id) REFERENCES inventory_transactions(id)
+);
+
+-- ==========================================
+-- 9. TRIGGERS
+-- ==========================================
+DELIMITER ;;
+
+-- Sync products stock and current_stock, sku and part_number, retail_price and selling_price
+CREATE TRIGGER trg_sync_products_insert
+BEFORE INSERT ON products
+FOR EACH ROW
+BEGIN
+    IF NEW.sku IS NULL OR NEW.sku = '' THEN
+        SET NEW.sku = NEW.part_number;
+    END IF;
+    IF NEW.part_number IS NULL OR NEW.part_number = '' THEN
+        SET NEW.part_number = NEW.sku;
+    END IF;
+    IF NEW.current_stock IS NULL THEN
+        SET NEW.current_stock = COALESCE(NEW.stock, 0);
+    END IF;
+    IF NEW.stock IS NULL THEN
+        SET NEW.stock = COALESCE(NEW.current_stock, 0);
+    END IF;
+    IF NEW.retail_price IS NULL OR NEW.retail_price = 0 THEN
+        SET NEW.retail_price = COALESCE(NEW.selling_price, 0.00);
+    END IF;
+    IF NEW.selling_price IS NULL OR NEW.selling_price = 0 THEN
+        SET NEW.selling_price = COALESCE(NEW.retail_price, 0.00);
+    END IF;
+END;;
+
+CREATE TRIGGER trg_sync_products_update
+BEFORE UPDATE ON products
+FOR EACH ROW
+BEGIN
+    IF NEW.current_stock != OLD.current_stock AND NEW.stock = OLD.stock THEN
+        SET NEW.stock = NEW.current_stock;
+    ELSEIF NEW.stock != OLD.stock AND NEW.current_stock = OLD.current_stock THEN
+        SET NEW.current_stock = NEW.stock;
+    END IF;
+
+    IF NEW.sku != OLD.sku AND (NEW.part_number = OLD.part_number OR NEW.part_number IS NULL) THEN
+        SET NEW.part_number = NEW.sku;
+    ELSEIF NEW.part_number != OLD.part_number AND (NEW.sku = OLD.sku OR NEW.sku IS NULL) THEN
+        SET NEW.sku = NEW.part_number;
+    END IF;
+
+    IF NEW.retail_price != OLD.retail_price AND NEW.selling_price = OLD.selling_price THEN
+        SET NEW.selling_price = NEW.retail_price;
+    ELSEIF NEW.selling_price != OLD.selling_price AND NEW.retail_price = OLD.retail_price THEN
+        SET NEW.retail_price = NEW.selling_price;
+    END IF;
+END;;
+
+-- Immutable Ledger Protection
+CREATE TRIGGER trg_block_inventory_transactions_update
+BEFORE UPDATE ON inventory_transactions
+FOR EACH ROW
+BEGIN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Forbidden: inventory_transactions is an immutable append-only ledger and cannot be modified.';
+END;;
+
+CREATE TRIGGER trg_block_inventory_transactions_delete
+BEFORE DELETE ON inventory_transactions
+FOR EACH ROW
+BEGIN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Forbidden: inventory_transactions is an immutable append-only ledger and cannot be deleted.';
+END;;
+
+DELIMITER ;
+
+-- ==========================================
+-- 10. COMPATIBILITY VIEW: items
+-- ==========================================
+CREATE OR REPLACE VIEW items AS
+SELECT 
+    id,
+    id AS item_id,
+    COALESCE(sku, part_number) AS sku,
     part_number,
     name,
     brand,
@@ -196,14 +377,33 @@ INSERT INTO products (
     measurement,
     thread_type,
     cost_price,
+    COALESCE(retail_price, selling_price) AS retail_price,
     selling_price,
+    COALESCE(current_stock, stock) AS current_stock,
     stock,
     reorder_level,
-    is_serialized
+    is_serialized,
+    is_active,
+    created_at,
+    updated_at
+FROM products;
+
+-- ==========================================
+-- 11. SAMPLE DATA (For Development & Demonstration)
+-- ==========================================
+INSERT INTO motorcycle_units (brand, model, year_model) VALUES
+    ('Yamaha', 'Mio i125', '2023'),
+    ('Suzuki', 'Raider FI', '2022'),
+    ('Honda', 'Click 125', NULL),
+    ('Honda', 'XRM', NULL);
+
+INSERT INTO products (
+    part_number, sku, name, brand, category, size, measurement, thread_type,
+    cost_price, selling_price, retail_price, stock, current_stock, reorder_level, is_serialized
 ) VALUES
-    ('BLT-M8-001', 'Bolt M8', 'JRP', 'Bolts', 'M8 x 20mm', '8mm x 20mm', 'M8', 8.00, 15.00, 50, 10, FALSE),
-    ('SP-001', 'Spark Plug', 'NGK', 'Ignition', 'Standard', 'Standard motorcycle spark plug', NULL, 75.00, 120.00, 30, 8, FALSE),
-    ('ECU-RAIDER-01', 'ECU', 'Suzuki', 'Electrical', 'Raider FI ECU', 'Raider FI compatible ECU', NULL, 1500.00, 2500.00, 3, 1, TRUE);
+    ('BLT-M8-001', 'BLT-M8-001', 'Bolt M8', 'JRP', 'Bolts', 'M8 x 20mm', '8mm x 20mm', 'M8', 8.00, 15.00, 15.00, 50, 50, 10, FALSE),
+    ('SP-001', 'SP-001', 'Spark Plug', 'NGK', 'Ignition', 'Standard', 'Standard motorcycle spark plug', NULL, 75.00, 120.00, 120.00, 30, 30, 8, FALSE),
+    ('ECU-RAIDER-01', 'ECU-RAIDER-01', 'ECU', 'Suzuki', 'Electrical', 'Raider FI ECU', 'Raider FI compatible ECU', NULL, 1500.00, 2500.00, 2500.00, 3, 3, 1, TRUE);
 
 INSERT INTO product_compatibility (product_id, motorcycle_unit_id)
 SELECT p.id, m.id
@@ -252,32 +452,3 @@ WHERE cg.group_name = 'Honda Click Platform' AND mu.brand = 'Honda' AND mu.model
 INSERT INTO compatibility_group_units (compatibility_group_id, motorcycle_unit_id)
 SELECT cg.id, mu.id FROM compatibility_groups cg, motorcycle_units mu
 WHERE cg.group_name = 'Suzuki Raider Platform' AND mu.brand = 'Suzuki' AND mu.model = 'Raider FI';
-
--- ==========================================
--- 10. COMPATIBILITY VIEW: items
--- Aliases products table for backward-compatible queries
--- ==========================================
-CREATE OR REPLACE VIEW items AS
-SELECT 
-    id,
-    id AS item_id,
-    COALESCE(sku, part_number) AS sku,
-    part_number,
-    name,
-    brand,
-    category,
-    size,
-    measurement,
-    thread_type,
-    cost_price,
-    COALESCE(retail_price, selling_price) AS retail_price,
-    selling_price,
-    COALESCE(current_stock, stock) AS current_stock,
-    stock,
-    reorder_level,
-    is_serialized,
-    is_active,
-    created_at,
-    updated_at
-FROM products;
-

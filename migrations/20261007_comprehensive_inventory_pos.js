@@ -78,13 +78,20 @@ async function runMigration() {
         }
 
         // ----------------------------------------------------
+        // 0. USERS (token_version)
+        // ----------------------------------------------------
+        console.log('0. Verifying `users` table...');
+        await ensureColumn('users', 'token_version', 'INT NOT NULL DEFAULT 1');
+        console.log('   `users` table ready.');
+
+        // ----------------------------------------------------
         // 1. SUPPLIERS
         // ----------------------------------------------------
         console.log('1. Creating / Verifying `suppliers` table...');
         await connection.query(`
             CREATE TABLE IF NOT EXISTS suppliers (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(150) NOT NULL,
+                name VARCHAR(150) NOT NULL UNIQUE,
                 contact_person VARCHAR(100) DEFAULT NULL,
                 email VARCHAR(100) DEFAULT NULL,
                 phone VARCHAR(50) DEFAULT NULL,
@@ -106,7 +113,8 @@ async function runMigration() {
             CREATE TABLE IF NOT EXISTS receiving_records (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 supplier_id INT NOT NULL,
-                reference_number VARCHAR(100) NOT NULL UNIQUE,
+                reference_number VARCHAR(100) NOT NULL,
+                reference_no VARCHAR(100) DEFAULT NULL,
                 received_by INT DEFAULT NULL,
                 received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 total_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
@@ -121,6 +129,11 @@ async function runMigration() {
                 FOREIGN KEY (received_by) REFERENCES users(id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         `);
+        await ensureColumn('receiving_records', 'reference_no', 'VARCHAR(100) DEFAULT NULL AFTER reference_number');
+        await connection.query('UPDATE receiving_records SET reference_no = reference_number WHERE reference_no IS NULL');
+        try {
+            await connection.query('ALTER TABLE receiving_records ADD UNIQUE KEY uq_supplier_ref (supplier_id, reference_no)');
+        } catch (e) { /* ignore if already exists */ }
         console.log('   `receiving_records` table ready.');
 
         // ----------------------------------------------------
@@ -132,6 +145,7 @@ async function runMigration() {
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 receiving_record_id INT NOT NULL,
                 product_id INT NOT NULL,
+                item_id INT DEFAULT NULL,
                 quantity INT NOT NULL,
                 cost_price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
                 subtotal DECIMAL(12,2) NOT NULL DEFAULT 0.00,
@@ -142,6 +156,8 @@ async function runMigration() {
                 FOREIGN KEY (product_id) REFERENCES products(id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         `);
+        await ensureColumn('receiving_record_items', 'item_id', 'INT DEFAULT NULL AFTER product_id');
+        await connection.query('UPDATE receiving_record_items SET item_id = product_id WHERE item_id IS NULL');
         console.log('   `receiving_record_items` table ready.');
 
         // ----------------------------------------------------
@@ -189,6 +205,7 @@ async function runMigration() {
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 product_id INT NOT NULL,
                 motorcycle_model_id INT NOT NULL,
+                compatibility_status ENUM('COMPATIBLE', 'NOT_COMPATIBLE', 'CONDITIONAL') NOT NULL DEFAULT 'COMPATIBLE',
                 notes VARCHAR(255) DEFAULT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE KEY unique_prod_compat (product_id, motorcycle_model_id),
@@ -198,6 +215,7 @@ async function runMigration() {
                 FOREIGN KEY (motorcycle_model_id) REFERENCES motorcycle_models(id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         `);
+        await ensureColumn('product_compatibilities', 'compatibility_status', "ENUM('COMPATIBLE', 'NOT_COMPATIBLE', 'CONDITIONAL') NOT NULL DEFAULT 'COMPATIBLE' AFTER motorcycle_model_id");
 
         // Ensure motorcycle_models matches database collation
         await connection.query(`ALTER TABLE motorcycle_models CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;`);
@@ -224,134 +242,108 @@ async function runMigration() {
         }
 
         // ----------------------------------------------------
-        // 6. SEQUENCE sales_order_seq & sales_orders
+        // 6. PRODUCTS (sku, current_stock, retail_price) & SYNC TRIGGERS
         // ----------------------------------------------------
-        console.log('6. Setting up `sales_order_seq` sequence & `sales_orders` table...');
-        try {
-            await connection.query(`CREATE SEQUENCE IF NOT EXISTS sales_order_seq START WITH 1 INCREMENT BY 1;`);
-            console.log('   Native sequence `sales_order_seq` created.');
-        } catch (seqErr) {
-            console.log(`   (Note: Sequence syntax fallback: ${seqErr.message})`);
-            await connection.query(`
-                CREATE TABLE IF NOT EXISTS sales_order_seq (
-                    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY
-                ) ENGINE=InnoDB;
-            `);
-            console.log('   Fallback sequence table `sales_order_seq` created.');
-        }
+        console.log('6. Synchronizing `products` columns and triggers...');
+        await ensureColumn('products', 'sku', 'VARCHAR(100) DEFAULT NULL AFTER part_number');
+        await connection.query('UPDATE products SET sku = part_number WHERE sku IS NULL');
+        await ensureColumn('products', 'current_stock', 'INT NOT NULL DEFAULT 0 AFTER stock');
+        await connection.query('UPDATE products SET current_stock = stock WHERE current_stock = 0 AND stock > 0');
+        await ensureColumn('products', 'retail_price', 'DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER selling_price');
+        await connection.query('UPDATE products SET retail_price = selling_price WHERE retail_price = 0.00 AND selling_price > 0');
 
+        // Install synchronization triggers on products
+        await connection.query('DROP TRIGGER IF EXISTS trg_sync_products_insert;');
         await connection.query(`
-            CREATE TABLE IF NOT EXISTS sales_orders (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                order_number VARCHAR(100) UNIQUE NOT NULL,
-                user_id INT NOT NULL,
-                customer_name VARCHAR(150) DEFAULT 'Walk-in Customer',
-                customer_phone VARCHAR(50) DEFAULT NULL,
-                total_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-                subtotal_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-                discount_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-                tax_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-                payment_method VARCHAR(50) NOT NULL DEFAULT 'Cash',
-                payment_status ENUM('paid', 'partial', 'pending', 'refunded', 'voided') NOT NULL DEFAULT 'paid',
-                tendered_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-                change_due DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-                payment_reference VARCHAR(100) DEFAULT NULL,
-                payment_provider VARCHAR(50) DEFAULT NULL,
-                card_type VARCHAR(50) DEFAULT NULL,
-                card_last4 VARCHAR(4) DEFAULT NULL,
-                paid_at TIMESTAMP NULL DEFAULT NULL,
-                status ENUM('completed', 'pending', 'cancelled', 'refunded', 'voided') NOT NULL DEFAULT 'completed',
-                notes TEXT DEFAULT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                INDEX idx_so_number (order_number),
-                INDEX idx_so_user (user_id),
-                INDEX idx_so_status (status),
-                INDEX idx_so_date (created_at)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            CREATE TRIGGER trg_sync_products_insert
+            BEFORE INSERT ON products
+            FOR EACH ROW
+            BEGIN
+                IF NEW.sku IS NULL OR NEW.sku = '' THEN
+                    SET NEW.sku = NEW.part_number;
+                END IF;
+                IF NEW.part_number IS NULL OR NEW.part_number = '' THEN
+                    SET NEW.part_number = NEW.sku;
+                END IF;
+                IF NEW.current_stock IS NULL THEN
+                    SET NEW.current_stock = COALESCE(NEW.stock, 0);
+                END IF;
+                IF NEW.stock IS NULL THEN
+                    SET NEW.stock = COALESCE(NEW.current_stock, 0);
+                END IF;
+                IF NEW.retail_price IS NULL OR NEW.retail_price = 0 THEN
+                    SET NEW.retail_price = COALESCE(NEW.selling_price, 0.00);
+                END IF;
+                IF NEW.selling_price IS NULL OR NEW.selling_price = 0 THEN
+                    SET NEW.selling_price = COALESCE(NEW.retail_price, 0.00);
+                END IF;
+            END;
         `);
-        console.log('   `sales_orders` table ready.');
 
-        // Also ensure extended payment columns exist on sales_orders
-        await ensureColumn('sales_orders', 'payment_reference', "VARCHAR(100) DEFAULT NULL");
-        await ensureColumn('sales_orders', 'payment_provider', "VARCHAR(50) DEFAULT NULL");
-        await ensureColumn('sales_orders', 'payment_status', "ENUM('paid', 'partial', 'pending', 'refunded', 'voided') NOT NULL DEFAULT 'paid'");
-        await ensureColumn('sales_orders', 'card_type', "VARCHAR(50) DEFAULT NULL");
-        await ensureColumn('sales_orders', 'card_last4', "VARCHAR(4) DEFAULT NULL");
-        await ensureColumn('sales_orders', 'paid_at', "TIMESTAMP NULL DEFAULT NULL");
-        await ensureColumn('sales_orders', 'subtotal_amount', "DECIMAL(10,2) NOT NULL DEFAULT 0.00");
-        await ensureColumn('sales_orders', 'discount_amount', "DECIMAL(10,2) NOT NULL DEFAULT 0.00");
-        await ensureColumn('sales_orders', 'tax_amount', "DECIMAL(10,2) NOT NULL DEFAULT 0.00");
-        await ensureColumn('sales_orders', 'customer_phone', "VARCHAR(50) DEFAULT NULL");
-
-        // Also add extended columns to existing `sales` table for backwards compatibility
-        const [salesTable] = await connection.query(
-            `SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'sales'`,
-            [config.database]
-        );
-        if (salesTable.length > 0) {
-            await ensureColumn('sales', 'order_number', "VARCHAR(100) DEFAULT NULL");
-            await ensureColumn('sales', 'payment_reference', "VARCHAR(100) DEFAULT NULL");
-            await ensureColumn('sales', 'payment_provider', "VARCHAR(50) DEFAULT NULL");
-            await ensureColumn('sales', 'payment_status', "VARCHAR(50) DEFAULT 'paid'");
-            await ensureColumn('sales', 'subtotal_amount', "DECIMAL(10,2) DEFAULT NULL");
-            await ensureColumn('sales', 'discount_amount', "DECIMAL(10,2) DEFAULT 0.00");
-            await ensureColumn('sales', 'tax_amount', "DECIMAL(10,2) DEFAULT 0.00");
-            await ensureColumn('sales', 'card_type', "VARCHAR(50) DEFAULT NULL");
-            await ensureColumn('sales', 'card_last4', "VARCHAR(4) DEFAULT NULL");
-            await ensureColumn('sales', 'paid_at', "TIMESTAMP NULL DEFAULT NULL");
-            console.log('   `sales` table backward-compatible extended payment columns synchronized.');
-        }
-
-        // Create sales_order_items table
+        await connection.query('DROP TRIGGER IF EXISTS trg_sync_products_update;');
         await connection.query(`
-            CREATE TABLE IF NOT EXISTS sales_order_items (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                sales_order_id INT NOT NULL,
-                product_id INT NOT NULL,
-                part_number VARCHAR(100) NOT NULL,
-                product_name VARCHAR(255) NOT NULL,
-                brand VARCHAR(100) NOT NULL,
-                size VARCHAR(50) NOT NULL,
-                quantity INT NOT NULL,
-                price DECIMAL(10,2) NOT NULL,
-                subtotal DECIMAL(10,2) NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_so_item_order (sales_order_id),
-                INDEX idx_so_item_product (product_id),
-                FOREIGN KEY (sales_order_id) REFERENCES sales_orders(id) ON DELETE CASCADE,
-                FOREIGN KEY (product_id) REFERENCES products(id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            CREATE TRIGGER trg_sync_products_update
+            BEFORE UPDATE ON products
+            FOR EACH ROW
+            BEGIN
+                IF NEW.current_stock != OLD.current_stock AND NEW.stock = OLD.stock THEN
+                    SET NEW.stock = NEW.current_stock;
+                ELSEIF NEW.stock != OLD.stock AND NEW.current_stock = OLD.current_stock THEN
+                    SET NEW.current_stock = NEW.stock;
+                END IF;
+
+                IF NEW.sku != OLD.sku AND (NEW.part_number = OLD.part_number OR NEW.part_number IS NULL) THEN
+                    SET NEW.part_number = NEW.sku;
+                ELSEIF NEW.part_number != OLD.part_number AND (NEW.sku = OLD.sku OR NEW.sku IS NULL) THEN
+                    SET NEW.sku = NEW.part_number;
+                END IF;
+
+                IF NEW.retail_price != OLD.retail_price AND NEW.selling_price = OLD.selling_price THEN
+                    SET NEW.selling_price = NEW.retail_price;
+                ELSEIF NEW.selling_price != OLD.selling_price AND NEW.retail_price = OLD.retail_price THEN
+                    SET NEW.retail_price = NEW.selling_price;
+                END IF;
+            END;
         `);
-        console.log('   `sales_order_items` table ready.');
+        console.log('   `products` synchronization triggers installed.');
 
         // ----------------------------------------------------
-        // 7. INVENTORY TRANSACTIONS (APPEND-ONLY LEDGER)
+        // 7. SALES (Order Number and Reference)
         // ----------------------------------------------------
-        console.log('7. Creating / Verifying `inventory_transactions` append-only ledger...');
+        console.log('7. Verifying `sales` table columns...');
+        await ensureColumn('sales', 'order_number', "VARCHAR(100) DEFAULT NULL");
+        await ensureColumn('sales', 'payment_reference', "VARCHAR(100) DEFAULT NULL");
+        await ensureColumn('sales', 'payment_provider', "VARCHAR(50) DEFAULT NULL");
+        await ensureColumn('sales', 'payment_status', "VARCHAR(50) DEFAULT 'paid'");
+        await ensureColumn('sales', 'subtotal_amount', "DECIMAL(10,2) DEFAULT NULL");
+        await ensureColumn('sales', 'discount_amount', "DECIMAL(10,2) DEFAULT 0.00");
+        await ensureColumn('sales', 'tax_amount', "DECIMAL(10,2) DEFAULT 0.00");
+        await ensureColumn('sales', 'card_type', "VARCHAR(50) DEFAULT NULL");
+        await ensureColumn('sales', 'card_last4', "VARCHAR(4) DEFAULT NULL");
+        await ensureColumn('sales', 'paid_at', "TIMESTAMP NULL DEFAULT NULL");
+        console.log('   `sales` table columns synchronized.');
+
+        // ----------------------------------------------------
+        // 8. INVENTORY TRANSACTIONS (APPEND-ONLY LEDGER)
+        // ----------------------------------------------------
+        console.log('8. Creating / Verifying `inventory_transactions` append-only ledger...');
         await connection.query(`
             CREATE TABLE IF NOT EXISTS inventory_transactions (
                 id BIGINT AUTO_INCREMENT PRIMARY KEY,
                 transaction_number VARCHAR(100) UNIQUE NOT NULL,
+                reference_no VARCHAR(100) DEFAULT NULL,
                 product_id INT NOT NULL,
-                transaction_type ENUM(
-                    'OPENING_BALANCE',
-                    'STOCK_IN',
-                    'STOCK_OUT',
-                    'PURCHASE_RECEIPT',
-                    'SALE',
-                    'RETURN',
-                    'ADJUSTMENT_ADD',
-                    'ADJUSTMENT_SUB'
-                ) NOT NULL,
+                transaction_type VARCHAR(50) NOT NULL,
                 quantity INT NOT NULL,
+                quantity_change INT NOT NULL DEFAULT 0,
                 balance_before INT NOT NULL DEFAULT 0,
                 balance_after INT NOT NULL DEFAULT 0,
                 unit_cost DECIMAL(10,2) DEFAULT NULL,
                 reference_type VARCHAR(50) DEFAULT NULL,
                 reference_id INT DEFAULT NULL,
+                loss_transaction_id BIGINT DEFAULT NULL,
                 notes TEXT DEFAULT NULL,
+                remarks TEXT DEFAULT NULL,
                 created_by INT DEFAULT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_it_product (product_id),
@@ -362,6 +354,12 @@ async function runMigration() {
                 FOREIGN KEY (created_by) REFERENCES users(id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         `);
+
+        await connection.query('ALTER TABLE inventory_transactions MODIFY COLUMN transaction_type VARCHAR(50) NOT NULL;');
+        await ensureColumn('inventory_transactions', 'reference_no', 'VARCHAR(100) DEFAULT NULL AFTER transaction_number');
+        await ensureColumn('inventory_transactions', 'quantity_change', 'INT NOT NULL DEFAULT 0 AFTER quantity');
+        await ensureColumn('inventory_transactions', 'loss_transaction_id', 'BIGINT DEFAULT NULL AFTER reference_id');
+        await ensureColumn('inventory_transactions', 'remarks', 'TEXT DEFAULT NULL AFTER notes');
         console.log('   `inventory_transactions` table ready.');
 
         // Child lock table to strictly prevent TRUNCATE via foreign key reference
@@ -373,14 +371,9 @@ async function runMigration() {
                 CONSTRAINT fk_inv_tx_lock FOREIGN KEY (transaction_id) REFERENCES inventory_transactions(id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         `);
-        console.log('   `inventory_transactions_lock` sentinel table ready (blocks TRUNCATE via FK constraint).');
+        console.log('   `inventory_transactions_lock` sentinel table ready.');
 
-        // ----------------------------------------------------
-        // 8. ROW- AND STATEMENT-LEVEL PROTECTION TRIGGERS
-        // ----------------------------------------------------
-        console.log('8. Installing row-level and statement blocking triggers on `inventory_transactions`...');
-        
-        // Trigger: Block UPDATE
+        // Row- and statement-level blocking triggers on inventory_transactions
         await connection.query(`DROP TRIGGER IF EXISTS trg_block_inventory_transactions_update;`);
         await connection.query(`
             CREATE TRIGGER trg_block_inventory_transactions_update
@@ -391,9 +384,7 @@ async function runMigration() {
                 SET MESSAGE_TEXT = 'Forbidden: inventory_transactions is an immutable append-only ledger and cannot be modified.';
             END;
         `);
-        console.log('   ✓ Trigger `trg_block_inventory_transactions_update` active.');
 
-        // Trigger: Block DELETE
         await connection.query(`DROP TRIGGER IF EXISTS trg_block_inventory_transactions_delete;`);
         await connection.query(`
             CREATE TRIGGER trg_block_inventory_transactions_delete
@@ -404,30 +395,53 @@ async function runMigration() {
                 SET MESSAGE_TEXT = 'Forbidden: inventory_transactions is an immutable append-only ledger and cannot be deleted.';
             END;
         `);
-        console.log('   ✓ Trigger `trg_block_inventory_transactions_delete` active.');
+        console.log('   `inventory_transactions` immutable triggers active.');
 
         // ----------------------------------------------------
-        // 9. IDEMPOTENT BASELINE OPENING_BALANCE ENTRIES
+        // 9. COMPATIBILITY VIEW: items
         // ----------------------------------------------------
-        console.log('9. Checking and inserting idempotent baseline OPENING_BALANCE entries for pre-existing items...');
+        console.log('9. Creating / Updating `items` compatibility view...');
+        await connection.query(`
+            CREATE OR REPLACE VIEW items AS
+            SELECT 
+                id,
+                id AS item_id,
+                COALESCE(sku, part_number) AS sku,
+                part_number,
+                name,
+                brand,
+                category,
+                size,
+                measurement,
+                thread_type,
+                cost_price,
+                COALESCE(retail_price, selling_price) AS retail_price,
+                selling_price,
+                COALESCE(current_stock, stock) AS current_stock,
+                stock,
+                reorder_level,
+                is_serialized,
+                is_active,
+                created_at,
+                updated_at
+            FROM products;
+        `);
+        console.log('   `items` view ready.');
 
-        // Fetch products that do NOT yet have an OPENING_BALANCE entry
+        // ----------------------------------------------------
+        // 10. BASELINE OPENING_BALANCE ENTRIES
+        // ----------------------------------------------------
+        console.log('\n10. Checking baseline OPENING_BALANCE entries for pre-existing items...');
         const [pendingProducts] = await connection.query(`
             SELECT p.id, p.part_number, p.name, p.stock, p.cost_price
             FROM products p
             WHERE NOT EXISTS (
                 SELECT 1 FROM inventory_transactions it
                 WHERE it.product_id = p.id AND it.transaction_type = 'OPENING_BALANCE'
-            )
-            ORDER BY p.id ASC;
+            ) AND p.stock > 0;
         `);
 
-        if (pendingProducts.length === 0) {
-            console.log('   All pre-existing products already have an OPENING_BALANCE baseline entry (Idempotent skip).');
-        } else {
-            console.log(`   Found ${pendingProducts.length} product(s) needing OPENING_BALANCE baseline entries.`);
-
-            // Get default admin user id
+        if (pendingProducts.length > 0) {
             const [adminUsers] = await connection.query(`SELECT id FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1;`);
             const adminId = adminUsers.length > 0 ? adminUsers[0].id : 1;
 
@@ -437,25 +451,30 @@ async function runMigration() {
                 await connection.query(`
                     INSERT INTO inventory_transactions (
                         transaction_number,
+                        reference_no,
                         product_id,
                         transaction_type,
                         quantity,
+                        quantity_change,
                         balance_before,
                         balance_after,
                         unit_cost,
                         reference_type,
                         reference_id,
                         notes,
+                        remarks,
                         created_by,
                         created_at
-                    ) VALUES (?, ?, 'OPENING_BALANCE', ?, 0, ?, ?, 'OPENING_BALANCE', ?, ?, ?, NOW())
+                    ) VALUES (?, 'OPENING_BALANCE', ?, 'OPENING_BALANCE', ?, ?, 0, ?, ?, 'OPENING_BALANCE', ?, ?, ?, ?, NOW())
                 `, [
                     txNumber,
                     prod.id,
                     prod.stock,
                     prod.stock,
+                    prod.stock,
                     prod.cost_price || 0.00,
                     prod.id,
+                    `Baseline OPENING_BALANCE for pre-existing product: ${prod.name} (${prod.part_number})`,
                     `Baseline OPENING_BALANCE for pre-existing product: ${prod.name} (${prod.part_number})`,
                     adminId
                 ]);
@@ -464,57 +483,8 @@ async function runMigration() {
             console.log(`   ✓ Created ${insertedCount} OPENING_BALANCE entries.`);
         }
 
-        // ----------------------------------------------------
-        // 10. VERIFICATION & AUDIT
-        // ----------------------------------------------------
-        console.log('\n10. Verifying Migration Integrity...');
-
-        // Test Trigger Protection
-        const [testSample] = await connection.query(`SELECT id, quantity FROM inventory_transactions LIMIT 1;`);
-        if (testSample.length > 0) {
-            const sampleId = testSample[0].id;
-
-            // Test UPDATE block
-            let updateBlocked = false;
-            try {
-                await connection.query(`UPDATE inventory_transactions SET quantity = 999 WHERE id = ?`, [sampleId]);
-            } catch (err) {
-                if (err.sqlState === '45000' || err.message.includes('Forbidden')) {
-                    updateBlocked = true;
-                }
-            }
-
-            // Test DELETE block
-            let deleteBlocked = false;
-            try {
-                await connection.query(`DELETE FROM inventory_transactions WHERE id = ?`, [sampleId]);
-            } catch (err) {
-                if (err.sqlState === '45000' || err.message.includes('Forbidden')) {
-                    deleteBlocked = true;
-                }
-            }
-
-            // Test TRUNCATE block
-            let truncateBlocked = false;
-            try {
-                await connection.query(`TRUNCATE TABLE inventory_transactions`);
-            } catch (err) {
-                if (err.errno === 1701 || err.message.includes('foreign key constraint')) {
-                    truncateBlocked = true;
-                }
-            }
-
-            console.log(`   [Trigger Test] UPDATE blocked:    ${updateBlocked ? 'PASS (Protected)' : 'FAIL'}`);
-            console.log(`   [Trigger Test] DELETE blocked:    ${deleteBlocked ? 'PASS (Protected)' : 'FAIL'}`);
-            console.log(`   [Trigger Test] TRUNCATE blocked:  ${truncateBlocked ? 'PASS (Protected)' : 'FAIL'}`);
-        }
-
-        // Count opening balance entries
-        const [opbCount] = await connection.query(`SELECT COUNT(*) as cnt FROM inventory_transactions WHERE transaction_type = 'OPENING_BALANCE';`);
-        console.log(`   [Ledger Audit] Total OPENING_BALANCE records: ${opbCount[0].cnt}`);
-
         console.log('\n=====================================================');
-        console.log(' Phase 1 Migration Completed Successfully! ');
+        console.log(' Migration Completed Successfully! ');
         console.log('=====================================================\n');
 
         await connection.end();

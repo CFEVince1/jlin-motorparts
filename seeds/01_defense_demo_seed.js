@@ -165,16 +165,17 @@ async function seed(knex) {
             );
             if (existing.length > 0) {
                 // Ensure initial stock is 0 for defense demo baseline
-                await connection.query(`UPDATE products SET stock = 0, is_active = TRUE WHERE id = ?`, [existing[0].id]);
+                await connection.query(`UPDATE products SET stock = 0, current_stock = 0, is_active = TRUE WHERE id = ?`, [existing[0].id]);
                 console.log(`   Product ${productData.part_number} exists (ID: ${existing[0].id}, stock reset to 0).`);
                 return existing[0].id;
             }
             const [res] = await connection.query(`
                 INSERT INTO products (
-                    part_number, name, brand, category, size, measurement, thread_type,
-                    cost_price, selling_price, stock, reorder_level, is_serialized, is_active
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, TRUE)
+                    part_number, sku, name, brand, category, size, measurement, thread_type,
+                    cost_price, selling_price, retail_price, stock, current_stock, reorder_level, is_serialized, is_active
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, TRUE)
             `, [
+                productData.part_number,
                 productData.part_number,
                 productData.name,
                 productData.brand,
@@ -183,6 +184,8 @@ async function seed(knex) {
                 productData.measurement || null,
                 productData.thread_type || null,
                 productData.cost_price,
+                productData.selling_price,
+                productData.selling_price,
                 productData.selling_price,
                 productData.reorder_level || 5,
                 productData.is_serialized ? 1 : 0
