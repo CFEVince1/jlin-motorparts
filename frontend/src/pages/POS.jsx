@@ -499,6 +499,17 @@ const POS = () => {
                             grid-template-columns: 1fr !important;
                         }
                     }
+                    @media (max-width: 768px) {
+                        .pos-qty-btn {
+                            width: 40px !important;
+                            height: 40px !important;
+                        }
+                        .pos-qty-input {
+                            width: 52px !important;
+                            height: 40px !important;
+                            font-size: 16px !important;
+                        }
+                    }
                 `}</style>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h1 style={{ margin: 0 }}>Point of Sale</h1>
@@ -614,16 +625,16 @@ const POS = () => {
                                             Serials ({item.quantity})
                                         </button>
                                     ) : (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                             <button 
                                                 type="button"
                                                 onClick={() => updateQuantity(item.product_id, -1)} 
-                                                className="btn-secondary"
+                                                className="btn-secondary pos-qty-btn"
                                                 style={{ 
-                                                    width: '26px', 
-                                                    height: '26px', 
+                                                    width: '36px', 
+                                                    height: '36px', 
                                                     padding: 0, 
-                                                    borderRadius: '4px', 
+                                                    borderRadius: '6px', 
                                                     cursor: 'pointer', 
                                                     display: 'flex', 
                                                     alignItems: 'center', 
@@ -632,7 +643,7 @@ const POS = () => {
                                                 }}
                                                 title="Decrease quantity"
                                             >
-                                                <Minus size={13} />
+                                                <Minus size={16} />
                                             </button>
                                             <input 
                                                 type="number" 
@@ -640,26 +651,26 @@ const POS = () => {
                                                 max={item.maxStock} 
                                                 value={item.quantity} 
                                                 onChange={(e) => setQuantityDirect(item.product_id, e.target.value)} 
-                                                className="input-premium"
+                                                className="input-premium pos-qty-input"
                                                 style={{ 
-                                                    width: '42px', 
-                                                    height: '26px', 
+                                                    width: '48px', 
+                                                    height: '36px', 
                                                     textAlign: 'center', 
-                                                    padding: '2px', 
-                                                    fontSize: '0.82rem', 
+                                                    padding: '2px 4px', 
+                                                    fontSize: '0.95rem', 
                                                     fontWeight: '600',
-                                                    borderRadius: '4px'
+                                                    borderRadius: '6px'
                                                 }} 
                                             />
                                             <button 
                                                 type="button"
                                                 onClick={() => updateQuantity(item.product_id, 1)} 
-                                                className="btn-secondary"
+                                                className="btn-secondary pos-qty-btn"
                                                 style={{ 
-                                                    width: '26px', 
-                                                    height: '26px', 
+                                                    width: '36px', 
+                                                    height: '36px', 
                                                     padding: 0, 
-                                                    borderRadius: '4px', 
+                                                    borderRadius: '6px', 
                                                     cursor: 'pointer', 
                                                     display: 'flex', 
                                                     alignItems: 'center', 
@@ -668,7 +679,7 @@ const POS = () => {
                                                 }}
                                                 title="Increase quantity"
                                             >
-                                                <Plus size={13} />
+                                                <Plus size={16} />
                                             </button>
                                         </div>
                                     )}
@@ -676,12 +687,26 @@ const POS = () => {
                                     <button 
                                         type="button"
                                         onClick={() => removeFromCart(item.product_id)} 
-                                        style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', marginLeft: '6px', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.85, transition: 'opacity 0.2s' }}
+                                        style={{ 
+                                            background: 'none', 
+                                            border: 'none', 
+                                            color: 'var(--danger)', 
+                                            cursor: 'pointer', 
+                                            marginLeft: '6px', 
+                                            padding: '8px', 
+                                            minWidth: '36px', 
+                                            minHeight: '36px', 
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            justifyContent: 'center', 
+                                            opacity: 0.85, 
+                                            transition: 'opacity 0.2s' 
+                                        }}
                                         onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
                                         onMouseLeave={(e) => e.currentTarget.style.opacity = '0.85'}
                                         title="Remove item"
                                     >
-                                        <Trash2 size={16} />
+                                        <Trash2 size={18} />
                                     </button>
                                 </div>
                             ))}

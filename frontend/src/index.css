@@ -133,15 +133,31 @@ input.input-premium,
 select.input-premium,
 textarea.input-premium {
   width: 100%;
-  height: 36px; /* h-9 */
-  padding: 6px 10px; /* px-2.5 py-1.5 */
-  font-size: 0.75rem; /* text-xs */
-  border-radius: 6px; /* rounded-md */
+  height: 42px; /* Touch-ergonomic POS height (minimum 40-44px target) */
+  padding: 8px 12px;
+  font-size: 0.875rem; /* 14px desktop */
+  border-radius: 8px;
   background-color: var(--input-bg);
   border: 1px solid var(--input-border);
   color: var(--input-color);
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
   outline: none;
+}
+
+/* Prevent iOS Mobile Safari auto-zooming on focus when font-size < 16px */
+@media (max-width: 1024px) {
+  .input-premium,
+  input.input-premium,
+  select.input-premium,
+  textarea.input-premium,
+  input[type="text"],
+  input[type="number"],
+  input[type="password"],
+  input[type="search"],
+  select {
+    font-size: 16px !important;
+    height: 44px; /* Standard 44px minimum touch target for mobile/tablets */
+  }
 }
 
 .input-premium::placeholder {
@@ -185,17 +201,17 @@ select.input-premium option {
   background-color: #059669;
   color: #ffffff;
   border: none;
-  height: 36px;
-  padding: 6px 14px;
-  border-radius: 6px;
-  font-size: 0.75rem;
+  height: 40px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
   transition: background-color 0.2s ease, transform 0.1s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .btn-primary:hover {
@@ -210,22 +226,31 @@ select.input-premium option {
   background-color: var(--btn-secondary-bg);
   color: var(--btn-secondary-color);
   border: 1px solid var(--btn-secondary-border);
-  height: 36px;
-  padding: 6px 14px;
-  border-radius: 6px;
-  font-size: 0.75rem;
+  height: 40px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .btn-secondary:hover {
   background-color: var(--btn-secondary-hover);
   color: var(--btn-secondary-color);
+}
+
+@media (max-width: 1024px) {
+  .btn-primary,
+  .btn-secondary {
+    min-height: 44px;
+    padding: 10px 18px;
+    font-size: 0.9rem;
+  }
 }
 
 /* High-Density Tables */

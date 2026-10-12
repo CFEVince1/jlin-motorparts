@@ -222,14 +222,14 @@ export const CheckoutModal = ({
                 />
 
                 {/* Quick Cash Presets & Quick Add */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>Set:</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Set:</span>
                     <button
                       type="button"
                       onClick={() => setCashTendered(String(totalAmount))}
                       className="btn-secondary"
-                      style={{ padding: '3px 8px', fontSize: '0.72rem', borderRadius: '4px', cursor: 'pointer' }}
+                      style={{ padding: '6px 12px', minHeight: '34px', fontSize: '0.8rem', borderRadius: '6px', cursor: 'pointer' }}
                     >
                       Exact ({formatCurrency(totalAmount)})
                     </button>
@@ -239,22 +239,22 @@ export const CheckoutModal = ({
                         type="button"
                         onClick={() => setCashTendered(String(amt))}
                         className="btn-secondary"
-                        style={{ padding: '3px 8px', fontSize: '0.72rem', borderRadius: '4px', cursor: 'pointer' }}
+                        style={{ padding: '6px 12px', minHeight: '34px', fontSize: '0.8rem', borderRadius: '6px', cursor: 'pointer' }}
                       >
                         ₱{amt}
                       </button>
                     ))}
                   </div>
 
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>Add:</span>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Add:</span>
                     {[20, 50, 100, 500, 1000].map(addAmt => (
                       <button
                         key={addAmt}
                         type="button"
                         onClick={() => handleAddCash(addAmt)}
                         className="btn-secondary"
-                        style={{ padding: '3px 8px', fontSize: '0.72rem', borderRadius: '4px', cursor: 'pointer' }}
+                        style={{ padding: '6px 12px', minHeight: '34px', fontSize: '0.8rem', borderRadius: '6px', cursor: 'pointer' }}
                       >
                         +₱{addAmt}
                       </button>
@@ -263,7 +263,7 @@ export const CheckoutModal = ({
                       <button
                         type="button"
                         onClick={() => setCashTendered('')}
-                        style={{ padding: '3px 8px', fontSize: '0.72rem', borderRadius: '4px', cursor: 'pointer', background: 'none', border: '1px solid var(--border)', color: 'var(--danger)' }}
+                        style={{ padding: '6px 12px', minHeight: '34px', fontSize: '0.8rem', borderRadius: '6px', cursor: 'pointer', background: 'none', border: '1px solid var(--border)', color: 'var(--danger)' }}
                       >
                         Clear
                       </button>
