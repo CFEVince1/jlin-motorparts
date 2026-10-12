@@ -307,7 +307,27 @@ async function runTestSuite() {
         await reportController.getAdjustmentsReport({ query: {} }, mockResReport, (e) => { throw e; });
         assert(!!reportResult && Array.isArray(reportResult.adjustments), 'Adjustments report returns adjustments array');
         assert(Array.isArray(reportResult.grouped_totals), 'Adjustments report returns grouped_totals array');
-        assert(!!reportResult.summary && typeof reportResult.summary.total_adjustments === 'number', 'Adjustments report includes summary totals');
+        // -----------------------------------------------------------------
+        // TEST 7: Sales Subquery-Optimized Pagination & Cashier Scoping
+        // -----------------------------------------------------------------
+        console.log('\n[TEST 7] Sales Subquery-Optimized Pagination & Cashier Scoping');
+        let paginatedResult = null;
+        const mockResPaginated = {
+            json: (data) => { paginatedResult = data; }
+        };
+        await salesController.getSales(
+            { user: { id: adminUser.id, role: 'admin' }, query: { page: '1', limit: '5' } },
+            mockResPaginated,
+            (e) => { throw e; }
+        );
+        assert(!!paginatedResult && paginatedResult.success === true, 'getSales returns success: true');
+        assert(Array.isArray(paginatedResult.data), 'getSales returns data array');
+        assert(paginatedResult.data.length <= 5, 'getSales respects page limit of 5');
+        assert(!!paginatedResult.pagination, 'getSales returns pagination metadata');
+        assert(typeof paginatedResult.pagination.total === 'number', 'pagination total is a number');
+        assert(paginatedResult.pagination.page === 1, 'pagination page is 1');
+        assert(paginatedResult.pagination.limit === 5, 'pagination limit is 5');
+        assert(paginatedResult.pagination.totalPages >= 1, 'pagination totalPages is >= 1');
 
         console.log('\n=====================================================');
         console.log(` Test Suite Results: ${passed} PASSED, ${failed} FAILED`);

@@ -78,15 +78,52 @@ const Transactions = () => {
     const filterDate = filters.date;
     const sortBy = filters.sortBy;
 
-    const fetchTransactions = async () => {
+    const [pagination, setPagination] = useState({
+        page: 1,
+        limit: 20,
+        total: 0,
+        totalPages: 1
+    });
+
+    const fetchTransactions = async (page = 1) => {
         try {
-            const res = await api.get('/sales');
-            setTransactions(res.data);
+            const res = await api.get('/sales', {
+                params: {
+                    page,
+                    limit: 20
+                }
+            });
+            const rawData = res.data;
+            const salesList = Array.isArray(rawData) ? rawData : (rawData?.data || []);
+            setTransactions(salesList);
+            if (rawData?.pagination) {
+                setPagination(rawData.pagination);
+            }
         } catch {
             toast.error('Failed to load transactions');
         } finally {
             setLoading(false);
         }
+    };
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= pagination.totalPages && newPage !== pagination.page) {
+            fetchTransactions(newPage);
+        }
+    };
+
+    const getPageNumbers = () => {
+        const pages = [];
+        const maxButtons = 5;
+        let start = Math.max(1, pagination.page - 2);
+        let end = Math.min(pagination.totalPages, start + maxButtons - 1);
+        if (end - start + 1 < maxButtons) {
+            start = Math.max(1, end - maxButtons + 1);
+        }
+        for (let i = start; i <= end; i++) {
+            pages.push(i);
+        }
+        return pages;
     };
 
     useEffect(() => {
@@ -165,6 +202,7 @@ const Transactions = () => {
             <div id="print-area" className="printable-report">
                 <div className={`glass-panel ${selectedTransaction ? 'no-print' : ''}`} style={{ padding: '24px' }}>
                 {loading ? <Spinner text="Loading transactions..." /> : (
+                    <>
                     <div className="table-container">
                         <table>
                             <thead>
@@ -215,6 +253,42 @@ const Transactions = () => {
                             </tbody>
                         </table>
                     </div>
+                    {pagination.totalPages > 1 && (
+                        <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px', marginTop: '16px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginRight: '8px' }}>
+                                Page {pagination.page} of {pagination.totalPages} ({pagination.total} total)
+                            </span>
+                            <button
+                                disabled={pagination.page <= 1}
+                                onClick={() => handlePageChange(pagination.page - 1)}
+                                className="btn-secondary"
+                                style={{ padding: '4px 12px', fontSize: '0.9rem', opacity: pagination.page <= 1 ? 0.5 : 1 }}
+                            >
+                                Prev
+                            </button>
+
+                            {getPageNumbers().map(pageNum => (
+                                <button
+                                    key={pageNum}
+                                    onClick={() => handlePageChange(pageNum)}
+                                    className={pagination.page === pageNum ? "btn-primary" : "btn-secondary"}
+                                    style={{ padding: '4px 12px', fontSize: '0.9rem' }}
+                                >
+                                    {pageNum}
+                                </button>
+                            ))}
+
+                            <button
+                                disabled={pagination.page >= pagination.totalPages}
+                                onClick={() => handlePageChange(pagination.page + 1)}
+                                className="btn-secondary"
+                                style={{ padding: '4px 12px', fontSize: '0.9rem', opacity: pagination.page >= pagination.totalPages ? 0.5 : 1 }}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    )}
+                    </>
                 )}
             </div>
             </div>

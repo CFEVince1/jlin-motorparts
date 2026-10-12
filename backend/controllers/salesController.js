@@ -309,11 +309,110 @@ exports.createSale = exports.checkout;
 // GET ALL SALES (For Transactions Page)
 // ==========================================
 exports.getSales = async (req, res, next) => {
-    const userId = req.user.id;
-    const role = req.user.role;
+    const userId = req.user?.id;
+    const role = req.user?.role;
 
     try {
-        let query = `
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.max(1, Math.min(100, parseInt(req.query.limit, 10) || 20));
+        const offset = (page - 1) * limit;
+
+        const whereClauses = [];
+        const whereParams = [];
+
+        if (role !== 'admin') {
+            whereClauses.push('s.user_id = ?');
+            whereParams.push(userId);
+        }
+
+        if (req.query.date) {
+            whereClauses.push('DATE(s.sale_date) = ?');
+            whereParams.push(req.query.date);
+        }
+
+        if (req.query.startDate) {
+            whereClauses.push('DATE(s.sale_date) >= ?');
+            whereParams.push(req.query.startDate);
+        }
+
+        if (req.query.endDate) {
+            whereClauses.push('DATE(s.sale_date) <= ?');
+            whereParams.push(req.query.endDate);
+        }
+
+        if (req.query.search && req.query.search.trim()) {
+            const rawSearch = req.query.search.trim();
+            const searchPattern = `%${rawSearch}%`;
+            const searchId = Number(rawSearch);
+
+            if (Number.isInteger(searchId) && searchId > 0) {
+                whereClauses.push(`(
+                    s.id = ? 
+                    OR s.order_number LIKE ? 
+                    OR s.payment_reference LIKE ?
+                    OR EXISTS (
+                        SELECT 1 FROM users u_s WHERE u_s.id = s.user_id AND u_s.username LIKE ?
+                    )
+                    OR EXISTS (
+                        SELECT 1 FROM sale_items si_s 
+                        WHERE si_s.sale_id = s.id 
+                        AND (
+                            si_s.product_name LIKE ? 
+                            OR si_s.part_number LIKE ? 
+                            OR si_s.brand LIKE ? 
+                            OR si_s.size LIKE ?
+                        )
+                    )
+                )`);
+                whereParams.push(
+                    searchId,
+                    searchPattern,
+                    searchPattern,
+                    searchPattern,
+                    searchPattern,
+                    searchPattern,
+                    searchPattern,
+                    searchPattern
+                );
+            } else {
+                whereClauses.push(`(
+                    s.order_number LIKE ? 
+                    OR s.payment_reference LIKE ?
+                    OR EXISTS (
+                        SELECT 1 FROM users u_s WHERE u_s.id = s.user_id AND u_s.username LIKE ?
+                    )
+                    OR EXISTS (
+                        SELECT 1 FROM sale_items si_s 
+                        WHERE si_s.sale_id = s.id 
+                        AND (
+                            si_s.product_name LIKE ? 
+                            OR si_s.part_number LIKE ? 
+                            OR si_s.brand LIKE ? 
+                            OR si_s.size LIKE ?
+                        )
+                    )
+                )`);
+                whereParams.push(
+                    searchPattern,
+                    searchPattern,
+                    searchPattern,
+                    searchPattern,
+                    searchPattern,
+                    searchPattern,
+                    searchPattern
+                );
+            }
+        }
+
+        const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+        // High-performance count query
+        const countQuery = `SELECT COUNT(*) AS total FROM sales s ${whereSQL}`;
+        const [countRows] = await db.query(countQuery, whereParams);
+        const total = countRows[0]?.total || 0;
+
+        // Subquery-optimized pagination: paginate sales first, then join users & sale_items
+        const dataQuery = `
             SELECT s.id, COALESCE(s.order_number, CONCAT('SO-', s.id)) AS order_number,
                    s.total_amount, s.tendered_amount, s.change_due, s.payment_method,
                    s.payment_reference, s.sale_date, u.username as cashier,
@@ -321,21 +420,33 @@ exports.getSales = async (req, res, next) => {
                    GROUP_CONCAT(DISTINCT si.part_number ORDER BY si.part_number SEPARATOR ', ') as part_numbers,
                    GROUP_CONCAT(DISTINCT si.brand ORDER BY si.brand SEPARATOR ', ') as brands,
                    GROUP_CONCAT(DISTINCT si.size ORDER BY si.size SEPARATOR ', ') as sizes
-            FROM sales s
+            FROM (
+                SELECT s.id, s.user_id, s.order_number, s.total_amount, s.tendered_amount,
+                       s.change_due, s.payment_method, s.payment_reference, s.sale_date
+                FROM sales s
+                ${whereSQL}
+                ORDER BY s.sale_date DESC, s.id DESC
+                LIMIT ? OFFSET ?
+            ) s
             JOIN users u ON s.user_id = u.id
             LEFT JOIN sale_items si ON s.id = si.sale_id
+            GROUP BY s.id, s.order_number, s.total_amount, s.tendered_amount, s.change_due, s.payment_method, s.payment_reference, s.sale_date, u.username
+            ORDER BY s.sale_date DESC, s.id DESC
         `;
-        let queryParams = [];
 
-        if (role !== 'admin') {
-            query += ` WHERE s.user_id = ? `;
-            queryParams.push(userId);
-        }
+        const [sales] = await db.query(dataQuery, [...whereParams, limit, offset]);
 
-        query += ` GROUP BY s.id, s.order_number, s.total_amount, s.tendered_amount, s.change_due, s.payment_method, s.payment_reference, s.sale_date, u.username ORDER BY s.sale_date DESC`;
-
-        const [sales] = await db.query(query, queryParams);
-        res.json(sales);
+        res.json({
+            success: true,
+            data: sales,
+            sales: sales,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
+        });
     } catch (err) {
         next(err);
     }

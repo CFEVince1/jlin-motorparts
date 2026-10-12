@@ -555,7 +555,16 @@ export async function handleMockRequest(config) {
         return {
             status: 200,
             statusText: 'OK',
-            data: transactions
+            data: {
+                success: true,
+                data: transactions,
+                pagination: {
+                    total: transactions.length,
+                    page: 1,
+                    limit: transactions.length,
+                    totalPages: 1
+                }
+            }
         };
     }
 
