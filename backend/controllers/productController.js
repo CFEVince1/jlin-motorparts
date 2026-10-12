@@ -278,10 +278,27 @@ exports.createProduct = async (req, res) => {
                 'INSERT INTO product_compatibility (product_id, motorcycle_unit_id) VALUES ?',
                 [compatibilityValues]
             );
-            await connection.query(
-                'INSERT IGNORE INTO product_compatibilities (product_id, motorcycle_model_id, compatibility_status) VALUES ?',
-                [unitIds.map(unitId => [productId, unitId, 'COMPATIBLE'])]
-            );
+
+            // Ensure all selected units have corresponding models in motorcycle_models
+            await connection.query(`
+                INSERT IGNORE INTO motorcycle_models (brand, model, year_model)
+                SELECT brand, model, year_model FROM motorcycle_units WHERE id IN (?)
+            `, [unitIds]);
+
+            // Correctly map motorcycle_units to motorcycle_models IDs for product_compatibilities
+            await connection.query(`
+                INSERT IGNORE INTO product_compatibilities (product_id, motorcycle_model_id, compatibility_status)
+                SELECT DISTINCT ?, mm.id, 'COMPATIBLE'
+                FROM motorcycle_units mu
+                JOIN motorcycle_models mm ON
+                    mm.brand = mu.brand
+                    AND mm.model = mu.model
+                    AND (
+                        (mm.year_model IS NULL AND mu.year_model IS NULL)
+                        OR mm.year_model = mu.year_model
+                    )
+                WHERE mu.id IN (?)
+            `, [productId, unitIds]);
         }
 
         if (groupIds.length > 0) {
@@ -440,10 +457,27 @@ exports.updateProduct = async (req, res) => {
                 'INSERT INTO product_compatibility (product_id, motorcycle_unit_id) VALUES ?',
                 [unitIds.map(unitId => [id, unitId])]
             );
-            await connection.query(
-                'INSERT IGNORE INTO product_compatibilities (product_id, motorcycle_model_id, compatibility_status) VALUES ?',
-                [unitIds.map(unitId => [id, unitId, 'COMPATIBLE'])]
-            );
+
+            // Ensure all selected units have corresponding models in motorcycle_models
+            await connection.query(`
+                INSERT IGNORE INTO motorcycle_models (brand, model, year_model)
+                SELECT brand, model, year_model FROM motorcycle_units WHERE id IN (?)
+            `, [unitIds]);
+
+            // Correctly map motorcycle_units to motorcycle_models IDs for product_compatibilities
+            await connection.query(`
+                INSERT IGNORE INTO product_compatibilities (product_id, motorcycle_model_id, compatibility_status)
+                SELECT DISTINCT ?, mm.id, 'COMPATIBLE'
+                FROM motorcycle_units mu
+                JOIN motorcycle_models mm ON
+                    mm.brand = mu.brand
+                    AND mm.model = mu.model
+                    AND (
+                        (mm.year_model IS NULL AND mu.year_model IS NULL)
+                        OR mm.year_model = mu.year_model
+                    )
+                WHERE mu.id IN (?)
+            `, [id, unitIds]);
         }
 
         await connection.query('DELETE FROM product_compatibility_groups WHERE product_id = ?', [id]);

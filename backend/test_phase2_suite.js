@@ -419,6 +419,92 @@ async function runTestSuite() {
         // Cleanup test product
         await db.query('UPDATE products SET is_active = FALSE WHERE id = ?', [createdProdId]);
 
+        // -----------------------------------------------------------------
+        // TEST 9: Compatibility Mapping ID Resolution (motorcycle_units -> motorcycle_models)
+        // -----------------------------------------------------------------
+        console.log('\n[TEST 9] Compatibility Mapping ID Resolution (motorcycle_units -> motorcycle_models)');
+
+        // unit 2 in motorcycle_units is Suzuki Raider 150 2022 (corresponds to model 7 in motorcycle_models)
+        const [unit2Row] = await db.query('SELECT * FROM motorcycle_units WHERE id = 2');
+        assert(unit2Row.length > 0 && unit2Row[0].model === 'Raider 150', 'motorcycle_units ID 2 is Raider 150');
+
+        const testPartCompat = `TEST-COMPAT-ID-${Date.now().toString().slice(-4)}`;
+        let compatCreateResult = null;
+        const mockResCompatCreate = {
+            status: () => mockResCompatCreate,
+            json: (data) => { compatCreateResult = data; return mockResCompatCreate; }
+        };
+        await productController.createProduct({
+            user: { id: adminUser.id, role: 'admin' },
+            body: {
+                part_number: testPartCompat,
+                name: 'Raider CDI Unit',
+                brand: 'Suzuki',
+                category: 'Electrical',
+                size: 'Standard',
+                cost_price: 500.00,
+                selling_price: 850.00,
+                reorder_level: 2,
+                is_serialized: false,
+                stock: 5,
+                motorcycle_unit_ids: [2] // Suzuki Raider 150 2022
+            }
+        }, mockResCompatCreate);
+
+        const compatProdId = compatCreateResult.productId;
+
+        // Verify product_compatibility has motorcycle_unit_id = 2
+        const [prodCompatRows] = await db.query('SELECT motorcycle_unit_id FROM product_compatibility WHERE product_id = ?', [compatProdId]);
+        assert(prodCompatRows.length === 1 && prodCompatRows[0].motorcycle_unit_id === 2, 'product_compatibility correctly stores motorcycle_unit_id = 2');
+
+        // Verify product_compatibilities has motorcycle_model_id = 7 (Raider 150 2022, NOT 2 which is Honda Click)
+        const [prodModelRows] = await db.query(`
+            SELECT pc.motorcycle_model_id, mm.brand, mm.model, mm.year_model 
+            FROM product_compatibilities pc 
+            JOIN motorcycle_models mm ON pc.motorcycle_model_id = mm.id 
+            WHERE pc.product_id = ?
+        `, [compatProdId]);
+        assert(prodModelRows.length === 1, 'product_compatibilities row created');
+        assert(prodModelRows[0].motorcycle_model_id !== 2, 'product_compatibilities does NOT store raw motorcycle_unit_id (which is Honda Click)');
+        assert(prodModelRows[0].brand === 'Suzuki' && prodModelRows[0].model === 'Raider 150', 'product_compatibilities correctly links to Suzuki Raider 150 model');
+
+        // Verify updateProduct also correctly resolves IDs on update
+        let compatUpdateResult = null;
+        const mockResCompatUpdate = {
+            status: () => mockResCompatUpdate,
+            json: (data) => { compatUpdateResult = data; return mockResCompatUpdate; }
+        };
+        // Update to unit 15 (Yamaha Aerox 155 V1, which is model 25 in motorcycle_models)
+        await productController.updateProduct({
+            user: { id: adminUser.id, role: 'admin' },
+            params: { id: compatProdId },
+            body: {
+                part_number: testPartCompat,
+                name: 'Aerox CDI Unit',
+                brand: 'Yamaha',
+                category: 'Electrical',
+                size: 'Standard',
+                cost_price: 500.00,
+                selling_price: 850.00,
+                reorder_level: 2,
+                stock: 5,
+                motorcycle_unit_ids: [15] // Yamaha Aerox 155 V1
+            }
+        }, mockResCompatUpdate);
+
+        const [updatedModelRows] = await db.query(`
+            SELECT pc.motorcycle_model_id, mm.brand, mm.model, mm.year_model 
+            FROM product_compatibilities pc 
+            JOIN motorcycle_models mm ON pc.motorcycle_model_id = mm.id 
+            WHERE pc.product_id = ?
+        `, [compatProdId]);
+        assert(updatedModelRows.length === 1, 'product_compatibilities row updated');
+        assert(updatedModelRows[0].motorcycle_model_id === 25, 'updateProduct maps unit 15 to motorcycle_model_id 25');
+        assert(updatedModelRows[0].brand === 'Yamaha' && updatedModelRows[0].model === 'Aerox 155', 'product_compatibilities correctly links to Yamaha Aerox 155 V1');
+
+        // Cleanup
+        await db.query('UPDATE products SET is_active = FALSE WHERE id = ?', [compatProdId]);
+
         console.log('\n=====================================================');
         console.log(` Test Suite Results: ${passed} PASSED, ${failed} FAILED`);
         console.log('=====================================================\n');
