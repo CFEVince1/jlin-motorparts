@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { applyMovement } = require('../services/inventoryService');
 
 const formatCompatibilityLabel = (unit) => `${unit.model}${unit.year_model ? ` ${unit.year_model}` : ''}`.trim();
 
@@ -36,7 +37,9 @@ exports.getAllProducts = async (req, res) => {
             SELECT
                 id, name AS product_name, part_number, brand, category,
                 size, measurement, thread_type, cost_price, selling_price AS price,
-                stock, reorder_level, is_serialized
+                COALESCE(current_stock, stock, 0) AS stock,
+                COALESCE(current_stock, stock, 0) AS current_stock,
+                reorder_level, is_serialized
             FROM products
             WHERE is_active = 1
             ORDER BY created_at DESC
@@ -232,7 +235,7 @@ exports.createProduct = async (req, res) => {
                 current_stock,
                 reorder_level,
                 is_serialized
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
             [
                 String(part_number).trim(),
                 String(part_number).trim(),
@@ -245,14 +248,29 @@ exports.createProduct = async (req, res) => {
                 Number(cost_price),
                 Number(selling_price),
                 Number(selling_price),
-                finalStock,
-                finalStock,
                 Number(reorder_level),
                 serialized
             ]
         );
 
         const productId = productResult.insertId;
+
+        // Fetch DB Date string for reference number
+        const [dateRows] = await connection.query(`SELECT DATE_FORMAT(NOW(), '%Y%m%d') as db_date;`);
+        const dbDate = dateRows[0]?.db_date || new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const refNo = `OPENING-${dbDate}`;
+        const userId = req.user?.id || null;
+
+        // Insert initial OPENING_BALANCE ledger entry in the SAME transaction
+        await applyMovement(connection, {
+            itemId: productId,
+            transactionType: 'OPENING_BALANCE',
+            quantityChange: finalStock,
+            referenceNo: refNo,
+            unitCost: Number(cost_price || 0),
+            remarks: `Initial baseline OPENING_BALANCE for new product ${String(name).trim()} (${String(part_number).trim()})`,
+            createdBy: userId
+        });
 
         if (unitIds.length > 0) {
             const compatibilityValues = unitIds.map(unitId => [productId, unitId]);
@@ -333,7 +351,7 @@ exports.updateProduct = async (req, res) => {
         await connection.beginTransaction();
 
         const [existingRows] = await connection.query(
-            'SELECT id, is_serialized, stock FROM products WHERE id = ? AND is_active = true FOR UPDATE',
+            'SELECT id, name, sku, part_number, is_serialized, stock, current_stock, cost_price FROM products WHERE id = ? AND is_active = true FOR UPDATE',
             [id]
         );
         if (existingRows.length === 0) {
@@ -341,10 +359,46 @@ exports.updateProduct = async (req, res) => {
             return res.status(404).json({ message: 'Product not found' });
         }
 
-        const serialized = normalizeBoolean(existingRows[0].is_serialized);
-        const finalStock = serialized ? existingRows[0].stock : Number(stock);
-        if (!serialized && (!Number.isInteger(finalStock) || finalStock < 0)) {
-            throw new Error('Stock quantity is required for non-serialized products');
+        const existingProduct = existingRows[0];
+        const serialized = normalizeBoolean(existingProduct.is_serialized);
+        const currentStock = Number(existingProduct.current_stock ?? existingProduct.stock ?? 0);
+
+        // If stock is passed for non-serialized products, apply any stock adjustment through the ledger
+        if (!serialized && stock !== undefined && stock !== null && stock !== '') {
+            const requestedStock = Number(stock);
+            if (!Number.isInteger(requestedStock) || requestedStock < 0) {
+                throw new Error('Stock quantity must be a non-negative integer for non-serialized products');
+            }
+
+            if (requestedStock !== currentStock) {
+                const diff = requestedStock - currentStock;
+                const [dateRows] = await connection.query(`SELECT DATE_FORMAT(NOW(), '%Y%m%d') as db_date;`);
+                const dbDate = dateRows[0]?.db_date || new Date().toISOString().slice(0, 10).replace(/-/g, '');
+                const refNo = `ADJ-PROD-${dbDate}`;
+                const userId = req.user?.id || null;
+
+                if (diff > 0) {
+                    await applyMovement(connection, {
+                        itemId: id,
+                        transactionType: 'ADJUSTMENT_ADD',
+                        quantityChange: diff,
+                        referenceNo: refNo,
+                        unitCost: Number(cost_price || existingProduct.cost_price || 0),
+                        remarks: `Product form stock adjustment (+${diff}) from ${currentStock} to ${requestedStock}`,
+                        createdBy: userId
+                    });
+                } else if (diff < 0) {
+                    await applyMovement(connection, {
+                        itemId: id,
+                        transactionType: 'ADJUSTMENT_SUB',
+                        quantityChange: diff,
+                        referenceNo: refNo,
+                        unitCost: Number(cost_price || existingProduct.cost_price || 0),
+                        remarks: `Product form stock adjustment (${diff}) from ${currentStock} to ${requestedStock}`,
+                        createdBy: userId
+                    });
+                }
+            }
         }
 
         await connection.query(
@@ -360,8 +414,6 @@ exports.updateProduct = async (req, res) => {
                 cost_price = ?,
                 selling_price = ?,
                 retail_price = ?,
-                stock = ?,
-                current_stock = ?,
                 reorder_level = ?
              WHERE id = ? AND is_active = true`,
             [
@@ -376,8 +428,6 @@ exports.updateProduct = async (req, res) => {
                 Number(cost_price),
                 Number(selling_price),
                 Number(selling_price),
-                finalStock,
-                finalStock,
                 Number(reorder_level),
                 id
             ]

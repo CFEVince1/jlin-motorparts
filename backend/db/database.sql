@@ -305,10 +305,9 @@ BEGIN
     IF NEW.part_number IS NULL OR NEW.part_number = '' THEN
         SET NEW.part_number = NEW.sku;
     END IF;
-    IF NEW.current_stock IS NULL THEN
+    IF NEW.current_stock IS NULL OR (NEW.current_stock = 0 AND NEW.stock IS NOT NULL AND NEW.stock != 0) THEN
         SET NEW.current_stock = COALESCE(NEW.stock, 0);
-    END IF;
-    IF NEW.stock IS NULL THEN
+    ELSEIF NEW.stock IS NULL OR (NEW.stock = 0 AND NEW.current_stock IS NOT NULL AND NEW.current_stock != 0) THEN
         SET NEW.stock = COALESCE(NEW.current_stock, 0);
     END IF;
     IF NEW.retail_price IS NULL OR NEW.retail_price = 0 THEN

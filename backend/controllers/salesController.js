@@ -135,7 +135,11 @@ exports.checkout = async (req, res, next) => {
                 throw new AppValidationError(`Serial numbers cannot be assigned to non-serialized product ${product.name}`);
             }
 
-            const currentStock = Number(product.current_stock ?? product.stock ?? 0);
+            const currentStock = Number(
+                product.current_stock !== null && product.current_stock !== undefined && (product.current_stock > 0 || (product.stock ?? 0) <= 0)
+                    ? product.current_stock
+                    : (product.stock ?? 0)
+            );
             if (currentStock < qty) {
                 throw new AppValidationError(`Insufficient stock for ${product.name} (SKU: ${product.sku || product.part_number}). On hand: ${currentStock}, Requested: ${qty}`);
             }
