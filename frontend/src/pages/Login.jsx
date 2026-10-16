@@ -15,7 +15,8 @@ const Login = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-    const [loginError, setLoginError] = useState('');
+    const [errorMessage, setErrorMessage] = useState('');
+    const [loading, setLoading] = useState(false);
     const { login } = useContext(AuthContext);
     const navigate = useNavigate();
 
@@ -26,25 +27,24 @@ const Login = () => {
 
     const handleLogin = async (e) => {
         e.preventDefault();
-        setLoginError('');
         localStorage.removeItem('jlin_use_mock');
+        setErrorMessage('');
         try {
             // Validate data
             loginSchema.parse({ username, password });
 
+            setLoading(true);
             await login(username, password);
             toast.success('Successfully logged in');
             navigate('/dashboard');
         } catch (err) {
+            setLoading(false);
             if (err.errors && Array.isArray(err.errors)) {
-                const msg = err.errors.map(e => e.message).join(', ');
-                setLoginError(msg);
-                err.errors.forEach(e => toast.error(e.message));
+                setErrorMessage(err.errors[0]?.message || 'Please fill in all fields');
                 return;
             }
-            const errorMsg = err.response?.data?.message || err.message || 'Login failed';
-            setLoginError(errorMsg);
-            toast.error(errorMsg);
+            const msg = err.response?.data?.message || err.response?.data?.error || 'Invalid credentials';
+            setErrorMessage(msg);
         }
     };
 
@@ -120,68 +120,73 @@ const Login = () => {
                             type="text"
                             placeholder="Username"
                             className="input-premium"
-                            style={{
-                                borderColor: loginError ? 'var(--danger)' : undefined
-                            }}
                             value={username}
                             onChange={(e) => {
                                 setUsername(e.target.value);
-                                if (loginError) setLoginError('');
+                                if (errorMessage) setErrorMessage('');
                             }}
                             required
                         />
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                                <input
-                                    type={showPassword ? "text" : "password"}
-                                    placeholder="Password"
-                                    className="input-premium"
-                                    style={{ 
-                                        width: '100%', 
-                                        paddingRight: '40px',
-                                        borderColor: loginError ? 'var(--danger)' : undefined
-                                    }}
-                                    value={password}
-                                    onChange={(e) => {
-                                        setPassword(e.target.value);
-                                        if (loginError) setLoginError('');
-                                    }}
-                                    required
-                                />
-                                <button 
-                                    type="button" 
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    style={{ 
-                                        position: 'absolute', 
-                                        right: '12px', 
-                                        background: 'none', 
-                                        border: 'none', 
-                                        color: 'var(--text-muted)', 
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        padding: '0'
-                                    }}
-                                >
-                                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                                </button>
-                            </div>
-                            {loginError && (
-                                <div style={{ 
-                                    color: 'var(--danger)', 
-                                    fontSize: '0.82rem', 
-                                    textAlign: 'left',
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                            <input
+                                type={showPassword ? "text" : "password"}
+                                placeholder="Password"
+                                className="input-premium"
+                                style={{ 
+                                    width: '100%', 
+                                    paddingRight: '40px',
+                                    borderColor: errorMessage ? 'var(--danger)' : undefined 
+                                }}
+                                value={password}
+                                onChange={(e) => {
+                                    setPassword(e.target.value);
+                                    if (errorMessage) setErrorMessage('');
+                                }}
+                                required
+                            />
+                            <button 
+                                type="button" 
+                                onClick={() => setShowPassword(!showPassword)}
+                                style={{ 
+                                    position: 'absolute', 
+                                    right: '12px', 
+                                    background: 'none', 
+                                    border: 'none', 
+                                    color: 'var(--text-muted)', 
+                                    cursor: 'pointer',
                                     display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    marginTop: '2px'
-                                }}>
-                                    <span>⚠️ {loginError}</span>
-                                </div>
-                            )}
+                                    padding: '0'
+                                }}
+                            >
+                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                            </button>
                         </div>
 
-                        <button type="submit" className="btn-primary" style={{ marginTop: '10px' }}>
-                            <LogIn size={20} /> Login
+                        {errorMessage && (
+                            <div style={{
+                                padding: '10px 14px',
+                                borderRadius: '8px',
+                                backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                                border: '1px solid rgba(239, 68, 68, 0.4)',
+                                color: 'var(--danger)',
+                                fontSize: '0.85rem',
+                                fontWeight: 500,
+                                textAlign: 'left',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                            }}>
+                                <span>{errorMessage}</span>
+                            </div>
+                        )}
+
+                        <button 
+                            type="submit" 
+                            className="btn-primary" 
+                            style={{ marginTop: '4px', width: '100%' }}
+                            disabled={loading}
+                        >
+                            <LogIn size={20} /> {loading ? 'Logging in...' : 'Login'}
                         </button>
                     </form>
                 </div>
