@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { User, KeyRound, ShieldAlert, CheckCircle, Lock } from 'lucide-react';
+import { User, KeyRound, ShieldAlert, CheckCircle, Lock, Eye, EyeOff, Check, X } from 'lucide-react';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -20,6 +20,9 @@ export const StaffProfileScreen = () => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -30,14 +33,26 @@ export const StaffProfileScreen = () => {
       return;
     }
 
-    if (newPassword && newPassword.length < 6) {
-      toast.error('New password must be at least 6 characters long');
-      return;
-    }
+    if (newPassword) {
+      if (newPassword.length < 8) {
+        toast.error('Password must be at least 8 characters');
+        return;
+      }
 
-    if (newPassword && newPassword !== confirmPassword) {
-      toast.error('New password and confirmation do not match');
-      return;
+      if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).*$/.test(newPassword)) {
+        toast.error('Password must contain uppercase, lowercase, number & special character');
+        return;
+      }
+
+      if (newPassword.toLowerCase() === (username.trim() || user?.username || '').toLowerCase()) {
+        toast.error('Password cannot be the same as your username');
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        toast.error('New password and confirmation do not match');
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -137,32 +152,94 @@ export const StaffProfileScreen = () => {
             </span>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div>
+              <div style={{ position: 'relative' }}>
                 <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                   New Password
                 </label>
-                <input
-                  type="password"
-                  placeholder="At least 6 characters"
-                  className="input-premium"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  disabled={submitting}
-                />
+                <div style={{ position: 'relative', width: '100%' }}>
+                  <input
+                    type={showNewPassword ? "text" : "password"}
+                    placeholder="Enter new password"
+                    className="input-premium"
+                    style={{ width: '100%', paddingRight: '40px' }}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    disabled={submitting}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '10px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: '4px'
+                    }}
+                  >
+                    {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+
+                {newPassword.length > 0 && (
+                  <div style={{ 
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: '6px', 
+                    marginTop: '6px', 
+                    fontSize: '0.75rem' 
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: newPassword.length >= 8 ? 'var(--success)' : 'var(--text-muted)' }}>
+                      {newPassword.length >= 8 ? <Check size={12} /> : <X size={12} />} 8+ characters
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).*$/.test(newPassword) ? 'var(--success)' : 'var(--text-muted)' }}>
+                      {/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).*$/.test(newPassword) ? <Check size={12} /> : <X size={12} />} Uppercase, lowercase, number & special char
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
                 <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                   Confirm New Password
                 </label>
-                <input
-                  type="password"
-                  placeholder="Re-type new password"
-                  className="input-premium"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  disabled={submitting}
-                />
+                <div style={{ position: 'relative', width: '100%' }}>
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Re-type new password"
+                    className="input-premium"
+                    style={{ width: '100%', paddingRight: '40px' }}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    disabled={submitting}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '10px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: '4px'
+                    }}
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -171,15 +248,35 @@ export const StaffProfileScreen = () => {
             <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--danger)', display: 'block', marginBottom: '4px' }}>
               Current Password (Mandatory to save changes) *
             </label>
-            <input
-              type="password"
-              placeholder="Enter your current password"
-              className="input-premium"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              required
-              disabled={submitting}
-            />
+            <div style={{ position: 'relative', width: '100%' }}>
+              <input
+                type={showCurrentPassword ? "text" : "password"}
+                placeholder="Enter your current password"
+                className="input-premium"
+                style={{ width: '100%', paddingRight: '40px' }}
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+                disabled={submitting}
+              />
+              <button
+                type="button"
+                onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '4px'
+                }}
+              >
+                {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
 
           <button
