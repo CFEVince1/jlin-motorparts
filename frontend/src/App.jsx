@@ -51,7 +51,7 @@ function App() {
                 <Route path="/products" element={<Products />} />
                 <Route path="/suppliers" element={<Suppliers />} />
                 <Route path="/stock-receive" element={<StockReceiveScreen />} />
-                <Route path="/manage-compatibility" element={<ManageCompatibility />} />
+                <Route path="/manage-compatibility" element={<Navigate to="/profile?tab=compatibility" replace />} />
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/reports/adjustments" element={<AdjustmentsReport />} />
                 <Route path="/users" element={<Users />} />

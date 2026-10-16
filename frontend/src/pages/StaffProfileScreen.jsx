@@ -1,21 +1,37 @@
 import React, { useState, useContext } from 'react';
-import { User, KeyRound, ShieldAlert, CheckCircle, Lock, Eye, EyeOff, Check, X } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { User, KeyRound, ShieldAlert, CheckCircle, Lock, Eye, EyeOff, Check, X, Settings2 } from 'lucide-react';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import ManageCompatibility from './ManageCompatibility';
 
 /**
  * StaffProfileScreen Page
  * 
- * Staff Account Management & Security:
+ * Staff/Admin Account Management & Security:
  * - Update username & password via PATCH /api/staff/profile.
  * - Requires current password verification.
  * - Increments user.token_version, revoking all existing concurrent sessions.
- * - Immediately updates active JWT in localStorage and AuthContext.
+ * - For Admin accounts only: integrates "Compatibility Rules" management.
  */
 export const StaffProfileScreen = () => {
   const { user, login } = useContext(AuthContext);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const isAdmin = user?.role === 'admin';
 
+  const [activeTab, setActiveTab] = useState(() => (
+    isAdmin && searchParams.get('tab') === 'compatibility' ? 'compatibility' : 'account'
+  ));
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    if (tab === 'compatibility') {
+      setSearchParams({ tab: 'compatibility' });
+    } else {
+      setSearchParams({});
+    }
+  };
   const [username, setUsername] = useState(user?.username || '');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -87,7 +103,7 @@ export const StaffProfileScreen = () => {
   };
 
   return (
-    <div style={{ maxWidth: '600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div style={{ maxWidth: activeTab === 'compatibility' ? '1200px' : '650px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div>
         <h1 style={{ marginBottom: '6px' }}>My Account & Security</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
@@ -95,7 +111,68 @@ export const StaffProfileScreen = () => {
         </p>
       </div>
 
-      <div className="glass-panel" style={{ padding: '24px' }}>
+      {/* Admin-only Navigation Tabs */}
+      {isAdmin && (
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          background: 'var(--surface-hover)',
+          padding: '4px',
+          borderRadius: '8px',
+          border: '1px solid var(--border)',
+          width: 'fit-content'
+        }}>
+          <button
+            type="button"
+            onClick={() => handleTabChange('account')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 16px',
+              borderRadius: '6px',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              border: 'none',
+              cursor: 'pointer',
+              color: activeTab === 'account' ? '#fff' : 'var(--text-muted)',
+              backgroundColor: activeTab === 'account' ? 'var(--primary)' : 'transparent',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <User size={16} />
+            <span>Account & Security</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTabChange('compatibility')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 16px',
+              borderRadius: '6px',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              border: 'none',
+              cursor: 'pointer',
+              color: activeTab === 'compatibility' ? '#fff' : 'var(--text-muted)',
+              backgroundColor: activeTab === 'compatibility' ? 'var(--primary)' : 'transparent',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Settings2 size={16} />
+            <span>Compatibility Rules</span>
+          </button>
+        </div>
+      )}
+
+      {/* Render Compatibility Rules when active (Admin only) */}
+      {isAdmin && activeTab === 'compatibility' ? (
+        <ManageCompatibility />
+      ) : (
+        <div className="glass-panel" style={{ padding: '24px' }}>
         {/* User Badge Info */}
         <div style={{
           padding: '12px 16px',
@@ -302,6 +379,7 @@ export const StaffProfileScreen = () => {
           </button>
         </form>
       </div>
+      )}
     </div>
   );
 };
