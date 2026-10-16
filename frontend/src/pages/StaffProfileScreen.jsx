@@ -215,9 +215,13 @@ export const StaffProfileScreen = () => {
                 <div style={{ position: 'relative', width: '100%' }}>
                   <input
                     type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Re-type new password"
+                    placeholder="Enter new password again here"
                     className="input-premium"
-                    style={{ width: '100%', paddingRight: '40px' }}
+                    style={{ 
+                      width: '100%', 
+                      paddingRight: '40px',
+                      borderColor: confirmPassword && newPassword !== confirmPassword ? 'var(--danger)' : undefined
+                    }}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     disabled={submitting}
@@ -240,6 +244,11 @@ export const StaffProfileScreen = () => {
                     {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+                {confirmPassword && newPassword !== confirmPassword && (
+                  <span style={{ color: 'var(--danger)', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>
+                    New password does not match. Enter new password again here.
+                  </span>
+                )}
               </div>
             </div>
           </div>

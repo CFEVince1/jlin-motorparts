@@ -20,7 +20,7 @@ const userSchema = z.object({
     confirmPassword: z.string(),
     role: z.enum(['admin', 'staff'], { errorMap: () => ({ message: "Invalid role selected" }) })
 }).refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords don't match",
+    message: "New password does not match. Enter new password again here.",
     path: ["confirmPassword"],
 }).refine((data) => data.password.toLowerCase() !== data.username.toLowerCase(), {
     message: "Password cannot be the same as the username",
@@ -38,7 +38,7 @@ const userUpdateSchema = z.object({
     }
     return true;
 }, {
-    message: "Passwords don't match",
+    message: "New password does not match. Enter new password again here.",
     path: ["confirmPassword"],
 }).refine((data) => {
     if (data.password && data.password.toLowerCase() === data.username.toLowerCase()) {
@@ -224,7 +224,11 @@ const Users = () => {
                                 name="confirmPassword"
                                 placeholder={editingId ? "Confirm New Password" : "Confirm Password"}
                                 className="input-premium"
-                                style={{ width: '100%', paddingRight: '40px' }}
+                                style={{ 
+                                    width: '100%', 
+                                    paddingRight: '40px',
+                                    borderColor: formData.confirmPassword && formData.password !== formData.confirmPassword ? 'var(--danger)' : undefined
+                                }}
                                 required={!editingId || formData.password.length > 0}
                                 value={formData.confirmPassword}
                                 onChange={handleChange}
@@ -247,7 +251,15 @@ const Users = () => {
                                 {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                             </button>
                         </div>
-                        {formErrors.confirmPassword && <span style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{formErrors.confirmPassword}</span>}
+                        {formData.confirmPassword && formData.password !== formData.confirmPassword ? (
+                            <span style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>
+                                New password does not match. Enter new password again here.
+                            </span>
+                        ) : formErrors.confirmPassword ? (
+                            <span style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>
+                                {formErrors.confirmPassword}
+                            </span>
+                        ) : null}
                     </div>
 
                     <select
