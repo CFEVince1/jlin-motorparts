@@ -376,10 +376,9 @@ const Reports = () => {
                                     <th>Rank</th>
                                     <th>Part Number</th>
                                     <th>Product</th>
-                                    <th>Compatibility</th>
-                                    <th className="text-right">Units</th>
-                                    <th className="text-right">Revenue</th>
-                                    <th className="text-right">Profit</th>
+                                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>Units</th>
+                                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>Revenue</th>
+                                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>Profit</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -391,14 +390,13 @@ const Reports = () => {
                                             <div>{item.product_name}</div>
                                             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{item.brand} | {item.size}</div>
                                         </td>
-                                        <td>{item.compatibility_display || '-'}</td>
-                                        <td className="text-right" style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{item.total_sold}</td>
-                                        <td className="text-right">{formatCurrency(item.total_revenue)}</td>
-                                        <td className="text-right">{formatCurrency(item.total_profit)}</td>
+                                        <td className="text-right" style={{ fontWeight: 'bold', color: 'var(--primary)', whiteSpace: 'nowrap' }}>{item.total_sold}</td>
+                                        <td className="text-right" style={{ whiteSpace: 'nowrap' }}>{formatCurrency(item.total_revenue)}</td>
+                                        <td className="text-right" style={{ whiteSpace: 'nowrap' }}>{formatCurrency(item.total_profit)}</td>
                                     </tr>
                                 )) : (
                                     <tr>
-                                        <td colSpan={7} className="table-empty-state">No sales data matches these filters.</td>
+                                        <td colSpan={6} className="table-empty-state">No sales data matches these filters.</td>
                                     </tr>
                                 )}
                             </tbody>
