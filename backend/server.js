@@ -1,4 +1,22 @@
 require('dotenv').config();
+
+// Critical startup validation: verify JWT_SECRET is configured
+function validateStartupEnv(env = process.env) {
+    if (!env.JWT_SECRET || !String(env.JWT_SECRET).trim()) {
+        const errorMsg = 'FATAL: JWT_SECRET environment variable is missing or empty. Server cannot start securely without a configured JWT_SECRET.';
+        return { valid: false, message: errorMsg };
+    }
+    return { valid: true };
+}
+
+const startupCheck = validateStartupEnv();
+if (!startupCheck.valid) {
+    console.error(startupCheck.message);
+    if (process.env.NODE_ENV !== 'test') {
+        process.exit(1);
+    }
+}
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -143,6 +161,12 @@ app.use((err, req, res, next) => {
     });
 });
 
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+    });
+}
+
+module.exports = app;
+module.exports.validateStartupEnv = validateStartupEnv;
+

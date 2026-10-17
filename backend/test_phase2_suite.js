@@ -1383,6 +1383,122 @@ async function runTestSuite() {
         const decodedToken = jwt.verify(resValid.data.token, process.env.JWT_SECRET);
         assert(decodedToken.username === 'admin' && decodedToken.role === 'admin', 'Returned JWT token decodes to authentic admin session');
 
+        // ----------------------------------------------------
+        // [TEST 19] JWT_SECRET Startup Validation & Unified Password Policy (8+ chars)
+        // ----------------------------------------------------
+        console.log('\n[TEST 19] JWT_SECRET Startup Validation & Unified Password Policy');
+
+        // 19a. Startup check function validation
+        const { validateStartupEnv } = require('./server');
+        assert(typeof validateStartupEnv === 'function', 'server.js exports validateStartupEnv function');
+
+        const missingSecretCheck = validateStartupEnv({});
+        assert(missingSecretCheck.valid === false, 'validateStartupEnv fails when JWT_SECRET is missing');
+        assert(missingSecretCheck.message.includes('JWT_SECRET'), 'validateStartupEnv message clearly identifies missing JWT_SECRET');
+
+        const emptySecretCheck = validateStartupEnv({ JWT_SECRET: '   ' });
+        assert(emptySecretCheck.valid === false, 'validateStartupEnv fails when JWT_SECRET is empty string');
+
+        const validSecretCheck = validateStartupEnv({ JWT_SECRET: 'valid-secret-key-12345' });
+        assert(validSecretCheck.valid === true, 'validateStartupEnv passes when valid JWT_SECRET is present');
+
+        // 19b. Process-level startup abort when JWT_SECRET is missing
+        const { execSync } = require('child_process');
+        let startupAborted = false;
+        let startupOutput = '';
+        try {
+            execSync('node -e "process.env.JWT_SECRET=\'\'; require(\'./server\');"', {
+                cwd: __dirname,
+                stdio: 'pipe',
+                timeout: 5000,
+                env: { ...process.env, JWT_SECRET: '', NODE_ENV: 'production' }
+            });
+        } catch (procErr) {
+            startupAborted = true;
+            startupOutput = (procErr.stderr || procErr.stdout || '').toString();
+        }
+        assert(startupAborted, 'Server startup immediately aborts (exit code 1) when JWT_SECRET is missing');
+        assert(startupOutput.includes('JWT_SECRET'), 'Startup failure logs clear fatal warning specifying missing JWT_SECRET');
+
+        // 19c. Explicit authController login error if JWT_SECRET is missing
+        const savedJwtSecret = process.env.JWT_SECRET;
+        try {
+            delete process.env.JWT_SECRET;
+            const resNoSecret = createMockRes();
+            await authController.login({ body: { username: 'admin', password: 'admin123' } }, resNoSecret);
+            assert(resNoSecret.statusCode === 500, 'Login without JWT_SECRET returns 500 status');
+            assert(resNoSecret.data?.message?.includes('JWT_SECRET is missing'), 'Login without JWT_SECRET returns clear descriptive configuration error');
+        } finally {
+            process.env.JWT_SECRET = savedJwtSecret;
+        }
+
+        // 19d. Unified Password Policy (8 characters minimum for user creation and updates)
+        const userController = require('./controllers/userController');
+
+        // Attempt user creation with 5 characters (previously accepted, now rejected)
+        const resCreateShort5 = createMockRes();
+        await userController.createUser({
+            body: { username: 'testuser_short5', password: '12345', role: 'staff' }
+        }, resCreateShort5);
+        assert(resCreateShort5.statusCode === 400, 'User creation with 5-char password is rejected with 400 Bad Request');
+        assert(resCreateShort5.data?.message === 'Password must be at least 8 characters', 'Error message specifies minimum 8 characters');
+
+        // Attempt user creation with 7 characters
+        const resCreateShort7 = createMockRes();
+        await userController.createUser({
+            body: { username: 'testuser_short7', password: '1234567', role: 'staff' }
+        }, resCreateShort7);
+        assert(resCreateShort7.statusCode === 400, 'User creation with 7-char password is rejected with 400 Bad Request');
+
+        // Attempt user creation with non-string password
+        const resCreateNonString = createMockRes();
+        await userController.createUser({
+            body: { username: 'testuser_num', password: 12345678, role: 'staff' }
+        }, resCreateNonString);
+        assert(resCreateNonString.statusCode === 400, 'User creation with non-string password is rejected with 400 Bad Request');
+
+        // Successful user creation with 8+ characters
+        const uniqueTestUser = `staff_pw_${Date.now()}`;
+        const resCreateSuccess = createMockRes();
+        await userController.createUser({
+            body: { username: uniqueTestUser, password: 'SecurePassword123!', role: 'staff' }
+        }, resCreateSuccess);
+        assert(resCreateSuccess.statusCode === 201, 'User creation with 8+ character password succeeds with 201 Created');
+        const createdUserId = resCreateSuccess.data?.userId;
+        assert(!!createdUserId, 'Created user returns insertId');
+
+        // 19e. User update with short password (< 8 chars)
+        const resUpdateShort = createMockRes();
+        await userController.updateUser({
+            params: { id: createdUserId },
+            user: { id: adminUser.id, role: 'admin' },
+            body: { username: uniqueTestUser, password: 'short5', role: 'staff' }
+        }, resUpdateShort);
+        assert(resUpdateShort.statusCode === 400, 'User password update with 5-char password rejected with 400');
+        assert(resUpdateShort.data?.message === 'Password must be at least 8 characters', 'Update error message specifies minimum 8 characters');
+
+        // User update with valid 8+ char password
+        const resUpdateSuccess = createMockRes();
+        await userController.updateUser({
+            params: { id: createdUserId },
+            user: { id: adminUser.id, role: 'admin' },
+            body: { username: uniqueTestUser, password: 'UpdatedSecurePass888!', role: 'staff' }
+        }, resUpdateSuccess);
+        assert(resUpdateSuccess.statusCode === 200, 'User password update with 8+ characters succeeds with 200 OK');
+
+        // Clean up test user
+        await db.query('DELETE FROM users WHERE id = ?', [createdUserId]);
+
+        // 19f. Profile change password rule parity verification
+        const staffController = require('./controllers/staffController');
+        const resStaffShort = createMockRes();
+        await staffController.updateProfile({
+            user: { id: adminUser.id, role: 'admin' },
+            body: { currentPassword: 'admin123', newPassword: 'short' } // < 8 characters
+        }, resStaffShort);
+        assert(resStaffShort.statusCode === 422, 'Staff profile update with < 8 char password is rejected with 422');
+        assert(resStaffShort.data?.message?.includes('8 characters'), 'Profile update enforces identical 8-character password policy');
+
         console.log('\n=====================================================');
         console.log(` Test Suite Results: ${passed} PASSED, ${failed} FAILED`);
         console.log('=====================================================\n');

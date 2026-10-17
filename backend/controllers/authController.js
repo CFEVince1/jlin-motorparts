@@ -41,6 +41,11 @@ exports.login = async (req, res) => {
         }
 
         // 3. Generate JWT with tokenVersion
+        if (!process.env.JWT_SECRET || !process.env.JWT_SECRET.trim()) {
+            console.error('Login error: JWT_SECRET environment variable is not configured');
+            return res.status(500).json({ message: 'Server configuration error: JWT_SECRET is missing' });
+        }
+
         const tokenVersion = user.token_version !== undefined && user.token_version !== null ? user.token_version : 1;
         const payload = {
             id: user.id,

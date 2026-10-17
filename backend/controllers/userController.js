@@ -17,8 +17,8 @@ exports.createUser = async (req, res) => {
     if (!username || username.trim().length < 3) {
         return res.status(400).json({ message: 'Username must be at least 3 characters' });
     }
-    if (!password || password.length < 5) {
-        return res.status(400).json({ message: 'Password must be at least 5 characters' });
+    if (!password || typeof password !== 'string' || password.length < 8) {
+        return res.status(400).json({ message: 'Password must be at least 8 characters' });
     }
     if (!role || !['admin', 'staff'].includes(role)) {
         return res.status(400).json({ message: 'Invalid role. Must be admin or staff.' });
@@ -49,8 +49,8 @@ exports.updateUser = async (req, res) => {
     if (!username || username.trim().length < 3) {
         return res.status(400).json({ message: 'Username must be at least 3 characters' });
     }
-    if (password && password.length < 5) {
-        return res.status(400).json({ message: 'Password must be at least 5 characters' });
+    if (password && (typeof password !== 'string' || password.length < 8)) {
+        return res.status(400).json({ message: 'Password must be at least 8 characters' });
     }
     if (!role || !['admin', 'staff'].includes(role)) {
         return res.status(400).json({ message: 'Invalid role. Must be admin or staff.' });
