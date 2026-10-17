@@ -169,6 +169,7 @@ exports.getMotorcycleUnits = async (req, res) => {
 exports.createProduct = async (req, res) => {
     const {
         part_number,
+        sku,
         name,
         brand,
         category,
@@ -177,6 +178,7 @@ exports.createProduct = async (req, res) => {
         thread_type,
         cost_price,
         selling_price,
+        retail_price,
         reorder_level,
         is_serialized,
         stock,
@@ -186,13 +188,18 @@ exports.createProduct = async (req, res) => {
 
     const connection = await db.getConnection();
     try {
-        if (isMissing(part_number)) throw new Error('Part number is required');
+        const resolvedPartNumber = String(part_number || sku || '').trim();
+        if (isMissing(resolvedPartNumber)) throw new Error('Part number is required');
         if (isMissing(brand)) throw new Error('Brand is required');
         if (isMissing(name)) throw new Error('Product name is required');
         if (isMissing(category)) throw new Error('Category is required');
         if (isMissing(size)) throw new Error('Size is required');
         if (isMissing(cost_price)) throw new Error('Cost price is required');
-        if (isMissing(selling_price)) throw new Error('Selling price is required');
+
+        const rawPrice = selling_price !== undefined && selling_price !== null && selling_price !== ''
+            ? selling_price
+            : retail_price;
+        if (isMissing(rawPrice)) throw new Error('Selling price is required');
         if (isMissing(reorder_level)) throw new Error('Reorder level is required');
         if (is_serialized === undefined || is_serialized === null) throw new Error('Product type is required');
 
@@ -200,7 +207,7 @@ exports.createProduct = async (req, res) => {
         if (!Number.isFinite(parsedCost) || parsedCost < 0) {
             throw new Error('Cost price must be a valid non-negative number');
         }
-        const parsedSelling = Number(selling_price);
+        const parsedSelling = Number(rawPrice);
         if (!Number.isFinite(parsedSelling) || parsedSelling < 0) {
             throw new Error('Selling price must be a valid non-negative number');
         }
@@ -209,7 +216,7 @@ exports.createProduct = async (req, res) => {
             throw new Error('Reorder level must be a valid non-negative number');
         }
 
-        const trimmedPartNumber = String(part_number).trim();
+        const trimmedPartNumber = resolvedPartNumber;
         const trimmedBrand = String(brand).trim();
 
         const unitIds = normalizeMotorcycleUnitIds(motorcycle_unit_ids);
@@ -219,6 +226,7 @@ exports.createProduct = async (req, res) => {
 
         // Invariants: Every stock-in needs a receipt from a supplier.
         // Catalog products strictly start with 0 stock. Stock must be received via Stock Receive.
+        // Both write paths (/api/products and /api/items) force starting stock to 0 and record an OPENING_BALANCE ledger entry.
         const finalStock = 0;
 
         await connection.beginTransaction();
@@ -351,6 +359,7 @@ exports.updateProduct = async (req, res) => {
     const { id } = req.params;
     const {
         part_number,
+        sku,
         name,
         brand,
         category,
@@ -359,6 +368,7 @@ exports.updateProduct = async (req, res) => {
         thread_type,
         cost_price,
         selling_price,
+        retail_price,
         reorder_level,
         stock,
         motorcycle_unit_ids
@@ -366,20 +376,25 @@ exports.updateProduct = async (req, res) => {
 
     const connection = await db.getConnection();
     try {
-        if (isMissing(part_number)) throw new Error('Part number is required');
+        const resolvedPartNumber = String(part_number || sku || '').trim();
+        if (isMissing(resolvedPartNumber)) throw new Error('Part number is required');
         if (isMissing(brand)) throw new Error('Brand is required');
         if (isMissing(name)) throw new Error('Product name is required');
         if (isMissing(category)) throw new Error('Category is required');
         if (isMissing(size)) throw new Error('Size is required');
         if (isMissing(cost_price)) throw new Error('Cost price is required');
-        if (isMissing(selling_price)) throw new Error('Selling price is required');
+
+        const rawPrice = selling_price !== undefined && selling_price !== null && selling_price !== ''
+            ? selling_price
+            : retail_price;
+        if (isMissing(rawPrice)) throw new Error('Selling price is required');
         if (isMissing(reorder_level)) throw new Error('Reorder level is required');
 
         const parsedCost = Number(cost_price);
         if (!Number.isFinite(parsedCost) || parsedCost < 0) {
             throw new Error('Cost price must be a valid non-negative number');
         }
-        const parsedSelling = Number(selling_price);
+        const parsedSelling = Number(rawPrice);
         if (!Number.isFinite(parsedSelling) || parsedSelling < 0) {
             throw new Error('Selling price must be a valid non-negative number');
         }
@@ -388,7 +403,7 @@ exports.updateProduct = async (req, res) => {
             throw new Error('Reorder level must be a valid non-negative number');
         }
 
-        const trimmedPartNumber = String(part_number).trim();
+        const trimmedPartNumber = resolvedPartNumber;
         const trimmedBrand = String(brand).trim();
 
         const unitIds = normalizeMotorcycleUnitIds(motorcycle_unit_ids);

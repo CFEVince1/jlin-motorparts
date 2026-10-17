@@ -445,16 +445,17 @@ export async function handleMockRequest(config) {
             };
         }
 
-        // Add Product: POST /products
+        // Add Product: POST /products (catalog products strictly initialize with 0 stock)
         if (method === 'post') {
             const newProduct = {
                 id: Date.now(),
                 item_id: Date.now(),
                 ...data,
-                stock: Number(data.stock || 0),
-                current_stock: Number(data.stock || 0),
-                price: Number(data.price || data.selling_price || 0),
-                selling_price: Number(data.price || data.selling_price || 0)
+                stock: 0,
+                current_stock: 0,
+                price: Number(data.price || data.selling_price || data.retail_price || 0),
+                selling_price: Number(data.price || data.selling_price || data.retail_price || 0),
+                retail_price: Number(data.price || data.selling_price || data.retail_price || 0)
             };
             products.unshift(newProduct);
             setStored(STORAGE_KEYS.PRODUCTS, products);

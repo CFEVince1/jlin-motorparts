@@ -1662,6 +1662,191 @@ async function runTestSuite() {
         }
         assert(itemDupSkuBlocked, 'itemController.updateItem strictly prevents updating to duplicate SKU on another item');
 
+        // ----------------------------------------------------
+        // [TEST 21] Unified Product Starting Stock Invariant & Supplier Boolean Parsing
+        // ----------------------------------------------------
+        console.log('\n[TEST 21] Unified Product Starting Stock Invariant & Supplier Boolean Parsing');
+
+        const supplierController = require('./controllers/supplierController');
+
+        // 21a. supplierController properly parses boolean strings ("false", "true", "0", "1")
+        const testSupplierName = `Test Vendor ${Date.now().toString().slice(-5)}`;
+        const resCreateSupplier = createMockRes();
+        await supplierController.createSupplier({
+            body: {
+                name: testSupplierName,
+                contact_person: 'Vendor Contact',
+                email: 'vendor@example.com',
+                phone: '09123456789',
+                address: 'Manila, Philippines',
+                is_active: 'false' // string "false"
+            }
+        }, resCreateSupplier, (err) => { throw err; });
+
+        assert(resCreateSupplier.statusCode === 201, 'createSupplier succeeds with 201');
+        const createdSupplierId = resCreateSupplier.data?.supplier?.id;
+        assert(Boolean(createdSupplierId), 'createSupplier returns new supplier with ID');
+
+        const [supRow1] = await db.query('SELECT is_active FROM suppliers WHERE id = ?', [createdSupplierId]);
+        assert(supRow1[0].is_active === 0, 'createSupplier with is_active: "false" properly stores is_active = 0');
+
+        // Update with is_active: "true" (string)
+        const resUpdateSup1 = createMockRes();
+        await supplierController.updateSupplier({
+            params: { id: createdSupplierId },
+            body: { is_active: 'true' }
+        }, resUpdateSup1, (err) => { throw err; });
+        assert(resUpdateSup1.statusCode === 200, 'updateSupplier with "true" succeeds');
+        const [supRow2] = await db.query('SELECT is_active FROM suppliers WHERE id = ?', [createdSupplierId]);
+        assert(supRow2[0].is_active === 1, 'updateSupplier with is_active: "true" sets is_active = 1');
+
+        // Update with is_active: "false" (string) - ensure string "false" deactivates supplier!
+        const resUpdateSup2 = createMockRes();
+        await supplierController.updateSupplier({
+            params: { id: createdSupplierId },
+            body: { is_active: 'false' }
+        }, resUpdateSup2, (err) => { throw err; });
+        assert(resUpdateSup2.statusCode === 200, 'updateSupplier with "false" succeeds');
+        const [supRow3] = await db.query('SELECT is_active FROM suppliers WHERE id = ?', [createdSupplierId]);
+        assert(supRow3[0].is_active === 0, 'updateSupplier with is_active: "false" sets is_active = 0 (not coerced to true)');
+
+        // Update with is_active: false (boolean literal)
+        const resUpdateSup3 = createMockRes();
+        await supplierController.updateSupplier({
+            params: { id: createdSupplierId },
+            body: { is_active: false }
+        }, resUpdateSup3, (err) => { throw err; });
+        assert(resUpdateSup3.statusCode === 200, 'updateSupplier with boolean false succeeds');
+        const [supRow4] = await db.query('SELECT is_active FROM suppliers WHERE id = ?', [createdSupplierId]);
+        assert(supRow4[0].is_active === 0, 'updateSupplier with boolean false preserves is_active = 0');
+
+        // Update with is_active: "0" (string zero)
+        const resUpdateSup4 = createMockRes();
+        await supplierController.updateSupplier({
+            params: { id: createdSupplierId },
+            body: { is_active: '0' }
+        }, resUpdateSup4, (err) => { throw err; });
+        assert(resUpdateSup4.statusCode === 200, 'updateSupplier with "0" succeeds');
+        const [supRow5] = await db.query('SELECT is_active FROM suppliers WHERE id = ?', [createdSupplierId]);
+        assert(supRow5[0].is_active === 0, 'updateSupplier with is_active: "0" sets is_active = 0');
+
+        // Update with is_active: "1" (string one)
+        const resUpdateSup5 = createMockRes();
+        await supplierController.updateSupplier({
+            params: { id: createdSupplierId },
+            body: { is_active: '1' }
+        }, resUpdateSup5, (err) => { throw err; });
+        assert(resUpdateSup5.statusCode === 200, 'updateSupplier with "1" succeeds');
+        const [supRow6] = await db.query('SELECT is_active FROM suppliers WHERE id = ?', [createdSupplierId]);
+        assert(supRow6[0].is_active === 1, 'updateSupplier with is_active: "1" sets is_active = 1');
+
+        // Cleanup test supplier
+        await db.query('DELETE FROM suppliers WHERE id = ?', [createdSupplierId]);
+
+        // 21b. Unified Starting Stock Invariant across both product write paths
+        // Path 1: itemController.createItem (/api/items) forces starting stock to 0 even if client passes stock > 0
+        const testSkuItem = `TEST-ITEM-WRITE-${Date.now().toString().slice(-4)}`;
+        let itemCreatedData = null;
+        const resCreateItem = {
+            statusCode: 200,
+            status: function (code) { this.statusCode = code; return this; },
+            json: function (payload) { itemCreatedData = payload; return this; }
+        };
+        await itemController.createItem({
+            user: { id: adminUser.id, role: 'admin' },
+            body: {
+                sku: testSkuItem,
+                name: 'Test Item Starting Stock',
+                brand: 'Yamaha',
+                category: 'Engine',
+                size: 'Standard',
+                cost_price: 100.00,
+                retail_price: 200.00,
+                reorder_level: 5,
+                is_serialized: false,
+                stock: 99, // Attempt manual stock insertion
+                current_stock: 99
+            }
+        }, resCreateItem, (err) => { throw err; });
+
+        assert(resCreateItem.statusCode === 201, 'itemController.createItem succeeds with 201');
+        const createdItemId = itemCreatedData?.item?.id;
+        assert(Boolean(createdItemId), 'createItem returns created item ID');
+
+        const [itemRow] = await db.query('SELECT stock, current_stock FROM products WHERE id = ?', [createdItemId]);
+        assert(itemRow[0].stock === 0 && itemRow[0].current_stock === 0, 'itemController.createItem forces starting stock to strictly 0 (tampering with 99 ignored)');
+
+        const [itemLedgerRows] = await db.query(
+            'SELECT transaction_type, quantity_change, balance_after FROM inventory_transactions WHERE product_id = ?',
+            [createdItemId]
+        );
+        assert(itemLedgerRows.length === 1, 'itemController.createItem creates exactly 1 baseline ledger entry');
+        assert(itemLedgerRows[0].transaction_type === 'OPENING_BALANCE', 'itemController initial movement is OPENING_BALANCE');
+        assert(itemLedgerRows[0].quantity_change === 0 && itemLedgerRows[0].balance_after === 0, 'itemController OPENING_BALANCE quantity_change is 0 and balance_after is 0');
+
+        // Path 2: productController.createProduct (/api/products) forces starting stock to 0 even if client passes stock > 0
+        const testSkuProd = `TEST-PROD-WRITE-${Date.now().toString().slice(-4)}`;
+        const resCreateProd = createMockRes();
+        await productController.createProduct({
+            user: { id: adminUser.id, role: 'admin' },
+            body: {
+                part_number: testSkuProd,
+                name: 'Test Product Starting Stock',
+                brand: 'Yamaha',
+                category: 'Engine',
+                size: 'Standard',
+                cost_price: 150.00,
+                selling_price: 300.00,
+                reorder_level: 5,
+                is_serialized: false,
+                stock: 77, // Attempt manual stock insertion
+                serial_numbers: ['S-77-1', 'S-77-2']
+            }
+        }, resCreateProd);
+
+        assert(resCreateProd.statusCode === 201, 'productController.createProduct succeeds with 201');
+        const createdProdId2 = resCreateProd.data?.productId;
+        assert(Boolean(createdProdId2), 'createProduct returns created product ID');
+
+        const [prodRow] = await db.query('SELECT stock, current_stock FROM products WHERE id = ?', [createdProdId2]);
+        assert(prodRow[0].stock === 0 && prodRow[0].current_stock === 0, 'productController.createProduct forces starting stock to strictly 0 (tampering with 77 ignored)');
+
+        const [prodLedgerRows] = await db.query(
+            'SELECT transaction_type, quantity_change, balance_after FROM inventory_transactions WHERE product_id = ?',
+            [createdProdId2]
+        );
+        assert(prodLedgerRows.length === 1, 'productController.createProduct creates exactly 1 baseline ledger entry');
+        assert(prodLedgerRows[0].transaction_type === 'OPENING_BALANCE', 'productController initial movement is OPENING_BALANCE');
+        assert(prodLedgerRows[0].quantity_change === 0 && prodLedgerRows[0].balance_after === 0, 'productController OPENING_BALANCE quantity_change is 0 and balance_after is 0');
+
+        // 21c. Updates through both paths strictly reject / ignore manual stock tampering
+        await itemController.updateItem({
+            params: { id: createdItemId },
+            body: { stock: 55, current_stock: 55 }
+        }, createMockRes(), () => {});
+        const [postUpdateItem] = await db.query('SELECT stock, current_stock FROM products WHERE id = ?', [createdItemId]);
+        assert(postUpdateItem[0].stock === 0 && postUpdateItem[0].current_stock === 0, 'itemController.updateItem strictly protects stock against manual updates');
+
+        await productController.updateProduct({
+            params: { id: createdProdId2 },
+            body: {
+                part_number: testSkuProd,
+                name: 'Test Product Starting Stock Updated',
+                brand: 'Yamaha',
+                category: 'Engine',
+                size: 'Standard',
+                cost_price: 150.00,
+                selling_price: 300.00,
+                reorder_level: 5,
+                stock: 55
+            }
+        }, createMockRes());
+        const [postUpdateProd] = await db.query('SELECT stock, current_stock FROM products WHERE id = ?', [createdProdId2]);
+        assert(postUpdateProd[0].stock === 0 && postUpdateProd[0].current_stock === 0, 'productController.updateProduct strictly protects stock against manual updates');
+
+        // Soft delete test products so they are deactivated cleanly
+        await db.query('UPDATE products SET is_active = FALSE WHERE id IN (?, ?)', [createdItemId, createdProdId2]);
+
         console.log('\n=====================================================');
         console.log(` Test Suite Results: ${passed} PASSED, ${failed} FAILED`);
         console.log('=====================================================\n');

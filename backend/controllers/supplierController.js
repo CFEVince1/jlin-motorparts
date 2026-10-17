@@ -9,13 +9,21 @@ const { AppValidationError, AppNotFoundError } = require('../utils/errors');
 // Helper: check if string is null/undefined/empty
 const isMissing = (value) => value === undefined || value === null || String(value).trim() === '';
 
+// Helper: robust boolean parser (handles boolean, numbers, and strings like "false", "0", "true", "1")
+const normalizeBoolean = (value, defaultValue = true) => {
+    if (value === undefined || value === null) return defaultValue;
+    if (value === true || value === 1 || value === '1' || value === 'true' || value === 'TRUE') return true;
+    if (value === false || value === 0 || value === '0' || value === 'false' || value === 'FALSE') return false;
+    return Boolean(value);
+};
+
 /**
  * GET /api/suppliers
  * Fetch all active suppliers (or all with query ?includeInactive=true)
  */
 exports.getSuppliers = async (req, res, next) => {
     try {
-        const includeInactive = req.query.includeInactive === 'true';
+        const includeInactive = req.query.includeInactive === 'true' || req.query.includeInactive === '1';
         let query = `
             SELECT id, name, contact_person, email, phone, address, is_active, created_at, updated_at
             FROM suppliers
@@ -69,7 +77,7 @@ exports.getSupplierById = async (req, res, next) => {
  */
 exports.createSupplier = async (req, res, next) => {
     try {
-        const { name, contact_person, phone, email, address } = req.body;
+        const { name, contact_person, phone, email, address, is_active } = req.body;
 
         if (isMissing(name)) {
             throw new AppValidationError('Supplier name is required');
@@ -80,6 +88,7 @@ exports.createSupplier = async (req, res, next) => {
         const trimmedPhone = isMissing(phone) ? null : String(phone).trim();
         const trimmedEmail = isMissing(email) ? null : String(email).trim();
         const trimmedAddress = isMissing(address) ? null : String(address).trim();
+        const activeStatus = is_active !== undefined ? normalizeBoolean(is_active, true) : true;
 
         // Check if supplier name already exists (case-insensitive)
         const [existing] = await db.query(
@@ -93,8 +102,8 @@ exports.createSupplier = async (req, res, next) => {
 
         const [result] = await db.query(
             `INSERT INTO suppliers (name, contact_person, email, phone, address, is_active)
-             VALUES (?, ?, ?, ?, ?, TRUE)`,
-            [trimmedName, trimmedContact, trimmedEmail, trimmedPhone, trimmedAddress]
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [trimmedName, trimmedContact, trimmedEmail, trimmedPhone, trimmedAddress, activeStatus ? 1 : 0]
         );
 
         const newId = result.insertId;
@@ -146,7 +155,9 @@ exports.updateSupplier = async (req, res, next) => {
         const updatedPhone = phone !== undefined ? (isMissing(phone) ? null : String(phone).trim()) : existing[0].phone;
         const updatedEmail = email !== undefined ? (isMissing(email) ? null : String(email).trim()) : existing[0].email;
         const updatedAddress = address !== undefined ? (isMissing(address) ? null : String(address).trim()) : existing[0].address;
-        const updatedIsActive = is_active !== undefined ? Boolean(is_active) : existing[0].is_active;
+        const updatedIsActive = is_active !== undefined
+            ? normalizeBoolean(is_active, Boolean(existing[0].is_active))
+            : Boolean(existing[0].is_active);
 
         if (isMissing(updatedName)) {
             throw new AppValidationError('Supplier name cannot be empty');
@@ -167,7 +178,7 @@ exports.updateSupplier = async (req, res, next) => {
             `UPDATE suppliers 
              SET name = ?, contact_person = ?, email = ?, phone = ?, address = ?, is_active = ?, updated_at = NOW()
              WHERE id = ?`,
-            [updatedName, updatedContact, updatedEmail, updatedPhone, updatedAddress, updatedIsActive, supplierId]
+            [updatedName, updatedContact, updatedEmail, updatedPhone, updatedAddress, updatedIsActive ? 1 : 0, supplierId]
         );
 
         const [refetched] = await db.query(
