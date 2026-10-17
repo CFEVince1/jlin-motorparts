@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import { AlertTriangle, BarChart3, Calendar, Filter, Printer, TrendingUp, Users } from 'lucide-react';
+import { AlertTriangle, BarChart3, Calendar, Filter, Printer, TrendingUp, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Spinner from '../components/Spinner';
 import useDebouncedValue from '../hooks/useDebouncedValue';
@@ -39,6 +39,16 @@ const Reports = () => {
     const [reportsLoading, setReportsLoading] = useState(false);
     const [period, setPeriod] = useState('all'); // 'all', 'daily', 'weekly', 'monthly', 'custom'
     const [showPrintModal, setShowPrintModal] = useState(false);
+
+    // Pagination states (5 items per page)
+    const [bestSellingPage, setBestSellingPage] = useState(1);
+    const bestSellingPerPage = 5;
+    const [motorcyclePage, setMotorcyclePage] = useState(1);
+    const motorcyclePerPage = 5;
+    const [lowStockPage, setLowStockPage] = useState(1);
+    const lowStockPerPage = 5;
+    const [cashierPage, setCashierPage] = useState(1);
+    const cashierPerPage = 5;
 
     const user = (() => {
         try {
@@ -173,6 +183,98 @@ const Reports = () => {
 
         fetchReports();
     }, [debouncedFilters]);
+
+    useEffect(() => {
+        setBestSellingPage(1);
+        setMotorcyclePage(1);
+        setLowStockPage(1);
+        setCashierPage(1);
+    }, [debouncedFilters]);
+
+    // Best Selling pagination
+    const totalBestSellingPages = Math.ceil(bestSelling.length / bestSellingPerPage) || 1;
+    const indexOfLastBestSelling = bestSellingPage * bestSellingPerPage;
+    const indexOfFirstBestSelling = indexOfLastBestSelling - bestSellingPerPage;
+    const currentBestSelling = bestSelling.slice(indexOfFirstBestSelling, indexOfLastBestSelling);
+
+    // Sales by Motorcycle pagination
+    const totalMotorcyclePages = Math.ceil(salesByMotorcycle.length / motorcyclePerPage) || 1;
+    const indexOfLastMotorcycle = motorcyclePage * motorcyclePerPage;
+    const indexOfFirstMotorcycle = indexOfLastMotorcycle - motorcyclePerPage;
+    const currentSalesByMotorcycle = salesByMotorcycle.slice(indexOfFirstMotorcycle, indexOfLastMotorcycle);
+
+    // Low Stock pagination
+    const totalLowStockPages = Math.ceil(lowStock.length / lowStockPerPage) || 1;
+    const indexOfLastLowStock = lowStockPage * lowStockPerPage;
+    const indexOfFirstLowStock = indexOfLastLowStock - lowStockPerPage;
+    const currentLowStock = lowStock.slice(indexOfFirstLowStock, indexOfLastLowStock);
+
+    // Sales by Cashier pagination
+    const totalCashierPages = Math.ceil(salesByCashier.length / cashierPerPage) || 1;
+    const indexOfLastCashier = cashierPage * cashierPerPage;
+    const indexOfFirstCashier = indexOfLastCashier - cashierPerPage;
+    const currentSalesByCashier = salesByCashier.slice(indexOfFirstCashier, indexOfLastCashier);
+
+    const renderPagination = (currentPage, totalPages, totalItems, indexOfFirst, indexOfLast, onPrev, onNext, itemLabel = 'items') => {
+        if (totalPages <= 1) return null;
+        return (
+            <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginTop: '16px',
+                paddingTop: '12px',
+                borderTop: '1px solid var(--border)',
+                flexWrap: 'wrap',
+                gap: '8px'
+            }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    Showing {totalItems > 0 ? indexOfFirst + 1 : 0} to {Math.min(indexOfLast, totalItems)} of {totalItems} {itemLabel}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button
+                        type="button"
+                        onClick={onPrev}
+                        disabled={currentPage === 1}
+                        className="btn-secondary"
+                        style={{
+                            padding: '4px 8px',
+                            fontSize: '0.78rem',
+                            height: '28px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            opacity: currentPage === 1 ? 0.5 : 1,
+                            cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+                        }}
+                    >
+                        <ChevronLeft size={14} /> Prev
+                    </button>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)', padding: '0 4px' }}>
+                        {currentPage} / {totalPages}
+                    </span>
+                    <button
+                        type="button"
+                        onClick={onNext}
+                        disabled={currentPage === totalPages}
+                        className="btn-secondary"
+                        style={{
+                            padding: '4px 8px',
+                            fontSize: '0.78rem',
+                            height: '28px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            opacity: currentPage === totalPages ? 0.5 : 1,
+                            cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
+                        }}
+                    >
+                        Next <ChevronRight size={14} />
+                    </button>
+                </div>
+            </div>
+        );
+    };
 
     if (loading) return <Spinner text="Loading reports..." />;
 
@@ -364,39 +466,53 @@ const Reports = () => {
 
             {reportsLoading && <Spinner text="Updating reports..." />}
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(320px, 0.9fr)', gap: '24px', alignItems: 'start' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))', gap: '24px', alignItems: 'start' }}>
                 <div className="glass-panel" style={{ padding: '24px' }}>
-                    <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: 0 }}>
-                        <TrendingUp size={20} /> Best Selling Parts
-                    </h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                        <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                            <TrendingUp size={20} /> Best Selling Parts
+                        </h3>
+                        {bestSelling.length > 0 && (
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                Total: {bestSelling.length} {bestSelling.length === 1 ? 'part' : 'parts'}
+                            </span>
+                        )}
+                    </div>
                     <div className="table-container">
-                        <table>
+                        <table style={{ minWidth: '660px' }}>
                             <thead>
                                 <tr>
-                                    <th>Rank</th>
-                                    <th>Part Number</th>
-                                    <th>Product</th>
-                                    <th>Compatibility</th>
-                                    <th className="text-right">Units</th>
-                                    <th className="text-right">Revenue</th>
-                                    <th className="text-right">Profit</th>
+                                    <th style={{ width: '60px', whiteSpace: 'nowrap' }}>Rank</th>
+                                    <th style={{ whiteSpace: 'nowrap' }}>Part Number</th>
+                                    <th style={{ minWidth: '160px' }}>Product</th>
+                                    <th style={{ minWidth: '100px' }}>Compatibility</th>
+                                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>Units</th>
+                                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>Revenue</th>
+                                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>Profit</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {bestSelling.length > 0 ? bestSelling.map((item, idx) => (
-                                    <tr key={`${item.part_number}-${item.brand}-${idx}`}>
-                                        <td style={{ fontWeight: 'bold', color: idx < 3 ? 'var(--primary)' : 'inherit' }}>#{idx + 1}</td>
-                                        <td style={{ fontWeight: 'bold' }}>{item.part_number}</td>
-                                        <td>
-                                            <div>{item.product_name}</div>
-                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{item.brand} | {item.size}</div>
-                                        </td>
-                                        <td>{item.compatibility_display || '-'}</td>
-                                        <td className="text-right" style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{item.total_sold}</td>
-                                        <td className="text-right">{formatCurrency(item.total_revenue)}</td>
-                                        <td className="text-right">{formatCurrency(item.total_profit)}</td>
-                                    </tr>
-                                )) : (
+                                {currentBestSelling.length > 0 ? currentBestSelling.map((item, idx) => {
+                                    const globalRank = indexOfFirstBestSelling + idx + 1;
+                                    return (
+                                        <tr key={`${item.part_number}-${item.brand}-${idx}`}>
+                                            <td style={{ fontWeight: 'bold', color: globalRank <= 3 ? 'var(--primary)' : 'inherit', whiteSpace: 'nowrap' }}>
+                                                #{globalRank}
+                                            </td>
+                                            <td style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>{item.part_number}</td>
+                                            <td>
+                                                <div style={{ fontWeight: 500 }}>{item.product_name}</div>
+                                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{item.brand} | {item.size}</div>
+                                            </td>
+                                            <td>{item.compatibility_display || '-'}</td>
+                                            <td className="text-right" style={{ fontWeight: 'bold', color: 'var(--primary)', whiteSpace: 'nowrap' }}>
+                                                {item.total_sold}
+                                            </td>
+                                            <td className="text-right" style={{ whiteSpace: 'nowrap' }}>{formatCurrency(item.total_revenue)}</td>
+                                            <td className="text-right" style={{ whiteSpace: 'nowrap' }}>{formatCurrency(item.total_profit)}</td>
+                                        </tr>
+                                    );
+                                }) : (
                                     <tr>
                                         <td colSpan={7} className="table-empty-state">No sales data matches these filters.</td>
                                     </tr>
@@ -404,30 +520,47 @@ const Reports = () => {
                             </tbody>
                         </table>
                     </div>
+                    {renderPagination(
+                        bestSellingPage,
+                        totalBestSellingPages,
+                        bestSelling.length,
+                        indexOfFirstBestSelling,
+                        indexOfLastBestSelling,
+                        () => setBestSellingPage(p => Math.max(p - 1, 1)),
+                        () => setBestSellingPage(p => Math.min(p + 1, totalBestSellingPages)),
+                        'parts'
+                    )}
                 </div>
 
                 <div className="glass-panel" style={{ padding: '24px' }}>
-                    <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: 0 }}>
-                        <BarChart3 size={20} /> Sales by Motorcycle
-                    </h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                        <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                            <BarChart3 size={20} /> Sales by Motorcycle
+                        </h3>
+                        {salesByMotorcycle.length > 0 && (
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                Total: {salesByMotorcycle.length} {salesByMotorcycle.length === 1 ? 'model' : 'models'}
+                            </span>
+                        )}
+                    </div>
                     <div className="table-container">
-                        <table>
+                        <table style={{ minWidth: '320px' }}>
                             <thead>
                                 <tr>
                                     <th>Motorcycle</th>
-                                    <th className="text-right">Units</th>
-                                    <th className="text-right">Revenue</th>
+                                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>Units</th>
+                                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>Revenue</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {salesByMotorcycle.length > 0 ? salesByMotorcycle.map((row, idx) => (
+                                {currentSalesByMotorcycle.length > 0 ? currentSalesByMotorcycle.map((row, idx) => (
                                     <tr key={row.motorcycle_unit_id || row.model || row.motorcycle_model || idx}>
                                         <td>
                                             <div>{row.motorcycle_display || row.motorcycle_model}</div>
                                             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{row.part_numbers || 'No parts'}</div>
                                         </td>
-                                        <td className="text-right" style={{ fontWeight: 'bold' }}>{row.total_sold}</td>
-                                        <td className="text-right">{formatCurrency(row.total_revenue)}</td>
+                                        <td className="text-right" style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>{row.total_sold}</td>
+                                        <td className="text-right" style={{ whiteSpace: 'nowrap' }}>{formatCurrency(row.total_revenue)}</td>
                                     </tr>
                                 )) : (
                                     <tr>
@@ -437,34 +570,53 @@ const Reports = () => {
                             </tbody>
                         </table>
                     </div>
+                    {renderPagination(
+                        motorcyclePage,
+                        totalMotorcyclePages,
+                        salesByMotorcycle.length,
+                        indexOfFirstMotorcycle,
+                        indexOfLastMotorcycle,
+                        () => setMotorcyclePage(p => Math.max(p - 1, 1)),
+                        () => setMotorcyclePage(p => Math.min(p + 1, totalMotorcyclePages)),
+                        'models'
+                    )}
                 </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '24px', marginTop: '24px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))', gap: '24px', marginTop: '24px' }}>
                 <div className="glass-panel" style={{ padding: '24px' }}>
-                    <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <AlertTriangle size={20} /> Low Stock
-                    </h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                        <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <AlertTriangle size={20} /> Low Stock
+                        </h3>
+                        {lowStock.length > 0 && (
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                Total: {lowStock.length} {lowStock.length === 1 ? 'item' : 'items'}
+                            </span>
+                        )}
+                    </div>
                     <div className="table-container">
-                        <table>
+                        <table style={{ minWidth: '450px' }}>
                             <thead>
                                 <tr>
-                                    <th>Part Number</th>
-                                    <th>Product</th>
+                                    <th style={{ whiteSpace: 'nowrap' }}>Part Number</th>
+                                    <th style={{ minWidth: '160px' }}>Product</th>
                                     <th>Compatibility</th>
-                                    <th className="text-right">Stock</th>
+                                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>Stock</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {lowStock.length > 0 ? lowStock.map(item => (
+                                {currentLowStock.length > 0 ? currentLowStock.map(item => (
                                     <tr key={item.id}>
-                                        <td style={{ fontWeight: 'bold' }}>{item.part_number}</td>
+                                        <td style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>{item.part_number}</td>
                                         <td>
-                                            <div>{item.product_name}</div>
+                                            <div style={{ fontWeight: 500 }}>{item.product_name}</div>
                                             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{item.brand} | {item.size}</div>
                                         </td>
                                         <td>{item.compatibility_display || '-'}</td>
-                                        <td className="text-right" style={{ color: 'var(--danger)', fontWeight: 'bold' }}>{item.stock} / {item.reorder_level}</td>
+                                        <td className="text-right" style={{ color: 'var(--danger)', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                            {item.stock} / {item.reorder_level}
+                                        </td>
                                     </tr>
                                 )) : (
                                     <tr>
@@ -474,33 +626,52 @@ const Reports = () => {
                             </tbody>
                         </table>
                     </div>
+                    {renderPagination(
+                        lowStockPage,
+                        totalLowStockPages,
+                        lowStock.length,
+                        indexOfFirstLowStock,
+                        indexOfLastLowStock,
+                        () => setLowStockPage(p => Math.max(p - 1, 1)),
+                        () => setLowStockPage(p => Math.min(p + 1, totalLowStockPages)),
+                        'items'
+                    )}
                 </div>
 
                 <div className="glass-panel" style={{ padding: '24px' }}>
-                    <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Users size={20} /> {
-                            period === 'daily' ? "Daily Sales by Cashier" :
-                            period === 'weekly' ? "Weekly Sales by Cashier" :
-                            period === 'monthly' ? "Monthly Sales by Cashier" :
-                            period === 'all' ? "Sales by Cashier (All-Time)" :
-                            "Sales by Cashier"
-                        }
-                    </h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                        <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Users size={20} /> {
+                                period === 'daily' ? "Daily Sales by Cashier" :
+                                period === 'weekly' ? "Weekly Sales by Cashier" :
+                                period === 'monthly' ? "Monthly Sales by Cashier" :
+                                period === 'all' ? "Sales by Cashier (All-Time)" :
+                                "Sales by Cashier"
+                            }
+                        </h3>
+                        {salesByCashier.length > 0 && (
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                Total: {salesByCashier.length} {salesByCashier.length === 1 ? 'cashier' : 'cashiers'}
+                            </span>
+                        )}
+                    </div>
                     <div className="table-container">
-                        <table>
+                        <table style={{ minWidth: '320px' }}>
                             <thead>
                                 <tr>
                                     <th>Cashier</th>
-                                    <th className="text-right">Transactions</th>
-                                    <th className="text-right">Total Revenue</th>
+                                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>Transactions</th>
+                                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>Total Revenue</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {salesByCashier.length > 0 ? salesByCashier.map((staff, idx) => (
+                                {currentSalesByCashier.length > 0 ? currentSalesByCashier.map((staff, idx) => (
                                     <tr key={`${staff.cashier}-${idx}`}>
                                         <td style={{ fontWeight: 'bold', textTransform: 'capitalize' }}>{staff.cashier}</td>
-                                        <td className="text-right">{staff.total_transactions}</td>
-                                        <td className="text-right" style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{formatCurrency(staff.total_revenue)}</td>
+                                        <td className="text-right" style={{ whiteSpace: 'nowrap' }}>{staff.total_transactions}</td>
+                                        <td className="text-right" style={{ fontWeight: 'bold', color: 'var(--primary)', whiteSpace: 'nowrap' }}>
+                                            {formatCurrency(staff.total_revenue)}
+                                        </td>
                                     </tr>
                                 )) : (
                                     <tr>
@@ -510,6 +681,16 @@ const Reports = () => {
                             </tbody>
                         </table>
                     </div>
+                    {renderPagination(
+                        cashierPage,
+                        totalCashierPages,
+                        salesByCashier.length,
+                        indexOfFirstCashier,
+                        indexOfLastCashier,
+                        () => setCashierPage(p => Math.max(p - 1, 1)),
+                        () => setCashierPage(p => Math.min(p + 1, totalCashierPages)),
+                        'cashiers'
+                    )}
                 </div>
             </div>
 
