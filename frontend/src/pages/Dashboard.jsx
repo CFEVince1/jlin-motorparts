@@ -4,7 +4,6 @@ import { TrendingUp, AlertTriangle, DollarSign, ShoppingCart, Award, ChevronLeft
 import { AuthContext } from '../context/AuthContextValue';
 import { formatCurrency } from '../utils/formatters';
 import BestSellersBar from '../components/BestSellersBar';
-import FitmentSearchWidget from '../components/FitmentSearchWidget';
 
 const Dashboard = () => {
     const { user } = useContext(AuthContext);
@@ -146,9 +145,6 @@ const Dashboard = () => {
                     </>
                 )}
             </div>
-
-            {/* Upper Section: Motorcycle Fitment Search Widget */}
-            <FitmentSearchWidget />
 
             {/* Staff Quick Guide: Top Selling Items Widget */}
             <BestSellersBar />

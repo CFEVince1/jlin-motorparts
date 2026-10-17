@@ -1,10 +1,11 @@
 import React, { useState, useContext } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { User, KeyRound, ShieldAlert, CheckCircle, Lock, Eye, EyeOff, Check, X, Settings2 } from 'lucide-react';
+import { User, KeyRound, ShieldAlert, CheckCircle, Lock, Eye, EyeOff, Check, X, Settings2, Search } from 'lucide-react';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import ManageCompatibility from './ManageCompatibility';
+import CompatibilitySearch from './CompatibilitySearch';
 
 /**
  * StaffProfileScreen Page
@@ -20,14 +21,19 @@ export const StaffProfileScreen = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const isAdmin = user?.role === 'admin';
 
-  const [activeTab, setActiveTab] = useState(() => (
-    isAdmin && searchParams.get('tab') === 'compatibility' ? 'compatibility' : 'account'
-  ));
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'fitment') return 'fitment';
+    if (isAdmin && tab === 'compatibility') return 'compatibility';
+    return 'account';
+  });
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     if (tab === 'compatibility') {
       setSearchParams({ tab: 'compatibility' });
+    } else if (tab === 'fitment') {
+      setSearchParams({ tab: 'fitment' });
     } else {
       setSearchParams({});
     }
@@ -103,47 +109,68 @@ export const StaffProfileScreen = () => {
   };
 
   return (
-    <div style={{ maxWidth: activeTab === 'compatibility' ? '1200px' : '650px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div style={{ maxWidth: activeTab === 'account' ? '650px' : '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div>
         <h1 style={{ marginBottom: '6px' }}>My Account & Security</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
-          Manage your credentials. Updating your password automatically increments your security token and signs out any stale browser sessions.
+          Manage your credentials, motorcycle fitment lookups, and system configurations.
         </p>
       </div>
 
-      {/* Admin-only Navigation Tabs */}
-      {isAdmin && (
-        <div style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '6px',
-          background: 'var(--surface-hover)',
-          padding: '4px',
-          borderRadius: '8px',
-          border: '1px solid var(--border)',
-          width: 'fit-content'
-        }}>
-          <button
-            type="button"
-            onClick={() => handleTabChange('account')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 16px',
-              borderRadius: '6px',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              border: 'none',
-              cursor: 'pointer',
-              color: activeTab === 'account' ? '#fff' : 'var(--text-muted)',
-              backgroundColor: activeTab === 'account' ? 'var(--primary)' : 'transparent',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <User size={16} />
-            <span>Account & Security</span>
-          </button>
+      {/* Navigation Tabs */}
+      <div style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        background: 'var(--surface-hover)',
+        padding: '4px',
+        borderRadius: '8px',
+        border: '1px solid var(--border)',
+        width: 'fit-content'
+      }}>
+        <button
+          type="button"
+          onClick={() => handleTabChange('account')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '8px 16px',
+            borderRadius: '6px',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            border: 'none',
+            cursor: 'pointer',
+            color: activeTab === 'account' ? '#fff' : 'var(--text-muted)',
+            backgroundColor: activeTab === 'account' ? 'var(--primary)' : 'transparent',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <User size={16} />
+          <span>Account & Security</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => handleTabChange('fitment')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '8px 16px',
+            borderRadius: '6px',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            border: 'none',
+            cursor: 'pointer',
+            color: activeTab === 'fitment' ? '#fff' : 'var(--text-muted)',
+            backgroundColor: activeTab === 'fitment' ? 'var(--primary)' : 'transparent',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <Search size={16} />
+          <span>Motorcycle Fitment</span>
+        </button>
+        {isAdmin && (
           <button
             type="button"
             onClick={() => handleTabChange('compatibility')}
@@ -165,12 +192,14 @@ export const StaffProfileScreen = () => {
             <Settings2 size={16} />
             <span>Compatibility Rules</span>
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Render Compatibility Rules when active (Admin only) */}
+      {/* Render Active Tab Content */}
       {isAdmin && activeTab === 'compatibility' ? (
         <ManageCompatibility />
+      ) : activeTab === 'fitment' ? (
+        <CompatibilitySearch />
       ) : (
         <div className="glass-panel" style={{ padding: '24px' }}>
         {/* User Badge Info */}

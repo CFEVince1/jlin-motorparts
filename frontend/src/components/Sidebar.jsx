@@ -13,7 +13,6 @@ import {
     Sun,
     Moon,
     Truck,
-    Search,
     AlertOctagon,
     UserCircle2,
     Building2,
@@ -71,7 +70,6 @@ const Sidebar = () => {
     const primaryLinks = [
         { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={20} />, roles: ['admin', 'staff'] },
         { name: 'Sales (POS)', path: '/pos', icon: <ShoppingCart size={20} />, roles: ['admin', 'staff'] },
-        { name: 'Fitment', path: '/compatibility-search', icon: <Search size={20} />, roles: ['admin'] },
     ];
 
     const inventorySubLinks = [

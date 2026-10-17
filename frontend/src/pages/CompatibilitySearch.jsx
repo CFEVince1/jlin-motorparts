@@ -94,8 +94,8 @@ export const CompatibilitySearch = () => {
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div>
-        <h1 style={{ marginBottom: '6px' }}>Motorcycle Fitment & Compatibility Search</h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>
+        <h2 style={{ marginBottom: '6px', fontSize: '1.25rem', color: 'var(--text-main)' }}>Motorcycle Fitment & Compatibility Search</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
           Check parts compatibility by motorcycle brand, model, and version to prevent wrong orders.
         </p>
       </div>
