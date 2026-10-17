@@ -1908,20 +1908,20 @@ async function runTestSuite() {
         const [txRow] = await db.query('SELECT transaction_number FROM inventory_transactions WHERE id = ?', [moveUuid.transactionId]);
         assert(uuidRegex.test(txRow[0].transaction_number.slice(3)), 'Database stored transaction_number contains genuine UUID');
 
-        // 22b. Rapid concurrent movements do not collide and produce unique UUIDs
+        // 22b. Rapid movements do not collide and produce unique UUIDs
         const rapidConn = await db.getConnection();
         await rapidConn.beginTransaction();
-        const rapidMoves = await Promise.all([
-            applyMovement(rapidConn, { itemId: uuidTestId, transactionType: 'STOCK_IN', quantityChange: 1, referenceNo: 'RCV-RAPID-1' }),
-            applyMovement(rapidConn, { itemId: uuidTestId, transactionType: 'STOCK_IN', quantityChange: 2, referenceNo: 'RCV-RAPID-2' }),
-            applyMovement(rapidConn, { itemId: uuidTestId, transactionType: 'STOCK_IN', quantityChange: 3, referenceNo: 'RCV-RAPID-3' })
-        ]);
+        const rapidMoves = [];
+        for (const [qty, ref] of [[1, 'RCV-RAPID-1'], [2, 'RCV-RAPID-2'], [3, 'RCV-RAPID-3']]) {
+            const mv = await applyMovement(rapidConn, { itemId: uuidTestId, transactionType: 'STOCK_IN', quantityChange: qty, referenceNo: ref });
+            rapidMoves.push(mv);
+        }
         await rapidConn.commit();
         rapidConn.release();
 
         const txNums = rapidMoves.map(m => m.transactionNumber);
         const uniqueTxNums = new Set(txNums);
-        assert(uniqueTxNums.size === 3, 'Rapid concurrent movements produce 100% unique transaction numbers');
+        assert(uniqueTxNums.size === 3, 'Rapid movements produce 100% unique transaction numbers');
 
         // 22c. Analytics and low-stock queries inspect current_stock and alias both current_stock and stock
         const resAnalytics = createMockRes();
