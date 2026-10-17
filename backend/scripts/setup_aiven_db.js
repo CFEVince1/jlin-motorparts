@@ -112,7 +112,7 @@ async function setupDatabase() {
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 product_id INT NOT NULL,
                 motorcycle_model_id INT NOT NULL,
-                compatibility_status ENUM('COMPATIBLE', 'NOT_COMPATIBLE') NOT NULL DEFAULT 'COMPATIBLE',
+                compatibility_status ENUM('COMPATIBLE', 'NOT_COMPATIBLE', 'CONDITIONAL') NOT NULL DEFAULT 'COMPATIBLE',
                 notes VARCHAR(255) DEFAULT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE KEY unique_prod_compat (product_id, motorcycle_model_id),

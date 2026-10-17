@@ -78,7 +78,7 @@ async function syncAiven() {
       id INT AUTO_INCREMENT PRIMARY KEY,
       product_id INT NOT NULL,
       motorcycle_model_id INT NOT NULL,
-      compatibility_status ENUM('COMPATIBLE', 'NOT_COMPATIBLE') NOT NULL DEFAULT 'COMPATIBLE',
+      compatibility_status ENUM('COMPATIBLE', 'NOT_COMPATIBLE', 'CONDITIONAL') NOT NULL DEFAULT 'COMPATIBLE',
       notes VARCHAR(255) DEFAULT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE KEY unique_prod_compat (product_id, motorcycle_model_id),
@@ -88,6 +88,16 @@ async function syncAiven() {
       FOREIGN KEY (motorcycle_model_id) REFERENCES motorcycle_models(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+
+  // Ensure compatibility_status enum includes CONDITIONAL if table existed previously
+  try {
+    await db.query(`
+      ALTER TABLE product_compatibilities 
+      MODIFY COLUMN compatibility_status ENUM('COMPATIBLE', 'NOT_COMPATIBLE', 'CONDITIONAL') NOT NULL DEFAULT 'COMPATIBLE'
+    `);
+  } catch (e) {
+    // ignore
+  }
 
   // Map legacy product_compatibility (motorcycle_unit_id) to motorcycle_models (id)
   // via matched brand, model, and year_model - NEVER using unit ID directly as model ID
@@ -135,6 +145,29 @@ async function syncAiven() {
   if (rrCols.length === 0) {
     await db.query("ALTER TABLE receiving_records ADD COLUMN reference_no VARCHAR(100) NULL AFTER reference_number");
     await db.query("UPDATE receiving_records SET reference_no = reference_number WHERE reference_no IS NULL");
+  }
+
+  // Ensure reference_number is NOT globally unique across all suppliers; drop any legacy standalone UNIQUE index
+  try {
+    const [indexes] = await db.query("SHOW INDEX FROM receiving_records WHERE Column_name = 'reference_number' AND Non_unique = 0");
+    for (const idx of indexes) {
+      if (idx.Key_name !== 'PRIMARY' && idx.Key_name !== 'uq_supplier_ref') {
+        await db.query(`ALTER TABLE receiving_records DROP INDEX \`${idx.Key_name}\``);
+        console.log(`[Sync] Dropped legacy global unique index '${idx.Key_name}' on receiving_records.reference_number`);
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // Ensure per-supplier composite unique constraint exists
+  try {
+    const [uq] = await db.query("SHOW INDEX FROM receiving_records WHERE Key_name = 'uq_supplier_ref'");
+    if (uq.length === 0) {
+      await db.query("ALTER TABLE receiving_records ADD UNIQUE KEY uq_supplier_ref (supplier_id, reference_no)");
+    }
+  } catch (e) {
+    // ignore
   }
 
   await db.query(`

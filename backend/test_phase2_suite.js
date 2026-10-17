@@ -1200,6 +1200,50 @@ async function runTestSuite() {
         // Cleanup
         await db.query('UPDATE products SET is_active = FALSE WHERE id = ?', [compatProdId]);
 
+        // ----------------------------------------------------
+        // [TEST 16] Sales Schema Singularity & Migration/Sync Script Consistency
+        // ----------------------------------------------------
+        console.log('\n[TEST 16] Single Source of Truth for Sales & Sync/Migration Alignment');
+
+        // 16a. Verify rogue sales tables (sales_orders, sales_order_items, sales_order_seq) do NOT exist in DB
+        const [dbNameRows] = await db.query("SELECT DATABASE() AS current_db");
+        const currentDb = dbNameRows[0].current_db;
+        const [remainingSalesTables] = await db.query(
+            "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN ('sales_orders', 'sales_order_items', 'sales_order_seq')",
+            [currentDb]
+        );
+        assert(remainingSalesTables.length === 0, 'Rogue sales tables (sales_orders, sales_order_items, sales_order_seq) are completely dropped from DB');
+
+        // Canonical sales tables exist
+        const [canonicalSalesTables] = await db.query(
+            "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN ('sales', 'sale_items', 'sale_item_serials')",
+            [currentDb]
+        );
+        assert(canonicalSalesTables.length === 3, 'Canonical sales tables (sales, sale_items, sale_item_serials) exist as single source of truth');
+
+        // 16b. jlin_demo_clean.sql dump does NOT define sales_orders or sales_order_items
+        const dumpContent = fs.readFileSync(path.join(__dirname, '../jlin_demo_clean.sql'), 'utf8');
+        assert(!dumpContent.includes('CREATE TABLE `sales_orders`'), 'jlin_demo_clean.sql does not create sales_orders table');
+        assert(!dumpContent.includes('CREATE TABLE `sales_order_items`'), 'jlin_demo_clean.sql does not create sales_order_items table');
+
+        // 16c. Check CONDITIONAL in product_compatibilities enum across sync script and setup script
+        const updatedSyncScript = fs.readFileSync(path.join(__dirname, '../scripts/sync_aiven_schema.js'), 'utf8');
+        assert(updatedSyncScript.includes("ENUM('COMPATIBLE', 'NOT_COMPATIBLE', 'CONDITIONAL')"), 'sync_aiven_schema.js includes CONDITIONAL in compatibility_status enum');
+
+        const setupScript = fs.readFileSync(path.join(__dirname, 'scripts/setup_aiven_db.js'), 'utf8');
+        assert(setupScript.includes("ENUM('COMPATIBLE', 'NOT_COMPATIBLE', 'CONDITIONAL')"), 'setup_aiven_db.js includes CONDITIONAL in compatibility_status enum');
+
+        // 16d. Receiving records reference_number is unique per supplier (uq_supplier_ref), not globally unique
+        const [recIndexes] = await db.query("SHOW INDEX FROM receiving_records WHERE Key_name = 'uq_supplier_ref'");
+        assert(recIndexes.length >= 2, 'receiving_records enforces composite uq_supplier_ref (supplier_id, reference_no)');
+        const uqCols = recIndexes.map(r => r.Column_name);
+        assert(uqCols.includes('supplier_id') && uqCols.includes('reference_no'), 'uq_supplier_ref contains both supplier_id and reference_no');
+
+        const [globalRefUnique] = await db.query(
+            "SHOW INDEX FROM receiving_records WHERE Column_name = 'reference_number' AND Non_unique = 0"
+        );
+        assert(globalRefUnique.length === 0, 'receiving_records has no global unique constraint on reference_number alone');
+
         console.log('\n=====================================================');
         console.log(` Test Suite Results: ${passed} PASSED, ${failed} FAILED`);
         console.log('=====================================================\n');
