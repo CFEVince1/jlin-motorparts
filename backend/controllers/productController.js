@@ -60,14 +60,21 @@ exports.getAllProducts = async (req, res) => {
             ORDER BY mu.brand ASC, mu.model ASC, mu.year_model ASC
         `, [productIds]);
 
-        const [groupUnits] = await db.query(`
-            SELECT pcg.product_id, cg.id AS group_id, cg.group_name, mu.id AS motorcycle_id, mu.brand, mu.model, mu.year_model
-            FROM product_compatibility_groups pcg
-            JOIN compatibility_groups cg ON pcg.compatibility_group_id = cg.id
-            LEFT JOIN compatibility_group_units cgu ON cg.id = cgu.compatibility_group_id
-            LEFT JOIN motorcycle_units mu ON cgu.motorcycle_unit_id = mu.id
-            WHERE pcg.product_id IN (?)
-        `, [productIds]);
+        let groupUnits = [];
+        try {
+            const [rows] = await db.query(`
+                SELECT pcg.product_id, cg.id AS group_id, cg.group_name, mu.id AS motorcycle_id, mu.brand, mu.model, mu.year_model
+                FROM product_compatibility_groups pcg
+                JOIN compatibility_groups cg ON pcg.compatibility_group_id = cg.id
+                LEFT JOIN compatibility_group_units cgu ON cg.id = cgu.compatibility_group_id
+                LEFT JOIN motorcycle_units mu ON cgu.motorcycle_unit_id = mu.id
+                WHERE pcg.product_id IN (?)
+            `, [productIds]);
+            groupUnits = rows;
+        } catch (groupQueryErr) {
+            // Compatibility groups tables are retired; gracefully fallback to empty list
+            groupUnits = [];
+        }
 
         const result = products.map(p => {
             const dUnits = directUnits.filter(du => du.product_id === p.id);
@@ -110,17 +117,23 @@ exports.getAllProducts = async (req, res) => {
 // ==========================================
 exports.getCompatibilityGroups = async (req, res) => {
     try {
-        const [groups] = await db.query(`
-            SELECT 
-                cg.id, 
-                cg.group_name, 
-                cg.description,
-                mu.id AS mu_id, mu.brand, mu.model, mu.year_model
-            FROM compatibility_groups cg
-            LEFT JOIN compatibility_group_units cgu ON cg.id = cgu.compatibility_group_id
-            LEFT JOIN motorcycle_units mu ON mu.id = cgu.motorcycle_unit_id
-            ORDER BY cg.group_name ASC, mu.brand ASC, mu.model ASC, mu.year_model ASC
-        `);
+        let groups = [];
+        try {
+            const [rows] = await db.query(`
+                SELECT 
+                    cg.id, 
+                    cg.group_name, 
+                    cg.description,
+                    mu.id AS mu_id, mu.brand, mu.model, mu.year_model
+                FROM compatibility_groups cg
+                LEFT JOIN compatibility_group_units cgu ON cg.id = cgu.compatibility_group_id
+                LEFT JOIN motorcycle_units mu ON mu.id = cgu.motorcycle_unit_id
+                ORDER BY cg.group_name ASC, mu.brand ASC, mu.model ASC, mu.year_model ASC
+            `);
+            groups = rows;
+        } catch (tableErr) {
+            return res.json([]);
+        }
 
         const groupMap = {};
         groups.forEach(row => {
@@ -322,11 +335,15 @@ exports.createProduct = async (req, res) => {
         }
 
         if (groupIds.length > 0) {
-            const groupValues = groupIds.map(groupId => [productId, groupId]);
-            await connection.query(
-                'INSERT INTO product_compatibility_groups (product_id, compatibility_group_id) VALUES ?',
-                [groupValues]
-            );
+            try {
+                const groupValues = groupIds.map(groupId => [productId, groupId]);
+                await connection.query(
+                    'INSERT INTO product_compatibility_groups (product_id, compatibility_group_id) VALUES ?',
+                    [groupValues]
+                );
+            } catch (groupInsertErr) {
+                console.warn('Skipping retired product_compatibility_groups insert:', groupInsertErr.message);
+            }
         }
 
         await connection.commit();
@@ -495,12 +512,16 @@ exports.updateProduct = async (req, res) => {
             `, [id, unitIds]);
         }
 
-        await connection.query('DELETE FROM product_compatibility_groups WHERE product_id = ?', [id]);
-        if (groupIds.length > 0) {
-            await connection.query(
-                'INSERT INTO product_compatibility_groups (product_id, compatibility_group_id) VALUES ?',
-                [groupIds.map(groupId => [id, groupId])]
-            );
+        try {
+            await connection.query('DELETE FROM product_compatibility_groups WHERE product_id = ?', [id]);
+            if (groupIds.length > 0) {
+                await connection.query(
+                    'INSERT INTO product_compatibility_groups (product_id, compatibility_group_id) VALUES ?',
+                    [groupIds.map(groupId => [id, groupId])]
+                );
+            }
+        } catch (groupUpdateErr) {
+            console.warn('Skipping retired product_compatibility_groups update:', groupUpdateErr.message);
         }
 
         await connection.commit();

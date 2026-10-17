@@ -1,4 +1,21 @@
-const db = require('./config/db');
+/**
+ * ARCHIVED / DEPRECATED: migratePhase8.js
+ * 
+ * This script represents an obsolete legacy schema design that created and seeded
+ * `compatibility_groups`, `compatibility_group_units`, and `product_compatibility_groups`.
+ * 
+ * The single source of truth for all vehicle compatibility in the system is now:
+ * - `motorcycle_models`
+ * - `product_compatibilities`
+ * 
+ * Do NOT run this script against any active database.
+ */
+
+console.error('⛔ REFUSAL: scripts/archive/migratePhase8.js is archived legacy code.');
+console.error('Compatibility is managed via product_compatibilities and motorcycle_models.');
+process.exit(1);
+
+const db = require('../../backend/config/db');
 
 async function migrate() {
     try {

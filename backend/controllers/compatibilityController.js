@@ -373,27 +373,10 @@ exports.searchCompatibility = async (req, res, next) => {
                       )
                 )
             )
-            LEFT JOIN (
-                SELECT DISTINCT pcg.product_id
-                FROM product_compatibility_groups pcg
-                JOIN compatibility_group_units cgu ON pcg.compatibility_group_id = cgu.compatibility_group_id
-                JOIN motorcycle_units mu ON cgu.motorcycle_unit_id = mu.id
-                JOIN motorcycle_models mm ON 
-                    mm.brand = mu.brand
-                    AND (
-                        mm.model = mu.model
-                        OR TRIM(REPLACE(mm.model, COALESCE(mm.year_model, ''), '')) = TRIM(REPLACE(mu.model, COALESCE(mu.year_model, ''), ''))
-                    )
-                    AND (
-                        (mm.year_model IS NULL AND mu.year_model IS NULL)
-                        OR mm.year_model = mu.year_model
-                    )
-                WHERE mm.id = ?
-            ) group_match ON group_match.product_id = p.id
-            WHERE (pc.id IS NOT NULL OR group_match.product_id IS NOT NULL) 
+            WHERE pc.id IS NOT NULL
               AND p.is_active = true
             ORDER BY p.name ASC
-        `, [modelId, modelId, modelId]);
+        `, [modelId, modelId]);
 
         const compatible = [];
         const incompatible = [];

@@ -23,62 +23,7 @@ CREATE DATABASE /*!32312 IF NOT EXISTS*/ `jlin_inventory_db` /*!40100 DEFAULT CH
 
 USE `jlin_inventory_db`;
 
---
--- Table structure for table `compatibility_group_units`
---
 
-DROP TABLE IF EXISTS `compatibility_group_units`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `compatibility_group_units` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `compatibility_group_id` int(11) NOT NULL,
-  `motorcycle_unit_id` int(11) NOT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `unique_group_unit` (`compatibility_group_id`,`motorcycle_unit_id`),
-  KEY `idx_group_unit_group` (`compatibility_group_id`),
-  KEY `idx_group_unit_motorcycle` (`motorcycle_unit_id`),
-  CONSTRAINT `compatibility_group_units_ibfk_1` FOREIGN KEY (`compatibility_group_id`) REFERENCES `compatibility_groups` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `compatibility_group_units_ibfk_2` FOREIGN KEY (`motorcycle_unit_id`) REFERENCES `motorcycle_units` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `compatibility_group_units`
---
-
-LOCK TABLES `compatibility_group_units` WRITE;
-/*!40000 ALTER TABLE `compatibility_group_units` DISABLE KEYS */;
-INSERT INTO `compatibility_group_units` VALUES (1,1,1),(2,2,3),(3,3,2),(4,4,2);
-/*!40000 ALTER TABLE `compatibility_group_units` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `compatibility_groups`
---
-
-DROP TABLE IF EXISTS `compatibility_groups`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `compatibility_groups` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `group_name` varchar(150) NOT NULL,
-  `description` text DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `group_name` (`group_name`),
-  KEY `idx_group_name` (`group_name`)
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `compatibility_groups`
---
-
-LOCK TABLES `compatibility_groups` WRITE;
-/*!40000 ALTER TABLE `compatibility_groups` DISABLE KEYS */;
-INSERT INTO `compatibility_groups` VALUES (1,'Yamaha Mio Platform','Shared parts for Yamaha Mio series'),(2,'Honda Click Platform','Shared parts for Honda Click series'),(3,'Suzuki Raider Platform','Shared parts for Suzuki Raider series'),(4,'suzuki','for raider and skydrive'),(7,'yamaha','for raider and mio');
-/*!40000 ALTER TABLE `compatibility_groups` ENABLE KEYS */;
-UNLOCK TABLES;
 
 --
 -- Table structure for table `inventory_transactions`
@@ -322,34 +267,7 @@ INSERT INTO `product_compatibilities` VALUES (1,2,1,'COMPATIBLE',NULL,'2026-10-0
 /*!40000 ALTER TABLE `product_compatibilities` ENABLE KEYS */;
 UNLOCK TABLES;
 
---
--- Table structure for table `product_compatibility_groups`
---
 
-DROP TABLE IF EXISTS `product_compatibility_groups`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `product_compatibility_groups` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `product_id` int(11) NOT NULL,
-  `compatibility_group_id` int(11) NOT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `unique_product_group` (`product_id`,`compatibility_group_id`),
-  KEY `idx_product_group_product` (`product_id`),
-  KEY `idx_product_group_group` (`compatibility_group_id`),
-  CONSTRAINT `product_compatibility_groups_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `product_compatibility_groups_ibfk_2` FOREIGN KEY (`compatibility_group_id`) REFERENCES `compatibility_groups` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `product_compatibility_groups`
---
-
-LOCK TABLES `product_compatibility_groups` WRITE;
-/*!40000 ALTER TABLE `product_compatibility_groups` DISABLE KEYS */;
-/*!40000 ALTER TABLE `product_compatibility_groups` ENABLE KEYS */;
-UNLOCK TABLES;
 
 --
 -- Table structure for table `product_serials`
