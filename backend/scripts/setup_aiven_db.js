@@ -91,20 +91,8 @@ async function setupDatabase() {
             ) ENGINE=InnoDB;
         `);
 
-        // 5. Product Compatibility (Legacy V1)
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS product_compatibility (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                product_id INT NOT NULL,
-                motorcycle_unit_id INT NOT NULL,
-                compatibility_status VARCHAR(50) DEFAULT 'Direct Fit',
-                notes TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE KEY unique_product_motorcycle (product_id, motorcycle_unit_id),
-                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
-                FOREIGN KEY (motorcycle_unit_id) REFERENCES motorcycle_units(id) ON DELETE CASCADE
-            ) ENGINE=InnoDB;
-        `);
+        // 5. Product Compatibility (Legacy V1 - Retired)
+        await db.query(`DROP TABLE IF EXISTS product_compatibility;`);
 
         // 5b. Product Compatibilities (Canonical V3)
         await db.query(`

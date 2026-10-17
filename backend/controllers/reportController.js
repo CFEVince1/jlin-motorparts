@@ -82,9 +82,14 @@ const buildProductFilters = (query, productAlias = 'p', saleItemAlias = 'si') =>
         where.push(`
             EXISTS (
                 SELECT 1
-                FROM product_compatibility pc_filter
+                FROM product_compatibilities pc_filter
+                JOIN motorcycle_models mm_filter ON mm_filter.id = pc_filter.motorcycle_model_id
+                JOIN motorcycle_units mu_filter ON mu_filter.brand = mm_filter.brand
+                    AND (mu_filter.model = mm_filter.model OR TRIM(REPLACE(mu_filter.model, COALESCE(mu_filter.year_model, ''), '')) = TRIM(REPLACE(mm_filter.model, COALESCE(mm_filter.year_model, ''), '')))
+                    AND ((mu_filter.year_model IS NULL AND mm_filter.year_model IS NULL) OR mu_filter.year_model = mm_filter.year_model)
                 WHERE pc_filter.product_id = ${saleItemAlias}.product_id
-                  AND pc_filter.motorcycle_unit_id = ?
+                  AND pc_filter.compatibility_status = 'COMPATIBLE'
+                  AND mu_filter.id = ?
             )
         `);
         params.push(Number(motorcycleUnitId));
@@ -94,13 +99,14 @@ const buildProductFilters = (query, productAlias = 'p', saleItemAlias = 'si') =>
         where.push(`
             EXISTS (
                 SELECT 1
-                FROM product_compatibility pc_filter
-                JOIN motorcycle_units mu_filter ON mu_filter.id = pc_filter.motorcycle_unit_id
+                FROM product_compatibilities pc_filter
+                JOIN motorcycle_models mm_filter ON mm_filter.id = pc_filter.motorcycle_model_id
                 WHERE pc_filter.product_id = ${saleItemAlias}.product_id
+                  AND pc_filter.compatibility_status = 'COMPATIBLE'
                   AND (
-                    mu_filter.model LIKE ?
-                    OR mu_filter.brand LIKE ?
-                    OR mu_filter.year_model LIKE ?
+                    mm_filter.model LIKE ?
+                    OR mm_filter.brand LIKE ?
+                    OR mm_filter.year_model LIKE ?
                   )
             )
         `);
@@ -115,12 +121,13 @@ const compatibilityDisplaySubquery = `
     SELECT
         pc.product_id,
         GROUP_CONCAT(
-            DISTINCT TRIM(CONCAT(mu.model, ' ', COALESCE(mu.year_model, '')))
-            ORDER BY mu.model, mu.year_model
+            DISTINCT TRIM(CONCAT(mm.model, ' ', COALESCE(mm.year_model, '')))
+            ORDER BY mm.model, mm.year_model
             SEPARATOR ', '
         ) AS compatibility_display
-    FROM product_compatibility pc
-    JOIN motorcycle_units mu ON mu.id = pc.motorcycle_unit_id
+    FROM product_compatibilities pc
+    JOIN motorcycle_models mm ON mm.id = pc.motorcycle_model_id
+    WHERE pc.compatibility_status = 'COMPATIBLE'
     GROUP BY pc.product_id
 `;
 
@@ -276,11 +283,32 @@ exports.getLowStock = async (req, res) => {
             params.push(`%${partNumber}%`);
         }
         if (motorcycleUnitId && motorcycleUnitId !== 'All') {
-            filters.push('pc.motorcycle_unit_id = ?');
+            filters.push(`EXISTS (
+                SELECT 1
+                FROM product_compatibilities pc_filter
+                JOIN motorcycle_models mm_filter ON mm_filter.id = pc_filter.motorcycle_model_id
+                JOIN motorcycle_units mu_filter ON mu_filter.brand = mm_filter.brand
+                    AND (mu_filter.model = mm_filter.model OR TRIM(REPLACE(mu_filter.model, COALESCE(mu_filter.year_model, ''), '')) = TRIM(REPLACE(mm_filter.model, COALESCE(mm_filter.year_model, ''), '')))
+                    AND ((mu_filter.year_model IS NULL AND mm_filter.year_model IS NULL) OR mu_filter.year_model = mm_filter.year_model)
+                WHERE pc_filter.product_id = p.id
+                  AND pc_filter.compatibility_status = 'COMPATIBLE'
+                  AND mu_filter.id = ?
+            )`);
             params.push(Number(motorcycleUnitId));
         }
         if (motorcycleModel) {
-            filters.push('(mu.model LIKE ? OR mu.brand LIKE ? OR mu.year_model LIKE ?)');
+            filters.push(`EXISTS (
+                SELECT 1
+                FROM product_compatibilities pc_filter
+                JOIN motorcycle_models mm_filter ON mm_filter.id = pc_filter.motorcycle_model_id
+                WHERE pc_filter.product_id = p.id
+                  AND pc_filter.compatibility_status = 'COMPATIBLE'
+                  AND (
+                    mm_filter.model LIKE ?
+                    OR mm_filter.brand LIKE ?
+                    OR mm_filter.year_model LIKE ?
+                  )
+            )`);
             const search = `%${motorcycleModel}%`;
             params.push(search, search, search);
         }
@@ -296,20 +324,11 @@ exports.getLowStock = async (req, res) => {
                 COALESCE(p.current_stock, p.stock) AS current_stock,
                 COALESCE(p.current_stock, p.stock) AS stock,
                 p.reorder_level,
-                COALESCE(
-                    GROUP_CONCAT(
-                        DISTINCT TRIM(CONCAT(mu.model, ' ', COALESCE(mu.year_model, '')))
-                        ORDER BY mu.model, mu.year_model
-                        SEPARATOR ', '
-                    ),
-                    ''
-                ) AS compatibility_display
+                COALESCE(cd.compatibility_display, '') AS compatibility_display
             FROM products p
-            LEFT JOIN product_compatibility pc ON pc.product_id = p.id
-            LEFT JOIN motorcycle_units mu ON mu.id = pc.motorcycle_unit_id
+            LEFT JOIN (${compatibilityDisplaySubquery}) cd ON cd.product_id = p.id
             WHERE COALESCE(p.current_stock, p.stock) <= p.reorder_level AND p.is_active = true
             ${filterSql}
-            GROUP BY p.id, p.part_number, p.name, p.brand, p.size, p.current_stock, p.stock, p.reorder_level
             ORDER BY COALESCE(p.current_stock, p.stock) ASC
         `, params);
         res.json(products);
@@ -370,11 +389,12 @@ exports.getSalesByMotorcycle = async (req, res) => {
 
         const [rows] = await db.query(`
             SELECT
-                mu.id AS motorcycle_unit_id,
-                mu.brand AS motorcycle_brand,
-                mu.model AS motorcycle_model,
-                mu.year_model,
-                TRIM(CONCAT(mu.model, ' ', COALESCE(mu.year_model, ''))) AS motorcycle_display,
+                mm.id AS motorcycle_model_id,
+                mm.id AS motorcycle_unit_id,
+                mm.brand AS motorcycle_brand,
+                mm.model AS motorcycle_model,
+                mm.year_model,
+                TRIM(CONCAT(mm.model, ' ', COALESCE(mm.year_model, ''))) AS motorcycle_display,
                 SUM(si.quantity) AS total_sold,
                 SUM(si.subtotal) AS total_revenue,
                 SUM((si.price - COALESCE(NULLIF(si.cost_price, 0), p.cost_price, 0)) * si.quantity) AS total_profit,
@@ -383,10 +403,10 @@ exports.getSalesByMotorcycle = async (req, res) => {
             FROM sale_items si
             JOIN sales s ON s.id = si.sale_id
             LEFT JOIN products p ON p.id = si.product_id
-            JOIN product_compatibility pc ON pc.product_id = si.product_id
-            JOIN motorcycle_units mu ON mu.id = pc.motorcycle_unit_id
+            JOIN product_compatibilities pc ON pc.product_id = si.product_id AND pc.compatibility_status = 'COMPATIBLE'
+            JOIN motorcycle_models mm ON mm.id = pc.motorcycle_model_id
             ${sql}
-            GROUP BY mu.id, mu.brand, mu.model, mu.year_model
+            GROUP BY mm.id, mm.brand, mm.model, mm.year_model
             ORDER BY total_sold DESC, total_revenue DESC
         `, params);
 

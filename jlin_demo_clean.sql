@@ -23,7 +23,6 @@ CREATE DATABASE /*!32312 IF NOT EXISTS*/ `jlin_inventory_db` /*!40100 DEFAULT CH
 
 USE `jlin_inventory_db`;
 
-
 --
 -- Table structure for table `compatibility_group_units`
 --
@@ -115,11 +114,7 @@ CREATE TABLE `inventory_transactions` (
   KEY `created_by` (`created_by`),
   CONSTRAINT `inventory_transactions_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`),
   CONSTRAINT `inventory_transactions_ibfk_2` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`),
-  CONSTRAINT `chk_it_quantity_change_sign` CHECK (
-    (`transaction_type` IN ('SALE','DAMAGE','DEFECTIVE','RETURN_TO_SUPPLIER','LOSS') AND `quantity_change` <= 0) OR
-    (`transaction_type` IN ('STOCK_IN','RETURN_FROM_CUSTOMER','CONVERSION_IN') AND `quantity_change` >= 0) OR
-    (`transaction_type` IN ('ADJUSTMENT','OPENING_BALANCE'))
-  )
+  CONSTRAINT `chk_it_quantity_change_sign` CHECK (`transaction_type` in ('SALE','DAMAGE','DEFECTIVE','RETURN_TO_SUPPLIER','LOSS') and `quantity_change` <= 0 or `transaction_type` in ('STOCK_IN','RETURN_FROM_CUSTOMER','CONVERSION_IN') and `quantity_change` >= 0 or `transaction_type` in ('ADJUSTMENT','OPENING_BALANCE'))
 ) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -325,37 +320,6 @@ LOCK TABLES `product_compatibilities` WRITE;
 /*!40000 ALTER TABLE `product_compatibilities` DISABLE KEYS */;
 INSERT INTO `product_compatibilities` VALUES (1,2,1,'COMPATIBLE',NULL,'2026-10-07 14:51:56'),(2,2,16,'COMPATIBLE',NULL,'2026-10-07 14:51:56'),(3,4,6,'COMPATIBLE',NULL,'2026-10-07 14:51:56'),(4,1,7,'COMPATIBLE',NULL,'2026-10-07 14:51:56'),(5,3,7,'COMPATIBLE',NULL,'2026-10-07 14:51:56'),(6,2,8,'COMPATIBLE',NULL,'2026-10-07 14:51:56'),(8,2,19,'COMPATIBLE',NULL,'2026-10-07 14:52:03'),(11,2,22,'COMPATIBLE',NULL,'2026-10-07 14:52:15'),(14,5,25,'COMPATIBLE','COMPATIBLE','2026-10-07 14:56:23'),(15,5,26,'NOT_COMPATIBLE','Incompatible caliper bolt spacing','2026-10-07 14:56:23'),(16,6,25,'COMPATIBLE','COMPATIBLE','2026-10-07 14:56:23'),(17,6,26,'COMPATIBLE','COMPATIBLE','2026-10-07 14:56:23');
 /*!40000 ALTER TABLE `product_compatibilities` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `product_compatibility`
---
-
-DROP TABLE IF EXISTS `product_compatibility`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `product_compatibility` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `product_id` int(11) NOT NULL,
-  `motorcycle_unit_id` int(11) NOT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `unique_product_motorcycle` (`product_id`,`motorcycle_unit_id`),
-  KEY `idx_product_motorcycle` (`product_id`,`motorcycle_unit_id`),
-  KEY `idx_product_id` (`product_id`),
-  KEY `idx_motorcycle_id` (`motorcycle_unit_id`),
-  CONSTRAINT `product_compatibility_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `product_compatibility_ibfk_2` FOREIGN KEY (`motorcycle_unit_id`) REFERENCES `motorcycle_units` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `product_compatibility`
---
-
-LOCK TABLES `product_compatibility` WRITE;
-/*!40000 ALTER TABLE `product_compatibility` DISABLE KEYS */;
-INSERT INTO `product_compatibility` VALUES (1,1,2),(3,2,1),(2,2,3),(5,3,2),(6,4,6),(7,5,15),(8,6,15),(9,6,16);
-/*!40000 ALTER TABLE `product_compatibility` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -718,6 +682,7 @@ INSERT INTO `sales` VALUES (1,1,15.00,21.00,6.00,'Cash','2026-09-30 16:18:57',NU
 /*!40000 ALTER TABLE `sales` ENABLE KEYS */;
 UNLOCK TABLES;
 
+--
 -- Table structure for table `suppliers`
 --
 
@@ -817,4 +782,4 @@ USE `jlin_inventory_db`;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-10-07 23:26:51
+-- Dump completed on 2026-10-17 16:40:59

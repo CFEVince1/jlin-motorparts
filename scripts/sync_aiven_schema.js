@@ -99,21 +99,26 @@ async function syncAiven() {
     // ignore
   }
 
-  // Map legacy product_compatibility (motorcycle_unit_id) to motorcycle_models (id)
+  // Map legacy product_compatibility (motorcycle_unit_id) to motorcycle_models (id) if present, then retire
   // via matched brand, model, and year_model - NEVER using unit ID directly as model ID
-  await db.query(`
-    INSERT IGNORE INTO product_compatibilities (product_id, motorcycle_model_id, compatibility_status)
-    SELECT pc.product_id, mm.id, 'COMPATIBLE'
-    FROM product_compatibility pc
-    JOIN motorcycle_units mu ON pc.motorcycle_unit_id = mu.id
-    JOIN motorcycle_models mm ON 
-      mm.brand = mu.brand 
-      AND mm.model = mu.model 
-      AND (
-        (mm.year_model IS NULL AND mu.year_model IS NULL)
-        OR mm.year_model = mu.year_model
-      )
-  `);
+  try {
+    await db.query(`
+      INSERT IGNORE INTO product_compatibilities (product_id, motorcycle_model_id, compatibility_status)
+      SELECT pc.product_id, mm.id, 'COMPATIBLE'
+      FROM product_compatibility pc
+      JOIN motorcycle_units mu ON pc.motorcycle_unit_id = mu.id
+      JOIN motorcycle_models mm ON 
+        mm.brand = mu.brand 
+        AND mm.model = mu.model 
+        AND (
+          (mm.year_model IS NULL AND mu.year_model IS NULL)
+          OR mm.year_model = mu.year_model
+        )
+    `);
+    await db.query(`DROP TABLE IF EXISTS product_compatibility`);
+  } catch (e) {
+    // Legacy product_compatibility already retired
+  }
   console.log('[Sync] `product_compatibilities` table ready and mapped correctly!');
 
   // 5. Create receiving_records and receiving_record_items

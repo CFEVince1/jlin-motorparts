@@ -226,6 +226,9 @@ async function resetDemoDatabase() {
     });
 
     try {
+        // Ensure legacy product_compatibility is permanently retired
+        await connection.query('DROP TABLE IF EXISTS product_compatibility;');
+
         const [prodCount] = await connection.query('SELECT COUNT(*) as count FROM products WHERE is_active = TRUE');
         const [txCount] = await connection.query('SELECT COUNT(*) as count FROM inventory_transactions');
         const [compatCount] = await connection.query('SELECT COUNT(*) as count FROM product_compatibilities');

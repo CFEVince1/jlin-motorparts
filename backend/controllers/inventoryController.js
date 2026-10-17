@@ -27,15 +27,15 @@ exports.getInventory = async (req, res, next) => {
                 p.selling_price AS price,
                 COALESCE(
                     GROUP_CONCAT(
-                        DISTINCT TRIM(CONCAT(mu.model, ' ', COALESCE(mu.year_model, '')))
-                        ORDER BY mu.model, mu.year_model
+                        DISTINCT TRIM(CONCAT(mm.model, ' ', COALESCE(mm.year_model, '')))
+                        ORDER BY mm.model, mm.year_model
                         SEPARATOR ', '
                     ),
                     ''
                 ) AS compatibility_display
             FROM products p
-            LEFT JOIN product_compatibility pc ON pc.product_id = p.id
-            LEFT JOIN motorcycle_units mu ON mu.id = pc.motorcycle_unit_id
+            LEFT JOIN product_compatibilities pc ON pc.product_id = p.id AND pc.compatibility_status = 'COMPATIBLE'
+            LEFT JOIN motorcycle_models mm ON mm.id = pc.motorcycle_model_id
             WHERE p.is_active = true
             GROUP BY 
                 p.id,

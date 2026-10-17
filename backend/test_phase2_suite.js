@@ -679,10 +679,6 @@ async function runTestSuite() {
 
         const compatProdId = compatCreateResult.productId;
 
-        // Verify product_compatibility has motorcycle_unit_id = 2
-        const [prodCompatRows] = await db.query('SELECT motorcycle_unit_id FROM product_compatibility WHERE product_id = ?', [compatProdId]);
-        assert(prodCompatRows.length === 1 && prodCompatRows[0].motorcycle_unit_id === 2, 'product_compatibility correctly stores motorcycle_unit_id = 2');
-
         // Verify product_compatibilities has motorcycle_model_id = 7 (Raider, NOT 2 which is Honda Click)
         const [prodModelRows] = await db.query(`
             SELECT pc.motorcycle_model_id, mm.brand, mm.model, mm.year_model 
@@ -731,17 +727,18 @@ async function runTestSuite() {
         // ----------------------------------------------------
         // [TEST 10] Compatibility Search & Schema Integrity
         // ----------------------------------------------------
-        console.log('\n[TEST 10] Compatibility Search (Model vs Unit Separation) & Schema Integrity');
+        console.log('\n[TEST 10] Compatibility Search (product_compatibilities sole source) & Schema Integrity');
 
-        // Ensure compatProdId has ONLY legacy link to unit 2 (Suzuki Raider 150 2022)
-        // Unit 2 in motorcycle_units is brand: Suzuki, model: Raider 150, year_model: 2022
+        // Set compatProdId to COMPATIBLE for model 7 (Suzuki Raider 150 2022)
         // In motorcycle_models:
-        // - ID 7 is Suzuki Raider 150 2022 (matching unit 2)
-        // - ID 2 is Honda Click 125 2025 (NOT matching unit 2)
+        // - ID 7 is Suzuki Raider 150 2022
+        // - ID 2 is Honda Click 125 2025
         await db.query('UPDATE products SET is_active = TRUE WHERE id = ?', [compatProdId]);
         await db.query('DELETE FROM product_compatibilities WHERE product_id = ?', [compatProdId]);
-        await db.query('DELETE FROM product_compatibility WHERE product_id = ?', [compatProdId]);
-        await db.query('INSERT INTO product_compatibility (product_id, motorcycle_unit_id) VALUES (?, 2)', [compatProdId]);
+        await db.query(`
+            INSERT INTO product_compatibilities (product_id, motorcycle_model_id, compatibility_status, notes)
+            VALUES (?, 7, 'COMPATIBLE', 'Direct OEM fitment')
+        `, [compatProdId]);
 
         // Let's test searchCompatibility with modelId = 7 (Suzuki Raider 150)
         let raiderSearchResult = null;
@@ -756,7 +753,7 @@ async function runTestSuite() {
 
         assert(raiderSearchResult && Array.isArray(raiderSearchResult.compatible), 'searchCompatibility succeeds for Raider model ID 7');
         const raiderCompatibleIds = (raiderSearchResult.compatible || []).map(p => p.item_id || p.id);
-        assert(raiderCompatibleIds.includes(compatProdId), 'searchCompatibility for Raider model 7 matches product linked via unit 2 (Raider)');
+        assert(raiderCompatibleIds.includes(compatProdId), 'searchCompatibility for Raider model 7 matches product linked via product_compatibilities');
 
         // Now search for Honda Click (modelId = 2)
         let clickSearchResult = null;
@@ -769,13 +766,13 @@ async function runTestSuite() {
         }, mockResClickSearch, (e) => { throw e; });
 
         const clickCompatibleIds = (clickSearchResult.compatible || []).map(p => p.item_id || p.id);
-        assert(!clickCompatibleIds.includes(compatProdId), 'searchCompatibility for Honda Click (model 2) does NOT match product linked to unit 2 (Raider)');
+        assert(!clickCompatibleIds.includes(compatProdId), 'searchCompatibility for Honda Click (model 2) does NOT match Raider part');
 
         // Test explicit NOT_COMPATIBLE priority
         await db.query(`
-            INSERT INTO product_compatibilities (product_id, motorcycle_model_id, compatibility_status, notes)
-            VALUES (?, 7, 'NOT_COMPATIBLE', 'Explicit test incompatible')
-            ON DUPLICATE KEY UPDATE compatibility_status = 'NOT_COMPATIBLE'
+            UPDATE product_compatibilities
+            SET compatibility_status = 'NOT_COMPATIBLE', notes = 'Explicit test incompatible'
+            WHERE product_id = ? AND motorcycle_model_id = 7
         `, [compatProdId]);
 
         let raiderSearchAfterNotCompat = null;
@@ -790,7 +787,7 @@ async function runTestSuite() {
         const raiderIncompatIds = (raiderSearchAfterNotCompat.incompatible || []).map(p => p.item_id || p.id);
         const raiderCompatAfterIds = (raiderSearchAfterNotCompat.compatible || []).map(p => p.item_id || p.id);
         assert(raiderIncompatIds.includes(compatProdId), 'Explicit NOT_COMPATIBLE record correctly places product in incompatible list');
-        assert(!raiderCompatAfterIds.includes(compatProdId), 'Explicit NOT_COMPATIBLE overrides positive legacy link in search');
+        assert(!raiderCompatAfterIds.includes(compatProdId), 'Explicit NOT_COMPATIBLE product is not present in compatible list');
 
         // Verify sync_aiven_schema.js script integrity
         const syncScriptContent = fs.readFileSync(path.join(__dirname, '../scripts/sync_aiven_schema.js'), 'utf8');
@@ -1291,7 +1288,7 @@ async function runTestSuite() {
         const [liveTotals] = await db.query(`
             SELECT 
                 COALESCE(SUM(p.stock), 0) AS total_product_stock,
-                (SELECT COALESCE(SUM(quantity_change), 0) FROM inventory_transactions) AS total_ledger_units
+                (SELECT COALESCE(SUM(t.quantity_change), 0) FROM inventory_transactions t JOIN products p2 ON p2.id = t.product_id WHERE p2.is_active = TRUE) AS total_ledger_units
             FROM products p WHERE p.is_active = TRUE
         `);
         assert(Number(liveTotals[0].total_product_stock) === Number(liveTotals[0].total_ledger_units), 'Total product stock strictly matches total ledger units');
@@ -1922,6 +1919,16 @@ async function runTestSuite() {
             assert(firstReportLow.current_stock !== undefined, 'Report getLowStock includes current_stock column');
             assert(firstReportLow.stock !== undefined, 'Report getLowStock includes backward-compatible stock column');
             assert(firstReportLow.current_stock === firstReportLow.stock, 'Report current_stock equals stock');
+        }
+
+        // Drain test stock back to 0 before deactivation to preserve ledger total invariance across repeat runs
+        const [currProd] = await db.query('SELECT stock FROM products WHERE id = ?', [uuidTestId]);
+        if (currProd[0]?.stock > 0) {
+            const drainConn = await db.getConnection();
+            await drainConn.beginTransaction();
+            await applyMovement(drainConn, { itemId: uuidTestId, transactionType: 'LOSS', quantityChange: -currProd[0].stock, referenceNo: 'RCV-UUID-CLEANUP' });
+            await drainConn.commit();
+            drainConn.release();
         }
 
         // Clean up test product

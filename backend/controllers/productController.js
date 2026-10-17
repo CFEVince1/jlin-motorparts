@@ -50,10 +50,13 @@ exports.getAllProducts = async (req, res) => {
         const productIds = products.map(p => p.id);
 
         const [directUnits] = await db.query(`
-            SELECT pc.product_id, mu.id AS motorcycle_id, mu.brand, mu.model, mu.year_model
-            FROM product_compatibility pc
-            JOIN motorcycle_units mu ON pc.motorcycle_unit_id = mu.id
-            WHERE pc.product_id IN (?)
+            SELECT DISTINCT pc.product_id, mu.id AS motorcycle_id, mu.brand, mu.model, mu.year_model
+            FROM product_compatibilities pc
+            JOIN motorcycle_models mm ON pc.motorcycle_model_id = mm.id
+            JOIN motorcycle_units mu ON mm.brand = mu.brand
+                AND (mm.model = mu.model OR TRIM(REPLACE(mm.model, COALESCE(mm.year_model, ''), '')) = TRIM(REPLACE(mu.model, COALESCE(mu.year_model, ''), '')))
+                AND ((mm.year_model IS NULL AND mu.year_model IS NULL) OR mm.year_model = mu.year_model)
+            WHERE pc.product_id IN (?) AND pc.compatibility_status = 'COMPATIBLE'
             ORDER BY mu.brand ASC, mu.model ASC, mu.year_model ASC
         `, [productIds]);
 
@@ -296,12 +299,6 @@ exports.createProduct = async (req, res) => {
         });
 
         if (unitIds.length > 0) {
-            const compatibilityValues = unitIds.map(unitId => [productId, unitId]);
-            await connection.query(
-                'INSERT INTO product_compatibility (product_id, motorcycle_unit_id) VALUES ?',
-                [compatibilityValues]
-            );
-
             // Ensure all selected units have corresponding models in motorcycle_models
             await connection.query(`
                 INSERT IGNORE INTO motorcycle_models (brand, model, year_model)
@@ -467,8 +464,6 @@ exports.updateProduct = async (req, res) => {
             ]
         );
 
-        await connection.query('DELETE FROM product_compatibility WHERE product_id = ?', [id]);
-
         // Only delete COMPATIBLE entries; PRESERVE NOT_COMPATIBLE and CONDITIONAL entries
         // so editing product metadata never erases negative fitment rules (e.g. V3 not compatible)
         await connection.query(
@@ -477,11 +472,6 @@ exports.updateProduct = async (req, res) => {
         );
 
         if (unitIds.length > 0) {
-            await connection.query(
-                'INSERT INTO product_compatibility (product_id, motorcycle_unit_id) VALUES ?',
-                [unitIds.map(unitId => [id, unitId])]
-            );
-
             // Ensure all selected units have corresponding models in motorcycle_models
             await connection.query(`
                 INSERT IGNORE INTO motorcycle_models (brand, model, year_model)

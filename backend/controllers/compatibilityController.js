@@ -77,7 +77,7 @@ exports.updateMotorcycleUnit = async (req, res) => {
 exports.deleteMotorcycleUnit = async (req, res) => {
     const { id } = req.params;
     try {
-        // Due to ON DELETE CASCADE, this will also remove from product_compatibility and compatibility_group_units
+        // Due to ON DELETE CASCADE, this will also remove from compatibility_group_units
         const [result] = await db.query('DELETE FROM motorcycle_units WHERE id = ?', [id]);
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Motorcycle unit not found' });
         res.json({ message: 'Motorcycle unit deleted successfully' });
@@ -374,22 +374,6 @@ exports.searchCompatibility = async (req, res, next) => {
                 )
             )
             LEFT JOIN (
-                SELECT DISTINCT pc_leg.product_id
-                FROM product_compatibility pc_leg
-                JOIN motorcycle_units mu ON pc_leg.motorcycle_unit_id = mu.id
-                JOIN motorcycle_models mm ON 
-                    mm.brand = mu.brand
-                    AND (
-                        mm.model = mu.model
-                        OR TRIM(REPLACE(mm.model, COALESCE(mm.year_model, ''), '')) = TRIM(REPLACE(mu.model, COALESCE(mu.year_model, ''), ''))
-                    )
-                    AND (
-                        (mm.year_model IS NULL AND mu.year_model IS NULL)
-                        OR mm.year_model = mu.year_model
-                    )
-                WHERE mm.id = ?
-            ) legacy_match ON legacy_match.product_id = p.id
-            LEFT JOIN (
                 SELECT DISTINCT pcg.product_id
                 FROM product_compatibility_groups pcg
                 JOIN compatibility_group_units cgu ON pcg.compatibility_group_id = cgu.compatibility_group_id
@@ -406,10 +390,10 @@ exports.searchCompatibility = async (req, res, next) => {
                     )
                 WHERE mm.id = ?
             ) group_match ON group_match.product_id = p.id
-            WHERE (pc.id IS NOT NULL OR legacy_match.product_id IS NOT NULL OR group_match.product_id IS NOT NULL) 
+            WHERE (pc.id IS NOT NULL OR group_match.product_id IS NOT NULL) 
               AND p.is_active = true
             ORDER BY p.name ASC
-        `, [modelId, modelId, modelId, modelId]);
+        `, [modelId, modelId, modelId]);
 
         const compatible = [];
         const incompatible = [];
