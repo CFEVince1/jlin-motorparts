@@ -166,9 +166,9 @@ async function seed(knex) {
                 [productData.part_number, productData.brand]
             );
             if (existing.length > 0) {
-                // Ensure initial stock is 0 for defense demo baseline
-                await connection.query(`UPDATE products SET stock = 0, current_stock = 0, is_active = TRUE WHERE id = ?`, [existing[0].id]);
-                console.log(`   Product ${productData.part_number} exists (ID: ${existing[0].id}, stock reset to 0).`);
+                // Preserve live inventory & ledger integrity; do not reset stock on existing products
+                await connection.query(`UPDATE products SET is_active = TRUE WHERE id = ?`, [existing[0].id]);
+                console.log(`   Product ${productData.part_number} exists (ID: ${existing[0].id}, stock preserved: ${existing[0].stock}).`);
                 return existing[0].id;
             }
             const [res] = await connection.query(`

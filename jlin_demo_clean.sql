@@ -114,7 +114,12 @@ CREATE TABLE `inventory_transactions` (
   KEY `idx_it_ref` (`reference_type`,`reference_id`),
   KEY `created_by` (`created_by`),
   CONSTRAINT `inventory_transactions_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`),
-  CONSTRAINT `inventory_transactions_ibfk_2` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`)
+  CONSTRAINT `inventory_transactions_ibfk_2` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`),
+  CONSTRAINT `chk_it_quantity_change_sign` CHECK (
+    (`transaction_type` IN ('SALE','DAMAGE','DEFECTIVE','RETURN_TO_SUPPLIER','LOSS') AND `quantity_change` <= 0) OR
+    (`transaction_type` IN ('STOCK_IN','RETURN_FROM_CUSTOMER','CONVERSION_IN') AND `quantity_change` >= 0) OR
+    (`transaction_type` IN ('ADJUSTMENT','OPENING_BALANCE'))
+  )
 ) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -124,7 +129,7 @@ CREATE TABLE `inventory_transactions` (
 
 LOCK TABLES `inventory_transactions` WRITE;
 /*!40000 ALTER TABLE `inventory_transactions` DISABLE KEYS */;
-INSERT INTO `inventory_transactions` VALUES (1,'TX-OPB-0001-717401',NULL,1,'OPENING_BALANCE',161,0,0,161,8.00,'OPENING_BALANCE',1,NULL,'Baseline OPENING_BALANCE for pre-existing product: Bolt M8 (BLT-M8-001)',NULL,1,'2026-10-07 14:51:57'),(2,'TX-OPB-0002-717405',NULL,2,'OPENING_BALANCE',29,0,0,29,75.00,'OPENING_BALANCE',2,NULL,'Baseline OPENING_BALANCE for pre-existing product: Spark Plug (SP-001)',NULL,1,'2026-10-07 14:51:57'),(3,'TX-OPB-0003-717408',NULL,3,'OPENING_BALANCE',1,0,0,1,1500.00,'OPENING_BALANCE',3,NULL,'Baseline OPENING_BALANCE for pre-existing product: ECU (ECU-RAIDER-01)',NULL,1,'2026-10-07 14:51:57'),(4,'TX-OPB-0004-717417',NULL,4,'OPENING_BALANCE',46,0,0,46,6500.00,'OPENING_BALANCE',4,NULL,'Baseline OPENING_BALANCE for pre-existing product: block (0A123D21)',NULL,1,'2026-10-07 14:51:57'),(5,'TX-OPENING-20261007-JLR-BP-AEROX','OPENING-20261007',5,'OPENING_BALANCE',0,0,0,0,250.00,'OPENING_BALANCE',5,NULL,'Baseline OPENING_BALANCE for defense demo item JLR-BP-AEROX (reference: OPENING-20261007)',NULL,1,'2026-10-07 14:56:23'),(6,'TX-OPENING-20261007-JLR-OF-AEROX','OPENING-20261007',6,'OPENING_BALANCE',0,0,0,0,120.00,'OPENING_BALANCE',6,NULL,'Baseline OPENING_BALANCE for defense demo item JLR-OF-AEROX (reference: OPENING-20261007)',NULL,1,'2026-10-07 14:56:23');
+INSERT INTO `inventory_transactions` VALUES (1,'TX-OPB-0001-717401',NULL,1,'OPENING_BALANCE',161,161,0,161,8.00,'OPENING_BALANCE',1,NULL,'Baseline OPENING_BALANCE for pre-existing product: Bolt M8 (BLT-M8-001)',NULL,1,'2026-10-07 14:51:57'),(2,'TX-OPB-0002-717405',NULL,2,'OPENING_BALANCE',29,29,0,29,75.00,'OPENING_BALANCE',2,NULL,'Baseline OPENING_BALANCE for pre-existing product: Spark Plug (SP-001)',NULL,1,'2026-10-07 14:51:57'),(3,'TX-OPB-0003-717408',NULL,3,'OPENING_BALANCE',1,1,0,1,1500.00,'OPENING_BALANCE',3,NULL,'Baseline OPENING_BALANCE for pre-existing product: ECU (ECU-RAIDER-01)',NULL,1,'2026-10-07 14:51:57'),(4,'TX-OPB-0004-717417',NULL,4,'OPENING_BALANCE',46,46,0,46,6500.00,'OPENING_BALANCE',4,NULL,'Baseline OPENING_BALANCE for pre-existing product: block (0A123D21)',NULL,1,'2026-10-07 14:51:57'),(5,'TX-OPENING-20261007-JLR-BP-AEROX','OPENING-20261007',5,'OPENING_BALANCE',0,0,0,0,250.00,'OPENING_BALANCE',5,NULL,'Baseline OPENING_BALANCE for defense demo item JLR-BP-AEROX (reference: OPENING-20261007)',NULL,1,'2026-10-07 14:56:23'),(6,'TX-OPENING-20261007-JLR-OF-AEROX','OPENING-20261007',6,'OPENING_BALANCE',0,0,0,0,120.00,'OPENING_BALANCE',6,NULL,'Baseline OPENING_BALANCE for defense demo item JLR-OF-AEROX (reference: OPENING-20261007)',NULL,1,'2026-10-07 14:56:23');
 /*!40000 ALTER TABLE `inventory_transactions` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
@@ -476,10 +481,9 @@ DELIMITER ;;
             IF NEW.part_number IS NULL OR NEW.part_number = '' THEN
                 SET NEW.part_number = NEW.sku;
             END IF;
-            IF NEW.current_stock IS NULL THEN
+            IF NEW.current_stock IS NULL OR (NEW.current_stock = 0 AND NEW.stock IS NOT NULL AND NEW.stock != 0) THEN
                 SET NEW.current_stock = COALESCE(NEW.stock, 0);
-            END IF;
-            IF NEW.stock IS NULL THEN
+            ELSEIF NEW.stock IS NULL OR (NEW.stock = 0 AND NEW.current_stock IS NOT NULL AND NEW.current_stock != 0) THEN
                 SET NEW.stock = COALESCE(NEW.current_stock, 0);
             END IF;
             IF NEW.retail_price IS NULL OR NEW.retail_price = 0 THEN
@@ -649,6 +653,7 @@ CREATE TABLE `sale_items` (
   `size` varchar(50) NOT NULL,
   `quantity` int(11) NOT NULL,
   `price` decimal(10,2) NOT NULL,
+  `cost_price` decimal(10,2) NOT NULL DEFAULT 0.00,
   `subtotal` decimal(10,2) NOT NULL,
   PRIMARY KEY (`id`),
   KEY `sale_id` (`sale_id`),
@@ -664,7 +669,7 @@ CREATE TABLE `sale_items` (
 
 LOCK TABLES `sale_items` WRITE;
 /*!40000 ALTER TABLE `sale_items` DISABLE KEYS */;
-INSERT INTO `sale_items` VALUES (1,1,1,'BLT-M8-001','Bolt M8','JRP','M8 x 20mm',1,15.00,15.00),(2,2,4,'0A123D21','block','jvt','66mm',1,7500.00,7500.00),(3,3,4,'0A123D21','block','jvt','66mm',1,7500.00,7500.00),(4,4,4,'0A123D21','block','jvt','66mm',1,7500.00,7500.00),(5,5,3,'ECU-RAIDER-01','ECU','Suzuki','Raider FI ECU',1,2500.00,2500.00),(6,6,1,'BLT-M8-001','Bolt M8','JRP','M8 x 20mm',6,15.00,90.00),(7,7,1,'BLT-M8-001','Bolt M8','JRP','M8 x 20mm',2,15.00,30.00),(8,7,4,'0A123D21','block','jvt','66mm',1,7500.00,7500.00),(9,7,2,'SP-001','Spark Plug','NGK','Standard',1,120.00,120.00),(10,7,3,'ECU-RAIDER-01','ECU','Suzuki','Raider FI ECU',1,2500.00,2500.00);
+INSERT INTO `sale_items` VALUES (1,1,1,'BLT-M8-001','Bolt M8','JRP','M8 x 20mm',1,15.00,8.00,15.00),(2,2,4,'0A123D21','block','jvt','66mm',1,7500.00,6500.00,7500.00),(3,3,4,'0A123D21','block','jvt','66mm',1,7500.00,6500.00,7500.00),(4,4,4,'0A123D21','block','jvt','66mm',1,7500.00,6500.00,7500.00),(5,5,3,'ECU-RAIDER-01','ECU','Suzuki','Raider FI ECU',1,2500.00,1500.00,2500.00),(6,6,1,'BLT-M8-001','Bolt M8','JRP','M8 x 20mm',6,15.00,8.00,90.00),(7,7,1,'BLT-M8-001','Bolt M8','JRP','M8 x 20mm',2,15.00,8.00,30.00),(8,7,4,'0A123D21','block','jvt','66mm',1,7500.00,6500.00,7500.00),(9,7,2,'SP-001','Spark Plug','NGK','Standard',1,120.00,75.00,120.00),(10,7,3,'ECU-RAIDER-01','ECU','Suzuki','Raider FI ECU',1,2500.00,1500.00,2500.00);
 /*!40000 ALTER TABLE `sale_items` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -694,6 +699,7 @@ CREATE TABLE `sales` (
   `card_last4` varchar(4) DEFAULT NULL,
   `paid_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `payment_reference` (`payment_reference`),
   KEY `user_id` (`user_id`),
   CONSTRAINT `sales_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

@@ -31,6 +31,120 @@ for (const envPath of envPaths) {
 
 const mysql = require('mysql2/promise');
 
+function parseDumpStatements(sqlContent) {
+    const statements = [];
+    let currentDelimiter = ';';
+    let currentBuffer = [];
+
+    const lines = sqlContent.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+
+        // Check for DELIMITER change directive (e.g. DELIMITER ;; or DELIMITER ;)
+        const delimMatch = trimmed.match(/^DELIMITER\s+(\S+)$/i);
+        if (delimMatch) {
+            currentDelimiter = delimMatch[1];
+            continue;
+        }
+
+        // Skip pure comment lines when not accumulating inside a statement buffer
+        if (currentBuffer.length === 0 && (trimmed.startsWith('--') || (trimmed.startsWith('/*') && trimmed.endsWith('*/;')) || trimmed === '')) {
+            if (!trimmed.startsWith('/*!50003')) {
+                continue;
+            }
+        }
+
+        currentBuffer.push(line);
+
+        // Check if line ends with current active delimiter
+        if (trimmed.endsWith(currentDelimiter)) {
+            let stmt = currentBuffer.join('\n').trim();
+            // Strip trailing delimiter
+            stmt = stmt.slice(0, stmt.length - currentDelimiter.length).trim();
+            if (stmt.length > 0) {
+                statements.push(stmt);
+            }
+            currentBuffer = [];
+        }
+    }
+
+    if (currentBuffer.length > 0) {
+        const stmt = currentBuffer.join('\n').trim();
+        if (stmt.length > 0) {
+            statements.push(stmt);
+        }
+    }
+
+    return statements;
+}
+
+async function fallbackNodeRestore(host, port, user, password, dumpFile, dbName) {
+    console.log('[Fallback] Starting robust Node.js SQL dump restore with trigger parsing...');
+    const connection = await mysql.createConnection({
+        host,
+        port: parseInt(port, 10),
+        user,
+        password,
+        multipleStatements: true,
+        ...(host && host.includes('aivencloud') ? { ssl: { rejectUnauthorized: true } } : {})
+    });
+
+    try {
+        // Ensure database exists and is selected
+        await connection.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;`);
+        await connection.query(`USE \`${dbName}\`;`);
+
+        // Disable foreign keys and unique checks during bulk restoration
+        await connection.query('SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0;');
+        await connection.query('SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;');
+        await connection.query('SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE="NO_AUTO_VALUE_ON_ZERO";');
+
+        const sqlContent = fs.readFileSync(dumpFile, 'utf8');
+        const statements = parseDumpStatements(sqlContent);
+        console.log(`[Fallback] Parsed ${statements.length} SQL statements (including trigger blocks).`);
+
+        let executedCount = 0;
+        let triggerCount = 0;
+
+        for (const rawStmt of statements) {
+            let stmt = rawStmt.trim();
+            if (!stmt) continue;
+
+            // Adapt hardcoded CREATE DATABASE / USE to target dbName
+            if (/^CREATE DATABASE/i.test(stmt)) {
+                stmt = `CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;`;
+            } else if (/^USE\s+/i.test(stmt)) {
+                stmt = `USE \`${dbName}\`;`;
+            }
+
+            try {
+                await connection.query(stmt);
+                executedCount++;
+                if (stmt.includes('TRIGGER')) {
+                    triggerCount++;
+                }
+            } catch (err) {
+                if (err.code === 'ER_TABLE_EXISTS_ERROR' || err.code === 'ER_TRG_ALREADY_EXISTS') {
+                    // Safe to continue
+                } else {
+                    console.error(`[Fallback] Error executing statement #${executedCount}:`, stmt.slice(0, 150));
+                    throw err;
+                }
+            }
+        }
+
+        // Restore session checks
+        await connection.query('SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;');
+        await connection.query('SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS;');
+        await connection.query('SET SQL_MODE=@OLD_SQL_MODE;');
+
+        console.log(`✓ Snapshot restored via Node.js connection (${executedCount} statements, ${triggerCount} triggers executed).`);
+    } finally {
+        await connection.end();
+    }
+}
+
 async function resetDemoDatabase() {
     console.log('=====================================================');
     console.log('   JLIN Motorparts — Instant Demo Database Reset     ');
@@ -53,7 +167,7 @@ async function resetDemoDatabase() {
     console.log(`Snapshot Source: ${dumpFile}`);
     console.log('\nRestoring baseline snapshot...');
 
-    // Method 1: Try XAMPP / system mysql client CLI for lightning-fast restore
+    // Method 1: Try XAMPP / system mysql client CLI for fast restore
     const mysqlPaths = [
         'C:\\xampp\\mysql\\bin\\mysql.exe',
         'mysql'
@@ -71,23 +185,36 @@ async function resetDemoDatabase() {
         }
     }
 
+    let restoreSucceeded = false;
+
     if (mysqlBin) {
         try {
             console.log(`Using MySQL CLI binary: ${mysqlBin}`);
-            const passArg = password ? `-p"${password}"` : '';
-            const cmd = `"${mysqlBin}" -h ${host} -P ${port} -u ${user} ${passArg} --default-character-set=utf8mb4 < "${dumpFile}"`;
-            execSync(cmd, { shell: 'cmd.exe', stdio: 'inherit' });
+            // Security: Pass password strictly via environment variable MYSQL_PWD.
+            // Never interpolate password into command-line arguments to prevent exposure in process tables or CLI warnings.
+            const env = { ...process.env };
+            if (password) {
+                env.MYSQL_PWD = password;
+            }
+            const dumpSql = fs.readFileSync(dumpFile, 'utf8');
+            execSync(`"${mysqlBin}" -h ${host} -P ${port} -u ${user} --default-character-set=utf8mb4`, {
+                input: dumpSql,
+                env,
+                stdio: ['pipe', 'inherit', 'inherit']
+            });
             console.log('✓ Snapshot restored cleanly via MySQL client.');
+            restoreSucceeded = true;
         } catch (cliErr) {
-            console.warn(`CLI restore had a notice, falling back to node stream restore: ${cliErr.message}`);
-            await fallbackNodeRestore(host, port, user, password, dumpFile);
+            console.warn(`CLI restore had a notice/error, falling back to Node.js stream restore: ${cliErr.message}`);
         }
-    } else {
-        await fallbackNodeRestore(host, port, user, password, dumpFile);
     }
 
-    // Verification
-    console.log('\nVerifying restored database state...');
+    if (!restoreSucceeded) {
+        await fallbackNodeRestore(host, port, user, password, dumpFile, dbName);
+    }
+
+    // Comprehensive Verification & Ledger Totals Invariant Check
+    console.log('\nVerifying restored database state & ledger totals...');
     const connection = await mysql.createConnection({
         host,
         port: parseInt(port, 10),
@@ -96,35 +223,91 @@ async function resetDemoDatabase() {
         database: dbName
     });
 
-    const [prodCount] = await connection.query('SELECT COUNT(*) as count FROM products');
-    const [txCount] = await connection.query('SELECT COUNT(*) as count FROM inventory_transactions');
-    const [compatCount] = await connection.query('SELECT COUNT(*) as count FROM product_compatibilities');
-    const [userCount] = await connection.query('SELECT COUNT(*) as count FROM users');
+    try {
+        const [prodCount] = await connection.query('SELECT COUNT(*) as count FROM products WHERE is_active = TRUE');
+        const [txCount] = await connection.query('SELECT COUNT(*) as count FROM inventory_transactions');
+        const [compatCount] = await connection.query('SELECT COUNT(*) as count FROM product_compatibilities');
+        const [userCount] = await connection.query('SELECT COUNT(*) as count FROM users');
 
-    console.log(`  * Products:               ${prodCount[0].count} items`);
-    console.log(`  * Inventory Transactions: ${txCount[0].count} ledger rows`);
-    console.log(`  * Compatibilities:        ${compatCount[0].count} matrix entries`);
-    console.log(`  * System Users:           ${userCount[0].count} accounts`);
+        console.log(`  * Active Products:        ${prodCount[0].count} items`);
+        console.log(`  * Inventory Transactions: ${txCount[0].count} ledger rows`);
+        console.log(`  * Compatibilities:        ${compatCount[0].count} matrix entries`);
+        console.log(`  * System Users:           ${userCount[0].count} accounts`);
 
-    await connection.end();
+        // 1. Verify Triggers Exist and are Active
+        const [triggers] = await connection.query(`
+            SELECT TRIGGER_NAME FROM INFORMATION_SCHEMA.TRIGGERS 
+            WHERE TRIGGER_SCHEMA = ? AND TRIGGER_NAME IN (
+                'trg_block_inventory_transactions_update',
+                'trg_block_inventory_transactions_delete',
+                'trg_sync_products_insert',
+                'trg_sync_products_update'
+            )
+        `, [dbName]);
+        const triggerNames = triggers.map(t => t.TRIGGER_NAME);
+        console.log(`  * Active Triggers:        ${triggerNames.length} / 4 verified (${triggerNames.join(', ')})`);
+        if (triggerNames.length < 4) {
+            throw new Error(`Restore failed trigger verification: expected 4 triggers, found ${triggerNames.length} (${triggerNames.join(', ')})`);
+        }
+
+        // 2. Verify Ledger Totals: SUM(quantity_change) == products.stock for every active product
+        const [mismatches] = await connection.query(`
+            SELECT p.id, p.part_number, p.stock, COALESCE(SUM(t.quantity_change), 0) AS ledger_sum
+            FROM products p
+            LEFT JOIN inventory_transactions t ON p.id = t.product_id
+            WHERE p.is_active = TRUE
+            GROUP BY p.id, p.part_number, p.stock
+            HAVING p.stock != ledger_sum
+        `);
+
+        if (mismatches.length > 0) {
+            console.error('❌ LEDGER MISMATCH DETECTED:', mismatches);
+            throw new Error(`Restore failed ledger verification: ${mismatches.length} products have stock != sum(quantity_change)`);
+        }
+
+        // 3. Verify Latest balance_after == stock for every active product
+        const [balanceMismatches] = await connection.query(`
+            SELECT p.id, p.part_number, p.stock, t.balance_after
+            FROM products p
+            LEFT JOIN (
+                SELECT t1.product_id, t1.balance_after
+                FROM inventory_transactions t1
+                INNER JOIN (
+                    SELECT product_id, MAX(id) as max_id
+                    FROM inventory_transactions
+                    GROUP BY product_id
+                ) t2 ON t1.id = t2.max_id
+            ) t ON p.id = t.product_id
+            WHERE p.is_active = TRUE AND (t.balance_after IS NULL OR p.stock != t.balance_after)
+        `);
+
+        if (balanceMismatches.length > 0) {
+            console.error('❌ LEDGER BALANCE_AFTER MISMATCH DETECTED:', balanceMismatches);
+            throw new Error(`Restore failed ledger verification: ${balanceMismatches.length} products have stock != latest balance_after`);
+        }
+
+        // 4. Overall Totals: Total Product Stock == Total Ledger Quantity Change
+        const [totals] = await connection.query(`
+            SELECT 
+                COALESCE(SUM(p.stock), 0) AS total_product_stock,
+                (SELECT COALESCE(SUM(quantity_change), 0) FROM inventory_transactions) AS total_ledger_units
+            FROM products p WHERE p.is_active = TRUE
+        `);
+        const totalStock = Number(totals[0].total_product_stock);
+        const totalLedger = Number(totals[0].total_ledger_units);
+        console.log(`  * Stock vs Ledger Units:  ${totalStock} in products == ${totalLedger} in ledger (Exact Match ✓)`);
+
+        if (totalStock !== totalLedger) {
+            throw new Error(`Restore failed overall ledger verification: total stock (${totalStock}) != total ledger units (${totalLedger})`);
+        }
+
+    } finally {
+        await connection.end();
+    }
 
     console.log('\n=====================================================');
     console.log(' ✅ DATABASE RESET COMPLETE: Ready for Defense Demo!  ');
     console.log('=====================================================\n');
-}
-
-async function fallbackNodeRestore(host, port, user, password, dumpFile) {
-    const connection = await mysql.createConnection({
-        host,
-        port: parseInt(port, 10),
-        user,
-        password,
-        multipleStatements: true
-    });
-    const sqlContent = fs.readFileSync(dumpFile, 'utf8');
-    await connection.query(sqlContent);
-    await connection.end();
-    console.log('✓ Snapshot restored via Node.js connection.');
 }
 
 if (require.main === module) {
@@ -136,4 +319,4 @@ if (require.main === module) {
         });
 }
 
-module.exports = resetDemoDatabase;
+module.exports = { resetDemoDatabase, fallbackNodeRestore, parseDumpStatements };
