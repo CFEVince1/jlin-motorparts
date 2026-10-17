@@ -113,7 +113,7 @@ app.get('/health', (req, res) => {
 });
 
 // Centralized error handling middleware
-app.use((err, req, res, next) => {
+const errorHandler = (err, req, res, next) => {
     if (err.message === 'Not allowed by CORS') {
         return res.status(403).json({
             error: 'Forbidden',
@@ -131,6 +131,17 @@ app.use((err, req, res, next) => {
 
     if (err instanceof AppNotFoundError || err.name === 'AppNotFoundError' || err.statusCode === 404 || err.status === 404) {
         return res.status(404).json({ message: err.message });
+    }
+
+    // Map database unique constraint violation on payment_reference to 422 (instead of generic 500)
+    if (err.code === 'ER_DUP_ENTRY' || err.errno === 1062) {
+        const rawMsg = String(err.message || err.sqlMessage || '').toLowerCase();
+        if (rawMsg.includes('payment_reference') || rawMsg.includes('uq_sales_payment_reference')) {
+            return res.status(422).json({
+                error: 'Unprocessable Entity',
+                message: 'Payment reference already used: this reference has already been used on another transaction.'
+            });
+        }
     }
 
     // Always log the full technical error details and stack trace on the server console
@@ -159,7 +170,9 @@ app.use((err, req, res, next) => {
     res.status(status).json({ 
         message: err.message || 'An error occurred' 
     });
-});
+};
+
+app.use(errorHandler);
 
 if (require.main === module) {
     app.listen(PORT, () => {
@@ -168,5 +181,6 @@ if (require.main === module) {
 }
 
 module.exports = app;
+module.exports.errorHandler = errorHandler;
 module.exports.validateStartupEnv = validateStartupEnv;
 

@@ -203,7 +203,7 @@ exports.checkout = async (req, res, next) => {
             );
             if (existingSales.length > 0) {
                 throw new AppValidationError(
-                    `GCash reference number "${refNo}" has already been used on order ${existingSales[0].order_number || ('#' + existingSales[0].id)}`
+                    `GCash reference already used: "${refNo}" has already been used on order ${existingSales[0].order_number || ('#' + existingSales[0].id)}`
                 );
             }
         } else {
@@ -310,9 +310,13 @@ exports.checkout = async (req, res, next) => {
 
     } catch (err) {
         await connection.rollback();
-        if (err.code === 'ER_DUP_ENTRY' && (String(err.message || '').includes('payment_reference') || String(err.message || '').includes('uq_sales_payment_reference'))) {
+        const rawMsg = String(err.message || err.sqlMessage || '').toLowerCase();
+        const isDuplicatePaymentRef = (err.code === 'ER_DUP_ENTRY' || err.errno === 1062) && 
+            (rawMsg.includes('payment_reference') || rawMsg.includes('uq_sales_payment_reference') || Boolean(paymentReferenceToSave));
+        if (isDuplicatePaymentRef) {
             return res.status(422).json({
-                message: 'This payment reference number has already been used on another transaction.'
+                error: 'Unprocessable Entity',
+                message: 'Payment reference already used: this reference has already been used on another transaction.'
             });
         }
         next(err);

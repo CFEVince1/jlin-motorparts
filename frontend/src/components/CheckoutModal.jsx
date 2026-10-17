@@ -82,9 +82,6 @@ export const CheckoutModal = ({
       changeDue: isCash ? paymentDetails.changeDue : 0,
       gcashReference: isGcash ? gcashRef.trim() : null,
     });
-
-    setCashTendered('');
-    setGcashRef('');
   };
 
   return (

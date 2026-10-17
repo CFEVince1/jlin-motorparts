@@ -336,11 +336,33 @@ async function runTestSuite() {
             }
         });
         assert(gcashDuplicateBlocked, 'Reused GCash reference number is strictly rejected with 422');
-        assert(gcashDuplicateErrorMsg.includes('already been used'), 'Rejection error clearly states reference has already been used');
+        assert(gcashDuplicateErrorMsg.includes('already been used') && gcashDuplicateErrorMsg.includes('reference already used'), 'Rejection error clearly states reference already used');
 
         // Verify unique constraint exists on sales table in database
         const [salesIndexes] = await db.query('SHOW INDEX FROM sales WHERE Column_name = "payment_reference"');
         assert(salesIndexes.length > 0 && salesIndexes[0].Non_unique === 0, 'Database schema enforces UNIQUE constraint on sales(payment_reference)');
+
+        // Verify database ER_DUP_ENTRY on payment_reference maps to 422 with "reference already used"
+        let dbDupeMappedTo422 = false;
+        let dbDupeMsg = '';
+        const mockDupeErr = new Error("Duplicate entry 'GCASH-123' for key 'payment_reference'");
+        mockDupeErr.code = 'ER_DUP_ENTRY';
+        mockDupeErr.errno = 1062;
+        const { errorHandler } = require('./server');
+        if (typeof errorHandler === 'function') {
+            errorHandler(mockDupeErr, {}, {
+                status: (code) => ({
+                    json: (data) => {
+                        if (code === 422) {
+                            dbDupeMappedTo422 = true;
+                            dbDupeMsg = data.message;
+                        }
+                    }
+                })
+            }, () => {});
+        }
+        assert(dbDupeMappedTo422, 'Database ER_DUP_ENTRY on payment_reference is mapped to 422 (not generic 500)');
+        assert(dbDupeMsg.toLowerCase().includes('reference already used'), 'Database error message clearly contains "reference already used"');
 
         // Test Cash non-numeric / NaN tender blocked by Number.isFinite
         let cashBadInputBlocked = false;

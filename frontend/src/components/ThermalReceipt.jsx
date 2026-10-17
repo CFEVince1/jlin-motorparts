@@ -3,29 +3,43 @@ import { formatCurrency, formatAuditDate } from '../utils/formatters';
 
 export const ThermalReceipt = ({
   receiptId,
+  orderNumber,
   date,
   cashier,
   customer,
+  customerName,
+  customerAddress,
   items = [],
   total = 0,
+  totalAmount,
   paymentMethod = 'Cash',
   amountTendered = 0,
   change = 0,
+  changeDue,
+  paymentReference = '',
+  gcashReference = '',
 }) => {
+  const displayReceiptNo = orderNumber || receiptId || 'PENDING';
+  const displayCustomer = customer || customerName || '';
+  const displayTotal = totalAmount !== undefined ? totalAmount : total;
+  const displayChange = changeDue !== undefined ? changeDue : change;
+  const displayRef = gcashReference || paymentReference || '';
+  const isGcash = (paymentMethod || '').toUpperCase() === 'GCASH';
+
   return (
-    <div className="printable-receipt" style={{ color: '#000000', padding: '4px', fontSize: '11px', lineHeight: 1.3, width: '76mm', margin: '0 auto', fontFamily: "'Courier New', Courier, monospace" }}>
+    <div id="printable-receipt" className="printable-receipt thermal-receipt-root" style={{ color: '#000000', padding: '4px', fontSize: '11px', lineHeight: 1.3, width: '76mm', margin: '0 auto', fontFamily: "'Courier New', Courier, monospace" }}>
       {/* Header */}
       <div style={{ textAlign: 'center', paddingBottom: '8px', borderBottom: '1px dashed #000000' }}>
-        <h2 style={{ fontSize: '14px', fontWeight: 'bold', margin: '0 0 2px 0', letterSpacing: '-0.025em', textTransform: 'uppercase' }}>J-Lin Racing Parts</h2>
-        <p style={{ fontSize: '10px', margin: '2px 0' }}>Pangasinan, Philippines</p>
-        <p style={{ fontSize: '10px', margin: '2px 0' }}>Sales & Inventory Audit Slip</p>
+        <h2 style={{ fontSize: '14px', fontWeight: 'bold', margin: '0 0 2px 0', letterSpacing: '-0.025em', textTransform: 'uppercase' }}>JLIN MOTORCYCLE PARTS</h2>
+        <p style={{ fontSize: '10px', margin: '2px 0' }}>Calasiao, Pangasinan</p>
+        <p style={{ fontSize: '10px', margin: '2px 0' }}>Official Sales Slip</p>
       </div>
 
       {/* Meta Info */}
       <div style={{ padding: '8px 0', borderBottom: '1px dashed #000000', fontSize: '10px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
           <span>Receipt #:</span>
-          <span style={{ fontWeight: 'bold' }}>{receiptId}</span>
+          <span style={{ fontWeight: 'bold' }}>{displayReceiptNo}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
           <span>Date:</span>
@@ -35,10 +49,16 @@ export const ThermalReceipt = ({
           <span>Cashier:</span>
           <span>{cashier}</span>
         </div>
-        {customer && (
+        {displayCustomer && (
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}>
             <span>Customer:</span>
-            <span>{customer}</span>
+            <span>{displayCustomer}</span>
+          </div>
+        )}
+        {customerAddress && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}>
+            <span>Address:</span>
+            <span>{customerAddress}</span>
           </div>
         )}
       </div>
@@ -66,7 +86,12 @@ export const ThermalReceipt = ({
                 <tr key={idx} style={{ verticalAlign: 'top', borderTop: idx > 0 ? '1px dotted #000000' : 'none' }}>
                   <td style={{ padding: '4px 4px 4px 0' }}>
                     <div style={{ fontWeight: 'bold', fontSize: '10px' }}>{name}</div>
-                    <div style={{ fontSize: '9px', color: '#444444' }}>{partNumber}</div>
+                    {partNumber && <div style={{ fontSize: '9px', color: '#444444' }}>{partNumber}</div>}
+                    {item.is_serialized && item.serial_numbers && (
+                      <div style={{ fontSize: '8px', color: '#555555' }}>
+                        SN: {Array.isArray(item.serial_numbers) ? item.serial_numbers.join(', ') : item.serial_numbers}
+                      </div>
+                    )}
                   </td>
                   <td style={{ padding: '4px 0', textAlign: 'center', fontFamily: 'monospace' }}>{qty}</td>
                   <td style={{ padding: '4px 0', textAlign: 'right', fontFamily: 'monospace' }}>{formatCurrency(unitPrice)}</td>
@@ -82,16 +107,22 @@ export const ThermalReceipt = ({
       <div style={{ padding: '8px 0', borderBottom: '1px dashed #000000', fontFamily: 'monospace', fontSize: '11px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '12px', marginBottom: '4px' }}>
           <span>TOTAL:</span>
-          <span>{formatCurrency(total)}</span>
+          <span>{formatCurrency(displayTotal)}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginBottom: '2px' }}>
           <span>Payment ({paymentMethod}):</span>
-          <span>{formatCurrency(amountTendered || total)}</span>
+          <span>{formatCurrency(amountTendered || displayTotal)}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}>
           <span>Change:</span>
-          <span>{formatCurrency(change || 0)}</span>
+          <span>{formatCurrency(displayChange || 0)}</span>
         </div>
+        {(isGcash || displayRef) && displayRef && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginTop: '2px' }}>
+            <span>GCash Ref:</span>
+            <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{displayRef}</span>
+          </div>
+        )}
       </div>
 
       {/* Footer / Barcode Target */}
