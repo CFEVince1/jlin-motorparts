@@ -93,7 +93,8 @@ export const CheckoutModal = ({
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '16px'
+      padding: '16px',
+      overflowY: 'auto'
     }}>
       <style>{`
         .cash-input-no-spin::-webkit-inner-spin-button,
@@ -107,17 +108,28 @@ export const CheckoutModal = ({
       `}</style>
       <div className="glass-panel" style={{
         background: 'var(--surface)',
-        padding: '24px',
-        width: '440px',
+        width: '460px',
         maxWidth: '100%',
+        maxHeight: 'min(92vh, 680px)',
         borderRadius: '12px',
         boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
-        border: '1px solid var(--border)'
+        border: '1px solid var(--border)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        margin: 'auto'
       }}>
         {/* Modal Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '16px 20px',
+          borderBottom: '1px solid var(--border)',
+          flexShrink: 0
+        }}>
           <div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0, color: 'var(--text-main)' }}>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: 0, color: 'var(--text-main)' }}>
               Complete Payment
             </h2>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
@@ -125,15 +137,41 @@ export const CheckoutModal = ({
             </p>
           </div>
           <button
+            type="button"
             onClick={handleClose}
             disabled={loading}
-            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: '6px'
+            }}
           >
             <X size={20} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <form onSubmit={handleSubmit} style={{
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 1,
+          minHeight: 0,
+          overflow: 'hidden'
+        }}>
+          {/* Scrollable Form Body */}
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '16px 20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '14px'
+          }}>
           {/* Total Display */}
           <div style={{
             background: 'var(--surface-hover)',
@@ -366,14 +404,22 @@ export const CheckoutModal = ({
               onChange={(e) => onCustomerAddressChange && onCustomerAddressChange(e.target.value)}
             />
           </div>
+          </div>
 
-          {/* Actions */}
-          <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+          {/* Sticky Actions Footer */}
+          <div style={{
+            display: 'flex',
+            gap: '10px',
+            padding: '14px 20px',
+            borderTop: '1px solid var(--border)',
+            background: 'var(--surface)',
+            flexShrink: 0
+          }}>
             <button
               type="button"
               className="btn-secondary"
-              style={{ flex: 1 }}
-              onClick={onClose}
+              style={{ flex: 1, padding: '10px 14px' }}
+              onClick={handleClose}
               disabled={loading}
             >
               Cancel
@@ -381,7 +427,7 @@ export const CheckoutModal = ({
             <button
               type="submit"
               className="btn-primary"
-              style={{ flex: 1.4 }}
+              style={{ flex: 1.4, padding: '10px 14px' }}
               disabled={!canSubmit}
             >
               {loading ? 'Processing...' : (
