@@ -289,23 +289,6 @@ async function setupDatabase() {
             // Ignore if already exists
         }
 
-        // 10. Stock Adjustments (Audit Log)
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS stock_adjustments (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                product_id INT NOT NULL,
-                user_id INT,
-                adjusted_by VARCHAR(100) NOT NULL,
-                previous_stock INT NOT NULL,
-                adjusted_quantity INT NOT NULL,
-                new_stock INT NOT NULL,
-                reason VARCHAR(100) NOT NULL,
-                notes TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
-            ) ENGINE=InnoDB;
-        `);
-
         console.log('[Setup] Canonical tables verified.');
 
         // Seed Admin & Staff Users

@@ -19,11 +19,11 @@ exports.getDashboardData = async (req, res) => {
         const role = req.user.role;
 
         // Security check: Only admins may access analytics dashboard and wholesale cost data
-        if (role !== 'admin' && role !== 'super_admin') {
+        if (role !== 'admin') {
             return res.status(403).json({ message: 'Access denied: Insufficient permissions' });
         }
 
-        const userFilter = role !== 'admin' && role !== 'super_admin' ? 'AND s.user_id = ?' : '';
+        const userFilter = role !== 'admin' ? 'AND s.user_id = ?' : '';
         const userParams = userFilter ? [userId] : [];
 
         const [todayRevData] = await db.query(`
@@ -144,7 +144,7 @@ exports.getDashboardData = async (req, res) => {
         `);
 
         // Defense-in-depth: Never expose cost prices or profit margins to non-admins
-        const costVsProfit = (role === 'admin' || role === 'super_admin')
+        const costVsProfit = (role === 'admin')
             ? costVsProfitRows.map(item => ({
                 name: `${item.part_number} - ${item.product_name}`,
                 brand: item.brand,

@@ -1210,14 +1210,14 @@ async function runTestSuite() {
         // ----------------------------------------------------
         console.log('\n[TEST 16] Single Source of Truth for Sales & Sync/Migration Alignment');
 
-        // 16a. Verify rogue sales tables (sales_orders, sales_order_items, sales_order_seq) do NOT exist in DB
+        // 16a. Verify unused legacy tables (sales_orders, sales_order_items, sales_order_seq, stock_adjustments) do NOT exist in DB
         const [dbNameRows] = await db.query("SELECT DATABASE() AS current_db");
         const currentDb = dbNameRows[0].current_db;
         const [remainingSalesTables] = await db.query(
-            "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN ('sales_orders', 'sales_order_items', 'sales_order_seq')",
+            "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN ('sales_orders', 'sales_order_items', 'sales_order_seq', 'stock_adjustments')",
             [currentDb]
         );
-        assert(remainingSalesTables.length === 0, 'Rogue sales tables (sales_orders, sales_order_items, sales_order_seq) are completely dropped from DB');
+        assert(remainingSalesTables.length === 0, 'Unused tables (sales_orders, sales_order_items, sales_order_seq, stock_adjustments) do not exist in DB');
 
         // Canonical sales tables exist
         const [canonicalSalesTables] = await db.query(

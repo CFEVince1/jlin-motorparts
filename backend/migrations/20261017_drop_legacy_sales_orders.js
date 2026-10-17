@@ -7,8 +7,9 @@ async function runMigration() {
         await db.query('DROP TABLE IF EXISTS sales_order_items');
         await db.query('DROP TABLE IF EXISTS sales_orders');
         await db.query('DROP TABLE IF EXISTS sales_order_seq');
+        await db.query('DROP TABLE IF EXISTS stock_adjustments');
 
-        console.log('[Migration] Legacy sales_orders tables dropped successfully. Single source of truth is sales & sale_items.');
+        console.log('[Migration] Legacy sales_orders and stock_adjustments tables dropped successfully. Single source of truth is sales, sale_items & inventory_transactions.');
         if (require.main === module) {
             process.exit(0);
         }
