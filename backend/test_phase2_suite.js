@@ -121,6 +121,21 @@ async function runTestSuite() {
             }
             assert(negativeStockBlocked, 'Movement resulting in negative stock balance is strictly blocked');
 
+            // 2e. Database-level CHECK constraint validation (chk_it_quantity_change_sign)
+            let dbCheckConstraintTriggered = false;
+            try {
+                await conn.query(
+                    `INSERT INTO inventory_transactions (
+                        transaction_number, product_id, transaction_type, quantity, quantity_change, balance_before, balance_after, reference_no
+                    ) VALUES ('TEST-VIOLATE-CHECK-001', 5, 'DAMAGE', 5, 5, 20, 25, 'VIOLATION-REF')`
+                );
+            } catch (err) {
+                if (err.message && (err.message.includes('chk_it_quantity_change_sign') || err.message.includes('CONSTRAINT'))) {
+                    dbCheckConstraintTriggered = true;
+                }
+            }
+            assert(dbCheckConstraintTriggered, 'Database CHECK constraint chk_it_quantity_change_sign strictly blocks positive outflow');
+
         } finally {
             await conn.rollback();
             conn.release();
@@ -381,9 +396,9 @@ async function runTestSuite() {
         assert(duplicateLinesResult.items[0].quantity === 3, 'Merged quantity is 3 (1 + 2)');
 
         // -----------------------------------------------------------------
-        // TEST 6: Non-sales Adjustments Report
+        // TEST 6: Non-sales Adjustments Report & Date Scoping for Daily/Monthly Reports
         // -----------------------------------------------------------------
-        console.log('\n[TEST 6] Non-sales Adjustments Report');
+        console.log('\n[TEST 6] Non-sales Adjustments Report & Date Scoping for Daily/Monthly Reports');
         const reportController = require('./controllers/reportController');
         let reportResult = null;
         const mockResReport = {
@@ -392,6 +407,50 @@ async function runTestSuite() {
         await reportController.getAdjustmentsReport({ query: {} }, mockResReport, (e) => { throw e; });
         assert(!!reportResult && Array.isArray(reportResult.adjustments), 'Adjustments report returns adjustments array');
         assert(Array.isArray(reportResult.grouped_totals), 'Adjustments report returns grouped_totals array');
+
+        // Test getDailySales with chosen date
+        let dailyDateResult = null;
+        const mockResDaily = {
+            json: (data) => { dailyDateResult = data; }
+        };
+        await reportController.getDailySales(
+            { user: { id: adminUser.id, role: 'admin' }, query: { date: '2026-05-15' } },
+            mockResDaily
+        );
+        assert(dailyDateResult?.date === '2026-05-15', 'getDailySales respects chosen ?date=2026-05-15 without forcing today');
+
+        // Test getDailySales with date range
+        let dailyRangeResult = null;
+        const mockResDailyRange = {
+            json: (data) => { dailyRangeResult = data; }
+        };
+        await reportController.getDailySales(
+            { user: { id: adminUser.id, role: 'admin' }, query: { startDate: '2026-05-10', endDate: '2026-05-15' } },
+            mockResDailyRange
+        );
+        assert(dailyRangeResult?.date === '2026-05-10 to 2026-05-15', 'getDailySales respects date range without forcing today');
+
+        // Test getMonthlySales with chosen month string
+        let monthlyDateResult = null;
+        const mockResMonthly = {
+            json: (data) => { monthlyDateResult = data; }
+        };
+        await reportController.getMonthlySales(
+            { user: { id: adminUser.id, role: 'admin' }, query: { month: '2026-05' } },
+            mockResMonthly
+        );
+        assert(monthlyDateResult?.month === '2026-05', 'getMonthlySales respects chosen ?month=2026-05 without forcing this month');
+
+        // Test getMonthlySales with year and month numbers
+        let monthlyYearMonthResult = null;
+        const mockResMonthlyYM = {
+            json: (data) => { monthlyYearMonthResult = data; }
+        };
+        await reportController.getMonthlySales(
+            { user: { id: adminUser.id, role: 'admin' }, query: { year: '2026', month: '8' } },
+            mockResMonthlyYM
+        );
+        assert(monthlyYearMonthResult?.month === '2026-08', 'getMonthlySales respects chosen ?year=2026&month=8');
         // -----------------------------------------------------------------
         // TEST 7: Sales Subquery-Optimized Pagination & Cashier Scoping
         // -----------------------------------------------------------------

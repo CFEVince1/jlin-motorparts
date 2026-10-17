@@ -1,29 +1,43 @@
 const db = require('../config/db');
 
 const buildDateAndUserFilters = (req, tableAlias = 's') => {
-    const { startDate, endDate, period } = req.query;
+    const { startDate, endDate, period, date, month, year } = req.query;
     const where = [];
     const params = [];
 
-    if (period === 'daily' && !startDate && !endDate) {
+    const effectiveStartDate = startDate || (period === 'daily' && date ? date : (date || null));
+    const effectiveEndDate = endDate || (period === 'daily' && date ? date : null);
+
+    if (period === 'daily' && !effectiveStartDate && !effectiveEndDate) {
         where.push(`DATE(${tableAlias}.sale_date) = CURDATE()`);
-    } else if (period === 'weekly' && !startDate && !endDate) {
+    } else if (period === 'weekly' && !effectiveStartDate && !effectiveEndDate) {
         where.push(`DATE(${tableAlias}.sale_date) >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)`);
-    } else if (period === 'monthly' && !startDate && !endDate) {
-        where.push(`YEAR(${tableAlias}.sale_date) = YEAR(CURDATE()) AND MONTH(${tableAlias}.sale_date) = MONTH(CURDATE())`);
+    } else if (period === 'monthly' && !effectiveStartDate && !effectiveEndDate) {
+        if (month) {
+            if (month.includes('-')) {
+                const parts = month.split('-');
+                where.push(`YEAR(${tableAlias}.sale_date) = ? AND MONTH(${tableAlias}.sale_date) = ?`);
+                params.push(parseInt(parts[0], 10), parseInt(parts[1], 10));
+            } else {
+                where.push(`YEAR(${tableAlias}.sale_date) = ? AND MONTH(${tableAlias}.sale_date) = ?`);
+                params.push(year ? parseInt(year, 10) : new Date().getFullYear(), parseInt(month, 10));
+            }
+        } else {
+            where.push(`YEAR(${tableAlias}.sale_date) = YEAR(CURDATE()) AND MONTH(${tableAlias}.sale_date) = MONTH(CURDATE())`);
+        }
     } else {
-        if (startDate) {
+        if (effectiveStartDate) {
             where.push(`DATE(${tableAlias}.sale_date) >= ?`);
-            params.push(startDate);
+            params.push(effectiveStartDate);
         }
 
-        if (endDate) {
+        if (effectiveEndDate) {
             where.push(`DATE(${tableAlias}.sale_date) <= ?`);
-            params.push(endDate);
+            params.push(effectiveEndDate);
         }
     }
 
-    if (req.user.role !== 'admin') {
+    if (req.user?.role !== 'admin') {
         where.push(`${tableAlias}.user_id = ?`);
         params.push(req.user.id);
     }
@@ -112,16 +126,48 @@ const combineWhere = (...groups) => {
 
 exports.getDailySales = async (req, res) => {
     try {
-        const { where, params } = buildDateAndUserFilters(req);
-        const dateFilter = where.length ? `AND ${where.join(' AND ')}` : '';
-        let query = `
-            SELECT CURDATE() as date, COALESCE(SUM(total_amount), 0) as total_revenue, COUNT(id) as total_transactions
-            FROM sales s WHERE DATE(sale_date) = CURDATE()
-            ${dateFilter}
+        const chosenDate = (req.query.date || req.query.startDate || '').trim();
+        const chosenEndDate = (req.query.endDate || '').trim();
+        const params = [];
+        let dateCondition = '';
+        let selectDate = '';
+
+        if (chosenDate && chosenEndDate && chosenDate !== chosenEndDate) {
+            selectDate = 'CONCAT(?, " to ", ?) as date';
+            params.push(chosenDate, chosenEndDate);
+            dateCondition = 'DATE(s.sale_date) >= ? AND DATE(s.sale_date) <= ?';
+            params.push(chosenDate, chosenEndDate);
+        } else if (chosenDate) {
+            selectDate = '? as date';
+            params.push(chosenDate);
+            dateCondition = 'DATE(s.sale_date) = ?';
+            params.push(chosenDate);
+        } else {
+            selectDate = 'CURDATE() as date';
+            dateCondition = 'DATE(s.sale_date) = CURDATE()';
+        }
+
+        let userCondition = '';
+        if (req.user?.role !== 'admin') {
+            userCondition = 'AND s.user_id = ?';
+            params.push(req.user.id);
+        }
+
+        const query = `
+            SELECT ${selectDate}, 
+                   COALESCE(SUM(s.total_amount), 0) as total_revenue, 
+                   COUNT(s.id) as total_transactions
+            FROM sales s 
+            WHERE ${dateCondition} ${userCondition}
         `;
 
         const [sales] = await db.query(query, params);
-        res.json(sales[0] || { date: new Date().toISOString().split('T')[0], total_revenue: 0, total_transactions: 0 });
+        const result = sales[0] || {};
+        res.json({
+            date: result.date || chosenDate || new Date().toISOString().split('T')[0],
+            total_revenue: Number(result.total_revenue) || 0,
+            total_transactions: Number(result.total_transactions) || 0
+        });
     } catch (err) {
         console.error('Error fetching daily sales:', err);
         res.status(500).json({ message: 'Error fetching daily sales' });
@@ -130,14 +176,72 @@ exports.getDailySales = async (req, res) => {
 
 exports.getMonthlySales = async (req, res) => {
     try {
-        const { where, params } = buildDateAndUserFilters(req);
-        const dateFilter = where.length ? `AND ${where.join(' AND ')}` : '';
-        const [sales] = await db.query(`
-            SELECT DATE_FORMAT(CURDATE(), '%Y-%m') as month, COALESCE(SUM(total_amount), 0) as total_revenue, COUNT(id) as total_transactions
-            FROM sales s WHERE YEAR(sale_date) = YEAR(CURDATE()) AND MONTH(sale_date) = MONTH(CURDATE())
-            ${dateFilter}
-        `, params);
-        res.json(sales[0] || { month: new Date().toISOString().slice(0, 7), total_revenue: 0, total_transactions: 0 });
+        const rawMonth = (req.query.month || '').trim();
+        const rawYear = (req.query.year || '').trim();
+        const rawDate = (req.query.date || req.query.startDate || '').trim();
+
+        let targetYear = null;
+        let targetMonth = null;
+        let displayMonth = null;
+
+        if (rawMonth) {
+            if (rawMonth.includes('-')) {
+                const parts = rawMonth.split('-');
+                targetYear = parseInt(parts[0], 10);
+                targetMonth = parseInt(parts[1], 10);
+            } else {
+                targetMonth = parseInt(rawMonth, 10);
+                targetYear = rawYear ? parseInt(rawYear, 10) : new Date().getFullYear();
+            }
+        } else if (rawDate) {
+            const parts = rawDate.split('-');
+            if (parts.length >= 2) {
+                targetYear = parseInt(parts[0], 10);
+                targetMonth = parseInt(parts[1], 10);
+            }
+        } else if (rawYear) {
+            targetYear = parseInt(rawYear, 10);
+            targetMonth = new Date().getMonth() + 1;
+        }
+
+        const params = [];
+        let dateCondition = '';
+        let selectMonth = '';
+
+        if (targetYear && targetMonth && !isNaN(targetYear) && !isNaN(targetMonth)) {
+            const formattedMonthStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}`;
+            selectMonth = '? as month';
+            params.push(formattedMonthStr);
+            dateCondition = 'YEAR(s.sale_date) = ? AND MONTH(s.sale_date) = ?';
+            params.push(targetYear, targetMonth);
+            displayMonth = formattedMonthStr;
+        } else {
+            selectMonth = "DATE_FORMAT(CURDATE(), '%Y-%m') as month";
+            dateCondition = 'YEAR(s.sale_date) = YEAR(CURDATE()) AND MONTH(s.sale_date) = MONTH(CURDATE())';
+            displayMonth = new Date().toISOString().slice(0, 7);
+        }
+
+        let userCondition = '';
+        if (req.user?.role !== 'admin') {
+            userCondition = 'AND s.user_id = ?';
+            params.push(req.user.id);
+        }
+
+        const query = `
+            SELECT ${selectMonth}, 
+                   COALESCE(SUM(s.total_amount), 0) as total_revenue, 
+                   COUNT(s.id) as total_transactions
+            FROM sales s 
+            WHERE ${dateCondition} ${userCondition}
+        `;
+
+        const [sales] = await db.query(query, params);
+        const result = sales[0] || {};
+        res.json({
+            month: result.month || displayMonth,
+            total_revenue: Number(result.total_revenue) || 0,
+            total_transactions: Number(result.total_transactions) || 0
+        });
     } catch (err) {
         console.error('Error fetching monthly sales:', err);
         res.status(500).json({ message: 'Error fetching monthly sales' });

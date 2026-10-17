@@ -279,7 +279,14 @@ CREATE TABLE inventory_transactions (
     INDEX idx_it_created (created_at),
     INDEX idx_it_ref (reference_type, reference_id),
     FOREIGN KEY (product_id) REFERENCES products(id),
-    FOREIGN KEY (created_by) REFERENCES users(id)
+    FOREIGN KEY (created_by) REFERENCES users(id),
+    CONSTRAINT chk_it_quantity_change_sign CHECK (
+        (transaction_type IN ('STOCK_OUT', 'SALE', 'DAMAGE', 'LOSS', 'RETURN_TO_SUPPLIER', 'ADJUSTMENT_SUB') AND quantity_change < 0)
+        OR
+        (transaction_type IN ('STOCK_IN', 'PURCHASE_RECEIPT', 'FOUND', 'RETURN', 'ADJUSTMENT_ADD') AND quantity_change > 0)
+        OR
+        (transaction_type = 'OPENING_BALANCE' AND quantity_change >= 0)
+    )
 );
 
 -- Sentinel table to block TRUNCATE via foreign key reference

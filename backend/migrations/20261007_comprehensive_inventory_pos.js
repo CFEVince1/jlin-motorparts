@@ -364,7 +364,14 @@ async function runMigration() {
                 INDEX idx_it_created (created_at),
                 INDEX idx_it_ref (reference_type, reference_id),
                 FOREIGN KEY (product_id) REFERENCES products(id),
-                FOREIGN KEY (created_by) REFERENCES users(id)
+                FOREIGN KEY (created_by) REFERENCES users(id),
+                CONSTRAINT chk_it_quantity_change_sign CHECK (
+                    (transaction_type IN ('STOCK_OUT', 'SALE', 'DAMAGE', 'LOSS', 'RETURN_TO_SUPPLIER', 'ADJUSTMENT_SUB') AND quantity_change < 0)
+                    OR
+                    (transaction_type IN ('STOCK_IN', 'PURCHASE_RECEIPT', 'FOUND', 'RETURN', 'ADJUSTMENT_ADD') AND quantity_change > 0)
+                    OR
+                    (transaction_type = 'OPENING_BALANCE' AND quantity_change >= 0)
+                )
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         `);
 
@@ -373,6 +380,21 @@ async function runMigration() {
         await ensureColumn('inventory_transactions', 'quantity_change', 'INT NOT NULL DEFAULT 0 AFTER quantity');
         await ensureColumn('inventory_transactions', 'loss_transaction_id', 'BIGINT DEFAULT NULL AFTER reference_id');
         await ensureColumn('inventory_transactions', 'remarks', 'TEXT DEFAULT NULL AFTER notes');
+
+        // Ensure CHECK constraint is enforced on existing tables
+        try {
+            await connection.query(`
+                ALTER TABLE inventory_transactions ADD CONSTRAINT chk_it_quantity_change_sign CHECK (
+                    (transaction_type IN ('STOCK_OUT', 'SALE', 'DAMAGE', 'LOSS', 'RETURN_TO_SUPPLIER', 'ADJUSTMENT_SUB') AND quantity_change < 0)
+                    OR
+                    (transaction_type IN ('STOCK_IN', 'PURCHASE_RECEIPT', 'FOUND', 'RETURN', 'ADJUSTMENT_ADD') AND quantity_change > 0)
+                    OR
+                    (transaction_type = 'OPENING_BALANCE' AND quantity_change >= 0)
+                )
+            `);
+        } catch (e) {
+            // Ignore if already exists
+        }
         console.log('   `inventory_transactions` table ready.');
 
         // Child lock table to strictly prevent TRUNCATE via foreign key reference

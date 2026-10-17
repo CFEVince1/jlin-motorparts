@@ -262,9 +262,31 @@ async function setupDatabase() {
                 INDEX idx_it_created (created_at),
                 INDEX idx_it_ref (reference_type, reference_id),
                 FOREIGN KEY (product_id) REFERENCES products(id),
-                FOREIGN KEY (created_by) REFERENCES users(id)
+                FOREIGN KEY (created_by) REFERENCES users(id),
+                CONSTRAINT chk_it_quantity_change_sign CHECK (
+                    (transaction_type IN ('STOCK_OUT', 'SALE', 'DAMAGE', 'LOSS', 'RETURN_TO_SUPPLIER', 'ADJUSTMENT_SUB') AND quantity_change < 0)
+                    OR
+                    (transaction_type IN ('STOCK_IN', 'PURCHASE_RECEIPT', 'FOUND', 'RETURN', 'ADJUSTMENT_ADD') AND quantity_change > 0)
+                    OR
+                    (transaction_type = 'OPENING_BALANCE' AND quantity_change >= 0)
+                )
             ) ENGINE=InnoDB;
         `);
+
+        // Ensure CHECK constraint exists even if table was already created
+        try {
+            await db.query(`
+                ALTER TABLE inventory_transactions ADD CONSTRAINT chk_it_quantity_change_sign CHECK (
+                    (transaction_type IN ('STOCK_OUT', 'SALE', 'DAMAGE', 'LOSS', 'RETURN_TO_SUPPLIER', 'ADJUSTMENT_SUB') AND quantity_change < 0)
+                    OR
+                    (transaction_type IN ('STOCK_IN', 'PURCHASE_RECEIPT', 'FOUND', 'RETURN', 'ADJUSTMENT_ADD') AND quantity_change > 0)
+                    OR
+                    (transaction_type = 'OPENING_BALANCE' AND quantity_change >= 0)
+                )
+            `);
+        } catch (e) {
+            // Ignore if already exists
+        }
 
         // 10. Stock Adjustments (Audit Log)
         await db.query(`
