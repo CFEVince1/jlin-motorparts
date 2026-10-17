@@ -263,6 +263,8 @@ exports.getCompatibilityOptions = async (req, res, next) => {
                 version = 'Standard';
             }
 
+            const resolvedVersion = version || row.year_model || 'Standard';
+
             if (!brandMap.has(brand)) {
                 brandMap.set(brand, new Map());
             }
@@ -272,12 +274,21 @@ exports.getCompatibilityOptions = async (req, res, next) => {
                 modelMap.set(baseModel, []);
             }
 
-            modelMap.get(baseModel).push({
-                id: row.id,
-                version: version || row.year_model || 'Standard',
-                model_name: row.model,
-                full_name: `${row.brand} ${row.model} ${row.year_model || ''}`.trim()
-            });
+            const existingVersions = modelMap.get(baseModel);
+            const isDuplicate = existingVersions.some(
+                v => v.version.toLowerCase() === resolvedVersion.toLowerCase()
+            );
+
+            // Deduplicate so duplicate version names (e.g. V1) never appear twice in dropdown
+            if (!isDuplicate) {
+                const formattedFullName = `${brand} ${baseModel} ${resolvedVersion !== 'Standard' ? resolvedVersion : ''}`.trim();
+                existingVersions.push({
+                    id: row.id,
+                    version: resolvedVersion,
+                    model_name: row.model,
+                    full_name: formattedFullName
+                });
+            }
         }
 
         const tree = [];
@@ -346,14 +357,32 @@ exports.searchCompatibility = async (req, res, next) => {
                 COALESCE(pc.compatibility_status, 'COMPATIBLE') AS compatibility_status,
                 COALESCE(pc.notes, 'COMPATIBLE') AS notes
             FROM products p
-            LEFT JOIN product_compatibilities pc ON pc.product_id = p.id AND pc.motorcycle_model_id = ?
+            LEFT JOIN product_compatibilities pc ON pc.product_id = p.id AND (
+                pc.motorcycle_model_id = ?
+                OR pc.motorcycle_model_id IN (
+                    SELECT mm2.id FROM motorcycle_models mm2
+                    JOIN motorcycle_models mm_target ON mm_target.id = ?
+                    WHERE mm2.brand = mm_target.brand
+                      AND (
+                          mm2.model = mm_target.model
+                          OR TRIM(REPLACE(mm2.model, COALESCE(mm2.year_model, ''), '')) = TRIM(REPLACE(mm_target.model, COALESCE(mm_target.year_model, ''), ''))
+                      )
+                      AND (
+                          (mm2.year_model IS NULL AND mm_target.year_model IS NULL)
+                          OR mm2.year_model = mm_target.year_model
+                      )
+                )
+            )
             LEFT JOIN (
                 SELECT DISTINCT pc_leg.product_id
                 FROM product_compatibility pc_leg
                 JOIN motorcycle_units mu ON pc_leg.motorcycle_unit_id = mu.id
                 JOIN motorcycle_models mm ON 
                     mm.brand = mu.brand
-                    AND mm.model = mu.model
+                    AND (
+                        mm.model = mu.model
+                        OR TRIM(REPLACE(mm.model, COALESCE(mm.year_model, ''), '')) = TRIM(REPLACE(mu.model, COALESCE(mu.year_model, ''), ''))
+                    )
                     AND (
                         (mm.year_model IS NULL AND mu.year_model IS NULL)
                         OR mm.year_model = mu.year_model
@@ -367,14 +396,17 @@ exports.searchCompatibility = async (req, res, next) => {
                 JOIN motorcycle_units mu ON cgu.motorcycle_unit_id = mu.id
                 JOIN motorcycle_models mm ON 
                     mm.brand = mu.brand
-                    AND mm.model = mu.model
+                    AND (
+                        mm.model = mu.model
+                        OR TRIM(REPLACE(mm.model, COALESCE(mm.year_model, ''), '')) = TRIM(REPLACE(mu.model, COALESCE(mu.year_model, ''), ''))
+                    )
                     AND (
                         (mm.year_model IS NULL AND mu.year_model IS NULL)
                         OR mm.year_model = mu.year_model
                     )
                 WHERE mm.id = ?
             ) group_match ON group_match.product_id = p.id
-            WHERE (pc.motorcycle_model_id = ? OR legacy_match.product_id IS NOT NULL OR group_match.product_id IS NOT NULL) 
+            WHERE (pc.id IS NOT NULL OR legacy_match.product_id IS NOT NULL OR group_match.product_id IS NOT NULL) 
               AND p.is_active = true
             ORDER BY p.name ASC
         `, [modelId, modelId, modelId, modelId]);

@@ -181,7 +181,9 @@ async function runTestSuite() {
         assert(!!yamahaBrand, 'Hierarchy includes Yamaha brand');
         const aeroxModel = yamahaBrand.models.find(m => m.model.includes('Aerox'));
         assert(!!aeroxModel && aeroxModel.versions.length >= 2, 'Hierarchy includes Aerox model with version nodes (V1 & V3)');
-        const v1Version = aeroxModel.versions.find(v => v.version === 'V1' || v.model_name.includes('V1'));
+        const v1Versions = aeroxModel.versions.filter(v => v.version === 'V1' || v.version.toLowerCase() === 'v1');
+        assert(v1Versions.length === 1, 'Version V1 appears exactly once in the dropdown hierarchy (no duplicate V1s)');
+        const v1Version = v1Versions[0];
         assert(!!v1Version && typeof v1Version.id === 'number', 'Version node includes database ID');
 
         // Compatibility Search
@@ -1161,6 +1163,39 @@ async function runTestSuite() {
         assert(lossLedgerRows[0].quantity_change === -8, 'LOSS ledger quantity_change is -8');
         assert(lossLedgerRows[0].balance_after === 0, 'LOSS ledger balance_after is 0');
         assert(lossLedgerRows[0].reference_type === 'PRODUCT_DELETION', 'LOSS ledger reference_type is PRODUCT_DELETION');
+
+        // ----------------------------------------------------
+        // [TEST 15] Seed Supplier Contact Integrity & Aerox Model Deduplication
+        // ----------------------------------------------------
+        console.log('\n[TEST 15] Seed Supplier Contact Integrity & Aerox Model Deduplication');
+
+        // 15a. Static check: setup_aiven_db.js does not seed fabricated supplier details
+        const setupAivenContent = fs.readFileSync(path.join(__dirname, 'scripts/setup_aiven_db.js'), 'utf8');
+        assert(!setupAivenContent.includes('Carlos Mendoza'), 'setup_aiven_db.js does not seed fabricated contact person Carlos Mendoza');
+        assert(!setupAivenContent.includes('sales@yamaha-motor.com.ph'), 'setup_aiven_db.js does not seed fabricated supplier email');
+        assert(!setupAivenContent.includes('0917-555-1234'), 'setup_aiven_db.js does not seed fabricated supplier phone number');
+        assert(!setupAivenContent.includes("('Yamaha', 'Aerox 155', 'V1')"), 'setup_aiven_db.js does not insert un-suffixed Aerox 155 with V1');
+        assert(setupAivenContent.includes("('Yamaha', 'Aerox 155 V1', 'V1')"), 'setup_aiven_db.js aligns with defense seed using Aerox 155 V1');
+
+        // 15b. Database check: Verify seeded suppliers have NULL contact info
+        const [seededSuppliers] = await db.query(
+            "SELECT name, contact_person, email, phone FROM suppliers WHERE name = 'Yamaha Motor Philippines'"
+        );
+        assert(seededSuppliers.length > 0, 'Yamaha Motor Philippines supplier exists');
+        assert(seededSuppliers[0].contact_person === null, 'Seeded supplier contact_person is null (names only)');
+        assert(seededSuppliers[0].email === null, 'Seeded supplier email is null (no fabricated email)');
+        assert(seededSuppliers[0].phone === null, 'Seeded supplier phone is null (no fabricated phone)');
+
+        // 15c. Compatibility dropdown tree: Aerox 155 has exactly 1 V1 entry and clean full_name
+        let treeRes = null;
+        await compatibilityController.getCompatibilityOptions({}, { json: (d) => { treeRes = d; } }, (e) => { throw e; });
+        const yamahaEntry = treeRes.find(b => b.brand === 'Yamaha');
+        assert(!!yamahaEntry, 'Yamaha brand found in compatibility tree');
+        const aeroxTreeModel = yamahaEntry.models.find(m => m.model === 'Aerox 155');
+        assert(!!aeroxTreeModel, 'Aerox 155 model found under Yamaha');
+        const aeroxV1s = aeroxTreeModel.versions.filter(v => v.version === 'V1' || v.version.toLowerCase() === 'v1');
+        assert(aeroxV1s.length === 1, 'Aerox 155 has exactly one V1 version node');
+        assert(aeroxV1s[0].full_name === 'Yamaha Aerox 155 V1', 'Aerox 155 V1 full_name is clean without duplicate version suffixes');
 
         // Cleanup
         await db.query('UPDATE products SET is_active = FALSE WHERE id = ?', [compatProdId]);

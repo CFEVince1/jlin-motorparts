@@ -114,10 +114,11 @@ async function seed(knex) {
         console.log('\n2. Seeding target motorcycle models: Yamaha Aerox 155 V1 and Yamaha Aerox 155 V3...');
         
         async function getOrCreateModel(brand, model, yearModel) {
-            // Check motorcycle_models
+            const baseModel = model.replace(/\s+V\d+$/i, '');
+            // Check motorcycle_models for exact or base model with matching year
             const [existing] = await connection.query(
-                `SELECT id FROM motorcycle_models WHERE brand = ? AND model = ? AND (year_model = ? OR year_model IS NULL) LIMIT 1`,
-                [brand, model, yearModel]
+                `SELECT id FROM motorcycle_models WHERE brand = ? AND (model = ? OR model = ?) AND (year_model = ? OR year_model IS NULL) ORDER BY (model = ?) DESC LIMIT 1`,
+                [brand, model, baseModel, yearModel, model]
             );
             if (existing.length > 0) {
                 return existing[0].id;
@@ -130,9 +131,10 @@ async function seed(knex) {
         }
 
         async function ensureLegacyUnit(brand, model, yearModel) {
+            const baseModel = model.replace(/\s+V\d+$/i, '');
             const [existing] = await connection.query(
-                `SELECT id FROM motorcycle_units WHERE brand = ? AND model = ? LIMIT 1`,
-                [brand, model]
+                `SELECT id FROM motorcycle_units WHERE brand = ? AND (model = ? OR model = ?) AND (year_model = ? OR year_model IS NULL) ORDER BY (model = ?) DESC LIMIT 1`,
+                [brand, model, baseModel, yearModel, model]
             );
             if (existing.length > 0) {
                 return existing[0].id;

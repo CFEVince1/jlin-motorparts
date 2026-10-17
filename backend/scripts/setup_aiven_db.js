@@ -323,14 +323,14 @@ async function setupDatabase() {
             console.log('[Setup] Default users created: admin/admin123 and staff/staff123');
         }
 
-        // Seed Suppliers if empty
+        // Seed Suppliers if empty (Names only, no fabricated contact details)
         const [existingSuppliers] = await db.query('SELECT COUNT(*) as count FROM suppliers');
         if (existingSuppliers[0].count === 0) {
-            console.log('[Setup] Seeding initial suppliers...');
+            console.log('[Setup] Seeding initial suppliers (names only, no fabricated contact details)...');
             await db.query(`
                 INSERT INTO suppliers (name, contact_person, email, phone, address, is_active) VALUES
-                ('Yamaha Motor Philippines', 'Carlos Mendoza', 'sales@yamaha-motor.com.ph', '0917-555-1234', 'Batangas', 1),
-                ('Suzuki Philippines Inc.', 'Maria Santos', 'parts@suzuki.com.ph', '0918-444-5678', 'Laguna', 1)
+                ('Yamaha Motor Philippines', NULL, NULL, NULL, NULL, 1),
+                ('Suzuki Philippines Inc.', NULL, NULL, NULL, NULL, 1)
             `);
         }
 
@@ -340,7 +340,8 @@ async function setupDatabase() {
             console.log('[Setup] Seeding motorcycle units...');
             await db.query(`
                 INSERT INTO motorcycle_units (brand, model, year_model) VALUES
-                ('Yamaha', 'Aerox 155', 'V1'),
+                ('Yamaha', 'Aerox 155 V1', 'V1'),
+                ('Yamaha', 'Aerox 155 V3', 'V3'),
                 ('Yamaha', 'Mio i125', '2023'),
                 ('Suzuki', 'Raider 150', '2022 FI'),
                 ('Honda', 'Click 125', '2023')
