@@ -5,6 +5,18 @@ const fs = require('fs');
 const EDGE_PATH = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 const SCREENSHOT_DIR = path.join(__dirname, '..', 'screenshots');
 
+// DEV-ONLY SAFETY GUARD: Ensure capture scripts never point to a remote/production URL
+const targetUrl = process.env.BASE_URL || 'http://localhost:5173';
+const parsedUrl = new URL(targetUrl);
+if (parsedUrl.hostname !== 'localhost' && parsedUrl.hostname !== '127.0.0.1') {
+  console.error('================================================================');
+  console.error('⛔ REFUSAL: capture_screenshots.js is a local dev-only visual capture script.');
+  console.error(`Target host "${parsedUrl.hostname}" is not localhost / 127.0.0.1.`);
+  console.error('This script hardcodes local dev credentials and must never point at production.');
+  console.error('================================================================');
+  process.exit(1);
+}
+
 async function captureAllModules() {
   console.log('Launching Edge browser...');
   const browser = await puppeteer.launch({
