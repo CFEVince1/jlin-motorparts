@@ -212,7 +212,7 @@ const Transactions = () => {
                                     <th>Receipt #</th>
                                     <th>Date & Time</th>
                                     <th>Cashier</th>
-                                    <th>Parts</th>
+                                    <th>Part Number</th>
                                     <th>Products</th>
                                     <th>Payment Method</th>
                                     <th className="text-right">Total Amount</th>
@@ -230,7 +230,35 @@ const Transactions = () => {
                                             <td style={{ fontWeight: 'bold', color: 'var(--primary)' }}>#{t.id}</td>
                                             <td>{formatAuditDate(t.sale_date)}</td>
                                             <td style={{ textTransform: 'capitalize' }}>{t.cashier}</td>
-                                            <td>{t.part_numbers || '-'}</td>
+                                            <td>
+                                                {t.part_numbers || t.part_number ? (
+                                                    (t.part_numbers || t.part_number).split(',').map((pn, i) => {
+                                                        const clean = pn.trim();
+                                                        if (!clean) return null;
+                                                        return (
+                                                            <span
+                                                                key={i}
+                                                                style={{
+                                                                    display: 'inline-block',
+                                                                    padding: '2px 6px',
+                                                                    margin: '2px 4px 2px 0',
+                                                                    borderRadius: '4px',
+                                                                    background: 'var(--surface-hover)',
+                                                                    border: '1px solid var(--border)',
+                                                                    fontFamily: 'monospace',
+                                                                    fontSize: '0.78rem',
+                                                                    fontWeight: '600',
+                                                                    color: 'var(--text-main)'
+                                                                }}
+                                                            >
+                                                                {clean}
+                                                            </span>
+                                                        );
+                                                    })
+                                                ) : (
+                                                    <span style={{ color: 'var(--text-muted)' }}>-</span>
+                                                )}
+                                            </td>
                                             <td>
                                                 <div>{t.products_included || '-'}</div>
                                                 {t.compatibility_display && (

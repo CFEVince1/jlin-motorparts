@@ -368,7 +368,7 @@ export default function PrintTransactionsReportModal({
                     <th style={{ padding: '6px 4px', textAlign: 'left', width: '90px' }}>Receipt #</th>
                     <th style={{ padding: '6px 4px', textAlign: 'left', width: '120px' }}>Date & Time</th>
                     <th style={{ padding: '6px 4px', textAlign: 'left', width: '80px' }}>Cashier</th>
-                    <th style={{ padding: '6px 4px', textAlign: 'left', width: '100px' }}>Parts</th>
+                    <th style={{ padding: '6px 4px', textAlign: 'left', width: '110px' }}>Part Number</th>
                     <th style={{ padding: '6px 4px', textAlign: 'left' }}>Products Included</th>
                     <th style={{ padding: '6px 4px', textAlign: 'center', width: '75px' }}>Payment</th>
                     <th style={{ padding: '6px 4px', textAlign: 'right', width: '85px' }}>Total Amount</th>
@@ -400,8 +400,8 @@ export default function PrintTransactionsReportModal({
                         <td style={{ padding: '5px 4px', textTransform: 'capitalize' }}>
                           {t.cashier || '-'}
                         </td>
-                        <td style={{ padding: '5px 4px', fontSize: '9px', color: '#444' }}>
-                          {t.part_numbers || '-'}
+                        <td style={{ padding: '5px 4px', fontSize: '9px', color: '#111', fontFamily: 'monospace' }}>
+                          {t.part_numbers || t.part_number || '-'}
                         </td>
                         <td style={{ padding: '5px 4px' }}>
                           <div>{t.products_included || '-'}</div>
@@ -540,7 +540,7 @@ export default function PrintTransactionsReportModal({
               <th style={{ padding: '5px 4px', textAlign: 'left', width: '85px' }}>Receipt #</th>
               <th style={{ padding: '5px 4px', textAlign: 'left', width: '110px' }}>Date & Time</th>
               <th style={{ padding: '5px 4px', textAlign: 'left', width: '75px' }}>Cashier</th>
-              <th style={{ padding: '5px 4px', textAlign: 'left', width: '95px' }}>Parts</th>
+              <th style={{ padding: '5px 4px', textAlign: 'left', width: '105px' }}>Part Number</th>
               <th style={{ padding: '5px 4px', textAlign: 'left' }}>Products Included</th>
               <th style={{ padding: '5px 4px', textAlign: 'center', width: '70px' }}>Payment</th>
               <th style={{ padding: '5px 4px', textAlign: 'right', width: '85px' }}>Total Amount</th>
@@ -560,7 +560,7 @@ export default function PrintTransactionsReportModal({
                   <td style={{ padding: '4px', fontWeight: 'bold' }}>{t.order_number || `#${t.id}`}</td>
                   <td style={{ padding: '4px', whiteSpace: 'nowrap' }}>{formatAuditDate(t.sale_date)}</td>
                   <td style={{ padding: '4px', textTransform: 'capitalize' }}>{t.cashier || '-'}</td>
-                  <td style={{ padding: '4px', fontSize: '8.5px', color: '#444' }}>{t.part_numbers || '-'}</td>
+                  <td style={{ padding: '4px', fontSize: '8.5px', color: '#111', fontFamily: 'monospace' }}>{t.part_numbers || t.part_number || '-'}</td>
                   <td style={{ padding: '4px' }}>
                     <div>{t.products_included || '-'}</div>
                     {t.compatibility_display && (

@@ -440,7 +440,8 @@ exports.getSales = async (req, res, next) => {
                    s.total_amount, s.tendered_amount, s.change_due, s.payment_method,
                    s.payment_reference, s.sale_date, u.username as cashier,
                    GROUP_CONCAT(DISTINCT si.product_name ORDER BY si.product_name SEPARATOR ', ') as products_included,
-                   GROUP_CONCAT(DISTINCT si.part_number ORDER BY si.part_number SEPARATOR ', ') as part_numbers,
+                   GROUP_CONCAT(DISTINCT COALESCE(NULLIF(si.part_number, ''), p.part_number, p.sku) ORDER BY si.part_number SEPARATOR ', ') as part_numbers,
+                   GROUP_CONCAT(DISTINCT COALESCE(NULLIF(si.part_number, ''), p.part_number, p.sku) ORDER BY si.part_number SEPARATOR ', ') as part_number,
                    GROUP_CONCAT(DISTINCT si.brand ORDER BY si.brand SEPARATOR ', ') as brands,
                    GROUP_CONCAT(DISTINCT si.size ORDER BY si.size SEPARATOR ', ') as sizes
             FROM (
@@ -453,6 +454,7 @@ exports.getSales = async (req, res, next) => {
             ) s
             JOIN users u ON s.user_id = u.id
             LEFT JOIN sale_items si ON s.id = si.sale_id
+            LEFT JOIN products p ON p.id = si.product_id
             GROUP BY s.id, s.order_number, s.total_amount, s.tendered_amount, s.change_due, s.payment_method, s.payment_reference, s.sale_date, u.username
             ORDER BY s.sale_date DESC, s.id DESC
         `;
