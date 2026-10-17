@@ -15,6 +15,11 @@ router.get('/', inventoryController.getInventory);
 router.post('/receive', adminOnly, inventoryController.receiveStock);
 router.post('/adjustments', adminOnly, inventoryController.recordAdjustment);
 
+// Stock receiving audit log & history
+router.get('/receiving-history', inventoryController.getReceivingHistory);
+router.get('/receiving-records', inventoryController.getReceivingHistory);
+router.get('/receive/history', inventoryController.getReceivingHistory);
+
 // Audit & loss recovery
 router.get('/items/:id/open-losses', inventoryController.getOpenLosses);
 router.get('/items/:id/ledger', inventoryController.getItemLedger);

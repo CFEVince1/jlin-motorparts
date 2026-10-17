@@ -528,3 +528,148 @@ exports.getItemLedger = async (req, res, next) => {
         next(err);
     }
 };
+
+/**
+ * GET /api/inventory/receiving-history (and /api/inventory/receiving-records)
+ * Returns history of stock deliveries received from suppliers, including line items.
+ */
+exports.getReceivingHistory = async (req, res, next) => {
+    try {
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.max(1, Math.min(200, parseInt(req.query.limit, 10) || 20));
+        const offset = (page - 1) * limit;
+
+        const whereClauses = [];
+        const whereParams = [];
+
+        if (req.query.supplierId || req.query.supplier_id) {
+            whereClauses.push('rr.supplier_id = ?');
+            whereParams.push(Number(req.query.supplierId || req.query.supplier_id));
+        }
+
+        if (req.query.startDate) {
+            whereClauses.push('DATE(rr.received_at) >= ?');
+            whereParams.push(req.query.startDate);
+        }
+
+        if (req.query.endDate) {
+            whereClauses.push('DATE(rr.received_at) <= ?');
+            whereParams.push(req.query.endDate);
+        }
+
+        if (req.query.search && req.query.search.trim()) {
+            const rawSearch = req.query.search.trim();
+            const pattern = `%${rawSearch}%`;
+            whereClauses.push(`(
+                rr.reference_number LIKE ? 
+                OR rr.reference_no LIKE ? 
+                OR s.name LIKE ? 
+                OR rr.notes LIKE ?
+                OR EXISTS (
+                    SELECT 1 FROM receiving_record_items rri_s
+                    JOIN products p_s ON p_s.id = rri_s.product_id
+                    WHERE rri_s.receiving_record_id = rr.id
+                    AND (p_s.name LIKE ? OR p_s.part_number LIKE ? OR p_s.brand LIKE ?)
+                )
+            )`);
+            whereParams.push(pattern, pattern, pattern, pattern, pattern, pattern, pattern);
+        }
+
+        const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+        // Total count of receiving records
+        const [countRows] = await db.query(
+            `SELECT COUNT(*) AS total FROM receiving_records rr JOIN suppliers s ON s.id = rr.supplier_id ${whereSQL}`,
+            whereParams
+        );
+        const total = countRows[0]?.total || 0;
+
+        // Overall summary totals
+        const [summaryRows] = await db.query(`
+            SELECT 
+                COUNT(DISTINCT rr.id) AS total_batches,
+                COALESCE(SUM(rri.quantity), 0) AS total_units_received,
+                COALESCE(SUM(rri.subtotal), 0) AS total_received_value
+            FROM receiving_records rr
+            JOIN suppliers s ON s.id = rr.supplier_id
+            LEFT JOIN receiving_record_items rri ON rri.receiving_record_id = rr.id
+            ${whereSQL}
+        `, whereParams);
+
+        // Fetch paginated receiving batches
+        const [records] = await db.query(`
+            SELECT 
+                rr.id,
+                COALESCE(rr.reference_no, rr.reference_number) AS reference_no,
+                rr.reference_number,
+                rr.supplier_id,
+                s.name AS supplier_name,
+                rr.received_by,
+                u.username AS received_by_username,
+                rr.total_cost,
+                rr.status,
+                rr.notes,
+                rr.received_at,
+                rr.created_at,
+                COUNT(rri.id) AS items_count,
+                COALESCE(SUM(rri.quantity), 0) AS total_quantity
+            FROM receiving_records rr
+            JOIN suppliers s ON s.id = rr.supplier_id
+            LEFT JOIN users u ON u.id = rr.received_by
+            LEFT JOIN receiving_record_items rri ON rri.receiving_record_id = rr.id
+            ${whereSQL}
+            GROUP BY rr.id
+            ORDER BY rr.received_at DESC, rr.id DESC
+            LIMIT ? OFFSET ?
+        `, [...whereParams, limit, offset]);
+
+        if (records.length > 0) {
+            const recordIds = records.map(r => r.id);
+            const [items] = await db.query(`
+                SELECT 
+                    rri.id,
+                    rri.receiving_record_id,
+                    rri.product_id,
+                    p.part_number,
+                    p.name AS product_name,
+                    p.brand,
+                    p.size,
+                    rri.quantity,
+                    rri.cost_price,
+                    rri.subtotal
+                FROM receiving_record_items rri
+                JOIN products p ON p.id = rri.product_id
+                WHERE rri.receiving_record_id IN (?)
+                ORDER BY rri.id ASC
+            `, [recordIds]);
+
+            const itemsByRecordId = {};
+            for (const item of items) {
+                if (!itemsByRecordId[item.receiving_record_id]) {
+                    itemsByRecordId[item.receiving_record_id] = [];
+                }
+                itemsByRecordId[item.receiving_record_id].push(item);
+            }
+
+            for (const rec of records) {
+                rec.items = itemsByRecordId[rec.id] || [];
+                rec.items_summary = rec.items.map(it => `${it.product_name} (x${it.quantity})`).join(', ');
+            }
+        }
+
+        res.json({
+            data: records,
+            records,
+            summary: summaryRows[0] || { total_batches: 0, total_units_received: 0, total_received_value: 0 },
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
+        });
+
+    } catch (err) {
+        next(err);
+    }
+};
