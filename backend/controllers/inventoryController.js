@@ -243,6 +243,14 @@ exports.recordAdjustment = async (req, res, next) => {
     const resolvedLossRef = (loss_reference_no || loss_reference || lossReferenceNo || '').trim();
     const qty = Number(quantity);
     const userId = req.user?.id || null;
+    const userRole = req.user?.role;
+
+    // Enforce administrator role check to prevent unauthorized write-offs
+    if (userRole !== 'admin') {
+        return res.status(403).json({
+            message: 'Forbidden: Stock adjustments require administrator authorization'
+        });
+    }
 
     // Validate reference number and remarks
     if (!resolvedRef) {

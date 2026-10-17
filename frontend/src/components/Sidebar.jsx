@@ -36,8 +36,8 @@ const Sidebar = () => {
         setTheme(prev => prev === 'dark' ? 'light' : 'dark');
     };
 
-    const handleLogout = () => {
-        logout();
+    const handleLogout = async () => {
+        await logout();
         navigate('/login');
     };
 

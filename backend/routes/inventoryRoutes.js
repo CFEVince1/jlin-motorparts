@@ -11,9 +11,9 @@ const adminOnly = roleMiddleware(['admin']);
 // Core inventory listing
 router.get('/', inventoryController.getInventory);
 
-// Stock receiving & adjustments (Staff & Admin can record adjustments)
+// Stock receiving & adjustments (Restricted to Administrators to prevent unauthorized write-offs)
 router.post('/receive', adminOnly, inventoryController.receiveStock);
-router.post('/adjustments', inventoryController.recordAdjustment);
+router.post('/adjustments', adminOnly, inventoryController.recordAdjustment);
 
 // Audit & loss recovery
 router.get('/items/:id/open-losses', inventoryController.getOpenLosses);

@@ -711,6 +711,95 @@ async function runTestSuite() {
         const compatCtrlContent = fs.readFileSync(path.join(__dirname, 'controllers/compatibilityController.js'), 'utf8');
         assert(!compatCtrlContent.includes('error: err.message'), 'compatibilityController does not expose error: err.message');
 
+        // ----------------------------------------------------
+        // [TEST 12] Logout Token Revocation & Stock Write-Off Role Guard
+        // ----------------------------------------------------
+        console.log('\n[TEST 12] Logout Token Revocation & Stock Write-Off Role Guard');
+        const authController = require('./controllers/authController');
+        const { authenticateToken } = require('./middleware/auth');
+
+        // 12a. Fetch test staff user
+        const [staffUsers] = await db.query("SELECT id, username, role, token_version FROM users WHERE role = 'staff' LIMIT 1");
+        if (staffUsers.length > 0) {
+            const staffUser = staffUsers[0];
+            const initialVersion = staffUser.token_version || 1;
+
+            // Generate token with initialVersion
+            const testToken = jwt.sign(
+                { id: staffUser.id, username: staffUser.username, role: staffUser.role, tokenVersion: initialVersion },
+                process.env.JWT_SECRET,
+                { expiresIn: '1d' }
+            );
+
+            // Verify initial token works with authenticateToken
+            let authBeforeLogoutStatus = 200;
+            const mockReqBefore = {
+                header: (name) => name === 'Authorization' ? `Bearer ${testToken}` : null
+            };
+            const mockResBefore = {
+                status: (code) => { authBeforeLogoutStatus = code; return mockResBefore; },
+                json: () => mockResBefore
+            };
+            await authenticateToken(mockReqBefore, mockResBefore, () => {});
+            assert(authBeforeLogoutStatus === 200, 'Staff token valid before logout');
+
+            // Call logout
+            let logoutStatus = null;
+            let logoutJson = null;
+            const mockReqLogout = {
+                header: (name) => name === 'Authorization' ? `Bearer ${testToken}` : null,
+                user: { id: staffUser.id }
+            };
+            const mockResLogout = {
+                status: (code) => { logoutStatus = code; return mockResLogout; },
+                json: (data) => { logoutJson = data; return mockResLogout; }
+            };
+            await authController.logout(mockReqLogout, mockResLogout);
+
+            const [updatedStaffRows] = await db.query('SELECT token_version FROM users WHERE id = ?', [staffUser.id]);
+            const newVersion = updatedStaffRows[0].token_version;
+            assert(newVersion === initialVersion + 1, 'Logout successfully increments token_version in database');
+
+            // Verify the old token is now strictly revoked
+            let authAfterLogoutStatus = null;
+            let authAfterLogoutJson = null;
+            const mockReqAfter = {
+                header: (name) => name === 'Authorization' ? `Bearer ${testToken}` : null
+            };
+            const mockResAfter = {
+                status: (code) => { authAfterLogoutStatus = code; return mockResAfter; },
+                json: (data) => { authAfterLogoutJson = data; return mockResAfter; }
+            };
+            await authenticateToken(mockReqAfter, mockResAfter, () => {});
+            assert(authAfterLogoutStatus === 401, 'Old token is rejected with 401 after logout');
+            assert(authAfterLogoutJson?.message?.includes('revoked') || authAfterLogoutJson?.message?.includes('invalidated'), 'Rejection message indicates session was revoked');
+
+            // 12b. Verify staff cannot write off stock via /api/inventory/adjustments
+            let staffAdjustStatus = null;
+            let staffAdjustJson = null;
+            const mockReqStaffAdj = {
+                user: { id: staffUser.id, role: 'staff' },
+                body: {
+                    item_id: 1,
+                    transaction_type: 'DAMAGE',
+                    quantity: 1,
+                    reference_no: 'UNAUTHORIZED-DAMAGE',
+                    remarks: 'Staff attempt to write off stock'
+                }
+            };
+            const mockResStaffAdj = {
+                status: (code) => { staffAdjustStatus = code; return mockResStaffAdj; },
+                json: (data) => { staffAdjustJson = data; return mockResStaffAdj; }
+            };
+            await inventoryController.recordAdjustment(mockReqStaffAdj, mockResStaffAdj, () => {});
+            assert(staffAdjustStatus === 403, 'Staff account writing off stock is blocked with 403 Forbidden');
+            assert(staffAdjustJson?.message?.includes('Forbidden'), 'Rejection message clearly indicates administrator authorization required');
+
+            // Verify inventoryRoutes has adminOnly on /adjustments
+            const invRoutesContent = fs.readFileSync(path.join(__dirname, 'routes/inventoryRoutes.js'), 'utf8');
+            assert(invRoutesContent.includes("router.post('/adjustments', adminOnly,"), 'inventoryRoutes strictly enforces adminOnly middleware on /adjustments');
+        }
+
         // Cleanup
         await db.query('UPDATE products SET is_active = FALSE WHERE id = ?', [compatProdId]);
 

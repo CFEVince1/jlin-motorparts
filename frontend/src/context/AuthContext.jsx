@@ -70,9 +70,15 @@ export const AuthProvider = ({ children }) => {
         return res.data;
     };
 
-    const logout = () => {
-        localStorage.removeItem('token');
-        setUser(null);
+    const logout = async () => {
+        try {
+            await api.post('/auth/logout');
+        } catch (err) {
+            console.warn('Backend logout notification failed or session already invalid:', err.message);
+        } finally {
+            localStorage.removeItem('token');
+            setUser(null);
+        }
     };
 
     return (

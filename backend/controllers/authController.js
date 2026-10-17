@@ -49,9 +49,36 @@ exports.login = async (req, res) => {
     }
 };
 
-exports.logout = (req, res) => {
-    // Client handles token deletion, simply return success
-    res.json({ message: 'Logged out successfully' });
+exports.logout = async (req, res) => {
+    try {
+        let userId = req.user?.id;
+
+        if (!userId) {
+            const authHeader = req.header('Authorization');
+            const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+            if (token) {
+                try {
+                    // Cryptographically verify signature using server secret (ignoring expiration so expiring tokens can still revoke)
+                    const decoded = jwt.verify(token, process.env.JWT_SECRET, { ignoreExpiration: true });
+                    if (decoded && decoded.id) {
+                        userId = decoded.id;
+                    }
+                } catch (e) {
+                    console.warn('[Auth Logout] Invalid token signature on logout attempt');
+                }
+            }
+        }
+
+        if (userId) {
+            await db.query('UPDATE users SET token_version = token_version + 1 WHERE id = ?', [userId]);
+            console.log(`[Auth] User ${userId} logged out. Token version incremented.`);
+        }
+
+        res.json({ message: 'Logged out successfully' });
+    } catch (error) {
+        console.error('Logout error:', error);
+        res.status(500).json({ message: 'Server error during logout' });
+    }
 };
 
 exports.verify = (req, res) => {
