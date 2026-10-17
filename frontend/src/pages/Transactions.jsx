@@ -30,9 +30,10 @@ const Transactions = () => {
         const normalizedQuery = normalizeSearchText(debouncedQuery);
         return items.map((transaction, index) => {
             const snapshotMatch = getProductSnapshotMatch(transaction, normalizedQuery);
-            const receiptMatch = String(transaction.id).includes(normalizedQuery);
+            const orderMatch = String(transaction.id).includes(normalizedQuery) ||
+                normalizeSearchText(transaction.order_number).includes(normalizedQuery);
             const cashierMatch = normalizeSearchText(transaction.cashier).includes(normalizedQuery);
-            const rank = receiptMatch || cashierMatch ? 6 : snapshotMatch.rank;
+            const rank = orderMatch || cashierMatch ? 6 : snapshotMatch.rank;
 
             return {
                 transaction,
@@ -183,7 +184,7 @@ const Transactions = () => {
             <div className="no-print" style={{ display: 'flex', gap: '10px', marginBottom: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <div style={{ position: 'relative', flex: '1 1 280px' }}>
                     <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                    <input type="text" placeholder="Search receipt, part number, motorcycle, product, brand, or size..." className="input-premium" style={{ paddingLeft: '36px', width: '100%' }} value={searchQuery} onChange={handleSearchChange} />
+                    <input type="text" placeholder="Search order #, part number, motorcycle, product, brand, or size..." className="input-premium" style={{ paddingLeft: '36px', width: '100%' }} value={searchQuery} onChange={handleSearchChange} />
                 </div>
                 <div style={{ position: 'relative', flex: '0 0 auto' }}>
                     <Calendar size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
@@ -209,7 +210,7 @@ const Transactions = () => {
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Receipt #</th>
+                                    <th>Order No.</th>
                                     <th>Date & Time</th>
                                     <th>Cashier</th>
                                     <th>Part Number</th>
@@ -227,7 +228,9 @@ const Transactions = () => {
                                 ) : (
                                     filteredTransactions.map(t => (
                                         <tr key={t.id}>
-                                            <td style={{ fontWeight: 'bold', color: 'var(--primary)' }}>#{t.id}</td>
+                                            <td style={{ fontWeight: 'bold', color: 'var(--primary)', fontFamily: 'monospace' }}>
+                                                {t.order_number || `SO-${t.id}`}
+                                            </td>
                                             <td>{formatAuditDate(t.sale_date)}</td>
                                             <td style={{ textTransform: 'capitalize' }}>{t.cashier}</td>
                                             <td>

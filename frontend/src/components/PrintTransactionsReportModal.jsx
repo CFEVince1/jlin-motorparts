@@ -365,8 +365,8 @@ export default function PrintTransactionsReportModal({
                 <thead>
                   <tr style={{ background: '#f2f2f2', borderBottom: '1.5px solid #000' }}>
                     <th style={{ padding: '6px 4px', textAlign: 'left', width: '30px' }}>#</th>
-                    <th style={{ padding: '6px 4px', textAlign: 'left', width: '90px' }}>Receipt #</th>
-                    <th style={{ padding: '6px 4px', textAlign: 'left', width: '120px' }}>Date & Time</th>
+                    <th style={{ padding: '6px 4px', textAlign: 'left', width: '100px' }}>Order No.</th>
+                    <th style={{ padding: '6px 4px', textAlign: 'left', width: '115px' }}>Date & Time</th>
                     <th style={{ padding: '6px 4px', textAlign: 'left', width: '80px' }}>Cashier</th>
                     <th style={{ padding: '6px 4px', textAlign: 'left', width: '110px' }}>Part Number</th>
                     <th style={{ padding: '6px 4px', textAlign: 'left' }}>Products Included</th>
@@ -392,7 +392,7 @@ export default function PrintTransactionsReportModal({
                       <tr key={t.id || index} style={{ borderBottom: '1px solid #e5e5e5' }}>
                         <td style={{ padding: '5px 4px', color: '#666' }}>{index + 1}</td>
                         <td style={{ padding: '5px 4px', fontWeight: 'bold' }}>
-                          {t.order_number || `#${t.id}`}
+                          {t.order_number || `SO-${t.id}`}
                         </td>
                         <td style={{ padding: '5px 4px', whiteSpace: 'nowrap' }}>
                           {formatAuditDate(t.sale_date)}
@@ -537,8 +537,8 @@ export default function PrintTransactionsReportModal({
           <thead>
             <tr style={{ borderBottom: '1.5px solid #000000', background: '#f2f2f2' }}>
               <th style={{ padding: '5px 4px', textAlign: 'left', width: '28px' }}>#</th>
-              <th style={{ padding: '5px 4px', textAlign: 'left', width: '85px' }}>Receipt #</th>
-              <th style={{ padding: '5px 4px', textAlign: 'left', width: '110px' }}>Date & Time</th>
+              <th style={{ padding: '5px 4px', textAlign: 'left', width: '95px' }}>Order No.</th>
+              <th style={{ padding: '5px 4px', textAlign: 'left', width: '105px' }}>Date & Time</th>
               <th style={{ padding: '5px 4px', textAlign: 'left', width: '75px' }}>Cashier</th>
               <th style={{ padding: '5px 4px', textAlign: 'left', width: '105px' }}>Part Number</th>
               <th style={{ padding: '5px 4px', textAlign: 'left' }}>Products Included</th>
@@ -557,7 +557,7 @@ export default function PrintTransactionsReportModal({
               reportTransactions.map((t, index) => (
                 <tr key={t.id || index} style={{ borderBottom: '1px solid #dddddd' }}>
                   <td style={{ padding: '4px', color: '#555555' }}>{index + 1}</td>
-                  <td style={{ padding: '4px', fontWeight: 'bold' }}>{t.order_number || `#${t.id}`}</td>
+                  <td style={{ padding: '4px', fontWeight: 'bold' }}>{t.order_number || `SO-${t.id}`}</td>
                   <td style={{ padding: '4px', whiteSpace: 'nowrap' }}>{formatAuditDate(t.sale_date)}</td>
                   <td style={{ padding: '4px', textTransform: 'capitalize' }}>{t.cashier || '-'}</td>
                   <td style={{ padding: '4px', fontSize: '8.5px', color: '#111', fontFamily: 'monospace' }}>{t.part_numbers || t.part_number || '-'}</td>

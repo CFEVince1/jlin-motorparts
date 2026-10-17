@@ -38,7 +38,7 @@ export const ThermalReceipt = ({
       {/* Meta Info */}
       <div style={{ padding: '8px 0', borderBottom: '1px dashed #000000', fontSize: '10px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-          <span>Receipt #:</span>
+          <span>Order No:</span>
           <span style={{ fontWeight: 'bold' }}>{displayReceiptNo}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
