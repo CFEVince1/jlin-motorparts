@@ -243,3 +243,25 @@ INITIAL STATE: Stock = 0 | Reference: OPENING-<CURRENT_DATE>
 =================================================================================================
 ```
 
+---
+
+## 7. Defense Week Operating Guidelines & Render Cloud Warmup
+
+> [!IMPORTANT]
+> **Render Free Plan Cold-Start Notice**: Render's free tier spins down (sleeps) web services after 15 minutes of inactivity. When asleep, an incoming request can take **50–90 seconds** to wake up the server.
+
+### 1. Pre-Defense Warmup (Do This 5–10 Minutes Before Presentation)
+Before beginning your panel presentation or live demo, send a ping request to wake up the Render backend service:
+* **Option A (Browser)**: Open `https://jlin-motorparts.onrender.com/health` (or `https://jlin-inventory-api.onrender.com/health`) in your browser tab. Wait until it returns `{"status":"ok"}`.
+* **Option B (PowerShell / Terminal)**:
+  ```powershell
+  curl https://jlin-motorparts.onrender.com/health
+  ```
+Once awake, subsequent POS transactions, searches, and barcode scans respond with immediate sub-second latency.
+
+### 2. Defense Week Deployment Freeze
+* Render has **Auto-Deploy on Push** enabled for the `main` branch.
+* Any commit pushed to `origin/main` automatically triggers a cloud rebuild and redeploy, causing temporary service downtime or unexpected state shifts.
+* **Strict Rule**: Do **NOT** push commits to `main` during defense week or while rehearsing right before the defense panel. Use local testing (`localhost:5000` / `localhost:5173`) for any dry runs.
+
+

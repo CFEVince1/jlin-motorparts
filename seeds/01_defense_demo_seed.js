@@ -293,7 +293,8 @@ async function seed(knex) {
         console.log('   - JLR-BP-AEROX: COMPATIBLE on V1 | NOT_COMPATIBLE on V3');
         console.log('   - JLR-OF-AEROX: COMPATIBLE on V1 | COMPATIBLE on V3');
 
-        async function setCompatibility(productId, modelId, status, legacyUnitId) {
+        async function setCompatibility(productId, modelId, status, legacyUnitId, notes) {
+            const finalNotes = notes || (status === 'COMPATIBLE' ? 'Direct OEM fitment' : status);
             // Insert or update in product_compatibilities
             const [existing] = await connection.query(
                 `SELECT id FROM product_compatibilities WHERE product_id = ? AND motorcycle_model_id = ? LIMIT 1`,
@@ -302,13 +303,13 @@ async function seed(knex) {
             if (existing.length > 0) {
                 await connection.query(
                     `UPDATE product_compatibilities SET compatibility_status = ?, notes = ? WHERE id = ?`,
-                    [status, status, existing[0].id]
+                    [status, finalNotes, existing[0].id]
                 );
             } else {
                 await connection.query(
                     `INSERT INTO product_compatibilities (product_id, motorcycle_model_id, compatibility_status, notes)
                      VALUES (?, ?, ?, ?)`,
-                    [productId, modelId, status, status]
+                    [productId, modelId, status, finalNotes]
                 );
             }
 
@@ -330,12 +331,12 @@ async function seed(knex) {
         }
 
         // JLR-BP-AEROX
-        await setCompatibility(prodBrakePadId, modelV1Id, 'COMPATIBLE', legacyUnitV1Id);
-        await setCompatibility(prodBrakePadId, modelV3Id, 'NOT_COMPATIBLE', legacyUnitV3Id);
+        await setCompatibility(prodBrakePadId, modelV1Id, 'COMPATIBLE', legacyUnitV1Id, 'Direct OEM caliper fitment');
+        await setCompatibility(prodBrakePadId, modelV3Id, 'NOT_COMPATIBLE', legacyUnitV3Id, 'Incompatible caliper bolt spacing');
 
         // JLR-OF-AEROX
-        await setCompatibility(prodOilFilterId, modelV1Id, 'COMPATIBLE', legacyUnitV1Id);
-        await setCompatibility(prodOilFilterId, modelV3Id, 'COMPATIBLE', legacyUnitV3Id);
+        await setCompatibility(prodOilFilterId, modelV1Id, 'COMPATIBLE', legacyUnitV1Id, 'Standard BlueCore 155 engine filter fitment');
+        await setCompatibility(prodOilFilterId, modelV3Id, 'COMPATIBLE', legacyUnitV3Id, 'Standard BlueCore 155 engine filter fitment');
 
         console.log('   ✓ Compatibility matrix verified and seeded.');
 
