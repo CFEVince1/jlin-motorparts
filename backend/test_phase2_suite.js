@@ -345,7 +345,7 @@ async function runTestSuite() {
         assert(rawRow[0].stock === 14 && rawRow[0].current_stock === 14, 'Insert trigger synchronizes current_stock to stock when current_stock is omitted');
         await db.query('DELETE FROM products WHERE id = ?', [rawInsert.insertId]);
 
-        // 8b. createProduct writes OPENING_BALANCE
+        // 8b. createProduct strictly initializes stock to 0 and records baseline OPENING_BALANCE (0 change)
         const testPartSuite = `TEST-PROD-SUITE-${Date.now().toString().slice(-4)}`;
         let createResult = null;
         let createStatusCode = 200;
@@ -365,7 +365,7 @@ async function runTestSuite() {
                 selling_price: 280.00,
                 reorder_level: 5,
                 is_serialized: false,
-                stock: 10
+                stock: 0
             }
         }, mockResCreateProd);
 
@@ -373,17 +373,48 @@ async function runTestSuite() {
         const createdProdId = createResult.productId;
 
         const [createdProdRow] = await db.query('SELECT stock, current_stock FROM products WHERE id = ?', [createdProdId]);
-        assert(createdProdRow[0].stock === 10 && createdProdRow[0].current_stock === 10, 'Created product has synchronized stock and current_stock of 10');
+        assert(createdProdRow[0].stock === 0 && createdProdRow[0].current_stock === 0, 'Created product strictly starts with 0 stock');
 
         const [openingLedgerRow] = await db.query(
             'SELECT * FROM inventory_transactions WHERE product_id = ? AND transaction_type = "OPENING_BALANCE"',
             [createdProdId]
         );
-        assert(openingLedgerRow.length > 0, 'createProduct records OPENING_BALANCE ledger entry');
-        assert(openingLedgerRow[0].quantity_change === 10, 'OPENING_BALANCE ledger entry quantity_change is 10');
-        assert(openingLedgerRow[0].balance_after === 10, 'OPENING_BALANCE ledger entry balance_after is 10');
+        assert(openingLedgerRow.length > 0, 'createProduct records baseline OPENING_BALANCE ledger entry');
+        assert(openingLedgerRow[0].quantity_change === 0, 'OPENING_BALANCE ledger entry quantity_change is 0');
+        assert(openingLedgerRow[0].balance_after === 0, 'OPENING_BALANCE ledger entry balance_after is 0');
 
-        // 8c. updateProduct routes stock edits through applyMovement
+        // 8c. Every stock-in needs a receipt: receive stock via receiveStock
+        const inventoryController = require('./controllers/inventoryController');
+        let receiveResult = null;
+        const mockResReceive = {
+            status: () => mockResReceive,
+            json: (data) => { receiveResult = data; return mockResReceive; }
+        };
+        await inventoryController.receiveStock({
+            user: { id: adminUser.id, role: 'admin' },
+            body: {
+                supplier_id: 1,
+                reference_no: `RCV-SUITE-${Date.now()}`,
+                items: [{
+                    itemId: createdProdId,
+                    quantity: 10,
+                    cost_price: 150.00
+                }],
+                notes: 'Official test delivery from Yamaha'
+            }
+        }, mockResReceive, (e) => { throw e; });
+
+        const [afterRcvProdRow] = await db.query('SELECT stock, current_stock FROM products WHERE id = ?', [createdProdId]);
+        assert(afterRcvProdRow[0].stock === 10 && afterRcvProdRow[0].current_stock === 10, 'Stock-in via receiveStock successfully increments stock to 10 with supplier receipt');
+
+        const [rcvLedgerRow] = await db.query(
+            'SELECT * FROM inventory_transactions WHERE product_id = ? AND transaction_type = "STOCK_IN"',
+            [createdProdId]
+        );
+        assert(rcvLedgerRow.length > 0, 'Official receiving record created STOCK_IN ledger entry');
+        assert(rcvLedgerRow[0].quantity_change === 10 && rcvLedgerRow[0].balance_after === 10, 'STOCK_IN quantity_change is +10 and balance_after is 10');
+
+        // 8d. updateProduct does NOT alter stock
         let updateResult = null;
         const mockResUpdateProd = {
             status: () => mockResUpdateProd,
@@ -401,20 +432,48 @@ async function runTestSuite() {
                 cost_price: 150.00,
                 selling_price: 280.00,
                 reorder_level: 5,
-                stock: 15 // +5 change
+                stock: 999 // Should be ignored; product edits cannot modify stock!
             }
         }, mockResUpdateProd);
 
         const [afterUpdateProdRow] = await db.query('SELECT stock, current_stock FROM products WHERE id = ?', [createdProdId]);
-        assert(afterUpdateProdRow[0].stock === 15 && afterUpdateProdRow[0].current_stock === 15, 'updateProduct updates stock and current_stock to 15');
+        assert(afterUpdateProdRow[0].stock === 10 && afterUpdateProdRow[0].current_stock === 10, 'updateProduct preserves stock at 10 and prevents bypassing the ledger');
 
-        const [adjLedgerRow] = await db.query(
-            'SELECT * FROM inventory_transactions WHERE product_id = ? AND transaction_type = "ADJUSTMENT_ADD"',
-            [createdProdId]
-        );
-        assert(adjLedgerRow.length > 0, 'Stock edit in updateProduct creates ADJUSTMENT_ADD ledger entry');
-        assert(adjLedgerRow[0].quantity_change === 5, 'ADJUSTMENT_ADD quantity_change is +5');
-        assert(adjLedgerRow[0].balance_after === 15, 'ADJUSTMENT_ADD balance_after is 15');
+        // 8e. updateProduct preserves NOT_COMPATIBLE rules in product_compatibilities
+        // Add a NOT_COMPATIBLE rule for model 45 (Aerox V3) or model 26 on createdProdId
+        const [someModels] = await db.query('SELECT id FROM motorcycle_models LIMIT 2');
+        if (someModels.length >= 2) {
+            const modelA = someModels[0].id;
+            const modelB = someModels[1].id;
+            await db.query(`
+                INSERT INTO product_compatibilities (product_id, motorcycle_model_id, compatibility_status, notes)
+                VALUES (?, ?, 'COMPATIBLE', 'Fits model A'), (?, ?, 'NOT_COMPATIBLE', 'Incompatible fitment')
+                ON DUPLICATE KEY UPDATE compatibility_status = VALUES(compatibility_status), notes = VALUES(notes)
+            `, [createdProdId, modelA, createdProdId, modelB]);
+
+            // Now update product with some unit IDs - must NOT delete the NOT_COMPATIBLE record!
+            await productController.updateProduct({
+                user: { id: adminUser.id, role: 'admin' },
+                params: { id: createdProdId },
+                body: {
+                    part_number: testPartSuite,
+                    name: 'Suite Carburetor Diaphragm Updated 2',
+                    brand: 'Yamaha',
+                    category: 'Engine',
+                    size: 'Standard',
+                    cost_price: 150.00,
+                    selling_price: 280.00,
+                    reorder_level: 5,
+                    motorcycle_unit_ids: [] // Sent no compatible units
+                }
+            }, mockResUpdateProd);
+
+            const [notCompatCheck] = await db.query(`
+                SELECT * FROM product_compatibilities 
+                WHERE product_id = ? AND motorcycle_model_id = ? AND compatibility_status = 'NOT_COMPATIBLE'
+            `, [createdProdId, modelB]);
+            assert(notCompatCheck.length === 1, 'updateProduct strictly preserves NOT_COMPATIBLE records in product_compatibilities');
+        }
 
         // Cleanup test product
         await db.query('UPDATE products SET is_active = FALSE WHERE id = ?', [createdProdId]);

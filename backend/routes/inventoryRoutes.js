@@ -19,8 +19,4 @@ router.post('/adjustments', inventoryController.recordAdjustment);
 router.get('/items/:id/open-losses', inventoryController.getOpenLosses);
 router.get('/items/:id/ledger', inventoryController.getItemLedger);
 
-// Legacy direct stock in / stock out endpoints
-router.post('/stock-in', adminOnly, inventoryController.stockIn);
-router.post('/stock-out', adminOnly, inventoryController.stockOut);
-
 module.exports = router;

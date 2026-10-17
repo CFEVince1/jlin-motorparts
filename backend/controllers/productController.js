@@ -200,21 +200,10 @@ exports.createProduct = async (req, res) => {
         const groupIds = normalizeCompatibilityGroupIds(req.body.compatibility_group_ids);
 
         const serialized = normalizeBoolean(is_serialized);
-        const cleanedSerials = normalizeSerialNumbers(serial_numbers);
-        const uniqueSerials = new Set(cleanedSerials);
-        let finalStock = Number(stock);
 
-        if (serialized) {
-            if (cleanedSerials.length === 0) {
-                throw new Error('Serial numbers are required for serialized products');
-            }
-            if (cleanedSerials.length !== uniqueSerials.size) {
-                throw new Error('Duplicate serial numbers not allowed');
-            }
-            finalStock = cleanedSerials.length;
-        } else if (!Number.isInteger(finalStock) || finalStock < 0) {
-            throw new Error('Stock quantity is required for non-serialized products');
-        }
+        // Invariants: Every stock-in needs a receipt from a supplier.
+        // Catalog products strictly start with 0 stock. Stock must be received via Stock Receive.
+        const finalStock = 0;
 
         await connection.beginTransaction();
 
@@ -309,11 +298,6 @@ exports.createProduct = async (req, res) => {
             );
         }
 
-        if (serialized) {
-            const serialValues = cleanedSerials.map(serial => [productId, serial, 'available']);
-            await connection.query(`INSERT INTO product_serials (product_id, serial_number, status) VALUES ?`, [serialValues]);
-        }
-
         await connection.commit();
         res.status(201).json({ message: 'Product created successfully', productId });
     } catch (err) {
@@ -378,45 +362,8 @@ exports.updateProduct = async (req, res) => {
 
         const existingProduct = existingRows[0];
         const serialized = normalizeBoolean(existingProduct.is_serialized);
-        const currentStock = Number(existingProduct.current_stock ?? existingProduct.stock ?? 0);
-
-        // If stock is passed for non-serialized products, apply any stock adjustment through the ledger
-        if (!serialized && stock !== undefined && stock !== null && stock !== '') {
-            const requestedStock = Number(stock);
-            if (!Number.isInteger(requestedStock) || requestedStock < 0) {
-                throw new Error('Stock quantity must be a non-negative integer for non-serialized products');
-            }
-
-            if (requestedStock !== currentStock) {
-                const diff = requestedStock - currentStock;
-                const [dateRows] = await connection.query(`SELECT DATE_FORMAT(NOW(), '%Y%m%d') as db_date;`);
-                const dbDate = dateRows[0]?.db_date || new Date().toISOString().slice(0, 10).replace(/-/g, '');
-                const refNo = `ADJ-PROD-${dbDate}`;
-                const userId = req.user?.id || null;
-
-                if (diff > 0) {
-                    await applyMovement(connection, {
-                        itemId: id,
-                        transactionType: 'ADJUSTMENT_ADD',
-                        quantityChange: diff,
-                        referenceNo: refNo,
-                        unitCost: Number(cost_price || existingProduct.cost_price || 0),
-                        remarks: `Product form stock adjustment (+${diff}) from ${currentStock} to ${requestedStock}`,
-                        createdBy: userId
-                    });
-                } else if (diff < 0) {
-                    await applyMovement(connection, {
-                        itemId: id,
-                        transactionType: 'ADJUSTMENT_SUB',
-                        quantityChange: diff,
-                        referenceNo: refNo,
-                        unitCost: Number(cost_price || existingProduct.cost_price || 0),
-                        remarks: `Product form stock adjustment (${diff}) from ${currentStock} to ${requestedStock}`,
-                        createdBy: userId
-                    });
-                }
-            }
-        }
+        // Product catalog edits cannot modify stock levels directly.
+        // Stock can only be increased via Stock Receive (with supplier receipt) or adjusted via Discrepancy Adjustments.
 
         await connection.query(
             `UPDATE products SET
@@ -451,7 +398,14 @@ exports.updateProduct = async (req, res) => {
         );
 
         await connection.query('DELETE FROM product_compatibility WHERE product_id = ?', [id]);
-        await connection.query('DELETE FROM product_compatibilities WHERE product_id = ?', [id]);
+
+        // Only delete COMPATIBLE entries; PRESERVE NOT_COMPATIBLE and CONDITIONAL entries
+        // so editing product metadata never erases negative fitment rules (e.g. V3 not compatible)
+        await connection.query(
+            "DELETE FROM product_compatibilities WHERE product_id = ? AND (compatibility_status = 'COMPATIBLE' OR compatibility_status IS NULL)",
+            [id]
+        );
+
         if (unitIds.length > 0) {
             await connection.query(
                 'INSERT INTO product_compatibility (product_id, motorcycle_unit_id) VALUES ?',
@@ -466,7 +420,7 @@ exports.updateProduct = async (req, res) => {
 
             // Correctly map motorcycle_units to motorcycle_models IDs for product_compatibilities
             await connection.query(`
-                INSERT IGNORE INTO product_compatibilities (product_id, motorcycle_model_id, compatibility_status)
+                INSERT INTO product_compatibilities (product_id, motorcycle_model_id, compatibility_status)
                 SELECT DISTINCT ?, mm.id, 'COMPATIBLE'
                 FROM motorcycle_units mu
                 JOIN motorcycle_models mm ON
@@ -477,6 +431,7 @@ exports.updateProduct = async (req, res) => {
                         OR mm.year_model = mu.year_model
                     )
                 WHERE mu.id IN (?)
+                ON DUPLICATE KEY UPDATE compatibility_status = 'COMPATIBLE'
             `, [id, unitIds]);
         }
 

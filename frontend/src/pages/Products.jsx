@@ -145,21 +145,9 @@ const Products = () => {
                 selling_price: Number(formData.selling_price),
                 reorder_level: Number(formData.reorder_level),
                 is_serialized: formData.is_serialized,
-                stock: Number(formData.stock),
                 motorcycle_unit_ids: formData.motorcycle_unit_ids.map(Number),
                 compatibility_group_ids: formData.compatibility_group_ids.map(Number)
             };
-
-            // Process serial numbers if the item is serialized
-            if (formData.is_serialized) {
-                const serialsArray = formData.serial_numbers
-                    .split(/[\n,]+/)
-                    .map(s => s.trim())
-                    .filter(s => s.length > 0);
-
-                payload.serial_numbers = serialsArray;
-                payload.stock = serialsArray.length; // Override stock with exact serial count
-            }
 
             if (editingId) {
                 await api.put(`/products/${editingId}`, payload);
@@ -315,28 +303,25 @@ const Products = () => {
                                     Serialized
                                 </label>
                             </div>
-                            {!formData.is_serialized && (
-                                <input type="number" name="stock" placeholder="Stock Level" className="input-premium" required min="0"
-                                    style={{ width: '200px' }}
-                                    value={formData.stock}
-                                    onChange={handleChange} />
+                            {editingId ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <input
+                                        type="text"
+                                        readOnly
+                                        disabled
+                                        value={`Current Stock: ${formData.stock ?? 0} units (Managed via Stock Receive)`}
+                                        className="input-premium"
+                                        style={{ width: '320px', opacity: 0.85, cursor: 'not-allowed', background: 'var(--surface-hover)' }}
+                                    />
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                                    <span style={{ padding: '6px 12px', background: 'var(--surface-hover)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                                        Initial Stock: <strong>0 units</strong> (Stock must be received via <em>Stock Receive</em> with a supplier receipt)
+                                    </span>
+                                </div>
                             )}
                         </div>
-
-                        {formData.is_serialized && !editingId && (
-                            <div style={{ padding: '16px', background: 'var(--surface-hover)', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                                <label style={{ color: 'var(--primary)', marginBottom: '8px', display: 'block', fontSize: '0.85rem' }}>Serial Numbers (Comma separated or one per line) *</label>
-                                <textarea
-                                    name="serial_numbers"
-                                    placeholder="e.g., SN001, SN002, SN003"
-                                    className="input-premium"
-                                    style={{ height: '80px', resize: 'vertical' }}
-                                    required
-                                    value={formData.serial_numbers}
-                                    onChange={handleChange}
-                                />
-                            </div>
-                        )}
 
                         <div style={{ display: 'flex', gap: '12px' }}>
                             <button type="submit" className="btn-primary">
