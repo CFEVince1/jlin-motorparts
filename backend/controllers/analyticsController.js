@@ -1,9 +1,28 @@
 const db = require('../config/db');
 
+// Helper to format dates strictly in Philippine Standard Time (PST / UTC+8)
+const phtFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' });
+
+const getPHTDateString = (dateVal) => {
+    if (!dateVal) return null;
+    if (typeof dateVal === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateVal)) {
+        return dateVal;
+    }
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return null;
+    return phtFormatter.format(d);
+};
+
 exports.getDashboardData = async (req, res) => {
     try {
         const userId = req.user.id;
         const role = req.user.role;
+
+        // Security check: Only admins may access analytics dashboard and wholesale cost data
+        if (role !== 'admin' && role !== 'super_admin') {
+            return res.status(403).json({ message: 'Access denied: Insufficient permissions' });
+        }
+
         const userFilter = role !== 'admin' && role !== 'super_admin' ? 'AND s.user_id = ?' : '';
         const userParams = userFilter ? [userId] : [];
 
@@ -34,31 +53,50 @@ exports.getDashboardData = async (req, res) => {
             ? `${topMovingData[0].part_number} - ${topMovingData[0].product_name}`
             : 'N/A';
 
+        // Dynamic 30-day ROI calculation based on revenue and cost of goods sold
+        const [roiData] = await db.query(`
+            SELECT
+                COALESCE(SUM(si.subtotal), 0) AS totalRevenue,
+                COALESCE(SUM(COALESCE(p.cost_price, 0) * si.quantity), 0) AS totalCost
+            FROM sale_items si
+            JOIN sales s ON si.sale_id = s.id
+            LEFT JOIN products p ON si.product_id = p.id
+            WHERE s.sale_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+            ${userFilter}
+        `, userParams);
+
+        const totalRevenue = Number(roiData[0]?.totalRevenue || 0);
+        const totalCost = Number(roiData[0]?.totalCost || 0);
+        const refurbROI = totalCost > 0
+            ? (((totalRevenue - totalCost) / totalCost) * 100).toFixed(1)
+            : '0.0';
+
+        // Sales trends over past 7 days formatted strictly in PHT
         const [salesTrendsRaw] = await db.query(`
             SELECT
-                DATE(s.sale_date) AS date,
+                DATE_FORMAT(s.sale_date, '%Y-%m-%d') AS date_str,
                 s.payment_method,
                 SUM(s.total_amount) AS amount
             FROM sales s
             WHERE s.sale_date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
             ${userFilter}
-            GROUP BY DATE(s.sale_date), s.payment_method
-            ORDER BY DATE(s.sale_date) ASC
+            GROUP BY DATE_FORMAT(s.sale_date, '%Y-%m-%d'), s.payment_method
+            ORDER BY date_str ASC
         `, userParams);
 
         const salesTrendsMap = {};
+        const now = new Date();
         for (let i = 6; i >= 0; i--) {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
-            const dateStr = d.toISOString().split('T')[0];
-            const displayDate = d.toLocaleDateString('en-US', { weekday: 'short' });
+            const d = new Date(now.getTime() - i * 86400000);
+            const dateStr = phtFormatter.format(d);
+            const displayDate = d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'Asia/Manila' });
             salesTrendsMap[dateStr] = { date: displayDate, _dateStr: dateStr, Cash: 0, GCash: 0, Card: 0, Total: 0 };
         }
 
         salesTrendsRaw.forEach(row => {
-            const dateStr = new Date(row.date).toISOString().split('T')[0];
+            const dateStr = row.date_str || getPHTDateString(row.date);
             const paymentMethod = row.payment_method || 'Cash';
-            if (salesTrendsMap[dateStr]) {
+            if (dateStr && salesTrendsMap[dateStr]) {
                 salesTrendsMap[dateStr][paymentMethod] += Number(row.amount);
                 salesTrendsMap[dateStr].Total += Number(row.amount);
             }
@@ -103,18 +141,21 @@ exports.getDashboardData = async (req, res) => {
             LIMIT 20
         `);
 
-        const costVsProfit = costVsProfitRows.map(item => ({
-            name: `${item.part_number} - ${item.product_name}`,
-            brand: item.brand,
-            cost: Number(item.cost),
-            price: Number(item.retail_price)
-        }));
+        // Defense-in-depth: Never expose cost prices or profit margins to non-admins
+        const costVsProfit = (role === 'admin' || role === 'super_admin')
+            ? costVsProfitRows.map(item => ({
+                name: `${item.part_number} - ${item.product_name}`,
+                brand: item.brand,
+                cost: Number(item.cost),
+                price: Number(item.retail_price)
+            }))
+            : [];
 
         res.json({
             kpis: {
                 todaysRevenue: todayRevData[0].todaysRevenue,
                 topMovingProduct,
-                refurbROI: '0.0'
+                refurbROI
             },
             costVsProfit,
             salesTrends,
@@ -126,3 +167,4 @@ exports.getDashboardData = async (req, res) => {
         res.status(500).json({ message: 'Error fetching analytics dashboard data' });
     }
 };
+

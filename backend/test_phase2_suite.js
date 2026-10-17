@@ -959,6 +959,57 @@ async function runTestSuite() {
             assert(invRoutesContent.includes("router.post('/adjustments', adminOnly,"), 'inventoryRoutes strictly enforces adminOnly middleware on /adjustments');
         }
 
+        // ----------------------------------------------------
+        // [TEST 13] Analytics Dashboard Security, Timezone & Dynamic ROI
+        // ----------------------------------------------------
+        console.log('\n[TEST 13] Analytics Dashboard Security, Timezone & Dynamic ROI');
+        const analyticsController = require('./controllers/analyticsController');
+
+        // 13a. Static analysis checks
+        const analyticsRoutesContent = fs.readFileSync(path.join(__dirname, 'routes/analyticsRoutes.js'), 'utf8');
+        assert(analyticsRoutesContent.includes("router.get('/dashboard', adminOnly,"), 'analyticsRoutes strictly enforces adminOnly on /dashboard');
+        
+        const analyticsCtrlFileContent = fs.readFileSync(path.join(__dirname, 'controllers/analyticsController.js'), 'utf8');
+        assert(!analyticsCtrlFileContent.includes('toISOString()'), 'analyticsController eliminates all toISOString() calls to prevent UTC date skew');
+        assert(!analyticsCtrlFileContent.includes("refurbROI: '0.0'"), 'analyticsController does not hardcode refurbROI to 0.0');
+
+        // 13b. Staff role denial (Defense-in-depth)
+        let staffDashStatus = null;
+        let staffDashJson = null;
+        const mockReqStaffDash = {
+            user: { id: 2, role: 'staff' }
+        };
+        const mockResStaffDash = {
+            status: (code) => { staffDashStatus = code; return mockResStaffDash; },
+            json: (data) => { staffDashJson = data; return mockResStaffDash; }
+        };
+        await analyticsController.getDashboardData(mockReqStaffDash, mockResStaffDash);
+        assert(staffDashStatus === 403, 'Staff user is blocked with 403 Forbidden from accessing analytics dashboard');
+        assert(staffDashJson?.message?.includes('Insufficient permissions') || staffDashJson?.message?.includes('Access denied'), 'Rejection message clearly indicates access denied');
+
+        // 13c. Admin dashboard data retrieval & dynamic calculations
+        let adminDashStatus = 200;
+        let adminDashJson = null;
+        const mockReqAdminDash = {
+            user: { id: 1, role: 'admin' }
+        };
+        const mockResAdminDash = {
+            status: (code) => { adminDashStatus = code; return mockResAdminDash; },
+            json: (data) => { adminDashJson = data; return mockResAdminDash; }
+        };
+        await analyticsController.getDashboardData(mockReqAdminDash, mockResAdminDash);
+        assert(adminDashStatus === 200, 'Admin successfully accesses analytics dashboard');
+        assert(adminDashJson && adminDashJson.kpis, 'Dashboard response contains kpis object');
+        assert(typeof adminDashJson.kpis.refurbROI === 'string' && !isNaN(Number(adminDashJson.kpis.refurbROI)), 'refurbROI is dynamically computed numeric string');
+        assert(Array.isArray(adminDashJson.salesTrends) && adminDashJson.salesTrends.length === 7, 'salesTrends contains 7 days of trend data');
+        
+        // Verify trend dates follow Philippine date format YYYY-MM-DD
+        const trendDates = adminDashJson.salesTrends.map(t => t._dateStr);
+        assert(trendDates.every(d => /^\d{4}-\d{2}-\d{2}$/.test(d)), 'All sales trend dates are strictly formatted YYYY-MM-DD');
+        const sortedTrendDates = [...trendDates].sort();
+        assert(JSON.stringify(trendDates) === JSON.stringify(sortedTrendDates), 'Sales trends dates are sorted in chronological order');
+        assert(Array.isArray(adminDashJson.costVsProfit), 'Dashboard returns costVsProfit array for admin');
+
         // Cleanup
         await db.query('UPDATE products SET is_active = FALSE WHERE id = ?', [compatProdId]);
 
