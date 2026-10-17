@@ -394,7 +394,18 @@ async function runMigration() {
         } catch (e) {
             // Ignore if already exists
         }
-        console.log('   `inventory_transactions` table ready.');
+
+        // Ensure CHECK constraints on products for non-negative prices and costs
+        try {
+            await connection.query('ALTER TABLE products ADD CONSTRAINT chk_products_cost_price CHECK (cost_price >= 0)');
+        } catch (e) { /* ignore */ }
+        try {
+            await connection.query('ALTER TABLE products ADD CONSTRAINT chk_products_selling_price CHECK (selling_price >= 0)');
+        } catch (e) { /* ignore */ }
+        try {
+            await connection.query('ALTER TABLE products ADD CONSTRAINT chk_products_retail_price CHECK (retail_price >= 0)');
+        } catch (e) { /* ignore */ }
+        console.log('   `inventory_transactions` and `products` CHECK constraints ready.');
 
         // Child lock table to strictly prevent TRUNCATE via foreign key reference
         await connection.query(`

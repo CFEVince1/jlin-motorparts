@@ -129,14 +129,30 @@ exports.deleteUser = async (req, res) => {
             }
         }
 
-        // 4. Execute deletion
+        // 4. Check references to report accurate, specific reasons if foreign key constraints would block
+        const [salesRows] = await db.query('SELECT id FROM sales WHERE user_id = ? LIMIT 1', [targetId]);
+        const [ledgerRows] = await db.query('SELECT id FROM inventory_transactions WHERE created_by = ? LIMIT 1', [targetId]);
+        const [receivingRows] = await db.query('SELECT id FROM receiving_records WHERE received_by = ? LIMIT 1', [targetId]);
+
+        const blockers = [];
+        if (salesRows.length > 0) blockers.push('sales transactions');
+        if (ledgerRows.length > 0) blockers.push('inventory ledger history');
+        if (receivingRows.length > 0) blockers.push('stock receiving records');
+
+        if (blockers.length > 0) {
+            return res.status(400).json({
+                message: `Cannot delete: User has existing ${blockers.join(' and ')}.`
+            });
+        }
+
+        // 5. Execute deletion
         const [result] = await db.query('DELETE FROM users WHERE id = ?', [targetId]);
         if (result.affectedRows === 0) return res.status(404).json({ message: 'User not found' });
 
         res.json({ message: 'User deleted successfully' });
     } catch (err) {
         if (err.code === 'ER_ROW_IS_REFERENCED_2') {
-            return res.status(400).json({ message: 'Cannot delete: User has existing sales transactions.' });
+            return res.status(400).json({ message: 'Cannot delete: User has existing transaction or ledger records.' });
         }
         console.error('Error deleting user:', err);
         res.status(500).json({ message: 'Error deleting user' });

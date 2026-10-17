@@ -107,14 +107,29 @@ exports.createItem = async (req, res, next) => {
     const resolvedName = (name || '').trim();
     const resolvedBrand = (brand || '').trim();
     const resolvedCategory = (category || '').trim();
-    const resolvedCost = Number(cost_price || 0.00);
-    const resolvedPrice = Number(retail_price || selling_price || 0.00);
-    const userId = req.user?.id || null;
 
     if (!resolvedSku) throw new AppValidationError('SKU / Part Number is required');
     if (!resolvedName) throw new AppValidationError('Item name is required');
     if (!resolvedBrand) throw new AppValidationError('Brand is required');
     if (!resolvedCategory) throw new AppValidationError('Category is required');
+
+    if (cost_price !== undefined && cost_price !== null && cost_price !== '') {
+        const costNum = Number(cost_price);
+        if (!Number.isFinite(costNum) || costNum < 0) {
+            throw new AppValidationError('Cost price must be a valid non-negative number');
+        }
+    }
+    const resolvedCost = Number(cost_price || 0.00);
+
+    const priceInput = retail_price ?? selling_price;
+    if (priceInput !== undefined && priceInput !== null && priceInput !== '') {
+        const priceNum = Number(priceInput);
+        if (!Number.isFinite(priceNum) || priceNum < 0) {
+            throw new AppValidationError('Selling/Retail price must be a valid non-negative number');
+        }
+    }
+    const resolvedPrice = Number(priceInput || 0.00);
+    const userId = req.user?.id || null;
 
     const connection = await db.getConnection();
     try {
@@ -227,41 +242,75 @@ exports.updateItem = async (req, res, next) => {
         await connection.beginTransaction();
 
         const [existing] = await connection.query(
-            'SELECT id, name FROM products WHERE id = ? AND is_active = true FOR UPDATE',
+            'SELECT id, name, sku, part_number, brand FROM products WHERE id = ? AND is_active = true FOR UPDATE',
             [itemId]
         );
         if (existing.length === 0) {
             throw new AppNotFoundError('Item not found');
         }
+        const currentItem = existing[0];
 
         const updates = [];
         const values = [];
 
-        if (sku !== undefined || part_number !== undefined) {
-            const val = (sku || part_number || '').trim();
-            updates.push('sku = ?', 'part_number = ?');
-            values.push(val, val);
+        // Check SKU & Brand Duplicate Check
+        const targetSku = (sku !== undefined || part_number !== undefined)
+            ? (sku || part_number || '').trim()
+            : (currentItem.sku || currentItem.part_number);
+        const targetBrand = brand !== undefined ? brand.trim() : currentItem.brand;
+
+        if (sku !== undefined || part_number !== undefined || brand !== undefined) {
+            if (!targetSku) {
+                throw new AppValidationError('SKU / Part Number cannot be empty');
+            }
+            if (!targetBrand) {
+                throw new AppValidationError('Brand cannot be empty');
+            }
+            const [duplicate] = await connection.query(
+                'SELECT id FROM products WHERE (sku = ? OR part_number = ?) AND brand = ? AND id != ? AND is_active = true LIMIT 1',
+                [targetSku, targetSku, targetBrand, itemId]
+            );
+            if (duplicate.length > 0) {
+                throw new AppValidationError(`An item with SKU "${targetSku}" and brand "${targetBrand}" already exists`);
+            }
+            if (sku !== undefined || part_number !== undefined) {
+                updates.push('sku = ?', 'part_number = ?');
+                values.push(targetSku, targetSku);
+            }
+            if (brand !== undefined) {
+                updates.push('brand = ?');
+                values.push(targetBrand);
+            }
         }
+
         if (name !== undefined) {
+            const trimmedName = name.trim();
+            if (!trimmedName) throw new AppValidationError('Item name cannot be empty');
             updates.push('name = ?');
-            values.push(name.trim());
-        }
-        if (brand !== undefined) {
-            updates.push('brand = ?');
-            values.push(brand.trim());
+            values.push(trimmedName);
         }
         if (category !== undefined) {
+            const trimmedCat = category.trim();
+            if (!trimmedCat) throw new AppValidationError('Category cannot be empty');
             updates.push('category = ?');
-            values.push(category.trim());
+            values.push(trimmedCat);
         }
         if (retail_price !== undefined || selling_price !== undefined) {
-            const price = Number(retail_price ?? selling_price);
+            const rawPrice = retail_price ?? selling_price;
+            const price = Number(rawPrice);
+            if (!Number.isFinite(price) || price < 0) {
+                throw new AppValidationError('Selling/Retail price must be a valid non-negative number');
+            }
             updates.push('retail_price = ?', 'selling_price = ?');
             values.push(price, price);
         }
         if (cost_price !== undefined) {
+            const cost = Number(cost_price);
+            if (!Number.isFinite(cost) || cost < 0) {
+                throw new AppValidationError('Cost price must be a valid non-negative number');
+            }
             updates.push('cost_price = ?');
-            values.push(Number(cost_price));
+            values.push(cost);
         }
         if (size !== undefined) {
             updates.push('size = ?');
@@ -276,8 +325,12 @@ exports.updateItem = async (req, res, next) => {
             values.push(thread_type);
         }
         if (reorder_level !== undefined) {
+            const reorder = Number(reorder_level);
+            if (!Number.isFinite(reorder) || reorder < 0) {
+                throw new AppValidationError('Reorder level must be a valid non-negative number');
+            }
             updates.push('reorder_level = ?');
-            values.push(Number(reorder_level));
+            values.push(reorder);
         }
 
         if (updates.length === 0) {

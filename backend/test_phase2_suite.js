@@ -1499,6 +1499,169 @@ async function runTestSuite() {
         assert(resStaffShort.statusCode === 422, 'Staff profile update with < 8 char password is rejected with 422');
         assert(resStaffShort.data?.message?.includes('8 characters'), 'Profile update enforces identical 8-character password policy');
 
+        // ----------------------------------------------------
+        // [TEST 20] Accurate Delete User Reasons, Price/Cost Validations & SKU Duplicate Checks
+        // ----------------------------------------------------
+        console.log('\n[TEST 20] Accurate Delete User Blockers, Price/Cost Integrity & SKU Duplicate Checks');
+
+        // 20a. Deleting a user with inventory ledger history reports accurate reason (not "sales transactions")
+        const originalDbQuery = db.query;
+        // Mock db.query to simulate user with ONLY ledger history (no sales)
+        db.query = async (sql, params) => {
+            if (typeof sql === 'string') {
+                if (sql.includes('FROM users WHERE id = ?')) {
+                    return [[{ id: 9999, username: 'ledger_staff', role: 'staff' }]];
+                }
+                if (sql.includes('FROM sales WHERE user_id = ?')) {
+                    return [[]]; // No sales
+                }
+                if (sql.includes('FROM inventory_transactions WHERE created_by = ?')) {
+                    return [[{ id: 101 }]]; // Has ledger history!
+                }
+                if (sql.includes('FROM receiving_records WHERE received_by = ?')) {
+                    return [[]]; // No receiving records
+                }
+            }
+            return originalDbQuery.apply(db, [sql, params]);
+        };
+
+        const resDeleteLedgerUser = createMockRes();
+        await userController.deleteUser({
+            params: { id: 9999 },
+            user: { id: adminUser.id, role: 'admin' }
+        }, resDeleteLedgerUser);
+
+        db.query = originalDbQuery; // restore original db.query
+
+        assert(resDeleteLedgerUser.statusCode === 400, 'Deleting user with inventory ledger history is rejected with 400');
+        assert(resDeleteLedgerUser.data?.message?.includes('inventory ledger history'), 'Rejection message correctly identifies inventory ledger history');
+        assert(!resDeleteLedgerUser.data?.message?.includes('sales transactions'), 'Rejection message does NOT falsely report sales transactions');
+
+        // 20b. Price and cost validation in productController
+        const resNegCost = createMockRes();
+        await productController.createProduct({
+            body: {
+                part_number: 'TEST-NEG-COST',
+                name: 'Test Part',
+                brand: 'Yamaha',
+                category: 'Engine',
+                size: 'Standard',
+                cost_price: -50.00,
+                selling_price: 100.00,
+                reorder_level: 5,
+                is_serialized: false
+            }
+        }, resNegCost);
+        assert(resNegCost.statusCode === 400, 'createProduct rejects negative cost_price with 400');
+        assert(resNegCost.data?.message?.includes('non-negative'), 'createProduct error message specifies valid non-negative number for cost_price');
+
+        const resNonNumCost = createMockRes();
+        await productController.createProduct({
+            body: {
+                part_number: 'TEST-NAN-COST',
+                name: 'Test Part',
+                brand: 'Yamaha',
+                category: 'Engine',
+                size: 'Standard',
+                cost_price: 'not_a_number',
+                selling_price: 100.00,
+                reorder_level: 5,
+                is_serialized: false
+            }
+        }, resNonNumCost);
+        assert(resNonNumCost.statusCode === 400, 'createProduct rejects non-numeric cost_price with 400');
+
+        const resNegSelling = createMockRes();
+        await productController.createProduct({
+            body: {
+                part_number: 'TEST-NEG-SELL',
+                name: 'Test Part',
+                brand: 'Yamaha',
+                category: 'Engine',
+                size: 'Standard',
+                cost_price: 50.00,
+                selling_price: -100.00,
+                reorder_level: 5,
+                is_serialized: false
+            }
+        }, resNegSelling);
+        assert(resNegSelling.statusCode === 400, 'createProduct rejects negative selling_price with 400');
+
+        const resUpdateNegPrice = createMockRes();
+        await productController.updateProduct({
+            params: { id: 1 },
+            body: {
+                part_number: 'BLT-M8-001',
+                name: 'Cylinder Head Bolt M8',
+                brand: 'Yamaha',
+                category: 'Bolts & Screws',
+                size: 'M8 x 40mm',
+                cost_price: 5.00,
+                selling_price: -15.00,
+                reorder_level: 10
+            }
+        }, resUpdateNegPrice);
+        assert(resUpdateNegPrice.statusCode === 400, 'updateProduct rejects negative selling_price with 400');
+
+        // 20c. Database CHECK constraints on products table
+        let dbCheckCostBlocked = false;
+        try {
+            await db.query('UPDATE products SET cost_price = -99.99 WHERE id = 1');
+        } catch (dbErr) {
+            if (dbErr && (dbErr.code === 'ER_CHECK_CONSTRAINT_VIOLATED' || /chk_products_cost_price|check/i.test(dbErr.message))) {
+                dbCheckCostBlocked = true;
+            }
+        }
+        assert(dbCheckCostBlocked, 'Database enforces chk_products_cost_price CHECK constraint');
+
+        let dbCheckSellingBlocked = false;
+        try {
+            await db.query('UPDATE products SET selling_price = -99.99 WHERE id = 1');
+        } catch (dbErr) {
+            if (dbErr && (dbErr.code === 'ER_CHECK_CONSTRAINT_VIOLATED' || /chk_products_selling_price|check/i.test(dbErr.message))) {
+                dbCheckSellingBlocked = true;
+            }
+        }
+        assert(dbCheckSellingBlocked, 'Database enforces chk_products_selling_price CHECK constraint');
+
+        // 20d. SKU changes checked for duplicates in productController.updateProduct
+        // Try updating product 6 to product 5's part_number ('JLR-BP-AEROX') and brand ('Yamaha')
+        const resDupProductSku = createMockRes();
+        await productController.updateProduct({
+            params: { id: 6 },
+            body: {
+                part_number: 'JLR-BP-AEROX',
+                name: 'Aerox Engine Oil Filter Element',
+                brand: 'Yamaha',
+                category: 'Engine',
+                size: 'Standard',
+                cost_price: 120.00,
+                selling_price: 220.00,
+                reorder_level: 5
+            }
+        }, resDupProductSku);
+        assert(resDupProductSku.statusCode === 400, 'updateProduct rejects duplicate part_number/SKU with 400 Bad Request');
+        assert(resDupProductSku.data?.message?.includes('Duplicate'), 'updateProduct clearly indicates duplicate part number / SKU');
+
+        // 20e. SKU changes checked for duplicates in itemController.updateItem
+        const itemController = require('./controllers/itemController');
+        let itemDupSkuBlocked = false;
+        try {
+            await itemController.updateItem({
+                params: { id: 6 },
+                body: { sku: 'JLR-BP-AEROX', brand: 'Yamaha' }
+            }, createMockRes(), (err) => {
+                if (err instanceof AppValidationError && err.message.includes('already exists')) {
+                    itemDupSkuBlocked = true;
+                }
+            });
+        } catch (e) {
+            if (e instanceof AppValidationError && e.message.includes('already exists')) {
+                itemDupSkuBlocked = true;
+            }
+        }
+        assert(itemDupSkuBlocked, 'itemController.updateItem strictly prevents updating to duplicate SKU on another item');
+
         console.log('\n=====================================================');
         console.log(` Test Suite Results: ${passed} PASSED, ${failed} FAILED`);
         console.log('=====================================================\n');

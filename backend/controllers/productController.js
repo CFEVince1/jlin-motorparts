@@ -196,6 +196,22 @@ exports.createProduct = async (req, res) => {
         if (isMissing(reorder_level)) throw new Error('Reorder level is required');
         if (is_serialized === undefined || is_serialized === null) throw new Error('Product type is required');
 
+        const parsedCost = Number(cost_price);
+        if (!Number.isFinite(parsedCost) || parsedCost < 0) {
+            throw new Error('Cost price must be a valid non-negative number');
+        }
+        const parsedSelling = Number(selling_price);
+        if (!Number.isFinite(parsedSelling) || parsedSelling < 0) {
+            throw new Error('Selling price must be a valid non-negative number');
+        }
+        const parsedReorder = Number(reorder_level);
+        if (!Number.isFinite(parsedReorder) || parsedReorder < 0) {
+            throw new Error('Reorder level must be a valid non-negative number');
+        }
+
+        const trimmedPartNumber = String(part_number).trim();
+        const trimmedBrand = String(brand).trim();
+
         const unitIds = normalizeMotorcycleUnitIds(motorcycle_unit_ids);
         const groupIds = normalizeCompatibilityGroupIds(req.body.compatibility_group_ids);
 
@@ -206,6 +222,16 @@ exports.createProduct = async (req, res) => {
         const finalStock = 0;
 
         await connection.beginTransaction();
+
+        // Check duplicate part_number/SKU for this brand among active products
+        const [existing] = await connection.query(
+            'SELECT id FROM products WHERE (part_number = ? OR sku = ?) AND brand = ? AND is_active = true LIMIT 1',
+            [trimmedPartNumber, trimmedPartNumber, trimmedBrand]
+        );
+        if (existing.length > 0) {
+            await connection.rollback();
+            return res.status(400).json({ message: `Duplicate part number / SKU "${trimmedPartNumber}" and brand "${trimmedBrand}" detected.` });
+        }
 
         const [productResult] = await connection.query(
             `INSERT INTO products (
@@ -349,6 +375,22 @@ exports.updateProduct = async (req, res) => {
         if (isMissing(selling_price)) throw new Error('Selling price is required');
         if (isMissing(reorder_level)) throw new Error('Reorder level is required');
 
+        const parsedCost = Number(cost_price);
+        if (!Number.isFinite(parsedCost) || parsedCost < 0) {
+            throw new Error('Cost price must be a valid non-negative number');
+        }
+        const parsedSelling = Number(selling_price);
+        if (!Number.isFinite(parsedSelling) || parsedSelling < 0) {
+            throw new Error('Selling price must be a valid non-negative number');
+        }
+        const parsedReorder = Number(reorder_level);
+        if (!Number.isFinite(parsedReorder) || parsedReorder < 0) {
+            throw new Error('Reorder level must be a valid non-negative number');
+        }
+
+        const trimmedPartNumber = String(part_number).trim();
+        const trimmedBrand = String(brand).trim();
+
         const unitIds = normalizeMotorcycleUnitIds(motorcycle_unit_ids);
         const groupIds = normalizeCompatibilityGroupIds(req.body.compatibility_group_ids);
 
@@ -361,6 +403,16 @@ exports.updateProduct = async (req, res) => {
         if (existingRows.length === 0) {
             await connection.rollback();
             return res.status(404).json({ message: 'Product not found' });
+        }
+
+        // Check if SKU/part_number and brand are already used by another active product
+        const [dupCheck] = await connection.query(
+            'SELECT id FROM products WHERE (part_number = ? OR sku = ?) AND brand = ? AND id != ? AND is_active = true LIMIT 1',
+            [trimmedPartNumber, trimmedPartNumber, trimmedBrand, id]
+        );
+        if (dupCheck.length > 0) {
+            await connection.rollback();
+            return res.status(400).json({ message: `Duplicate part number / SKU "${trimmedPartNumber}" and brand "${trimmedBrand}" detected.` });
         }
 
         const existingProduct = existingRows[0];

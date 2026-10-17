@@ -76,6 +76,17 @@ async function alignSchema() {
         console.log('+ Added retail_price to products');
     }
 
+    // CHECK constraints for non-negative prices and costs
+    try {
+        await connection.query('ALTER TABLE products ADD CONSTRAINT chk_products_cost_price CHECK (cost_price >= 0)');
+    } catch (e) { /* ignore if already exists */ }
+    try {
+        await connection.query('ALTER TABLE products ADD CONSTRAINT chk_products_selling_price CHECK (selling_price >= 0)');
+    } catch (e) { /* ignore if already exists */ }
+    try {
+        await connection.query('ALTER TABLE products ADD CONSTRAINT chk_products_retail_price CHECK (retail_price >= 0)');
+    } catch (e) { /* ignore if already exists */ }
+
     // Triggers on products to keep stock & current_stock, part_number & sku, selling_price & retail_price synchronized
     await connection.query('DROP TRIGGER IF EXISTS trg_sync_products_insert;');
     await connection.query(`

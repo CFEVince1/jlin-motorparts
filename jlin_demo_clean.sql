@@ -449,7 +449,10 @@ CREATE TABLE `products` (
   KEY `idx_part_number` (`part_number`),
   KEY `idx_brand` (`brand`),
   KEY `idx_name` (`name`),
-  KEY `idx_size` (`size`)
+  KEY `idx_size` (`size`),
+  CONSTRAINT `chk_products_cost_price` CHECK (`cost_price` >= 0),
+  CONSTRAINT `chk_products_selling_price` CHECK (`selling_price` >= 0),
+  CONSTRAINT `chk_products_retail_price` CHECK (`retail_price` >= 0)
 ) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
