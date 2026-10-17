@@ -1,7 +1,7 @@
 const path = require('path');
 const fs = require('fs');
+const readline = require('readline');
 const { execSync } = require('child_process');
-
 // Ensure module resolution
 const possibleModulePaths = [
     path.join(__dirname, '..', 'backend', 'node_modules'),
@@ -14,6 +14,8 @@ for (const p of possibleModulePaths) {
         module.paths.push(p);
     }
 }
+
+const bcrypt = require('bcryptjs');
 
 // Load .env
 const envPaths = [
@@ -31,6 +33,19 @@ for (const envPath of envPaths) {
 
 const mysql = require('mysql2/promise');
 const { getSslConfig } = require('../backend/config/db');
+
+function askConfirmation(promptText) {
+    return new Promise((resolve) => {
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout
+        });
+        rl.question(promptText, (answer) => {
+            rl.close();
+            resolve(answer.trim());
+        });
+    });
+}
 
 function parseDumpStatements(sqlContent) {
     const statements = [];
@@ -101,7 +116,13 @@ async function fallbackNodeRestore(host, port, user, password, dumpFile, dbName)
         await connection.query('SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;');
         await connection.query('SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE="NO_AUTO_VALUE_ON_ZERO";');
 
-        const sqlContent = fs.readFileSync(dumpFile, 'utf8');
+        let sqlContent = fs.readFileSync(dumpFile, 'utf8');
+        // Strip DEFINER clauses for universal compatibility (local root@localhost vs cloud avnadmin)
+        sqlContent = sqlContent
+            .replace(/\/\*!50017\s+DEFINER=`[^`]+`@`[^`]+`\*\/\s*/g, '')
+            .replace(/\/\*!50013\s+DEFINER=`[^`]+`@`[^`]+`\s+SQL\s+SECURITY\s+DEFINER\s*\*\/\r?\n/g, '')
+            .replace(/DEFINER=`[^`]+`@`[^`]+`/g, '');
+
         const statements = parseDumpStatements(sqlContent);
         console.log(`[Fallback] Parsed ${statements.length} SQL statements (including trigger blocks).`);
 
@@ -158,14 +179,75 @@ async function resetDemoDatabase() {
         process.exit(1);
     }
 
-    const host = process.env.DB_HOST || 'localhost';
+    const host = (process.env.DB_HOST || 'localhost').trim();
     const port = process.env.DB_PORT || '3306';
     const user = process.env.DB_USER || 'root';
     const password = process.env.DB_PASSWORD || '';
-    const dbName = process.env.DB_NAME || 'jlin_inventory_db';
+    const dbName = (process.env.DB_NAME || 'jlin_inventory_db').trim();
+
+    const normalizedHost = host.toLowerCase();
+    const isLocal = ['localhost', '127.0.0.1', '::1'].includes(normalizedHost);
+
+    // Guard against overwriting live / remote databases
+    const forceRemote = process.argv.includes('--force-remote') || process.env.ALLOW_REMOTE_RESET === 'true';
+    const confirmArg = process.argv.find(arg => arg.startsWith('--confirm='));
+    const preConfirmVal = confirmArg ? confirmArg.split('=')[1].trim() : (process.env.CONFIRM_REMOTE_RESET || '').trim();
+
+    if (!isLocal) {
+        console.warn('⚠️  =====================================================');
+        console.warn(`⚠️  REMOTE DATABASE HOST DETECTED: [${host}]`);
+        console.warn('⚠️  =====================================================\n');
+
+        if (!forceRemote) {
+            console.error(`⛔ SAFETY REFUSAL: Target database host is remote ('${host}').`);
+            console.error('Refusing to reset remote database without explicit permission to protect production data.');
+            console.error('To permit remote reset, pass the --force-remote flag or set ALLOW_REMOTE_RESET=true.');
+            console.error(`Example: node scripts/reset_demo.js --force-remote\n`);
+            process.exit(1);
+        }
+
+        let confirmedName = preConfirmVal;
+        if (!confirmedName) {
+            console.warn(`WARNING: This will completely replace and reset data in '${dbName}' on remote host '${host}'.`);
+            if (process.stdin.isTTY) {
+                confirmedName = await askConfirmation(`Type '${dbName}' to confirm remote reset: `);
+            } else {
+                console.error(`⛔ Confirmation required in non-interactive mode. Pass --confirm=${dbName} or set CONFIRM_REMOTE_RESET=${dbName}.`);
+                process.exit(1);
+            }
+        }
+
+        if (confirmedName !== dbName) {
+            console.error(`⛔ Confirmation failed: input '${confirmedName}' does not match '${dbName}'. Reset aborted.`);
+            process.exit(1);
+        }
+        console.log(`✓ Remote database reset authorized and confirmed for '${dbName}'.\n`);
+    }
 
     console.log(`Target Database: ${dbName} on ${host}:${port} (User: ${user})`);
     console.log(`Snapshot Source: ${dumpFile}`);
+
+    // Pre-check: Backup existing user accounts before wiping/restoring tables
+    let cachedUsers = [];
+    try {
+        const preCheckConn = await mysql.createConnection({
+            host,
+            port: parseInt(port, 10),
+            user,
+            password,
+            database: dbName,
+            ...getSslConfig(host)
+        });
+        const [existingUsers] = await preCheckConn.query('SELECT * FROM users ORDER BY id ASC');
+        if (Array.isArray(existingUsers) && existingUsers.length > 0) {
+            cachedUsers = existingUsers;
+            console.log(`[Backup] Preserving ${cachedUsers.length} existing user account(s) across reset.`);
+        }
+        await preCheckConn.end();
+    } catch (e) {
+        // Database or table may not exist yet on fresh setup; continue
+    }
+
     console.log('\nRestoring baseline snapshot...');
 
     // Method 1: Try XAMPP / system mysql client CLI for fast restore
@@ -228,6 +310,49 @@ async function resetDemoDatabase() {
     try {
         // Ensure legacy product_compatibility is permanently retired
         await connection.query('DROP TABLE IF EXISTS product_compatibility;');
+
+        // Restore or dynamically provision user accounts
+        if (cachedUsers.length > 0) {
+            console.log(`[Users] Restoring ${cachedUsers.length} preserved user accounts...`);
+            for (const u of cachedUsers) {
+                await connection.query(`
+                    INSERT INTO users (id, username, password, role, token_version, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE
+                        password = VALUES(password),
+                        role = VALUES(role),
+                        token_version = VALUES(token_version),
+                        updated_at = VALUES(updated_at)
+                `, [u.id, u.username, u.password, u.role, u.token_version || 1, u.created_at || new Date(), u.updated_at || new Date()]);
+            }
+            // Ensure foreign key targets user_id 1 and 2 exist
+            const restoredIds = cachedUsers.map(u => u.id);
+            if (!restoredIds.includes(1)) {
+                const adminPass = process.env.INITIAL_ADMIN_PASSWORD || 'admin123';
+                const adminHash = await bcrypt.hash(adminPass, 10);
+                await connection.query(`INSERT INTO users (id, username, password, role) VALUES (1, 'admin', ?, 'admin') ON DUPLICATE KEY UPDATE id=id`, [adminHash]);
+            }
+            if (!restoredIds.includes(2)) {
+                const staffPass = process.env.INITIAL_STAFF_PASSWORD || 'staff123';
+                const staffHash = await bcrypt.hash(staffPass, 10);
+                await connection.query(`INSERT INTO users (id, username, password, role) VALUES (2, 'staff', ?, 'staff') ON DUPLICATE KEY UPDATE id=id`, [staffHash]);
+            }
+            console.log('✓ Preserved user accounts restored.');
+        } else {
+            console.log('[Users] No existing users found. Seeding initial accounts dynamically...');
+            const adminPass = process.env.INITIAL_ADMIN_PASSWORD || 'admin123';
+            const staffPass = process.env.INITIAL_STAFF_PASSWORD || 'staff123';
+            const adminHash = await bcrypt.hash(adminPass, 10);
+            const staffHash = await bcrypt.hash(staffPass, 10);
+            await connection.query(`
+                INSERT INTO users (id, username, password, role, token_version)
+                VALUES 
+                (1, 'admin', ?, 'admin', 1),
+                (2, 'staff', ?, 'staff', 1)
+                ON DUPLICATE KEY UPDATE password = VALUES(password)
+            `, [adminHash, staffHash]);
+            console.log('✓ Initial user accounts dynamically provisioned (admin id=1, staff id=2).');
+        }
 
         const [prodCount] = await connection.query('SELECT COUNT(*) as count FROM products WHERE is_active = TRUE');
         const [txCount] = await connection.query('SELECT COUNT(*) as count FROM inventory_transactions');

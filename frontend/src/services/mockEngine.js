@@ -76,10 +76,10 @@ const DEFAULT_PRODUCTS = [
         item_id: 4,
         sku: '0A123D21',
         part_number: '0A123D21',
-        product_name: 'block',
-        name: 'block',
-        brand: 'jvt',
-        category: 'engine',
+        product_name: 'Cylinder Block Kit 66mm',
+        name: 'Cylinder Block Kit 66mm',
+        brand: 'JVT',
+        category: 'Engine',
         size: '66mm',
         is_serialized: 0,
         current_stock: 14,
@@ -200,9 +200,9 @@ const DEFAULT_TRANSACTIONS = [
         items: [
             {
                 product_id: 4,
-                name: 'block',
+                name: 'Cylinder Block Kit 66mm',
                 part_number: '0A123D21',
-                brand: 'jvt',
+                brand: 'JVT',
                 quantity: 1,
                 unit_price: 7500.00,
                 price: 7500.00,
@@ -479,7 +479,7 @@ export async function handleMockRequest(config) {
                 data: [
                     { product_id: 1, name: 'Bolt M8', part_number: 'BLT-M8-001', brand: 'JRP', total_sold: 45, total_revenue: 675.00, price: 15.00, stock: 153 },
                     { product_id: 2, name: 'Spark Plug', part_number: 'SP-001', brand: 'NGK', total_sold: 18, total_revenue: 2160.00, price: 120.00, stock: 27 },
-                    { product_id: 4, name: 'block', part_number: '0A123D21', brand: 'jvt', total_sold: 3, total_revenue: 22500.00, price: 7500.00, stock: 4 }
+                    { product_id: 4, name: 'Cylinder Block Kit 66mm', part_number: '0A123D21', brand: 'JVT', total_sold: 3, total_revenue: 22500.00, price: 7500.00, stock: 4 }
                 ]
             }
         };
@@ -620,7 +620,7 @@ export async function handleMockRequest(config) {
             data: [
                 { name: 'Bolt M8', part_number: 'BLT-M8-001', brand: 'JRP', total_sold: 45, total_revenue: 675.00 },
                 { name: 'Spark Plug', part_number: 'SP-001', brand: 'NGK', total_sold: 18, total_revenue: 2160.00 },
-                { name: 'block', part_number: '0A123D21', brand: 'jvt', total_sold: 3, total_revenue: 22500.00 }
+                { name: 'Cylinder Block Kit 66mm', part_number: '0A123D21', brand: 'JVT', total_sold: 3, total_revenue: 22500.00 }
             ]
         };
     }
@@ -662,7 +662,7 @@ export async function handleMockRequest(config) {
         return {
             status: 200,
             statusText: 'OK',
-            data: ['Bolts', 'Ignition', 'Electrical', 'engine', 'Brakes', 'Maintenance']
+            data: ['Bolts', 'Ignition', 'Electrical', 'Engine', 'Brakes', 'Maintenance']
         };
     }
 
@@ -670,7 +670,7 @@ export async function handleMockRequest(config) {
         return {
             status: 200,
             statusText: 'OK',
-            data: ['JRP', 'NGK', 'Suzuki', 'jvt', 'Yamaha']
+            data: ['JRP', 'NGK', 'Suzuki', 'JVT', 'Yamaha']
         };
     }
 

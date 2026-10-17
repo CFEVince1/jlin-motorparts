@@ -124,7 +124,7 @@ CREATE TABLE `inventory_transactions` (
 
 LOCK TABLES `inventory_transactions` WRITE;
 /*!40000 ALTER TABLE `inventory_transactions` DISABLE KEYS */;
-INSERT INTO `inventory_transactions` VALUES (1,'TX-OPB-0001-717401',NULL,1,'OPENING_BALANCE',161,161,0,161,8.00,'OPENING_BALANCE',1,NULL,'Baseline OPENING_BALANCE for pre-existing product: Bolt M8 (BLT-M8-001)',NULL,1,'2026-10-07 14:51:57'),(2,'TX-OPB-0002-717405',NULL,2,'OPENING_BALANCE',29,29,0,29,75.00,'OPENING_BALANCE',2,NULL,'Baseline OPENING_BALANCE for pre-existing product: Spark Plug (SP-001)',NULL,1,'2026-10-07 14:51:57'),(3,'TX-OPB-0003-717408',NULL,3,'OPENING_BALANCE',1,1,0,1,1500.00,'OPENING_BALANCE',3,NULL,'Baseline OPENING_BALANCE for pre-existing product: ECU (ECU-RAIDER-01)',NULL,1,'2026-10-07 14:51:57'),(4,'TX-OPB-0004-717417',NULL,4,'OPENING_BALANCE',46,46,0,46,6500.00,'OPENING_BALANCE',4,NULL,'Baseline OPENING_BALANCE for pre-existing product: block (0A123D21)',NULL,1,'2026-10-07 14:51:57'),(5,'TX-OPENING-20261007-JLR-BP-AEROX','OPENING-20261007',5,'OPENING_BALANCE',0,0,0,0,250.00,'OPENING_BALANCE',5,NULL,'Baseline OPENING_BALANCE for defense demo item JLR-BP-AEROX (reference: OPENING-20261007)',NULL,1,'2026-10-07 14:56:23'),(6,'TX-OPENING-20261007-JLR-OF-AEROX','OPENING-20261007',6,'OPENING_BALANCE',0,0,0,0,120.00,'OPENING_BALANCE',6,NULL,'Baseline OPENING_BALANCE for defense demo item JLR-OF-AEROX (reference: OPENING-20261007)',NULL,1,'2026-10-07 14:56:23');
+INSERT INTO `inventory_transactions` VALUES (1,'TX-OPB-0001-717401',NULL,1,'OPENING_BALANCE',161,161,0,161,8.00,'OPENING_BALANCE',1,NULL,'Baseline OPENING_BALANCE for pre-existing product: Bolt M8 (BLT-M8-001)',NULL,1,'2026-10-07 14:51:57'),(2,'TX-OPB-0002-717405',NULL,2,'OPENING_BALANCE',29,29,0,29,75.00,'OPENING_BALANCE',2,NULL,'Baseline OPENING_BALANCE for pre-existing product: Spark Plug (SP-001)',NULL,1,'2026-10-07 14:51:57'),(3,'TX-OPB-0003-717408',NULL,3,'OPENING_BALANCE',1,1,0,1,1500.00,'OPENING_BALANCE',3,NULL,'Baseline OPENING_BALANCE for pre-existing product: ECU (ECU-RAIDER-01)',NULL,1,'2026-10-07 14:51:57'),(4,'TX-OPB-0004-717417',NULL,4,'OPENING_BALANCE',46,46,0,46,6500.00,'OPENING_BALANCE',4,NULL,'Baseline OPENING_BALANCE for pre-existing product: Cylinder Block Kit 66mm (0A123D21)',NULL,1,'2026-10-07 14:51:57'),(5,'TX-OPENING-20261007-JLR-BP-AEROX','OPENING-20261007',5,'OPENING_BALANCE',0,0,0,0,250.00,'OPENING_BALANCE',5,NULL,'Baseline OPENING_BALANCE for defense demo item JLR-BP-AEROX (reference: OPENING-20261007)',NULL,1,'2026-10-07 14:56:23'),(6,'TX-OPENING-20261007-JLR-OF-AEROX','OPENING-20261007',6,'OPENING_BALANCE',0,0,0,0,120.00,'OPENING_BALANCE',6,NULL,'Baseline OPENING_BALANCE for defense demo item JLR-OF-AEROX (reference: OPENING-20261007)',NULL,1,'2026-10-07 14:56:23');
 /*!40000 ALTER TABLE `inventory_transactions` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
@@ -136,7 +136,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,NO_ZERO_IN_DATE,NO_ZERO_DATE,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER trg_block_inventory_transactions_update
+/*!50003 CREATE*/ /*!50003 TRIGGER trg_block_inventory_transactions_update
             BEFORE UPDATE ON inventory_transactions
             FOR EACH ROW
             BEGIN
@@ -157,7 +157,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,NO_ZERO_IN_DATE,NO_ZERO_DATE,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER trg_block_inventory_transactions_delete
+/*!50003 CREATE*/ /*!50003 TRIGGER trg_block_inventory_transactions_delete
             BEFORE DELETE ON inventory_transactions
             FOR EACH ROW
             BEGIN
@@ -426,7 +426,7 @@ CREATE TABLE `products` (
 
 LOCK TABLES `products` WRITE;
 /*!40000 ALTER TABLE `products` DISABLE KEYS */;
-INSERT INTO `products` VALUES (1,'BLT-M8-001','BLT-M8-001','Bolt M8','JRP','Bolts','M8 x 20mm','8mm x 20mm','M8',8.00,15.00,15.00,161,161,10,0,1,'2026-09-30 16:07:41','2026-10-07 15:01:45'),(2,'SP-001','SP-001','Spark Plug','NGK','Ignition','Standard','Standard motorcycle spark plug',NULL,75.00,120.00,120.00,29,29,8,0,1,'2026-09-30 16:07:41','2026-10-07 15:01:45'),(3,'ECU-RAIDER-01','ECU-RAIDER-01','ECU','Suzuki','Electrical','Raider FI ECU','Raider FI compatible ECU',NULL,1500.00,2500.00,2500.00,1,1,1,1,1,'2026-09-30 16:07:41','2026-10-07 15:01:45'),(4,'0A123D21','0A123D21','block','jvt','engine','66mm','172.mm',NULL,6500.00,7500.00,7500.00,46,46,1,0,1,'2026-10-01 05:31:52','2026-10-07 15:01:45'),(5,'JLR-BP-AEROX','JLR-BP-AEROX','Aerox Front Brake Pad Set','Yamaha','Brakes','Standard','Aerox OEM Front Caliper Fitment',NULL,250.00,450.00,450.00,0,0,5,0,1,'2026-10-07 14:56:03','2026-10-07 15:01:45'),(6,'JLR-OF-AEROX','JLR-OF-AEROX','Aerox Engine Oil Filter Element','Yamaha','Maintenance','Standard','Yamaha BlueCore 155cc Engine',NULL,120.00,220.00,220.00,0,0,5,0,1,'2026-10-07 14:56:03','2026-10-07 15:01:45');
+INSERT INTO `products` VALUES (1,'BLT-M8-001','BLT-M8-001','Bolt M8','JRP','Bolts','M8 x 20mm','8mm x 20mm','M8',8.00,15.00,15.00,161,161,10,0,1,'2026-09-30 16:07:41','2026-10-07 15:01:45'),(2,'SP-001','SP-001','Spark Plug','NGK','Ignition','Standard','Standard motorcycle spark plug',NULL,75.00,120.00,120.00,29,29,8,0,1,'2026-09-30 16:07:41','2026-10-07 15:01:45'),(3,'ECU-RAIDER-01','ECU-RAIDER-01','ECU','Suzuki','Electrical','Raider FI ECU','Raider FI compatible ECU',NULL,1500.00,2500.00,2500.00,1,1,1,1,1,'2026-09-30 16:07:41','2026-10-07 15:01:45'),(4,'0A123D21','0A123D21','Cylinder Block Kit 66mm','JVT','Engine','66mm','172mm',NULL,6500.00,7500.00,7500.00,46,46,1,0,1,'2026-10-01 05:31:52','2026-10-07 15:01:45'),(5,'JLR-BP-AEROX','JLR-BP-AEROX','Aerox Front Brake Pad Set','Yamaha','Brakes','Standard','Aerox OEM Front Caliper Fitment',NULL,250.00,450.00,450.00,0,0,5,0,1,'2026-10-07 14:56:03','2026-10-07 15:01:45'),(6,'JLR-OF-AEROX','JLR-OF-AEROX','Aerox Engine Oil Filter Element','Yamaha','Maintenance','Standard','Yamaha BlueCore 155cc Engine',NULL,120.00,220.00,220.00,0,0,5,0,1,'2026-10-07 14:56:03','2026-10-07 15:01:45');
 /*!40000 ALTER TABLE `products` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
@@ -438,7 +438,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,NO_ZERO_IN_DATE,NO_ZERO_DATE,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER trg_sync_products_insert
+/*!50003 CREATE*/ /*!50003 TRIGGER trg_sync_products_insert
         BEFORE INSERT ON products
         FOR EACH ROW
         BEGIN
@@ -474,7 +474,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,NO_ZERO_IN_DATE,NO_ZERO_DATE,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER trg_sync_products_update
+/*!50003 CREATE*/ /*!50003 TRIGGER trg_sync_products_update
         BEFORE UPDATE ON products
         FOR EACH ROW
         BEGIN
@@ -636,7 +636,7 @@ CREATE TABLE `sale_items` (
 
 LOCK TABLES `sale_items` WRITE;
 /*!40000 ALTER TABLE `sale_items` DISABLE KEYS */;
-INSERT INTO `sale_items` VALUES (1,1,1,'BLT-M8-001','Bolt M8','JRP','M8 x 20mm',1,15.00,8.00,15.00),(2,2,4,'0A123D21','block','jvt','66mm',1,7500.00,6500.00,7500.00),(3,3,4,'0A123D21','block','jvt','66mm',1,7500.00,6500.00,7500.00),(4,4,4,'0A123D21','block','jvt','66mm',1,7500.00,6500.00,7500.00),(5,5,3,'ECU-RAIDER-01','ECU','Suzuki','Raider FI ECU',1,2500.00,1500.00,2500.00),(6,6,1,'BLT-M8-001','Bolt M8','JRP','M8 x 20mm',6,15.00,8.00,90.00),(7,7,1,'BLT-M8-001','Bolt M8','JRP','M8 x 20mm',2,15.00,8.00,30.00),(8,7,4,'0A123D21','block','jvt','66mm',1,7500.00,6500.00,7500.00),(9,7,2,'SP-001','Spark Plug','NGK','Standard',1,120.00,75.00,120.00),(10,7,3,'ECU-RAIDER-01','ECU','Suzuki','Raider FI ECU',1,2500.00,1500.00,2500.00);
+INSERT INTO `sale_items` VALUES (1,1,1,'BLT-M8-001','Bolt M8','JRP','M8 x 20mm',1,15.00,8.00,15.00),(2,2,4,'0A123D21','Cylinder Block Kit 66mm','JVT','66mm',1,7500.00,6500.00,7500.00),(3,3,4,'0A123D21','Cylinder Block Kit 66mm','JVT','66mm',1,7500.00,6500.00,7500.00),(4,4,4,'0A123D21','Cylinder Block Kit 66mm','JVT','66mm',1,7500.00,6500.00,7500.00),(5,5,3,'ECU-RAIDER-01','ECU','Suzuki','Raider FI ECU',1,2500.00,1500.00,2500.00),(6,6,1,'BLT-M8-001','Bolt M8','JRP','M8 x 20mm',6,15.00,8.00,90.00),(7,7,1,'BLT-M8-001','Bolt M8','JRP','M8 x 20mm',2,15.00,8.00,30.00),(8,7,4,'0A123D21','Cylinder Block Kit 66mm','JVT','66mm',1,7500.00,6500.00,7500.00),(9,7,2,'SP-001','Spark Plug','NGK','Standard',1,120.00,75.00,120.00),(10,7,3,'ECU-RAIDER-01','ECU','Suzuki','Raider FI ECU',1,2500.00,1500.00,2500.00);
 /*!40000 ALTER TABLE `sale_items` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -678,7 +678,7 @@ CREATE TABLE `sales` (
 
 LOCK TABLES `sales` WRITE;
 /*!40000 ALTER TABLE `sales` DISABLE KEYS */;
-INSERT INTO `sales` VALUES (1,1,15.00,21.00,6.00,'Cash','2026-09-30 16:18:57',NULL,NULL,NULL,'paid',NULL,0.00,0.00,NULL,NULL,NULL),(2,1,7500.00,7501.00,1.00,'Cash','2026-10-01 05:32:43',NULL,NULL,NULL,'paid',NULL,0.00,0.00,NULL,NULL,NULL),(3,2,7500.00,99999999.99,99999999.99,'Cash','2026-10-07 07:58:26',NULL,NULL,NULL,'paid',NULL,0.00,0.00,NULL,NULL,NULL),(4,2,7500.00,7500.00,0.00,'Cash','2026-10-07 07:59:41',NULL,NULL,NULL,'paid',NULL,0.00,0.00,NULL,NULL,NULL),(5,2,2500.00,2501.00,1.00,'Cash','2026-10-07 08:00:09',NULL,NULL,NULL,'paid',NULL,0.00,0.00,NULL,NULL,NULL),(6,2,90.00,91.00,1.00,'Cash','2026-10-07 08:00:26',NULL,NULL,NULL,'paid',NULL,0.00,0.00,NULL,NULL,NULL),(7,2,10150.00,10200.00,50.00,'Cash','2026-10-07 08:01:56',NULL,NULL,NULL,'paid',NULL,0.00,0.00,NULL,NULL,NULL);
+INSERT INTO `sales` VALUES (1,1,15.00,21.00,6.00,'Cash','2026-09-30 16:18:57',NULL,NULL,NULL,'paid',NULL,0.00,0.00,NULL,NULL,NULL),(2,1,7500.00,7501.00,1.00,'Cash','2026-10-01 05:32:43',NULL,NULL,NULL,'paid',NULL,0.00,0.00,NULL,NULL,NULL),(3,2,7500.00,8000.00,500.00,'Cash','2026-10-07 07:58:26',NULL,NULL,NULL,'paid',NULL,0.00,0.00,NULL,NULL,NULL),(4,2,7500.00,7500.00,0.00,'Cash','2026-10-07 07:59:41',NULL,NULL,NULL,'paid',NULL,0.00,0.00,NULL,NULL,NULL),(5,2,2500.00,2501.00,1.00,'Cash','2026-10-07 08:00:09',NULL,NULL,NULL,'paid',NULL,0.00,0.00,NULL,NULL,NULL),(6,2,90.00,91.00,1.00,'Cash','2026-10-07 08:00:26',NULL,NULL,NULL,'paid',NULL,0.00,0.00,NULL,NULL,NULL),(7,2,10150.00,10200.00,50.00,'Cash','2026-10-07 08:01:56',NULL,NULL,NULL,'paid',NULL,0.00,0.00,NULL,NULL,NULL);
 /*!40000 ALTER TABLE `sales` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -741,7 +741,6 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (1,'admin','$2b$10$AdHlxtdX7mAvC5NoE61PQeh9hmfz4.g.l5Qj8yppnzJ7mvQ51/S.m','admin','2026-09-30 16:13:51','2026-09-30 17:43:28',1),(2,'staff','$2b$10$6TLQDGywVlfZ.ZdpbR5BC.ZCSaSkvoSUZdq2JPOS4kVBlRQyDxNsK','staff','2026-09-30 16:13:51','2026-09-30 17:43:28',1);
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -767,7 +766,6 @@ USE `jlin_inventory_db`;
 /*!50001 SET character_set_results     = utf8mb4 */;
 /*!50001 SET collation_connection      = utf8mb4_unicode_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
 /*!50001 VIEW `items` AS select `products`.`id` AS `id`,`products`.`id` AS `item_id`,coalesce(`products`.`sku`,`products`.`part_number`) AS `sku`,`products`.`part_number` AS `part_number`,`products`.`name` AS `name`,`products`.`brand` AS `brand`,`products`.`category` AS `category`,`products`.`size` AS `size`,`products`.`measurement` AS `measurement`,`products`.`thread_type` AS `thread_type`,`products`.`cost_price` AS `cost_price`,coalesce(`products`.`retail_price`,`products`.`selling_price`) AS `retail_price`,`products`.`selling_price` AS `selling_price`,coalesce(`products`.`current_stock`,`products`.`stock`) AS `current_stock`,`products`.`stock` AS `stock`,`products`.`reorder_level` AS `reorder_level`,`products`.`is_serialized` AS `is_serialized`,`products`.`is_active` AS `is_active`,`products`.`created_at` AS `created_at`,`products`.`updated_at` AS `updated_at` from `products` */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;

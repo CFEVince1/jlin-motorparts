@@ -344,7 +344,7 @@ async function setupDatabase() {
                 ('BLT-M8-001', 'BLT-M8-001', 'Bolt M8', 'JRP', 'Bolts', 'M8 x 20mm', 8.00, 15.00, 15.00, 0, 0, 10, FALSE),
                 ('SP-001', 'SP-001', 'Spark Plug', 'NGK', 'Ignition', 'Standard', 75.00, 120.00, 120.00, 0, 0, 8, FALSE),
                 ('ECU-RAIDER-01', 'ECU-RAIDER-01', 'ECU', 'Suzuki', 'Electrical', 'Raider FI ECU', 1500.00, 2500.00, 2500.00, 0, 0, 1, TRUE),
-                ('0A123D21', '0A123D21', 'block', 'jvt', 'engine', '66mm', 6500.00, 7500.00, 7500.00, 0, 0, 1, FALSE),
+                ('0A123D21', '0A123D21', 'Cylinder Block Kit 66mm', 'JVT', 'Engine', '66mm', 6500.00, 7500.00, 7500.00, 0, 0, 1, FALSE),
                 ('JLR-BP-AEROX', 'JLR-BP-AEROX', 'Aerox Front Brake Pad Set', 'Yamaha', 'Brakes', 'Standard', 250.00, 450.00, 450.00, 0, 0, 5, FALSE),
                 ('JLR-OF-AEROX', 'JLR-OF-AEROX', 'Aerox Engine Oil Filter Element', 'Yamaha', 'Maintenance', 'Standard', 120.00, 220.00, 220.00, 0, 0, 5, FALSE)
             `);
