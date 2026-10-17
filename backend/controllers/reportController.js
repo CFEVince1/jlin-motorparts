@@ -149,7 +149,7 @@ exports.getDailySales = async (req, res) => {
         let selectDate = '';
 
         if (chosenDate && chosenEndDate && chosenDate !== chosenEndDate) {
-            selectDate = 'CONCAT(?, " to ", ?) as date';
+            selectDate = "CONCAT(?, ' to ', ?) as date";
             params.push(chosenDate, chosenEndDate);
             dateCondition = 'DATE(s.sale_date) >= ? AND DATE(s.sale_date) <= ?';
             params.push(chosenDate, chosenEndDate);
@@ -159,7 +159,7 @@ exports.getDailySales = async (req, res) => {
             dateCondition = 'DATE(s.sale_date) = ?';
             params.push(chosenDate);
         } else {
-            selectDate = 'DATE_FORMAT(CURDATE(), "%Y-%m-%d") as date';
+            selectDate = "DATE_FORMAT(CURDATE(), '%Y-%m-%d') as date";
             dateCondition = 'DATE(s.sale_date) = CURDATE()';
         }
 
