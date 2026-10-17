@@ -134,28 +134,28 @@ const DEFAULT_SUPPLIERS = [
     {
         id: 1,
         name: 'Yamaha Motor Philippines',
-        contact_person: 'Carlos Mendoza',
-        email: 'sales@yamaha-motor.com.ph',
-        phone: '0917-555-1234',
-        address: 'Lima Technology Center, Malvar, Batangas',
+        contact_person: null,
+        email: null,
+        phone: null,
+        address: null,
         is_active: 1
     },
     {
         id: 2,
         name: 'Suzuki Philippines Inc.',
-        contact_person: 'Maria Santos',
-        email: 'parts@suzuki.com.ph',
-        phone: '0918-444-5678',
-        address: 'Canlubang Industrial Estate, Calamba, Laguna',
+        contact_person: null,
+        email: null,
+        phone: null,
+        address: null,
         is_active: 1
     },
     {
         id: 3,
         name: 'NGK Spark Plugs Phils.',
-        contact_person: 'Roberto Cruz',
-        email: 'orders@ngkntk.ph',
-        phone: '0922-333-7890',
-        address: 'Makati City, Metro Manila',
+        contact_person: null,
+        email: null,
+        phone: null,
+        address: null,
         is_active: 1
     }
 ];
@@ -216,7 +216,7 @@ const VEHICLE_OPTIONS = [
     {
         brand: 'Yamaha',
         models: [
-            { id: 1, model: 'Aerox 155', versions: ['Aerox 155 V1', 'Aerox 155 V2', 'Aerox 155 V3'] },
+            { id: 1, model: 'Aerox 155', versions: ['V1', 'V3'] },
             { id: 2, model: 'Mio i125', versions: ['2020', '2021', '2022', '2023'] },
             { id: 3, model: 'NMAX 155', versions: ['V1', 'V2'] }
         ]
@@ -224,7 +224,7 @@ const VEHICLE_OPTIONS = [
     {
         brand: 'Suzuki',
         models: [
-            { id: 4, model: 'Raider 150', versions: ['Raider 150 2012', 'Raider 150 Carb', 'Raider 150 2022 FI'] }
+            { id: 4, model: 'Raider 150', versions: ['2012', 'Carb', '2022 FI'] }
         ]
     },
     {
@@ -237,8 +237,8 @@ const VEHICLE_OPTIONS = [
 ];
 
 const DEFAULT_MOTORCYCLE_UNITS = [
-    { id: 1, brand: 'Yamaha', model: 'Aerox 155', year_model: 'V1', notes: 'Liquid cooled 155cc' },
-    { id: 2, brand: 'Yamaha', model: 'Aerox 155', year_model: 'V2', notes: 'Connected 155cc' },
+    { id: 1, brand: 'Yamaha', model: 'Aerox 155 V1', year_model: 'V1', notes: 'Liquid cooled 155cc' },
+    { id: 2, brand: 'Yamaha', model: 'Aerox 155 V3', year_model: 'V3', notes: 'Connected 155cc' },
     { id: 3, brand: 'Yamaha', model: 'NMAX 155', year_model: 'V1', notes: 'Maxi scooter' },
     { id: 4, brand: 'Yamaha', model: 'Mio i125', year_model: '2022', notes: 'M3 platform' },
     { id: 5, brand: 'Suzuki', model: 'Raider 150', year_model: '2012', notes: 'Carburetor DOHC' },
