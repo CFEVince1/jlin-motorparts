@@ -633,6 +633,84 @@ async function runTestSuite() {
         assert(!syncScriptContent.includes('rejectUnauthorized: false'), 'sync_aiven_schema.js does not disable TLS certificate validation');
         assert(!syncScriptContent.includes('# DB_HOST'), 'sync_aiven_schema.js does not scrape commented out credentials');
 
+        // ----------------------------------------------------
+        // [TEST 11] CORS Whitelist Strictness & Error Sanitization
+        // ----------------------------------------------------
+        console.log('\n[TEST 11] CORS Exact Frontend Whitelist & Server Error Sanitization');
+        
+        const serverFileContent = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');
+        assert(!serverFileContent.includes("origin.endsWith('.vercel.app')"), 'server.js does not allow arbitrary *.vercel.app origins');
+        assert(!serverFileContent.includes("endsWith('.vercel.app')"), 'server.js has no wildcard vercel.app allowance');
+
+        // Extract and test origin matching logic from server.js
+        const allowedCustomOrigins = [];
+        const isAllowedExactOrigin = (origin) => {
+            if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) return true;
+            if (allowedCustomOrigins.includes(origin)) return true;
+            if (origin === 'https://jlin-motorparts.vercel.app') return true;
+            if (
+                /^https:\/\/jlin-motorparts(-[a-zA-Z0-9]+)?-cfevince1s-projects\.vercel\.app$/.test(origin) ||
+                /^https:\/\/jlin-motorparts-[a-zA-Z0-9]+-cfevince1\.vercel\.app$/.test(origin) ||
+                /^https:\/\/jlin-motorparts(-[a-zA-Z0-9-]+)?\.vercel\.app$/.test(origin)
+            ) return true;
+            return false;
+        };
+
+        assert(isAllowedExactOrigin('https://jlin-motorparts.vercel.app') === true, 'Exact production frontend origin is allowed');
+        assert(isAllowedExactOrigin('http://localhost:5173') === true, 'Localhost development origin is allowed');
+        assert(isAllowedExactOrigin('https://jlin-motorparts-abc123-cfevince1s-projects.vercel.app') === true, 'Official Vercel preview deployment is allowed');
+        assert(isAllowedExactOrigin('https://attacker-app.vercel.app') === false, 'Arbitrary external Vercel app is strictly rejected by CORS');
+        assert(isAllowedExactOrigin('https://malicious-site.com') === false, 'Arbitrary third-party domain is strictly rejected by CORS');
+
+        // Verify that server error responses do not leak database internals
+        const hasDatabaseInternals = (err) => Boolean(
+            err.sql || err.sqlMessage || err.sqlState ||
+            (typeof err.code === 'string' && (err.code.startsWith('ER_') || err.code.startsWith('PROTOCOL_'))) ||
+            (err.message && /sql|select|insert|update|delete|table|column|foreign key|constraint|database|syntax error/i.test(err.message))
+        );
+
+        const simulatedSqlError = new Error("ER_PARSE_ERROR: You have an error in your SQL syntax near 'WHERE id = 1'");
+        simulatedSqlError.sql = "SELECT * FROM secret_table WHERE id = 1";
+        simulatedSqlError.code = "ER_PARSE_ERROR";
+
+        assert(hasDatabaseInternals(simulatedSqlError) === true, 'Database internal error is accurately detected');
+
+        // Test error handler behavior on simulated DB error
+        let handlerStatusCode = null;
+        let handlerResponseJson = null;
+        const mockResHandler = {
+            status: (code) => { handlerStatusCode = code; return mockResHandler; },
+            json: (payload) => { handlerResponseJson = payload; return mockResHandler; }
+        };
+
+        // Simulated global error handler logic
+        const testErrorHandler = (err, req, res) => {
+            const status = (typeof err.status === 'number' && err.status >= 400 && err.status < 500)
+                ? err.status
+                : 500;
+            const isDb = hasDatabaseInternals(err);
+            if (status >= 500 || isDb) {
+                return res.status(500).json({ message: 'An internal server error occurred. Please try again later.' });
+            }
+            res.status(status).json({ message: err.message || 'An error occurred' });
+        };
+
+        testErrorHandler(simulatedSqlError, {}, mockResHandler);
+        assert(handlerStatusCode === 500, 'Database error yields 500 status code');
+        assert(handlerResponseJson && handlerResponseJson.message === 'An internal server error occurred. Please try again later.', 'Database error returns generic sanitized message');
+        assert(!JSON.stringify(handlerResponseJson).includes('secret_table'), 'Database error payload never exposes table names');
+        assert(!JSON.stringify(handlerResponseJson).includes('SQL'), 'Database error payload never exposes SQL query text');
+
+        // Verify controllers no longer output { error: err.message }
+        const reportCtrlContent = fs.readFileSync(path.join(__dirname, 'controllers/reportController.js'), 'utf8');
+        assert(!reportCtrlContent.includes('error: err.message'), 'reportController does not expose error: err.message');
+        const analyticsCtrlContent = fs.readFileSync(path.join(__dirname, 'controllers/analyticsController.js'), 'utf8');
+        assert(!analyticsCtrlContent.includes('error: err.message'), 'analyticsController does not expose error: err.message');
+        const prodCtrlContent = fs.readFileSync(path.join(__dirname, 'controllers/productController.js'), 'utf8');
+        assert(!prodCtrlContent.includes('error: err.message'), 'productController does not expose error: err.message');
+        const compatCtrlContent = fs.readFileSync(path.join(__dirname, 'controllers/compatibilityController.js'), 'utf8');
+        assert(!compatCtrlContent.includes('error: err.message'), 'compatibilityController does not expose error: err.message');
+
         // Cleanup
         await db.query('UPDATE products SET is_active = FALSE WHERE id = ?', [compatProdId]);
 

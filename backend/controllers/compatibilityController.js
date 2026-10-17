@@ -22,7 +22,7 @@ exports.getMotorcycleUnits = async (req, res) => {
         res.json(units);
     } catch (err) {
         console.error('Error fetching motorcycle units:', err);
-        res.status(500).json({ message: 'Error fetching motorcycle units', error: err.message });
+        res.status(500).json({ message: 'Error fetching motorcycle units' });
     }
 };
 
@@ -42,7 +42,10 @@ exports.createMotorcycleUnit = async (req, res) => {
         if (err.code === 'ER_DUP_ENTRY') {
             return res.status(400).json({ message: 'This motorcycle unit already exists.' });
         }
-        res.status(400).json({ message: err.message || 'Error creating motorcycle unit' });
+        if (err.message === 'Brand is required' || err.message === 'Model is required') {
+            return res.status(400).json({ message: err.message });
+        }
+        res.status(500).json({ message: 'Error creating motorcycle unit' });
     }
 };
 
@@ -64,7 +67,10 @@ exports.updateMotorcycleUnit = async (req, res) => {
         if (err.code === 'ER_DUP_ENTRY') {
             return res.status(400).json({ message: 'This motorcycle unit already exists.' });
         }
-        res.status(400).json({ message: err.message || 'Error updating motorcycle unit' });
+        if (err.message === 'Brand is required' || err.message === 'Model is required') {
+            return res.status(400).json({ message: err.message });
+        }
+        res.status(500).json({ message: 'Error updating motorcycle unit' });
     }
 };
 
@@ -77,7 +83,7 @@ exports.deleteMotorcycleUnit = async (req, res) => {
         res.json({ message: 'Motorcycle unit deleted successfully' });
     } catch (err) {
         console.error('Error deleting motorcycle unit:', err);
-        res.status(500).json({ message: 'Error deleting motorcycle unit', error: err.message });
+        res.status(500).json({ message: 'Error deleting motorcycle unit' });
     }
 };
 
@@ -122,7 +128,7 @@ exports.getCompatibilityGroups = async (req, res) => {
         res.json(Object.values(groupMap));
     } catch (err) {
         console.error('Error fetching compatibility groups:', err);
-        res.status(500).json({ message: 'Error fetching compatibility groups', error: err.message });
+        res.status(500).json({ message: 'Error fetching compatibility groups' });
     }
 };
 
@@ -157,7 +163,10 @@ exports.createCompatibilityGroup = async (req, res) => {
         if (err.code === 'ER_DUP_ENTRY') {
             return res.status(400).json({ message: 'This group name already exists.' });
         }
-        res.status(400).json({ message: err.message || 'Error creating compatibility group' });
+        if (err.message === 'Group name is required') {
+            return res.status(400).json({ message: err.message });
+        }
+        res.status(500).json({ message: 'Error creating compatibility group' });
     } finally {
         connection.release();
     }
@@ -200,7 +209,10 @@ exports.updateCompatibilityGroup = async (req, res) => {
         if (err.code === 'ER_DUP_ENTRY') {
             return res.status(400).json({ message: 'This group name already exists.' });
         }
-        res.status(400).json({ message: err.message || 'Error updating compatibility group' });
+        if (err.message === 'Group name is required') {
+            return res.status(400).json({ message: err.message });
+        }
+        res.status(500).json({ message: 'Error updating compatibility group' });
     } finally {
         connection.release();
     }
@@ -215,7 +227,7 @@ exports.deleteCompatibilityGroup = async (req, res) => {
         res.json({ message: 'Compatibility group deleted successfully' });
     } catch (err) {
         console.error('Error deleting compatibility group:', err);
-        res.status(500).json({ message: 'Error deleting compatibility group', error: err.message });
+        res.status(500).json({ message: 'Error deleting compatibility group' });
     }
 };
 

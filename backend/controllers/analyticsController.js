@@ -122,7 +122,7 @@ exports.getDashboardData = async (req, res) => {
             dailyTransactions
         });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: 'Error fetching analytics dashboard data', error: err.message });
+        console.error('Error fetching analytics dashboard data:', err);
+        res.status(500).json({ message: 'Error fetching analytics dashboard data' });
     }
 };

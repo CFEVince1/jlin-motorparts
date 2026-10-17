@@ -123,7 +123,8 @@ exports.getDailySales = async (req, res) => {
         const [sales] = await db.query(query, params);
         res.json(sales[0] || { date: new Date().toISOString().split('T')[0], total_revenue: 0, total_transactions: 0 });
     } catch (err) {
-        res.status(500).json({ message: 'Error fetching daily sales', error: err.message });
+        console.error('Error fetching daily sales:', err);
+        res.status(500).json({ message: 'Error fetching daily sales' });
     }
 };
 
@@ -138,7 +139,8 @@ exports.getMonthlySales = async (req, res) => {
         `, params);
         res.json(sales[0] || { month: new Date().toISOString().slice(0, 7), total_revenue: 0, total_transactions: 0 });
     } catch (err) {
-        res.status(500).json({ message: 'Error fetching monthly sales', error: err.message });
+        console.error('Error fetching monthly sales:', err);
+        res.status(500).json({ message: 'Error fetching monthly sales' });
     }
 };
 
@@ -198,7 +200,8 @@ exports.getLowStock = async (req, res) => {
         `, params);
         res.json(products);
     } catch (err) {
-        res.status(500).json({ message: 'Error fetching low stock', error: err.message });
+        console.error('Error fetching low stock:', err);
+        res.status(500).json({ message: 'Error fetching low stock' });
     }
 };
 
@@ -240,7 +243,8 @@ exports.getBestSelling = async (req, res) => {
         const [products] = await db.query(query, params);
         res.json(products);
     } catch (err) {
-        res.status(500).json({ message: 'Error fetching best selling products', error: err.message });
+        console.error('Error fetching best selling products:', err);
+        res.status(500).json({ message: 'Error fetching best selling products' });
     }
 };
 
@@ -274,7 +278,8 @@ exports.getSalesByMotorcycle = async (req, res) => {
 
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ message: 'Error fetching sales by motorcycle', error: err.message });
+        console.error('Error fetching sales by motorcycle:', err);
+        res.status(500).json({ message: 'Error fetching sales by motorcycle' });
     }
 };
 
@@ -283,7 +288,8 @@ exports.getCategories = async (req, res) => {
         const [categories] = await db.query('SELECT DISTINCT category FROM products WHERE is_active = true');
         res.json(categories.map(c => c.category).filter(Boolean));
     } catch (err) {
-        res.status(500).json({ message: 'Error fetching categories', error: err.message });
+        console.error('Error fetching categories:', err);
+        res.status(500).json({ message: 'Error fetching categories' });
     }
 };
 
@@ -292,7 +298,8 @@ exports.getBrands = async (req, res) => {
         const [brands] = await db.query('SELECT DISTINCT brand FROM products WHERE is_active = true ORDER BY brand');
         res.json(brands.map(b => b.brand).filter(Boolean));
     } catch (err) {
-        res.status(500).json({ message: 'Error fetching brands', error: err.message });
+        console.error('Error fetching brands:', err);
+        res.status(500).json({ message: 'Error fetching brands' });
     }
 };
 
@@ -310,7 +317,8 @@ exports.getSalesByCashier = async (req, res) => {
         `, params);
         res.json(sales);
     } catch (err) {
-        res.status(500).json({ message: 'Error fetching sales by cashier', error: err.message });
+        console.error('Error fetching sales by cashier:', err);
+        res.status(500).json({ message: 'Error fetching sales by cashier' });
     }
 };
 
@@ -338,7 +346,8 @@ exports.getAdminStats = async (req, res) => {
             total_profit: statsData[0].total_profit
         });
     } catch (err) {
-        res.status(500).json({ message: 'Error fetching admin stats', error: err.message });
+        console.error('Error fetching admin stats:', err);
+        res.status(500).json({ message: 'Error fetching admin stats' });
     }
 };
 

@@ -13,37 +13,46 @@ const allowedCustomOrigins = process.env.FRONTEND_URL
   ? process.env.FRONTEND_URL.split(',').map(o => o.trim()).filter(Boolean)
   : [];
 
+// Exact allowed frontend URLs and verified project previews
+const isAllowedExactOrigin = (origin) => {
+  // 1. Allow local development
+  if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+    return true;
+  }
+
+  // 2. Allow custom FRONTEND_URL if defined
+  if (allowedCustomOrigins.includes(origin)) {
+    return true;
+  }
+
+  // 3. Allow exact production domain
+  if (origin === 'https://jlin-motorparts.vercel.app') {
+    return true;
+  }
+
+  // 4. Allow official Vercel preview deployments strictly matching this project
+  if (
+    /^https:\/\/jlin-motorparts(-[a-zA-Z0-9]+)?-cfevince1s-projects\.vercel\.app$/.test(origin) ||
+    /^https:\/\/jlin-motorparts-[a-zA-Z0-9]+-cfevince1\.vercel\.app$/.test(origin) ||
+    /^https:\/\/jlin-motorparts(-[a-zA-Z0-9-]+)?\.vercel\.app$/.test(origin)
+  ) {
+    return true;
+  }
+
+  return false;
+};
+
 // Middleware
 app.use(cors({
   origin: (origin, callback) => {
     // Allow server-to-server, curl, Postman or same-origin requests with no origin
     if (!origin) return callback(null, true);
     
-    // Allow local development
-    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+    if (isAllowedExactOrigin(origin)) {
       return callback(null, true);
     }
     
-    // Allow custom FRONTEND_URL if defined
-    if (allowedCustomOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    
-    // Allow official production frontend and Vercel preview deployments
-    if (
-      origin === 'https://jlin-motorparts.vercel.app' ||
-      /^https:\/\/jlin-motorparts(-[a-z0-9-]+)?\.vercel\.app$/.test(origin) ||
-      origin.endsWith('.vercel.app')
-    ) {
-      return callback(null, true);
-    }
-    
-    // In production, reject disallowed origins
-    if (process.env.NODE_ENV === 'production') {
-      return callback(new Error('Not allowed by CORS'));
-    }
-
-    // Default reject in development for unknown origins as well
+    // Reject any unauthorized origin (e.g. arbitrary other *.vercel.app apps)
     return callback(new Error('Not allowed by CORS'));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -106,9 +115,31 @@ app.use((err, req, res, next) => {
         return res.status(404).json({ message: err.message });
     }
 
-    console.error('Unhandled server error:', err);
-    res.status(err.status || 500).json({ 
-        message: err.message || 'Something went wrong on the server' 
+    // Always log the full technical error details and stack trace on the server console
+    console.error('[Internal Server Error Details]:', err);
+
+    // Determine status code
+    const status = (typeof err.status === 'number' && err.status >= 400 && err.status < 500)
+        ? err.status
+        : ((typeof err.statusCode === 'number' && err.statusCode >= 400 && err.statusCode < 500)
+            ? err.statusCode
+            : 500);
+
+    // If it's a 500 or contains database / SQL internals, return a generic message
+    const hasDatabaseInternals = Boolean(
+        err.sql || err.sqlMessage || err.sqlState ||
+        (typeof err.code === 'string' && (err.code.startsWith('ER_') || err.code.startsWith('PROTOCOL_'))) ||
+        (err.message && /sql|select|insert|update|delete|table|column|foreign key|constraint|database|syntax error/i.test(err.message))
+    );
+
+    if (status >= 500 || hasDatabaseInternals) {
+        return res.status(500).json({ 
+            message: 'An internal server error occurred. Please try again later.' 
+        });
+    }
+
+    res.status(status).json({ 
+        message: err.message || 'An error occurred' 
     });
 });
 

@@ -98,7 +98,7 @@ exports.getAllProducts = async (req, res) => {
         res.json(result);
     } catch (err) {
         console.error('Error fetching products:', err);
-        res.status(500).json({ message: 'Error fetching products', error: err.message });
+        res.status(500).json({ message: 'Error fetching products' });
     }
 };
 
@@ -142,7 +142,7 @@ exports.getCompatibilityGroups = async (req, res) => {
         res.json(Object.values(groupMap));
     } catch (err) {
         console.error('Error fetching compatibility groups:', err);
-        res.status(500).json({ message: 'Error fetching compatibility groups', error: err.message });
+        res.status(500).json({ message: 'Error fetching compatibility groups' });
     }
 };
 
@@ -159,7 +159,7 @@ exports.getMotorcycleUnits = async (req, res) => {
         res.json(units);
     } catch (err) {
         console.error('Error fetching motorcycle units:', err);
-        res.status(500).json({ message: 'Error fetching motorcycle units', error: err.message });
+        res.status(500).json({ message: 'Error fetching motorcycle units' });
     }
 };
 
@@ -304,12 +304,15 @@ exports.createProduct = async (req, res) => {
         await connection.rollback();
         console.error('Error creating product:', err);
         if (err.code === 'ER_DUP_ENTRY') {
-            if (err.message.includes('unique_part_brand')) {
+            if (err.message && err.message.includes('unique_part_brand')) {
                 return res.status(400).json({ message: 'Duplicate part number and brand detected.' });
             }
             return res.status(400).json({ message: 'Duplicate serial number or compatibility detected.' });
         }
-        res.status(400).json({ message: err.message || 'Error creating product' });
+        if (err.message && (err.message.includes('required') || err.message.includes('Invalid') || err.message.includes('negative'))) {
+            return res.status(400).json({ message: err.message });
+        }
+        res.status(500).json({ message: 'Error creating product' });
     } finally {
         connection.release();
     }
@@ -449,12 +452,15 @@ exports.updateProduct = async (req, res) => {
         await connection.rollback();
         console.error('Error updating product:', err);
         if (err.code === 'ER_DUP_ENTRY') {
-            if (err.message.includes('unique_part_brand')) {
+            if (err.message && err.message.includes('unique_part_brand')) {
                 return res.status(400).json({ message: 'Duplicate part number and brand detected.' });
             }
             return res.status(400).json({ message: 'Duplicate compatibility detected.' });
         }
-        res.status(400).json({ message: err.message || 'Error updating product' });
+        if (err.message && (err.message.includes('required') || err.message.includes('Invalid') || err.message.includes('negative'))) {
+            return res.status(400).json({ message: err.message });
+        }
+        res.status(500).json({ message: 'Error updating product' });
     } finally {
         connection.release();
     }
@@ -470,7 +476,8 @@ exports.deleteProduct = async (req, res) => {
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Product not found' });
         res.json({ message: 'Product deleted successfully' });
     } catch (err) {
-        res.status(500).json({ message: 'Error deleting product', error: err.message });
+        console.error('Error deleting product:', err);
+        res.status(500).json({ message: 'Error deleting product' });
     }
 };
 
@@ -483,6 +490,7 @@ exports.getProductSerials = async (req, res) => {
         const [serials] = await db.query("SELECT id, serial_number FROM product_serials WHERE product_id = ? AND status = 'available'", [id]);
         res.json(serials);
     } catch (err) {
-        res.status(500).json({ message: 'Error fetching serial numbers', error: err.message });
+        console.error('Error fetching serial numbers:', err);
+        res.status(500).json({ message: 'Error fetching serial numbers' });
     }
 };
