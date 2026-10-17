@@ -510,42 +510,7 @@ const Reports = () => {
                 </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '24px', marginTop: '24px' }}>
-                <div className="glass-panel" style={{ padding: '24px' }}>
-                    <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <AlertTriangle size={20} /> Low Stock
-                    </h3>
-                    <div className="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Part Number</th>
-                                    <th>Product</th>
-                                    <th>Compatibility</th>
-                                    <th className="text-right">Stock</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {lowStock.length > 0 ? lowStock.map(item => (
-                                    <tr key={item.id}>
-                                        <td style={{ fontWeight: 'bold' }}>{item.part_number}</td>
-                                        <td>
-                                            <div>{item.product_name}</div>
-                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{item.brand} | {item.size}</div>
-                                        </td>
-                                        <td>{item.compatibility_display || '-'}</td>
-                                        <td className="text-right" style={{ color: 'var(--danger)', fontWeight: 'bold' }}>{item.stock} / {item.reorder_level}</td>
-                                    </tr>
-                                )) : (
-                                    <tr>
-                                        <td colSpan={4} className="table-empty-state">No low stock items match these filters.</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
+            <div style={{ marginTop: '24px' }}>
                 <div className="glass-panel" style={{ padding: '24px' }}>
                     <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Users size={20} /> {
