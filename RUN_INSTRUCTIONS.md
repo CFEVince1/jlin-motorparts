@@ -131,10 +131,10 @@ Double-click **`reset_demo.bat`** (or run `npm run reset-demo` in `backend`):
 ### Re-running Migrations & Demo Seeds
 ```powershell
 # 1. Run Comprehensive Migration
-node migrations/20261007_comprehensive_inventory_pos.js
+node backend/migrations/20261007_comprehensive_inventory_pos.js
 
 # 2. Run Defense Demo Seed
-node seeds/01_defense_demo_seed.js
+node backend/seeds/01_defense_demo_seed.js
 ```
 
 ### Capturing a New Clean Snapshot
