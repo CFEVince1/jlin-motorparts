@@ -50,7 +50,7 @@ The system includes a built-in **In-Browser Demo / Mock Data Engine** (`frontend
    
    npm run db:setup
    ```
-   *This creates all tables (`users`, `products`, `motorcycle_units`, `product_compatibility`, `suppliers`, `sales_orders`) and seeds default `admin` and `staff` accounts.*
+   *This creates all tables (`users`, `products`, `motorcycle_units`, `motorcycle_models`, `product_compatibilities`, `suppliers`, `receiving_records`, `sales`, `inventory_transactions`) and seeds default `admin` and `staff` accounts.*
 
 ---
 

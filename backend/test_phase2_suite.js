@@ -1,3 +1,4 @@
+const fs = require('fs');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const mysql = require('mysql2/promise');
@@ -560,6 +561,77 @@ async function runTestSuite() {
         assert(updatedModelRows.length === 1, 'product_compatibilities row updated');
         assert(updatedModelRows[0].motorcycle_model_id === 25, 'updateProduct maps unit 15 to motorcycle_model_id 25');
         assert(updatedModelRows[0].brand === 'Yamaha' && updatedModelRows[0].model === 'Aerox 155', 'product_compatibilities correctly links to Yamaha Aerox 155 V1');
+
+        // ----------------------------------------------------
+        // [TEST 10] Compatibility Search & Schema Integrity
+        // ----------------------------------------------------
+        console.log('\n[TEST 10] Compatibility Search (Model vs Unit Separation) & Schema Integrity');
+
+        // Ensure compatProdId has ONLY legacy link to unit 2 (Suzuki Raider 150 2022)
+        // Unit 2 in motorcycle_units is brand: Suzuki, model: Raider 150, year_model: 2022
+        // In motorcycle_models:
+        // - ID 7 is Suzuki Raider 150 2022 (matching unit 2)
+        // - ID 2 is Honda Click 125 2025 (NOT matching unit 2)
+        await db.query('UPDATE products SET is_active = TRUE WHERE id = ?', [compatProdId]);
+        await db.query('DELETE FROM product_compatibilities WHERE product_id = ?', [compatProdId]);
+        await db.query('DELETE FROM product_compatibility WHERE product_id = ?', [compatProdId]);
+        await db.query('INSERT INTO product_compatibility (product_id, motorcycle_unit_id) VALUES (?, 2)', [compatProdId]);
+
+        // Let's test searchCompatibility with modelId = 7 (Suzuki Raider 150)
+        let raiderSearchResult = null;
+        const mockResRaiderSearch = {
+            status: () => mockResRaiderSearch,
+            json: (data) => { raiderSearchResult = data; return mockResRaiderSearch; }
+        };
+
+        await compatibilityController.searchCompatibility({
+            query: { modelId: 7 } // Raider 150
+        }, mockResRaiderSearch, (e) => { throw e; });
+
+        assert(raiderSearchResult && Array.isArray(raiderSearchResult.compatible), 'searchCompatibility succeeds for Raider model ID 7');
+        const raiderCompatibleIds = (raiderSearchResult.compatible || []).map(p => p.item_id || p.id);
+        assert(raiderCompatibleIds.includes(compatProdId), 'searchCompatibility for Raider model 7 matches product linked via unit 2 (Raider)');
+
+        // Now search for Honda Click (modelId = 2)
+        let clickSearchResult = null;
+        const mockResClickSearch = {
+            status: () => mockResClickSearch,
+            json: (data) => { clickSearchResult = data; return mockResClickSearch; }
+        };
+        await compatibilityController.searchCompatibility({
+            query: { modelId: 2 } // Honda Click
+        }, mockResClickSearch, (e) => { throw e; });
+
+        const clickCompatibleIds = (clickSearchResult.compatible || []).map(p => p.item_id || p.id);
+        assert(!clickCompatibleIds.includes(compatProdId), 'searchCompatibility for Honda Click (model 2) does NOT match product linked to unit 2 (Raider)');
+
+        // Test explicit NOT_COMPATIBLE priority
+        await db.query(`
+            INSERT INTO product_compatibilities (product_id, motorcycle_model_id, compatibility_status, notes)
+            VALUES (?, 7, 'NOT_COMPATIBLE', 'Explicit test incompatible')
+            ON DUPLICATE KEY UPDATE compatibility_status = 'NOT_COMPATIBLE'
+        `, [compatProdId]);
+
+        let raiderSearchAfterNotCompat = null;
+        const mockResRaiderAfter = {
+            status: () => mockResRaiderAfter,
+            json: (data) => { raiderSearchAfterNotCompat = data; return mockResRaiderAfter; }
+        };
+        await compatibilityController.searchCompatibility({
+            query: { modelId: 7 }
+        }, mockResRaiderAfter, (e) => { throw e; });
+
+        const raiderIncompatIds = (raiderSearchAfterNotCompat.incompatible || []).map(p => p.item_id || p.id);
+        const raiderCompatAfterIds = (raiderSearchAfterNotCompat.compatible || []).map(p => p.item_id || p.id);
+        assert(raiderIncompatIds.includes(compatProdId), 'Explicit NOT_COMPATIBLE record correctly places product in incompatible list');
+        assert(!raiderCompatAfterIds.includes(compatProdId), 'Explicit NOT_COMPATIBLE overrides positive legacy link in search');
+
+        // Verify sync_aiven_schema.js script integrity
+        const syncScriptContent = fs.readFileSync(path.join(__dirname, '../scripts/sync_aiven_schema.js'), 'utf8');
+        assert(!syncScriptContent.includes('sales_orders'), 'sync_aiven_schema.js does not create rogue sales_orders table');
+        assert(!syncScriptContent.includes('sales_order_items'), 'sync_aiven_schema.js does not create rogue sales_order_items table');
+        assert(!syncScriptContent.includes('rejectUnauthorized: false'), 'sync_aiven_schema.js does not disable TLS certificate validation');
+        assert(!syncScriptContent.includes('# DB_HOST'), 'sync_aiven_schema.js does not scrape commented out credentials');
 
         // Cleanup
         await db.query('UPDATE products SET is_active = FALSE WHERE id = ?', [compatProdId]);
