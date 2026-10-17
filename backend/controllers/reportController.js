@@ -293,7 +293,8 @@ exports.getLowStock = async (req, res) => {
                 p.name AS product_name,
                 p.brand,
                 p.size,
-                p.stock,
+                COALESCE(p.current_stock, p.stock) AS current_stock,
+                COALESCE(p.current_stock, p.stock) AS stock,
                 p.reorder_level,
                 COALESCE(
                     GROUP_CONCAT(
@@ -306,10 +307,10 @@ exports.getLowStock = async (req, res) => {
             FROM products p
             LEFT JOIN product_compatibility pc ON pc.product_id = p.id
             LEFT JOIN motorcycle_units mu ON mu.id = pc.motorcycle_unit_id
-            WHERE p.stock <= p.reorder_level AND p.is_active = true
+            WHERE COALESCE(p.current_stock, p.stock) <= p.reorder_level AND p.is_active = true
             ${filterSql}
-            GROUP BY p.id, p.part_number, p.name, p.brand, p.size, p.stock, p.reorder_level
-            ORDER BY p.stock ASC
+            GROUP BY p.id, p.part_number, p.name, p.brand, p.size, p.current_stock, p.stock, p.reorder_level
+            ORDER BY COALESCE(p.current_stock, p.stock) ASC
         `, params);
         res.json(products);
     } catch (err) {

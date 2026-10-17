@@ -562,7 +562,7 @@ exports.getBestSellers = async (req, res) => {
                 COALESCE(p.brand, si.brand) AS brand,
                 COALESCE(p.category, 'General') AS category,
                 CAST(COALESCE(p.selling_price, si.price) AS DOUBLE) AS retail_price,
-                CAST(COALESCE(p.stock, 0) AS SIGNED) AS current_stock,
+                CAST(COALESCE(p.current_stock, p.stock, 0) AS SIGNED) AS current_stock,
                 CAST(COALESCE(SUM(si.quantity), 0) AS SIGNED) AS units_sold,
                 CAST(COUNT(DISTINCT s.id) AS SIGNED) AS order_count
             FROM sale_items si
@@ -571,7 +571,7 @@ exports.getBestSellers = async (req, res) => {
             ${whereClause}
             GROUP BY 
                 p.id, si.product_id, p.sku, si.part_number, p.name, si.product_name,
-                p.brand, si.brand, p.category, p.selling_price, si.price, p.stock
+                p.brand, si.brand, p.category, p.selling_price, si.price, p.current_stock, p.stock
             ORDER BY units_sold DESC
             LIMIT ?
         `, params);
@@ -590,12 +590,12 @@ exports.getBestSellers = async (req, res) => {
                     p.brand,
                     p.category,
                     CAST(p.selling_price AS DOUBLE) AS retail_price,
-                    CAST(p.stock AS SIGNED) AS current_stock,
+                    CAST(COALESCE(p.current_stock, p.stock, 0) AS SIGNED) AS current_stock,
                     0 AS units_sold,
                     0 AS order_count
                 FROM products p
                 WHERE p.is_active = 1 ${notInClause}
-                ORDER BY p.stock DESC, p.id ASC
+                ORDER BY COALESCE(p.current_stock, p.stock, 0) DESC, p.id ASC
                 LIMIT ?
             `, [remainingCount]);
 

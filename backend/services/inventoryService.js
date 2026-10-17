@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { AppValidationError, AppNotFoundError } = require('../utils/errors');
 
 /**
@@ -22,8 +23,6 @@ const INFLOW_TYPES = [
     'RETURN',
     'ADJUSTMENT_ADD'
 ];
-
-let txCounter = 0;
 
 /**
  * Applies an atomic movement to inventory and appends an immutable transaction record.
@@ -146,8 +145,8 @@ async function applyMovement(trx, {
 
     // 6. Append immutable row to inventory_transactions
     const finalRemarks = remarks || notes || `${normalizedType} movement (Ref: ${cleanRefNo})`;
-    const seqSuffix = String(++txCounter % 10000).padStart(4, '0');
-    const txNumber = `TX-${cleanRefNo}-${resolvedId}-${Date.now().toString().slice(-6)}-${seqSuffix}`;
+    const txUuid = crypto.randomUUID();
+    const txNumber = `TX-${txUuid}`;
     const effectiveCost = unitCost !== undefined && unitCost !== null 
         ? Number(unitCost) 
         : Number(item.cost_price || 0.00);

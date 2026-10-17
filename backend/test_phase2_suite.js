@@ -8,6 +8,8 @@ const jwt = require('jsonwebtoken');
 const db = require('./config/db');
 const { AppValidationError } = require('./utils/errors');
 const { applyMovement } = require('./services/inventoryService');
+const analyticsController = require('./controllers/analyticsController');
+const reportController = require('./controllers/reportController');
 
 async function runTestSuite() {
     console.log('=====================================================');
@@ -1854,6 +1856,84 @@ async function runTestSuite() {
 
         // Soft delete test products so they are deactivated cleanly
         await db.query('UPDATE products SET is_active = FALSE WHERE id IN (?, ?)', [createdItemId, createdProdId2]);
+
+        // -----------------------------------------------------------------
+        // TEST 22: Collision-Proof UUID Transaction Numbers & current_stock Parity
+        // -----------------------------------------------------------------
+        console.log('\n[TEST 22] Collision-Proof UUID Transaction Numbers & current_stock Parity');
+
+        // 22a. applyMovement generates collision-proof UUID transaction_number
+        const uuidTxTestItem = `TEST-UUID-${Date.now().toString().slice(-4)}`;
+        const [uuidProdRes] = await db.query(
+            `INSERT INTO products (
+                part_number, sku, brand, name, category, size,
+                cost_price, selling_price, retail_price, stock, current_stock,
+                reorder_level, is_serialized, is_active
+            ) VALUES (?, ?, 'Yamaha', 'UUID Test Item', 'Parts', 'Standard', 100, 200, 200, 0, 0, 5, 0, 1)`,
+            [uuidTxTestItem, uuidTxTestItem]
+        );
+        const uuidTestId = uuidProdRes.insertId;
+
+        const uuidConn = await db.getConnection();
+        await uuidConn.beginTransaction();
+        const moveUuid = await applyMovement(uuidConn, {
+            itemId: uuidTestId,
+            transactionType: 'STOCK_IN',
+            quantityChange: 15,
+            referenceNo: 'RCV-UUID-001'
+        });
+        await uuidConn.commit();
+        uuidConn.release();
+
+        assert(moveUuid.transactionNumber.startsWith('TX-'), 'Transaction number starts with standard TX- prefix');
+        const extractedUuid = moveUuid.transactionNumber.slice(3);
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        assert(uuidRegex.test(extractedUuid), `Transaction number uses standard UUID v4 format (${moveUuid.transactionNumber})`);
+
+        // Verify database row contains authentic UUID
+        const [txRow] = await db.query('SELECT transaction_number FROM inventory_transactions WHERE id = ?', [moveUuid.transactionId]);
+        assert(uuidRegex.test(txRow[0].transaction_number.slice(3)), 'Database stored transaction_number contains genuine UUID');
+
+        // 22b. Rapid concurrent movements do not collide and produce unique UUIDs
+        const rapidConn = await db.getConnection();
+        await rapidConn.beginTransaction();
+        const rapidMoves = await Promise.all([
+            applyMovement(rapidConn, { itemId: uuidTestId, transactionType: 'STOCK_IN', quantityChange: 1, referenceNo: 'RCV-RAPID-1' }),
+            applyMovement(rapidConn, { itemId: uuidTestId, transactionType: 'STOCK_IN', quantityChange: 2, referenceNo: 'RCV-RAPID-2' }),
+            applyMovement(rapidConn, { itemId: uuidTestId, transactionType: 'STOCK_IN', quantityChange: 3, referenceNo: 'RCV-RAPID-3' })
+        ]);
+        await rapidConn.commit();
+        rapidConn.release();
+
+        const txNums = rapidMoves.map(m => m.transactionNumber);
+        const uniqueTxNums = new Set(txNums);
+        assert(uniqueTxNums.size === 3, 'Rapid concurrent movements produce 100% unique transaction numbers');
+
+        // 22c. Analytics and low-stock queries inspect current_stock and alias both current_stock and stock
+        const resAnalytics = createMockRes();
+        await analyticsController.getDashboardData({ user: { role: 'admin' }, query: {} }, resAnalytics);
+        assert(resAnalytics.statusCode === 200, 'getDashboardData returns 200 OK');
+        assert(Array.isArray(resAnalytics.data?.lowStock), 'Analytics summary returns lowStock array');
+        if (resAnalytics.data?.lowStock?.length > 0) {
+            const firstLow = resAnalytics.data.lowStock[0];
+            assert(firstLow.current_stock !== undefined, 'Analytics lowStock includes current_stock column');
+            assert(firstLow.stock !== undefined, 'Analytics lowStock includes backward-compatible stock column');
+            assert(firstLow.current_stock === firstLow.stock, 'Analytics current_stock equals stock');
+        }
+
+        const resReports = createMockRes();
+        await reportController.getLowStock({ query: {} }, resReports);
+        assert(resReports.statusCode === 200, 'reportController.getLowStock returns 200 OK');
+        assert(Array.isArray(resReports.data), 'reportController.getLowStock returns array of products');
+        if (resReports.data.length > 0) {
+            const firstReportLow = resReports.data[0];
+            assert(firstReportLow.current_stock !== undefined, 'Report getLowStock includes current_stock column');
+            assert(firstReportLow.stock !== undefined, 'Report getLowStock includes backward-compatible stock column');
+            assert(firstReportLow.current_stock === firstReportLow.stock, 'Report current_stock equals stock');
+        }
+
+        // Clean up test product
+        await db.query('UPDATE products SET is_active = FALSE WHERE id = ?', [uuidTestId]);
 
         console.log('\n=====================================================');
         console.log(` Test Suite Results: ${passed} PASSED, ${failed} FAILED`);

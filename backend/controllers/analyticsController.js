@@ -106,16 +106,18 @@ exports.getDashboardData = async (req, res) => {
 
         const [lowStock] = await db.query(`
             SELECT
+                p.id,
                 p.part_number,
                 p.name AS product_name,
                 p.brand,
                 p.size,
-                p.stock,
+                COALESCE(p.current_stock, p.stock) AS current_stock,
+                COALESCE(p.current_stock, p.stock) AS stock,
                 p.reorder_level
             FROM products p
             WHERE p.is_active = true
-              AND p.stock <= p.reorder_level
-            ORDER BY p.stock ASC
+              AND COALESCE(p.current_stock, p.stock) <= p.reorder_level
+            ORDER BY COALESCE(p.current_stock, p.stock) ASC
             LIMIT 10
         `);
 
