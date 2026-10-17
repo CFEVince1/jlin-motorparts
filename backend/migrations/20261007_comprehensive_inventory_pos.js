@@ -35,6 +35,7 @@ if (!envLoaded) {
 }
 
 const mysql = require('mysql2/promise');
+const { getSslConfig } = require('../config/db');
 
 async function runMigration() {
     console.log('=====================================================');
@@ -48,9 +49,7 @@ async function runMigration() {
         password: process.env.DB_PASSWORD || '',
         database: process.env.DB_NAME || 'jlin_inventory_db',
         multipleStatements: true,
-        ...(process.env.DB_HOST && process.env.DB_HOST.includes('aivencloud') 
-            ? { ssl: { rejectUnauthorized: false } } 
-            : {})
+        ...getSslConfig(process.env.DB_HOST)
     };
 
     console.log(`Connecting to database ${config.database} on ${config.host}:${config.port}...`);

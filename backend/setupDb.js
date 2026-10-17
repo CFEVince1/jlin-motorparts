@@ -7,6 +7,8 @@ const bcrypt = require('bcryptjs'); // Assumes you use bcryptjs for passwords
 // setupDb.js is only for initial minimal bootstrap (users table).
 // Do NOT rely on this for full schema setup.
 
+const { getSslConfig } = require('./config/db');
+
 async function setupDatabase() {
     try {
         console.log("Connecting to Aiven Cloud Database...");
@@ -15,7 +17,8 @@ async function setupDatabase() {
             user: process.env.DB_USER,
             password: process.env.DB_PASSWORD,
             port: process.env.DB_PORT,
-            database: process.env.DB_NAME
+            database: process.env.DB_NAME,
+            ...getSslConfig(process.env.DB_HOST)
         });
 
         console.log("Connected! Creating users table...");

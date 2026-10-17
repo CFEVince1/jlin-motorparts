@@ -30,6 +30,7 @@ for (const envPath of envPaths) {
 }
 
 const mysql = require('mysql2/promise');
+const { getSslConfig } = require('../backend/config/db');
 
 function parseDumpStatements(sqlContent) {
     const statements = [];
@@ -87,7 +88,7 @@ async function fallbackNodeRestore(host, port, user, password, dumpFile, dbName)
         user,
         password,
         multipleStatements: true,
-        ...(host && host.includes('aivencloud') ? { ssl: { rejectUnauthorized: true } } : {})
+        ...getSslConfig(host)
     });
 
     try {
@@ -220,7 +221,8 @@ async function resetDemoDatabase() {
         port: parseInt(port, 10),
         user,
         password,
-        database: dbName
+        database: dbName,
+        ...getSslConfig(host)
     });
 
     try {

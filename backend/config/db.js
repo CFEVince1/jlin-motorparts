@@ -20,19 +20,35 @@ if (process.env.DB_CA_CERT || process.env.DB_SSL_CA || process.env.AIVEN_CA_CERT
         console.warn(`[Database SSL] Failed to read CA from DB_CA_PATH (${process.env.DB_CA_PATH}):`, e.message);
     }
 } else {
-    const defaultCaPath = path.join(__dirname, 'aiven-ca.pem');
-    if (fs.existsSync(defaultCaPath)) {
-        try {
-            caCert = fs.readFileSync(defaultCaPath, 'utf-8');
-        } catch (e) {
-            console.warn('[Database SSL] Failed to read default aiven-ca.pem:', e.message);
+    const possibleCaPaths = [
+        path.join(__dirname, 'aiven-ca.pem'),
+        path.join(__dirname, '..', 'config', 'aiven-ca.pem'),
+        path.join(process.cwd(), 'backend', 'config', 'aiven-ca.pem'),
+        path.join(process.cwd(), 'config', 'aiven-ca.pem')
+    ];
+    for (const caPath of possibleCaPaths) {
+        if (fs.existsSync(caPath)) {
+            try {
+                caCert = fs.readFileSync(caPath, 'utf-8');
+                break;
+            } catch (e) {
+                console.warn(`[Database SSL] Failed to read CA from ${caPath}:`, e.message);
+            }
         }
     }
 }
 
 // Build SSL configuration for cloud connections
-const getSslConfig = () => {
-    if (!isAivenOrCloud) return {};
+const getSslConfig = (host) => {
+    const targetHost = host || process.env.DB_HOST || dbUri || '';
+    const isCloud = Boolean(
+        isAivenOrCloud ||
+        targetHost.includes('aivencloud') ||
+        targetHost.includes('render') ||
+        targetHost.includes('railway') ||
+        process.env.DB_SSL === 'true'
+    );
+    if (!isCloud) return {};
 
     if (caCert) {
         return {
@@ -43,10 +59,10 @@ const getSslConfig = () => {
         };
     }
 
-    console.warn('[Database SSL] Cloud database detected but no CA certificate found. Falling back to default system CA bundle.');
+    console.warn('[Database SSL] Cloud database detected but no CA certificate found. Falling back to default system CA bundle with verification.');
     return {
         ssl: {
-            rejectUnauthorized: process.env.DB_REJECT_UNAUTHORIZED === 'false' ? false : true
+            rejectUnauthorized: true
         }
     };
 };
@@ -106,5 +122,9 @@ promisePool.query("SELECT 1 as ok, @@session.time_zone as tz, DATE_FORMAT(NOW(),
     .catch((err) => {
         console.warn(`[Database Warning] Could not connect to database: ${err.message}. Backend will run, check DB credentials.`);
     });
+
+promisePool.getSslConfig = getSslConfig;
+promisePool.caCert = caCert;
+promisePool.isAivenOrCloud = isAivenOrCloud;
 
 module.exports = promisePool;

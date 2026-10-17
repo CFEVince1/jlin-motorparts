@@ -44,6 +44,8 @@ async function seed(knex) {
     console.log(' Environment: ' + (process.env.NODE_ENV || 'development'));
     console.log('=====================================================\n');
 
+    const { getSslConfig } = require('../config/db');
+
     const config = {
         host: process.env.DB_HOST || 'localhost',
         port: parseInt(process.env.DB_PORT, 10) || 3306,
@@ -51,9 +53,7 @@ async function seed(knex) {
         password: process.env.DB_PASSWORD || '',
         database: process.env.DB_NAME || 'jlin_inventory_db',
         multipleStatements: true,
-        ...(process.env.DB_HOST && process.env.DB_HOST.includes('aivencloud') 
-            ? { ssl: { rejectUnauthorized: false } } 
-            : {})
+        ...getSslConfig(process.env.DB_HOST)
     };
 
     console.log(`Connecting to database ${config.database}...`);

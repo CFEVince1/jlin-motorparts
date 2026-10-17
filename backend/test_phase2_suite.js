@@ -1294,6 +1294,95 @@ async function runTestSuite() {
         `);
         assert(Number(liveTotals[0].total_product_stock) === Number(liveTotals[0].total_ledger_units), 'Total product stock strictly matches total ledger units');
 
+        // ----------------------------------------------------
+        // [TEST 18] Cloud SSL Hardening & Login Timing Attack Defense
+        // ----------------------------------------------------
+        console.log('\n[TEST 18] Cloud SSL CA Verification Hardening & Login Security Invariants');
+
+        // 18a. SSL config enforcement across migration, seeds, resets and setup scripts
+        const migrationContent = fs.readFileSync(path.join(__dirname, 'migrations/20261007_comprehensive_inventory_pos.js'), 'utf8');
+        assert(!migrationContent.includes('rejectUnauthorized: false'), '20261007 migration does not disable SSL certificate verification');
+        assert(migrationContent.includes('getSslConfig'), '20261007 migration uses getSslConfig from db.js');
+
+        assert(!seedScriptContent.includes('rejectUnauthorized: false'), '01_defense_demo_seed.js does not disable SSL certificate verification');
+        assert(seedScriptContent.includes('getSslConfig'), '01_defense_demo_seed.js uses getSslConfig from db.js');
+
+        assert(!resetScriptContent.includes('rejectUnauthorized: false'), 'reset_demo.js does not disable SSL certificate verification');
+        assert(resetScriptContent.includes('getSslConfig'), 'reset_demo.js uses getSslConfig from db.js');
+
+        const setupDbContent = fs.readFileSync(path.join(__dirname, 'setupDb.js'), 'utf8');
+        assert(!setupDbContent.includes('rejectUnauthorized: false'), 'setupDb.js does not disable SSL certificate verification');
+        assert(setupDbContent.includes('getSslConfig'), 'setupDb.js uses getSslConfig from db.js');
+
+        const alignSchemaContent = fs.readFileSync(path.join(__dirname, '../scripts/align_phase2_schema.js'), 'utf8');
+        assert(!alignSchemaContent.includes('rejectUnauthorized: false'), 'align_phase2_schema.js does not disable SSL certificate verification');
+        assert(alignSchemaContent.includes('getSslConfig'), 'align_phase2_schema.js uses getSslConfig from db.js');
+
+        // 18b. Test getSslConfig behavior
+        const cloudSsl = db.getSslConfig('mysql-service-xyz.aivencloud.com');
+        assert(cloudSsl && cloudSsl.ssl && cloudSsl.ssl.rejectUnauthorized === true, 'getSslConfig for Aiven host enforces rejectUnauthorized: true');
+        assert(cloudSsl.ssl.ca !== undefined, 'getSslConfig for Aiven host supplies CA certificate');
+
+        const localSsl = db.getSslConfig('localhost');
+        assert(!localSsl.ssl, 'getSslConfig for localhost does not enforce remote SSL');
+
+        // 18c. Login input validation (prevents unhandled 500 when password/username missing or empty)
+        const createMockRes = () => {
+            const res = {
+                statusCode: 200,
+                data: null,
+                status: function (code) {
+                    this.statusCode = code;
+                    return this;
+                },
+                json: function (payload) {
+                    this.data = payload;
+                    return this;
+                }
+            };
+            return res;
+        };
+
+        // Missing password -> 400 Bad Request
+        const resMissingPwd = createMockRes();
+        await authController.login({ body: { username: 'admin' } }, resMissingPwd);
+        assert(resMissingPwd.statusCode === 400, 'Login with missing password returns 400 Bad Request (not 500)');
+        assert(resMissingPwd.data?.message?.includes('required'), 'Missing password response provides clear validation message');
+
+        // Missing username -> 400 Bad Request
+        const resMissingUser = createMockRes();
+        await authController.login({ body: { password: 'somepassword' } }, resMissingUser);
+        assert(resMissingUser.statusCode === 400, 'Login with missing username returns 400 Bad Request');
+
+        // Empty / whitespace username -> 400 Bad Request
+        const resEmptyUser = createMockRes();
+        await authController.login({ body: { username: '   ', password: 'somepassword' } }, resEmptyUser);
+        assert(resEmptyUser.statusCode === 400, 'Login with whitespace username returns 400 Bad Request');
+
+        // 18d. Nonexistent username timing attack mitigation
+        const t0 = Date.now();
+        const resNonexistent = createMockRes();
+        await authController.login({ body: { username: 'nonexistent_ghost_user_99999', password: 'wrongpassword' } }, resNonexistent);
+        const elapsedNonexistent = Date.now() - t0;
+        assert(resNonexistent.statusCode === 401, 'Login with nonexistent username returns 401 Unauthorized');
+        assert(resNonexistent.data?.message === 'Invalid credentials', 'Login with nonexistent username returns uniform "Invalid credentials" message');
+        assert(elapsedNonexistent >= 25, `Nonexistent user runs dummy bcrypt compare to prevent timing attack (${elapsedNonexistent}ms >= 25ms)`);
+
+        // Wrong password for existing user
+        const resWrongPwd = createMockRes();
+        await authController.login({ body: { username: 'admin', password: 'definitelyWrongPassword123!' } }, resWrongPwd);
+        assert(resWrongPwd.statusCode === 401, 'Login with wrong password returns 401 Unauthorized');
+        assert(resWrongPwd.data?.message === 'Invalid credentials', 'Login with wrong password returns identical "Invalid credentials" message');
+
+        // 18e. Valid login
+        const resValid = createMockRes();
+        await authController.login({ body: { username: 'admin', password: 'admin123' } }, resValid);
+        assert(resValid.statusCode === 200, 'Valid admin credentials return 200 OK');
+        assert(!!resValid.data?.token, 'Valid login returns JWT token');
+        assert(resValid.data?.user?.username === 'admin', 'Valid login returns user profile with username');
+        const decodedToken = jwt.verify(resValid.data.token, process.env.JWT_SECRET);
+        assert(decodedToken.username === 'admin' && decodedToken.role === 'admin', 'Returned JWT token decodes to authentic admin session');
+
         console.log('\n=====================================================');
         console.log(` Test Suite Results: ${passed} PASSED, ${failed} FAILED`);
         console.log('=====================================================\n');

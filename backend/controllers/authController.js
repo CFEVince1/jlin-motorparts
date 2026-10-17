@@ -2,20 +2,38 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 
+// Pre-computed valid 10-round bcrypt hash to ensure constant-time response for nonexistent users
+// Prevents timing attacks / username enumeration
+const DUMMY_HASH = '$2b$10$CL..8zpnYjIbrx/oCtVneevyK47SVcqaIfJA0B9YAr.Q1gzlzCGSC';
+
 exports.login = async (req, res) => {
-    const { username, password } = req.body;
+    const { username, password } = req.body || {};
+
+    // Validate inputs upfront: missing or non-string username/password returns 400 Bad Request
+    // Prevents bcrypt from throwing 'Illegal arguments' on undefined password and returning 500
+    if (!username || typeof username !== 'string' || !password || typeof password !== 'string') {
+        return res.status(400).json({ message: 'Username and password are required' });
+    }
+
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername) {
+        return res.status(400).json({ message: 'Username and password are required' });
+    }
 
     try {
-        // 1. Check if user exists
-        const [users] = await db.query('SELECT * FROM users WHERE username = ?', [username]);
+        // 1. Query user by username
+        const [users] = await db.query('SELECT * FROM users WHERE username = ?', [trimmedUsername]);
 
         if (users.length === 0) {
+            // Mitigate timing attack: nonexistent username still runs bcrypt.compare with identical 10-round cost
+            // Response timing is constant, preventing attacker from enumerating valid usernames
+            await bcrypt.compare(password, DUMMY_HASH);
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
         const user = users[0];
 
-        // 2. Check password
+        // 2. Check password against real hash
         const isMatch = await bcrypt.compare(password, user.password);
 
         if (!isMatch) {

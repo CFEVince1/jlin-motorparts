@@ -773,7 +773,7 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (1,'admin','$2b$10$T371LzxZ1q6SGo6wKG6Rp.fQzuZOrKVt6zPSpggoGYKRg2ulmcCD6','admin','2026-09-30 16:13:51','2026-09-30 17:43:28',1),(2,'staff','$2b$10$RVihsw1YmuM17GiQPvovk.mPKhGYpXGV.MMp3xit7v/xT9nO6Sr4O','staff','2026-09-30 16:13:51','2026-09-30 17:43:28',1);
+INSERT INTO `users` VALUES (1,'admin','$2b$10$AdHlxtdX7mAvC5NoE61PQeh9hmfz4.g.l5Qj8yppnzJ7mvQ51/S.m','admin','2026-09-30 16:13:51','2026-09-30 17:43:28',1),(2,'staff','$2b$10$6TLQDGywVlfZ.ZdpbR5BC.ZCSaSkvoSUZdq2JPOS4kVBlRQyDxNsK','staff','2026-09-30 16:13:51','2026-09-30 17:43:28',1);
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 

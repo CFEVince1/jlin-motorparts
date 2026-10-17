@@ -28,6 +28,7 @@ for (const envPath of envPaths) {
 }
 
 const mysql = require('mysql2/promise');
+const { getSslConfig } = require('../backend/config/db');
 
 async function alignSchema() {
     console.log('Aligning database schema for Phase 2...');
@@ -37,7 +38,8 @@ async function alignSchema() {
         user: process.env.DB_USER || 'root',
         password: process.env.DB_PASSWORD || '',
         database: process.env.DB_NAME || 'jlin_inventory_db',
-        multipleStatements: true
+        multipleStatements: true,
+        ...getSslConfig(process.env.DB_HOST)
     };
 
     const connection = await mysql.createConnection(config);
