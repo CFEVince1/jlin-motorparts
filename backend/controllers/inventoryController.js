@@ -303,8 +303,12 @@ exports.recordAdjustment = async (req, res, next) => {
         if (resolvedType === 'FOUND') {
             if (!resolvedLossTxId && resolvedLossRef) {
                 const [lossLookup] = await connection.query(
-                    "SELECT id FROM inventory_transactions WHERE transaction_type = 'LOSS' AND product_id = ? AND reference_no = ? ORDER BY id DESC LIMIT 1",
-                    [resolvedId, resolvedLossRef]
+                    `SELECT id FROM inventory_transactions 
+                     WHERE transaction_type = 'LOSS' 
+                       AND product_id = ? 
+                       AND (reference_no = ? OR transaction_number = ? OR id = ?) 
+                     ORDER BY id DESC LIMIT 1`,
+                    [resolvedId, resolvedLossRef, resolvedLossRef, Number(resolvedLossRef) || 0]
                 );
                 if (lossLookup.length > 0) {
                     resolvedLossTxId = lossLookup[0].id;
@@ -423,9 +427,12 @@ exports.getOpenLosses = async (req, res, next) => {
             `SELECT 
                 it.id AS loss_transaction_id,
                 it.id,
+                it.id AS loss_id,
                 it.transaction_number,
                 it.reference_no,
+                it.reference_no AS loss_reference_no,
                 ABS(it.quantity_change) AS reported_lost,
+                ABS(it.quantity_change) AS quantity_lost,
                 COALESCE((
                     SELECT SUM(f.quantity_change) 
                     FROM inventory_transactions f 
@@ -436,6 +443,11 @@ exports.getOpenLosses = async (req, res, next) => {
                     FROM inventory_transactions f 
                     WHERE f.transaction_type = 'FOUND' AND f.loss_transaction_id = it.id
                 ), 0)) AS restorable_balance,
+                (ABS(it.quantity_change) - COALESCE((
+                    SELECT SUM(f.quantity_change) 
+                    FROM inventory_transactions f 
+                    WHERE f.transaction_type = 'FOUND' AND f.loss_transaction_id = it.id
+                ), 0)) AS unrestored_quantity,
                 it.notes,
                 it.remarks,
                 it.created_at

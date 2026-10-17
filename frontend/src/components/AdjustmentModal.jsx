@@ -22,7 +22,7 @@ export const AdjustmentModal = ({
   const [referenceNo, setReferenceNo] = useState('');
   const [remarks, setRemarks] = useState('');
   const [openLosses, setOpenLosses] = useState([]);
-  const [selectedLossRef, setSelectedLossRef] = useState('');
+  const [selectedLossId, setSelectedLossId] = useState('');
   const [loadingLosses, setLoadingLosses] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -38,11 +38,12 @@ export const AdjustmentModal = ({
         setLoadingLosses(true);
         try {
           const res = await api.get(`/items/${itemId}/open-losses`);
-          setOpenLosses(res.data || []);
-          if (res.data && res.data.length > 0) {
-            setSelectedLossRef(res.data[0].reference_no);
+          const losses = res.data || [];
+          setOpenLosses(losses);
+          if (losses.length > 0) {
+            setSelectedLossId(String(losses[0].id || losses[0].loss_transaction_id || ''));
           } else {
-            setSelectedLossRef('');
+            setSelectedLossId('');
           }
         } catch (err) {
           console.error('Error fetching open losses:', err);
@@ -54,7 +55,7 @@ export const AdjustmentModal = ({
       };
       fetchOpenLosses();
     } else {
-      setSelectedLossRef('');
+      setSelectedLossId('');
     }
   }, [isOpen, itemId, movementType]);
 
@@ -64,8 +65,13 @@ export const AdjustmentModal = ({
   const qtyNumber = parseInt(quantity, 10) || 0;
 
   // Selected open loss details if FOUND
-  const activeLossRecord = openLosses.find(l => l.reference_no === selectedLossRef);
-  const maxRestorable = activeLossRecord ? activeLossRecord.unrestored_quantity : 0;
+  const activeLossRecord = openLosses.find(l => 
+    String(l.id || l.loss_transaction_id) === String(selectedLossId) ||
+    l.reference_no === selectedLossId
+  );
+  const maxRestorable = activeLossRecord 
+    ? Number(activeLossRecord.restorable_balance ?? activeLossRecord.unrestored_quantity ?? 0) 
+    : 0;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -85,7 +91,7 @@ export const AdjustmentModal = ({
         toast.error('No unresolved loss records exist for this item to restore');
         return;
       }
-      if (!selectedLossRef) {
+      if (!activeLossRecord) {
         toast.error('Please select the prior loss record to link this found stock');
         return;
       }
@@ -107,13 +113,19 @@ export const AdjustmentModal = ({
 
     setSubmitting(true);
     try {
+      const lossTxId = activeLossRecord ? (activeLossRecord.id || activeLossRecord.loss_transaction_id) : undefined;
+      const lossRefNo = activeLossRecord?.reference_no || undefined;
+
       await api.post('/inventory/adjustments', {
         item_id: itemId,
+        product_id: itemId,
         movement_type: movementType,
+        transaction_type: movementType,
         quantity: qtyNumber,
         reference_no: referenceNo.trim(),
         remarks: remarks.trim(),
-        loss_reference_no: movementType === 'FOUND' ? selectedLossRef : undefined,
+        loss_transaction_id: lossTxId,
+        loss_reference_no: lossRefNo,
       });
 
       toast.success(`Inventory adjustment (${movementType}) recorded successfully`);
@@ -228,15 +240,20 @@ export const AdjustmentModal = ({
                 <>
                   <select
                     className="input-premium"
-                    value={selectedLossRef}
-                    onChange={(e) => setSelectedLossRef(e.target.value)}
+                    value={selectedLossId}
+                    onChange={(e) => setSelectedLossId(e.target.value)}
                     disabled={submitting}
                   >
-                    {openLosses.map(loss => (
-                      <option key={loss.id || loss.reference_no} value={loss.reference_no}>
-                        Ref: {loss.reference_no} (Lost: {loss.quantity_lost}, Remaining restorable: {loss.unrestored_quantity})
-                      </option>
-                    ))}
+                    {openLosses.map(loss => {
+                      const idVal = String(loss.id || loss.loss_transaction_id);
+                      const lostCount = loss.reported_lost ?? loss.quantity_lost ?? 0;
+                      const restorableCount = loss.restorable_balance ?? loss.unrestored_quantity ?? 0;
+                      return (
+                        <option key={idVal || loss.reference_no} value={idVal}>
+                          Ref: {loss.reference_no || loss.transaction_number || `#${idVal}`} (Lost: {lostCount}, Remaining restorable: {restorableCount})
+                        </option>
+                      );
+                    })}
                   </select>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     Max restorable against this record: <strong style={{ color: 'var(--primary)' }}>{maxRestorable}</strong>

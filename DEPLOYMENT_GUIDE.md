@@ -6,7 +6,7 @@ This guide provides step-by-step instructions for deploying the **JLIN Motorcycl
 ┌─────────────────────────┐       ┌────────────────────────┐       ┌────────────────────────┐
 │      Vercel (Frontend)  │ ----> │    Render (Backend)    │ ----> │    Aiven (Database)    │
 │  React + Vite SPA       │       │    Node.js + Express   │       │    Cloud Managed MySQL │
-│  ⚡ In-Browser Mock/Demo│       │    REST API + JWT Auth │       │    SSL Encrypted       │
+│  Production React Build │       │    REST API + JWT Auth │       │    SSL Encrypted       │
 └─────────────────────────┘       └────────────────────────┘       └────────────────────────┘
 ```
 
@@ -15,6 +15,7 @@ This guide provides step-by-step instructions for deploying the **JLIN Motorcycl
 ## ⚠️ Production Configuration: Live Backend & Cold Starts
 
 - **Live Backend & Cloud Database Architecture:** The frontend connects directly to the authenticated Express REST API on Render and the Aiven MySQL cloud database. Mock mode and synthetic bypasses have been completely excised from the application to guarantee that all transactions, logins, and inventory records are genuine and fully audited.
+- **Genuine Authentication (No Fast-Fill):** The login screen (`Login.jsx`) has no demo fast-fill buttons or pre-filled credentials. All users must enter authentic credentials configured during initial database setup or user provisioning.
 - **Render Backend Cold Starts:** On Render's free tier, the web service spins down after 15 minutes of inactivity. To ensure the backend is immediately responsive during the defense or grading, send a warm-up ping (e.g. `curl https://jlin-motorparts.onrender.com/api/products`) 2–3 minutes before the presentation.
 
 ---
@@ -111,7 +112,7 @@ git status
 git add .
 
 # 3. Commit changes
-git commit -m "feat: production cloud deployment configs for Vercel, Render, Aiven, and in-browser mock engine"
+git commit -m "feat: production cloud deployment configs for Vercel, Render, and Aiven"
 
 # 4. If creating a new repository on GitHub:
 # git remote add origin https://github.com/your-username/jlin-inventory.git
