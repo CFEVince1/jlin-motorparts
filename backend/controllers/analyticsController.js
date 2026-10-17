@@ -57,7 +57,7 @@ exports.getDashboardData = async (req, res) => {
         const [roiData] = await db.query(`
             SELECT
                 COALESCE(SUM(si.subtotal), 0) AS totalRevenue,
-                COALESCE(SUM(COALESCE(p.cost_price, 0) * si.quantity), 0) AS totalCost
+                COALESCE(SUM(COALESCE(NULLIF(si.cost_price, 0), p.cost_price, 0) * si.quantity), 0) AS totalCost
             FROM sale_items si
             JOIN sales s ON si.sale_id = s.id
             LEFT JOIN products p ON si.product_id = p.id

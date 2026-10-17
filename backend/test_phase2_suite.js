@@ -1010,6 +1010,158 @@ async function runTestSuite() {
         assert(JSON.stringify(trendDates) === JSON.stringify(sortedTrendDates), 'Sales trends dates are sorted in chronological order');
         assert(Array.isArray(adminDashJson.costVsProfit), 'Dashboard returns costVsProfit array for admin');
 
+        // ----------------------------------------------------
+        // [TEST 14] Profit Invariance on Cost Change & Deletion Stock Ledger Invariants
+        // ----------------------------------------------------
+        console.log('\n[TEST 14] Profit Invariance on Cost Change & Deletion Stock Ledger Invariants');
+
+        // 14a. Create product with initial cost 100.00 and selling price 250.00
+        const profitPartNum = `PROFIT-TEST-${Date.now().toString().slice(-4)}`;
+        let profitCreateRes = null;
+        await productController.createProduct({
+            user: { id: adminUser.id, role: 'admin' },
+            body: {
+                part_number: profitPartNum,
+                name: 'Snapshot Profit Test Part',
+                brand: 'Yamaha',
+                category: 'Engine',
+                size: 'Standard',
+                cost_price: 100.00,
+                selling_price: 250.00,
+                reorder_level: 2,
+                is_serialized: false,
+                stock: 0
+            }
+        }, {
+            status: () => ({ json: (d) => { profitCreateRes = d; } }),
+            json: (d) => { profitCreateRes = d; }
+        });
+        const profitProdId = profitCreateRes.productId;
+        assert(!!profitProdId, 'Profit test product created successfully');
+
+        // Receive 10 units with official supplier receipt
+        await inventoryController.receiveStock({
+            user: { id: adminUser.id, role: 'admin' },
+            body: {
+                supplier_id: 1,
+                reference_no: `RCV-PROFIT-${Date.now()}`,
+                items: [{
+                    itemId: profitProdId,
+                    quantity: 10,
+                    cost_price: 100.00
+                }],
+                notes: 'Stock-in for profit test'
+            }
+        }, { status: () => ({ json: () => {} }), json: () => {} }, (e) => { throw e; });
+
+        // Sell 2 units (Revenue = 500.00, Sold Cost = 200.00, Profit = 300.00)
+        let checkoutSuccess = false;
+        await salesController.checkout({
+            user: { id: adminUser.id, role: 'admin' },
+            body: {
+                items: [{ product_id: profitProdId, quantity: 2 }],
+                payment_method: 'Cash',
+                tendered_amount: 500.00
+            }
+        }, {
+            status: () => ({ json: (d) => { if (d && d.sale_id) checkoutSuccess = true; } }),
+            json: (d) => { if (d && d.sale_id) checkoutSuccess = true; }
+        }, (e) => { throw e; });
+        assert(checkoutSuccess, 'POS Checkout of 2 units succeeds');
+
+        // Verify sale_items recorded snapshot cost_price of 100.00
+        const [saleItemRow] = await db.query(
+            'SELECT price, cost_price, quantity, subtotal FROM sale_items WHERE product_id = ? ORDER BY id DESC LIMIT 1',
+            [profitProdId]
+        );
+        assert(saleItemRow.length > 0, 'sale_items row exists for sale');
+        assert(Number(saleItemRow[0].cost_price) === 100.00, 'sale_items strictly recorded snapshot cost_price of 100.00 when item was sold');
+
+        // Check best-selling report profit before cost price change
+        let reportProfitBefore = null;
+        await reportController.getBestSelling({
+            query: { partNumber: profitPartNum },
+            user: { role: 'admin' }
+        }, {
+            status: () => ({ json: (d) => { reportProfitBefore = d; } }),
+            json: (d) => { reportProfitBefore = d; }
+        });
+        assert(reportProfitBefore && reportProfitBefore.length > 0, 'getBestSelling returns item');
+        const profitBefore = Number(reportProfitBefore[0].total_profit);
+        assert(profitBefore === 300.00, `Initial calculated profit is 300.00 (got ${profitBefore})`);
+
+        // Now, simulate a supplier price increase: update product cost_price to 220.00
+        await productController.updateProduct({
+            params: { id: profitProdId },
+            user: { id: adminUser.id, role: 'admin' },
+            body: {
+                part_number: profitPartNum,
+                name: 'Snapshot Profit Test Part',
+                brand: 'Yamaha',
+                category: 'Engine',
+                size: 'Standard',
+                cost_price: 220.00, // Supplier increased cost by 120.00
+                selling_price: 250.00,
+                reorder_level: 2,
+                is_serialized: false,
+                motorcycle_unit_ids: []
+            }
+        }, {
+            status: () => ({ json: () => {} }),
+            json: () => {}
+        });
+
+        // Verify product cost_price in table is now 220.00
+        const [updatedProdCheck] = await db.query('SELECT cost_price FROM products WHERE id = ?', [profitProdId]);
+        assert(Number(updatedProdCheck[0].cost_price) === 220.00, 'Product cost_price was updated to 220.00 in products table');
+
+        // Query report again: Historical profit MUST REMAIN 300.00, NOT drop to 2 * (250 - 220) = 60.00!
+        let reportProfitAfter = null;
+        await reportController.getBestSelling({
+            query: { partNumber: profitPartNum },
+            user: { role: 'admin' }
+        }, {
+            status: () => ({ json: (d) => { reportProfitAfter = d; } }),
+            json: (d) => { reportProfitAfter = d; }
+        });
+        const profitAfter = Number(reportProfitAfter[0].total_profit);
+        assert(profitAfter === 300.00, `Historical profit remains 300.00 after product cost increase (got ${profitAfter})`);
+
+        // 14b. Test product deletion with remaining stock > 0
+        // Currently remaining stock is 8 (10 received - 2 sold)
+        const [preDelProd] = await db.query('SELECT stock, current_stock FROM products WHERE id = ?', [profitProdId]);
+        assert(preDelProd[0].stock === 8, 'Product has 8 active stock units prior to deletion');
+
+        // Call deleteProduct
+        let deleteStatus = 200;
+        let deleteResult = null;
+        await productController.deleteProduct({
+            params: { id: profitProdId },
+            user: { id: adminUser.id, role: 'admin' }
+        }, {
+            status: (code) => { deleteStatus = code; return { json: (d) => { deleteResult = d; } }; },
+            json: (d) => { deleteResult = d; }
+        });
+
+        assert(deleteStatus === 200, 'deleteProduct completes with 200 OK');
+        assert(deleteResult && deleteResult.writtenOffStock === 8, 'deleteProduct reports 8 units written off to LOSS');
+
+        // Verify product is soft-deleted and cached stock is explicitly set to 0
+        const [postDelProd] = await db.query('SELECT is_active, stock, current_stock FROM products WHERE id = ?', [profitProdId]);
+        assert(postDelProd[0].is_active === 0, 'Deleted product is marked is_active = false');
+        assert(postDelProd[0].stock === 0 && postDelProd[0].current_stock === 0, 'Deleted product stock is cleanly set to 0');
+
+        // Verify an immutable LOSS entry was recorded in inventory_transactions
+        const [lossLedgerRows] = await db.query(
+            'SELECT * FROM inventory_transactions WHERE product_id = ? AND transaction_type = "LOSS" ORDER BY id DESC LIMIT 1',
+            [profitProdId]
+        );
+        assert(lossLedgerRows.length > 0, 'deleteProduct with stock > 0 records an explicit LOSS ledger transaction');
+        assert(lossLedgerRows[0].quantity === 8, 'LOSS ledger quantity is 8');
+        assert(lossLedgerRows[0].quantity_change === -8, 'LOSS ledger quantity_change is -8');
+        assert(lossLedgerRows[0].balance_after === 0, 'LOSS ledger balance_after is 0');
+        assert(lossLedgerRows[0].reference_type === 'PRODUCT_DELETION', 'LOSS ledger reference_type is PRODUCT_DELETION');
+
         // Cleanup
         await db.query('UPDATE products SET is_active = FALSE WHERE id = ?', [compatProdId]);
 

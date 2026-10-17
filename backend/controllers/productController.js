@@ -467,17 +467,70 @@ exports.updateProduct = async (req, res) => {
 };
 
 // ==========================================
-// DELETE PRODUCT (Soft Delete)
+// DELETE PRODUCT (Soft Delete with Ledger LOSS write-off)
 // ==========================================
 exports.deleteProduct = async (req, res) => {
     const { id } = req.params;
+    const userId = req.user?.id || null;
+    const connection = await db.getConnection();
     try {
-        const [result] = await db.query('UPDATE products SET is_active = false WHERE id = ?', [id]);
-        if (result.affectedRows === 0) return res.status(404).json({ message: 'Product not found' });
-        res.json({ message: 'Product deleted successfully' });
+        await connection.beginTransaction();
+
+        // 1. Lock product row pessimistic for update
+        const [products] = await connection.query(
+            'SELECT id, name, sku, part_number, stock, current_stock, cost_price, is_serialized, is_active FROM products WHERE id = ? FOR UPDATE',
+            [id]
+        );
+        if (products.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ message: 'Product not found' });
+        }
+
+        const product = products[0];
+        const currentStock = Number(product.current_stock ?? product.stock ?? 0);
+
+        // 2. If stock is above zero, log an explicit LOSS movement to balance the inventory ledger
+        if (currentStock > 0) {
+            const refNo = `DEL-${product.part_number || product.id}-${Date.now().toString().slice(-6)}`;
+            await applyMovement(connection, {
+                itemId: product.id,
+                transactionType: 'LOSS',
+                quantityChange: -currentStock,
+                referenceNo: refNo,
+                referenceType: 'PRODUCT_DELETION',
+                referenceId: product.id,
+                unitCost: Number(product.cost_price || 0.00),
+                remarks: `Stock written off to LOSS upon deleting product: ${product.name} (${product.part_number || product.id})`,
+                notes: `Product soft-deleted by user ${userId || 'admin'} with ${currentStock} active units. Entire remaining balance written off as inventory LOSS.`,
+                createdBy: userId
+            });
+
+            // 3. If product has serialized inventory, update remaining available serials
+            if (product.is_serialized) {
+                await connection.query(
+                    "UPDATE product_serials SET status = 'lost' WHERE product_id = ? AND status = 'available'",
+                    [product.id]
+                );
+            }
+        }
+
+        // 4. Soft-delete the product and ensure cached stock is 0
+        await connection.query(
+            'UPDATE products SET is_active = false, stock = 0, current_stock = 0 WHERE id = ?',
+            [id]
+        );
+
+        await connection.commit();
+        res.json({
+            message: 'Product deleted successfully',
+            writtenOffStock: currentStock
+        });
     } catch (err) {
+        await connection.rollback();
         console.error('Error deleting product:', err);
         res.status(500).json({ message: 'Error deleting product' });
+    } finally {
+        connection.release();
     }
 };
 

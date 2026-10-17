@@ -239,6 +239,7 @@ CREATE TABLE sale_items (
     size VARCHAR(50) NOT NULL,
     quantity INT NOT NULL,
     price DECIMAL(10,2) NOT NULL,
+    cost_price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     subtotal DECIMAL(10,2) NOT NULL,
     FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES products(id)

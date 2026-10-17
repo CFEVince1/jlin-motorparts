@@ -335,9 +335,9 @@ exports.getBestSelling = async (req, res) => {
                 COALESCE(cd.compatibility_display, '') AS compatibility_display,
                 SUM(si.quantity) AS total_sold,
                 SUM(si.subtotal) AS total_revenue,
-                SUM((si.price - COALESCE(p.cost_price, 0)) * si.quantity) AS total_profit
+                SUM((si.price - COALESCE(NULLIF(si.cost_price, 0), p.cost_price, 0)) * si.quantity) AS total_profit
             FROM sale_items si
-            JOIN products p ON si.product_id = p.id
+            LEFT JOIN products p ON si.product_id = p.id
             JOIN sales s ON si.sale_id = s.id
             LEFT JOIN (${compatibilityDisplaySubquery}) cd ON cd.product_id = si.product_id
             ${sql}
@@ -376,12 +376,12 @@ exports.getSalesByMotorcycle = async (req, res) => {
                 TRIM(CONCAT(mu.model, ' ', COALESCE(mu.year_model, ''))) AS motorcycle_display,
                 SUM(si.quantity) AS total_sold,
                 SUM(si.subtotal) AS total_revenue,
-                SUM((si.price - COALESCE(p.cost_price, 0)) * si.quantity) AS total_profit,
+                SUM((si.price - COALESCE(NULLIF(si.cost_price, 0), p.cost_price, 0)) * si.quantity) AS total_profit,
                 COUNT(DISTINCT si.part_number) AS distinct_parts,
                 GROUP_CONCAT(DISTINCT si.part_number ORDER BY si.part_number SEPARATOR ', ') AS part_numbers
             FROM sale_items si
             JOIN sales s ON s.id = si.sale_id
-            JOIN products p ON p.id = si.product_id
+            LEFT JOIN products p ON p.id = si.product_id
             JOIN product_compatibility pc ON pc.product_id = si.product_id
             JOIN motorcycle_units mu ON mu.id = pc.motorcycle_unit_id
             ${sql}
@@ -446,10 +446,10 @@ exports.getAdminStats = async (req, res) => {
             SELECT
                 COALESCE(SUM(si.subtotal), 0) AS total_revenue,
                 COUNT(DISTINCT s.id) AS total_transactions,
-                COALESCE(SUM((si.price - COALESCE(p.cost_price, 0)) * si.quantity), 0) AS total_profit
+                COALESCE(SUM((si.price - COALESCE(NULLIF(si.cost_price, 0), p.cost_price, 0)) * si.quantity), 0) AS total_profit
             FROM sale_items si
             JOIN sales s ON s.id = si.sale_id
-            JOIN products p ON si.product_id = p.id
+            LEFT JOIN products p ON si.product_id = p.id
             ${sql}
         `, params);
 
