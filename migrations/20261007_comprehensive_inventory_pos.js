@@ -35,6 +35,9 @@ if (!envLoaded) {
 }
 
 const mysql = require('mysql2/promise');
+const { getSslConfig } = fs.existsSync(path.join(__dirname, '..', 'backend', 'config', 'db.js'))
+    ? require('../backend/config/db')
+    : require('../config/db');
 
 async function runMigration() {
     console.log('=====================================================');
@@ -48,9 +51,7 @@ async function runMigration() {
         password: process.env.DB_PASSWORD || '',
         database: process.env.DB_NAME || 'jlin_inventory_db',
         multipleStatements: true,
-        ...(process.env.DB_HOST && process.env.DB_HOST.includes('aivencloud') 
-            ? { ssl: { rejectUnauthorized: false } } 
-            : {})
+        ...getSslConfig(process.env.DB_HOST)
     };
 
     console.log(`Connecting to database ${config.database} on ${config.host}:${config.port}...`);
@@ -74,6 +75,19 @@ async function runMigration() {
             if (!exists) {
                 await connection.query(`ALTER TABLE \`${tableName}\` ADD COLUMN \`${columnName}\` ${definition}`);
                 console.log(`  + Added column ${columnName} to table ${tableName}`);
+            }
+        }
+
+        // Helper: Ensure index/constraint exists
+        async function ensureIndex(tableName, indexName, definition) {
+            const [rows] = await connection.query(
+                `SELECT INDEX_NAME FROM information_schema.STATISTICS 
+                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?`,
+                [config.database, tableName, indexName]
+            );
+            if (rows.length === 0) {
+                await connection.query(`ALTER TABLE \`${tableName}\` ADD ${definition}`);
+                console.log(`  + Added index/constraint ${indexName} to table ${tableName}`);
             }
         }
 
@@ -312,6 +326,7 @@ async function runMigration() {
         console.log('7. Verifying `sales` table columns...');
         await ensureColumn('sales', 'order_number', "VARCHAR(100) DEFAULT NULL");
         await ensureColumn('sales', 'payment_reference', "VARCHAR(100) DEFAULT NULL");
+        await ensureIndex('sales', 'uq_sales_payment_reference', "CONSTRAINT uq_sales_payment_reference UNIQUE (payment_reference)");
         await ensureColumn('sales', 'payment_provider', "VARCHAR(50) DEFAULT NULL");
         await ensureColumn('sales', 'payment_status', "VARCHAR(50) DEFAULT 'paid'");
         await ensureColumn('sales', 'subtotal_amount', "DECIMAL(10,2) DEFAULT NULL");
@@ -350,7 +365,14 @@ async function runMigration() {
                 INDEX idx_it_created (created_at),
                 INDEX idx_it_ref (reference_type, reference_id),
                 FOREIGN KEY (product_id) REFERENCES products(id),
-                FOREIGN KEY (created_by) REFERENCES users(id)
+                FOREIGN KEY (created_by) REFERENCES users(id),
+                CONSTRAINT chk_it_quantity_change_sign CHECK (
+                    (transaction_type IN ('STOCK_OUT', 'SALE', 'DAMAGE', 'LOSS', 'RETURN_TO_SUPPLIER', 'ADJUSTMENT_SUB') AND quantity_change < 0)
+                    OR
+                    (transaction_type IN ('STOCK_IN', 'PURCHASE_RECEIPT', 'FOUND', 'RETURN', 'ADJUSTMENT_ADD') AND quantity_change > 0)
+                    OR
+                    (transaction_type = 'OPENING_BALANCE' AND quantity_change >= 0)
+                )
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         `);
 
@@ -359,7 +381,33 @@ async function runMigration() {
         await ensureColumn('inventory_transactions', 'quantity_change', 'INT NOT NULL DEFAULT 0 AFTER quantity');
         await ensureColumn('inventory_transactions', 'loss_transaction_id', 'BIGINT DEFAULT NULL AFTER reference_id');
         await ensureColumn('inventory_transactions', 'remarks', 'TEXT DEFAULT NULL AFTER notes');
-        console.log('   `inventory_transactions` table ready.');
+
+        // Ensure CHECK constraint is enforced on existing tables
+        try {
+            await connection.query(`
+                ALTER TABLE inventory_transactions ADD CONSTRAINT chk_it_quantity_change_sign CHECK (
+                    (transaction_type IN ('STOCK_OUT', 'SALE', 'DAMAGE', 'LOSS', 'RETURN_TO_SUPPLIER', 'ADJUSTMENT_SUB') AND quantity_change < 0)
+                    OR
+                    (transaction_type IN ('STOCK_IN', 'PURCHASE_RECEIPT', 'FOUND', 'RETURN', 'ADJUSTMENT_ADD') AND quantity_change > 0)
+                    OR
+                    (transaction_type = 'OPENING_BALANCE' AND quantity_change >= 0)
+                )
+            `);
+        } catch (e) {
+            // Ignore if already exists
+        }
+
+        // Ensure CHECK constraints on products for non-negative prices and costs
+        try {
+            await connection.query('ALTER TABLE products ADD CONSTRAINT chk_products_cost_price CHECK (cost_price >= 0)');
+        } catch (e) { /* ignore */ }
+        try {
+            await connection.query('ALTER TABLE products ADD CONSTRAINT chk_products_selling_price CHECK (selling_price >= 0)');
+        } catch (e) { /* ignore */ }
+        try {
+            await connection.query('ALTER TABLE products ADD CONSTRAINT chk_products_retail_price CHECK (retail_price >= 0)');
+        } catch (e) { /* ignore */ }
+        console.log('   `inventory_transactions` and `products` CHECK constraints ready.');
 
         // Child lock table to strictly prevent TRUNCATE via foreign key reference
         await connection.query(`

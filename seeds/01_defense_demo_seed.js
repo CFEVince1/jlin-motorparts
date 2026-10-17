@@ -44,6 +44,10 @@ async function seed(knex) {
     console.log(' Environment: ' + (process.env.NODE_ENV || 'development'));
     console.log('=====================================================\n');
 
+    const { getSslConfig } = fs.existsSync(path.join(__dirname, '..', 'backend', 'config', 'db.js'))
+        ? require('../backend/config/db')
+        : require('../config/db');
+
     const config = {
         host: process.env.DB_HOST || 'localhost',
         port: parseInt(process.env.DB_PORT, 10) || 3306,
@@ -51,9 +55,7 @@ async function seed(knex) {
         password: process.env.DB_PASSWORD || '',
         database: process.env.DB_NAME || 'jlin_inventory_db',
         multipleStatements: true,
-        ...(process.env.DB_HOST && process.env.DB_HOST.includes('aivencloud') 
-            ? { ssl: { rejectUnauthorized: false } } 
-            : {})
+        ...getSslConfig(process.env.DB_HOST)
     };
 
     console.log(`Connecting to database ${config.database}...`);
@@ -114,10 +116,11 @@ async function seed(knex) {
         console.log('\n2. Seeding target motorcycle models: Yamaha Aerox 155 V1 and Yamaha Aerox 155 V3...');
         
         async function getOrCreateModel(brand, model, yearModel) {
-            // Check motorcycle_models
+            const baseModel = model.replace(/\s+V\d+$/i, '');
+            // Check motorcycle_models for exact or base model with matching year
             const [existing] = await connection.query(
-                `SELECT id FROM motorcycle_models WHERE brand = ? AND model = ? AND (year_model = ? OR year_model IS NULL) LIMIT 1`,
-                [brand, model, yearModel]
+                `SELECT id FROM motorcycle_models WHERE brand = ? AND (model = ? OR model = ?) AND (year_model = ? OR year_model IS NULL) ORDER BY (model = ?) DESC LIMIT 1`,
+                [brand, model, baseModel, yearModel, model]
             );
             if (existing.length > 0) {
                 return existing[0].id;
@@ -130,9 +133,10 @@ async function seed(knex) {
         }
 
         async function ensureLegacyUnit(brand, model, yearModel) {
+            const baseModel = model.replace(/\s+V\d+$/i, '');
             const [existing] = await connection.query(
-                `SELECT id FROM motorcycle_units WHERE brand = ? AND model = ? LIMIT 1`,
-                [brand, model]
+                `SELECT id FROM motorcycle_units WHERE brand = ? AND (model = ? OR model = ?) AND (year_model = ? OR year_model IS NULL) ORDER BY (model = ?) DESC LIMIT 1`,
+                [brand, model, baseModel, yearModel, model]
             );
             if (existing.length > 0) {
                 return existing[0].id;
@@ -164,9 +168,9 @@ async function seed(knex) {
                 [productData.part_number, productData.brand]
             );
             if (existing.length > 0) {
-                // Ensure initial stock is 0 for defense demo baseline
-                await connection.query(`UPDATE products SET stock = 0, current_stock = 0, is_active = TRUE WHERE id = ?`, [existing[0].id]);
-                console.log(`   Product ${productData.part_number} exists (ID: ${existing[0].id}, stock reset to 0).`);
+                // Preserve live inventory & ledger integrity; do not reset stock on existing products
+                await connection.query(`UPDATE products SET is_active = TRUE WHERE id = ?`, [existing[0].id]);
+                console.log(`   Product ${productData.part_number} exists (ID: ${existing[0].id}, stock preserved: ${existing[0].stock}).`);
                 return existing[0].id;
             }
             const [res] = await connection.query(`

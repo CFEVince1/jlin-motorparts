@@ -1304,8 +1304,16 @@ async function runTestSuite() {
         assert(!migrationContent.includes('rejectUnauthorized: false'), '20261007 migration does not disable SSL certificate verification');
         assert(migrationContent.includes('getSslConfig'), '20261007 migration uses getSslConfig from db.js');
 
+        const rootMigrationContent = fs.readFileSync(path.join(__dirname, '../migrations/20261007_comprehensive_inventory_pos.js'), 'utf8');
+        assert(!rootMigrationContent.includes('rejectUnauthorized: false'), 'root 20261007 migration does not disable SSL certificate verification');
+        assert(rootMigrationContent.includes('getSslConfig'), 'root 20261007 migration uses getSslConfig from db.js');
+
         assert(!seedScriptContent.includes('rejectUnauthorized: false'), '01_defense_demo_seed.js does not disable SSL certificate verification');
         assert(seedScriptContent.includes('getSslConfig'), '01_defense_demo_seed.js uses getSslConfig from db.js');
+
+        const rootSeedContent = fs.readFileSync(path.join(__dirname, '../seeds/01_defense_demo_seed.js'), 'utf8');
+        assert(!rootSeedContent.includes('rejectUnauthorized: false'), 'root 01_defense_demo_seed.js does not disable SSL certificate verification');
+        assert(rootSeedContent.includes('getSslConfig'), 'root 01_defense_demo_seed.js uses getSslConfig from db.js');
 
         assert(!resetScriptContent.includes('rejectUnauthorized: false'), 'reset_demo.js does not disable SSL certificate verification');
         assert(resetScriptContent.includes('getSslConfig'), 'reset_demo.js uses getSslConfig from db.js');
