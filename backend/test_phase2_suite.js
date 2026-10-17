@@ -1313,7 +1313,10 @@ async function runTestSuite() {
         assert(!setupDbContent.includes('rejectUnauthorized: false'), 'setupDb.js does not disable SSL certificate verification');
         assert(setupDbContent.includes('getSslConfig'), 'setupDb.js uses getSslConfig from db.js');
 
-        const alignSchemaContent = fs.readFileSync(path.join(__dirname, '../scripts/align_phase2_schema.js'), 'utf8');
+        const alignSchemaPath = fs.existsSync(path.join(__dirname, '../scripts/archive/align_phase2_schema.js'))
+            ? path.join(__dirname, '../scripts/archive/align_phase2_schema.js')
+            : path.join(__dirname, '../scripts/align_phase2_schema.js');
+        const alignSchemaContent = fs.readFileSync(alignSchemaPath, 'utf8');
         assert(!alignSchemaContent.includes('rejectUnauthorized: false'), 'align_phase2_schema.js does not disable SSL certificate verification');
         assert(alignSchemaContent.includes('getSslConfig'), 'align_phase2_schema.js uses getSslConfig from db.js');
 
