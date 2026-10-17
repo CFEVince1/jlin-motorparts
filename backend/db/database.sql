@@ -225,7 +225,8 @@ CREATE TABLE sales (
     card_last4 VARCHAR(4) DEFAULT NULL,
     paid_at TIMESTAMP NULL DEFAULT NULL,
     sale_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    UNIQUE KEY uq_sales_payment_reference (payment_reference)
 );
 
 CREATE TABLE sale_items (

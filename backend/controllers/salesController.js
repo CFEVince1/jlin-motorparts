@@ -180,16 +180,13 @@ exports.checkout = async (req, res, next) => {
                 throw new AppValidationError('A valid numeric cash amount tendered is required');
             }
             tenderedCentavos = Math.round(numericTendered * 100);
+            // Strict invariant: Cash tendered must be greater than or equal to total amount in centavos (no shortfall allowance)
             if (tenderedCentavos < totalAmountCentavos) {
-                if (totalAmountCentavos - tenderedCentavos <= 1) {
-                    tenderedCentavos = totalAmountCentavos;
-                } else {
-                    throw new AppValidationError(
-                        `Insufficient cash tendered. Total: ₱${totalAmount.toFixed(2)}, Tendered: ₱${(tenderedCentavos / 100).toFixed(2)}`
-                    );
-                }
+                throw new AppValidationError(
+                    `Insufficient cash tendered. Total: ₱${totalAmount.toFixed(2)}, Tendered: ₱${(tenderedCentavos / 100).toFixed(2)}`
+                );
             }
-            changeDueCentavos = Math.max(0, tenderedCentavos - totalAmountCentavos);
+            changeDueCentavos = tenderedCentavos - totalAmountCentavos;
         } else if (method === 'GCash') {
             // Invariant: GCash requires exact amount, zero change, and reference number >= 6 chars
             tenderedCentavos = totalAmountCentavos;
@@ -197,6 +194,17 @@ exports.checkout = async (req, res, next) => {
 
             if (!refNo || refNo.length < 6) {
                 throw new AppValidationError('GCash payment requires a valid reference number of at least 6 characters');
+            }
+
+            // Invariant: GCash reference number must be unique across all sales
+            const [existingSales] = await connection.query(
+                'SELECT id, order_number FROM sales WHERE payment_reference = ? LIMIT 1',
+                [refNo]
+            );
+            if (existingSales.length > 0) {
+                throw new AppValidationError(
+                    `GCash reference number "${refNo}" has already been used on order ${existingSales[0].order_number || ('#' + existingSales[0].id)}`
+                );
             }
         } else {
             // Card or other electronic payments
@@ -206,13 +214,14 @@ exports.checkout = async (req, res, next) => {
 
         const finalTendered = tenderedCentavos / 100;
         const finalChangeDue = changeDueCentavos / 100;
+        const paymentReferenceToSave = (method === 'Cash') ? null : (refNo || null);
 
         // 4. Insert single source of truth sales record first to obtain atomic auto-increment ID
         const [saleResult] = await connection.query(
             `INSERT INTO sales (
                 user_id, total_amount, tendered_amount, change_due, payment_method, order_number, payment_reference, sale_date
             ) VALUES (?, ?, ?, ?, ?, NULL, ?, NOW())`,
-            [userId, totalAmount, finalTendered, finalChangeDue, method, refNo || null]
+            [userId, totalAmount, finalTendered, finalChangeDue, method, paymentReferenceToSave]
         );
         const saleId = saleResult.insertId;
 
@@ -300,6 +309,11 @@ exports.checkout = async (req, res, next) => {
 
     } catch (err) {
         await connection.rollback();
+        if (err.code === 'ER_DUP_ENTRY' && (String(err.message || '').includes('payment_reference') || String(err.message || '').includes('uq_sales_payment_reference'))) {
+            return res.status(422).json({
+                message: 'This payment reference number has already been used on another transaction.'
+            });
+        }
         next(err);
     } finally {
         connection.release();

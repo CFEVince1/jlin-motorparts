@@ -195,10 +195,17 @@ async function setupDatabase() {
                 card_type VARCHAR(50) DEFAULT NULL,
                 card_last4 VARCHAR(4) DEFAULT NULL,
                 paid_at TIMESTAMP NULL DEFAULT NULL,
-                sale_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id)
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                UNIQUE KEY uq_sales_payment_reference (payment_reference)
             ) ENGINE=InnoDB;
         `);
+
+        // Ensure unique constraint exists even if table was already created
+        try {
+            await db.query(`ALTER TABLE sales ADD CONSTRAINT uq_sales_payment_reference UNIQUE (payment_reference)`);
+        } catch (e) {
+            // Ignore if already exists
+        }
 
         // 8b. Sale Items
         await db.query(`

@@ -239,6 +239,90 @@ async function runTestSuite() {
         });
         assert(cashInsufficientBlocked, 'Cash payment with tendered < total is rejected with 422');
 
+        // Test Cash strictly rejects 1-centavo shortfall (no allowance)
+        let cashOneCentavoShortBlocked = false;
+        const mockReqCashShort = {
+            user: { id: adminUser.id },
+            body: {
+                items: [{ product_id: 1, quantity: 1 }],
+                payment_method: 'Cash',
+                tendered_amount: 14.99 // Exactly 1 centavo short of 15.00 total
+            }
+        };
+        const mockResCashShort = {
+            status: (code) => ({
+                json: (data) => {
+                    if (code === 422 || (data && data.message && data.message.includes('Insufficient'))) {
+                        cashOneCentavoShortBlocked = true;
+                    }
+                }
+            })
+        };
+        await salesController.checkout(mockReqCashShort, mockResCashShort, (err) => {
+            if (err instanceof AppValidationError && err.message.includes('Insufficient')) {
+                cashOneCentavoShortBlocked = true;
+            }
+        });
+        assert(cashOneCentavoShortBlocked, 'Cash payment 1 centavo short (14.99 for 15.00) is strictly rejected with 422');
+
+        // Test GCash valid checkout and prevention of reused GCash reference
+        const testGcashRef = 'GCASH-UNIQ-' + Date.now();
+        let gcashFirstSuccess = false;
+        const mockReqGcashFirst = {
+            user: { id: adminUser.id },
+            body: {
+                items: [{ product_id: 1, quantity: 1 }],
+                payment_method: 'GCash',
+                tendered_amount: 15.00,
+                payment_reference: testGcashRef
+            }
+        };
+        const mockResGcashFirst = {
+            status: (code) => ({
+                json: (data) => {
+                    if (code === 201) gcashFirstSuccess = true;
+                }
+            })
+        };
+        await salesController.checkout(mockReqGcashFirst, mockResGcashFirst, (err) => {
+            if (err) throw err;
+        });
+        assert(gcashFirstSuccess, 'GCash initial checkout with valid reference succeeds');
+
+        let gcashDuplicateBlocked = false;
+        let gcashDuplicateErrorMsg = '';
+        const mockReqGcashDuplicate = {
+            user: { id: adminUser.id },
+            body: {
+                items: [{ product_id: 1, quantity: 1 }],
+                payment_method: 'GCash',
+                tendered_amount: 15.00,
+                payment_reference: testGcashRef // Reused reference!
+            }
+        };
+        const mockResGcashDuplicate = {
+            status: (code) => ({
+                json: (data) => {
+                    if (code === 422) {
+                        gcashDuplicateBlocked = true;
+                        gcashDuplicateErrorMsg = data.message;
+                    }
+                }
+            })
+        };
+        await salesController.checkout(mockReqGcashDuplicate, mockResGcashDuplicate, (err) => {
+            if (err instanceof AppValidationError && (err.message.includes('already been used') || err.message.includes('duplicate'))) {
+                gcashDuplicateBlocked = true;
+                gcashDuplicateErrorMsg = err.message;
+            }
+        });
+        assert(gcashDuplicateBlocked, 'Reused GCash reference number is strictly rejected with 422');
+        assert(gcashDuplicateErrorMsg.includes('already been used'), 'Rejection error clearly states reference has already been used');
+
+        // Verify unique constraint exists on sales table in database
+        const [salesIndexes] = await db.query('SHOW INDEX FROM sales WHERE Column_name = "payment_reference"');
+        assert(salesIndexes.length > 0 && salesIndexes[0].Non_unique === 0, 'Database schema enforces UNIQUE constraint on sales(payment_reference)');
+
         // Test Cash non-numeric / NaN tender blocked by Number.isFinite
         let cashBadInputBlocked = false;
         const mockReqCashBad = {

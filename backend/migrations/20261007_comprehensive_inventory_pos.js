@@ -77,6 +77,19 @@ async function runMigration() {
             }
         }
 
+        // Helper: Ensure index/constraint exists
+        async function ensureIndex(tableName, indexName, definition) {
+            const [rows] = await connection.query(
+                `SELECT INDEX_NAME FROM information_schema.STATISTICS 
+                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?`,
+                [config.database, tableName, indexName]
+            );
+            if (rows.length === 0) {
+                await connection.query(`ALTER TABLE \`${tableName}\` ADD ${definition}`);
+                console.log(`  + Added index/constraint ${indexName} to table ${tableName}`);
+            }
+        }
+
         // ----------------------------------------------------
         // 0. USERS (token_version)
         // ----------------------------------------------------
@@ -312,6 +325,7 @@ async function runMigration() {
         console.log('7. Verifying `sales` table columns...');
         await ensureColumn('sales', 'order_number', "VARCHAR(100) DEFAULT NULL");
         await ensureColumn('sales', 'payment_reference', "VARCHAR(100) DEFAULT NULL");
+        await ensureIndex('sales', 'uq_sales_payment_reference', "CONSTRAINT uq_sales_payment_reference UNIQUE (payment_reference)");
         await ensureColumn('sales', 'payment_provider', "VARCHAR(50) DEFAULT NULL");
         await ensureColumn('sales', 'payment_status', "VARCHAR(50) DEFAULT 'paid'");
         await ensureColumn('sales', 'subtotal_amount', "DECIMAL(10,2) DEFAULT NULL");

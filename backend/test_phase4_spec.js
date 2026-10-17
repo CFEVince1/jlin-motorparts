@@ -115,7 +115,7 @@ async function runPhase4Tests() {
     console.log('   ✓ GCash reference < 6 characters rejected with HTTP 422.');
 
     // Pass: Valid GCash checkout
-    const validGcashRef = '102938472910';
+    const validGcashRef = 'GC' + Date.now().toString().slice(-8);
     const passGcashRes = await post('/api/sales/checkout', {
         paymentMethod: 'GCash',
         paymentReference: validGcashRef,
@@ -130,6 +130,16 @@ async function runPhase4Tests() {
     assert.strictEqual(gcashOrder.payment_reference, validGcashRef);
     assert.ok(gcashOrder.order_number.startsWith('SO-'));
     console.log(`   ✓ GCASH Checkout success: Order ${gcashOrder.order_number} | Ref: ${gcashOrder.payment_reference} | Change: ₱0.00\n`);
+
+    // Fail: Duplicate GCash reference reuse must be rejected with 422
+    const reuseGcashRes = await post('/api/sales/checkout', {
+        paymentMethod: 'GCash',
+        paymentReference: validGcashRef,
+        customer_name: 'Juan Cruz',
+        items: [{ productId: brakePad.id, quantity: 1 }]
+    }, adminHeaders);
+    assert.strictEqual(reuseGcashRes.status, 422, 'Reused GCash reference must return 422');
+    console.log('   ✓ Duplicate GCash reference reuse strictly rejected with HTTP 422.\n');
 
     // 5. Verify Ledger Deductions & Stock Balance
     console.log('5. Verifying Inventory Ledger & Deductions...');
