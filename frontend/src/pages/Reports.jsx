@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import { AlertTriangle, BarChart3, Calendar, Filter, Printer, TrendingUp, Users } from 'lucide-react';
+import { AlertTriangle, BarChart3, Calendar, Filter, Printer, TrendingUp, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Spinner from '../components/Spinner';
 import useDebouncedValue from '../hooks/useDebouncedValue';
@@ -39,6 +39,8 @@ const Reports = () => {
     const [reportsLoading, setReportsLoading] = useState(false);
     const [period, setPeriod] = useState('all'); // 'all', 'daily', 'weekly', 'monthly', 'custom'
     const [showPrintModal, setShowPrintModal] = useState(false);
+    const [bestSellingPage, setBestSellingPage] = useState(1);
+    const bestSellingPerPage = 5;
 
     const user = (() => {
         try {
@@ -173,6 +175,16 @@ const Reports = () => {
 
         fetchReports();
     }, [debouncedFilters]);
+
+    useEffect(() => {
+        setBestSellingPage(1);
+    }, [debouncedFilters]);
+
+    // Best Selling pagination
+    const totalBestSellingPages = Math.ceil(bestSelling.length / bestSellingPerPage) || 1;
+    const indexOfLastBestSelling = bestSellingPage * bestSellingPerPage;
+    const indexOfFirstBestSelling = indexOfLastBestSelling - bestSellingPerPage;
+    const currentBestSelling = bestSelling.slice(indexOfFirstBestSelling, indexOfLastBestSelling);
 
     if (loading) return <Spinner text="Loading reports..." />;
 
@@ -382,19 +394,22 @@ const Reports = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {bestSelling.length > 0 ? bestSelling.map((item, idx) => (
-                                    <tr key={`${item.part_number}-${item.brand}-${idx}`}>
-                                        <td style={{ fontWeight: 'bold', color: idx < 3 ? 'var(--primary)' : 'inherit' }}>#{idx + 1}</td>
-                                        <td style={{ fontWeight: 'bold' }}>{item.part_number}</td>
-                                        <td>
-                                            <div>{item.product_name}</div>
-                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{item.brand} | {item.size}</div>
-                                        </td>
-                                        <td className="text-right" style={{ fontWeight: 'bold', color: 'var(--primary)', whiteSpace: 'nowrap' }}>{item.total_sold}</td>
-                                        <td className="text-right" style={{ whiteSpace: 'nowrap' }}>{formatCurrency(item.total_revenue)}</td>
-                                        <td className="text-right" style={{ whiteSpace: 'nowrap' }}>{formatCurrency(item.total_profit)}</td>
-                                    </tr>
-                                )) : (
+                                {currentBestSelling.length > 0 ? currentBestSelling.map((item, idx) => {
+                                    const globalRank = indexOfFirstBestSelling + idx + 1;
+                                    return (
+                                        <tr key={`${item.part_number}-${item.brand}-${idx}`}>
+                                            <td style={{ fontWeight: 'bold', color: globalRank <= 3 ? 'var(--primary)' : 'inherit' }}>#{globalRank}</td>
+                                            <td style={{ fontWeight: 'bold' }}>{item.part_number}</td>
+                                            <td>
+                                                <div>{item.product_name}</div>
+                                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{item.brand} | {item.size}</div>
+                                            </td>
+                                            <td className="text-right" style={{ fontWeight: 'bold', color: 'var(--primary)', whiteSpace: 'nowrap' }}>{item.total_sold}</td>
+                                            <td className="text-right" style={{ whiteSpace: 'nowrap' }}>{formatCurrency(item.total_revenue)}</td>
+                                            <td className="text-right" style={{ whiteSpace: 'nowrap' }}>{formatCurrency(item.total_profit)}</td>
+                                        </tr>
+                                    );
+                                }) : (
                                     <tr>
                                         <td colSpan={6} className="table-empty-state">No sales data matches these filters.</td>
                                     </tr>
@@ -402,6 +417,63 @@ const Reports = () => {
                             </tbody>
                         </table>
                     </div>
+                    {totalBestSellingPages > 1 && (
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginTop: '16px',
+                            paddingTop: '12px',
+                            borderTop: '1px solid var(--border)',
+                            flexWrap: 'wrap',
+                            gap: '8px'
+                        }}>
+                            <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                                Showing {indexOfFirstBestSelling + 1} to {Math.min(indexOfLastBestSelling, bestSelling.length)} of {bestSelling.length} parts
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setBestSellingPage(prev => Math.max(prev - 1, 1))}
+                                    disabled={bestSellingPage === 1}
+                                    className="btn-secondary"
+                                    style={{
+                                        padding: '4px 8px',
+                                        fontSize: '0.78rem',
+                                        height: '28px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        opacity: bestSellingPage === 1 ? 0.5 : 1,
+                                        cursor: bestSellingPage === 1 ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    <ChevronLeft size={14} /> Prev
+                                </button>
+                                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-main)', padding: '0 4px' }}>
+                                    {bestSellingPage} / {totalBestSellingPages}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setBestSellingPage(prev => Math.min(prev + 1, totalBestSellingPages))}
+                                    disabled={bestSellingPage === totalBestSellingPages}
+                                    className="btn-secondary"
+                                    style={{
+                                        padding: '4px 8px',
+                                        fontSize: '0.78rem',
+                                        height: '28px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        opacity: bestSellingPage === totalBestSellingPages ? 0.5 : 1,
+                                        cursor: bestSellingPage === totalBestSellingPages ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    Next <ChevronRight size={14} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <div className="glass-panel" style={{ padding: '24px' }}>
