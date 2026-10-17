@@ -12,10 +12,10 @@ This guide provides step-by-step instructions for deploying the **JLIN Motorcycl
 
 ---
 
-## ⚠️ Production Configuration: Live Backend vs. Mock Mode
+## ⚠️ Production Configuration: Live Backend & Cold Starts
 
-- **Production / Defense Requirement:** `VITE_USE_MOCK` MUST be set to `false`. Running with mock mode enabled bypasses the real backend, displays synthetic mock data, and uses fake in-memory logins, preventing genuine database transactions and ledger audit logs from saving.
-- **Render Backend Cold Starts:** On Render's free tier, the web service spins down after 15 minutes of inactivity. To ensure the backend is immediately responsive during the defense or grading, send a warm-up ping (e.g. `curl https://jlin-motorparts.onrender.com/api/products`) 2–3 minutes before the presentation rather than enabling mock mode.
+- **Live Backend & Cloud Database Architecture:** The frontend connects directly to the authenticated Express REST API on Render and the Aiven MySQL cloud database. Mock mode and synthetic bypasses have been completely excised from the application to guarantee that all transactions, logins, and inventory records are genuine and fully audited.
+- **Render Backend Cold Starts:** On Render's free tier, the web service spins down after 15 minutes of inactivity. To ensure the backend is immediately responsive during the defense or grading, send a warm-up ping (e.g. `curl https://jlin-motorparts.onrender.com/api/products`) 2–3 minutes before the presentation.
 
 ---
 
@@ -93,7 +93,6 @@ This guide provides step-by-step instructions for deploying the **JLIN Motorcycl
    | Key | Value | Notes |
    |---|---|---|
    | `VITE_API_URL` | `https://jlin-motorparts.onrender.com/api` | Live Render backend endpoint |
-   | `VITE_USE_MOCK` | `false` | **MUST BE FALSE** in production to use live backend and real Aiven database |
 6. Click **Deploy**.
 7. Vercel will build and launch your site at `https://jlin-inventory.vercel.app`.
    - The included [`vercel.json`](file:///c:/Inventory/frontend/vercel.json) handles SPA routing so refreshing `/inventory`, `/pos`, etc., will never result in a 404 error.

@@ -1,6 +1,51 @@
 const puppeteer = require('puppeteer-core');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+
+// Zero-dependency loader for backend/.env
+const envPath = path.join(__dirname, '..', 'backend', '.env');
+if (fs.existsSync(envPath)) {
+  const envContent = fs.readFileSync(envPath, 'utf8');
+  for (const line of envContent.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith('#')) {
+      const idx = trimmed.indexOf('=');
+      if (idx !== -1) {
+        const key = trimmed.slice(0, idx).trim();
+        let val = trimmed.slice(idx + 1).trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        if (!process.env[key]) {
+          process.env[key] = val;
+        }
+      }
+    }
+  }
+}
+
+const dbHost = (process.env.DB_HOST || 'localhost').trim().toLowerCase();
+const dbName = (process.env.DB_NAME || 'jlin_inventory_db').trim().toLowerCase();
+const allowThrowaway = process.argv.includes('--throwaway-db') || process.env.ALLOW_DIRTY_TEST === 'true';
+
+// SAFETY REFUSAL: test_crud_functions.js mutates live inventory data
+if ((dbHost !== 'localhost' && dbHost !== '127.0.0.1') || dbName === 'jlin_inventory_db' || dbName === 'defaultdb') {
+  if (!allowThrowaway) {
+    console.error('================================================================');
+    console.error('⛔ SAFETY REFUSAL: test_crud_functions.js mutates live database state.');
+    console.error(`Target Host: "${dbHost}" | Target Database: "${dbName}"`);
+    console.error('Running this script will create synthetic suppliers, products,');
+    console.error('sales records, stock adjustments, and test user accounts.');
+    console.error('');
+    console.error('To protect the demo/live database from dirty test data:');
+    console.error('1. Point backend/.env to a scratch database (e.g. DB_NAME=throwaway_scratch_db)');
+    console.error('2. OR explicitly pass --throwaway-db if you know what you are doing:');
+    console.error('   node scripts/test_crud_functions.js --throwaway-db');
+    console.error('================================================================');
+    process.exit(1);
+  }
+}
 
 const EDGE_PATH = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 const SCREENSHOT_DIR = path.join(__dirname, '..', 'screenshots', 'crud_tests');
@@ -11,7 +56,8 @@ if (!fs.existsSync(SCREENSHOT_DIR)) {
 
 async function runCrudTests() {
   console.log('================================================================');
-  console.log('🚀 RUNNING COMPREHENSIVE CRUD & ADD FUNCTION TESTING');
+  console.log('🚀 RUNNING COMPREHENSIVE CRUD & ADD FUNCTION TESTING (UI WALKTHROUGH)');
+  console.log(`Database Target: ${dbName} @ ${dbHost}`);
   console.log('================================================================');
 
   const browser = await puppeteer.launch({
@@ -42,10 +88,12 @@ async function runCrudTests() {
     // ---------------------------------------------------------
     // STEP 0: LOGIN AS ADMIN
     // ---------------------------------------------------------
-    console.log('\n[STEP 0] Logging in as Admin...');
+    const adminUser = process.env.ADMIN_USERNAME || 'admin';
+    const adminPass = process.env.INITIAL_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || 'admin123';
+    console.log(`\n[STEP 0] Logging in as Admin (${adminUser})...`);
     await page.goto('http://localhost:5173/login', { waitUntil: 'networkidle0' });
-    await page.type('input[placeholder="Username"]', 'admin');
-    await page.type('input[placeholder="Password"]', 'admin123');
+    await page.type('input[placeholder="Username"]', adminUser);
+    await page.type('input[placeholder="Password"]', adminPass);
     await page.click('button[type="submit"]');
     await page.waitForFunction(() => !window.location.pathname.includes('/login'), { timeout: 10000 });
     console.log('✅ Logged in successfully. Current URL:', page.url());
@@ -326,11 +374,12 @@ async function runCrudTests() {
     if (uUsername && uPassword && uConfirm) {
       const userSuffix = Date.now().toString().slice(-4);
       const testUsername = `cashier_${userSuffix}`;
+      const dynamicPassword = `TestPass!${crypto.randomBytes(4).toString('hex')}`;
       console.log(`  Creating new staff user "${testUsername}"...`);
 
       await uUsername.type(testUsername);
-      await uPassword.type('StrongStaff2026!');
-      await uConfirm.type('StrongStaff2026!');
+      await uPassword.type(dynamicPassword);
+      await uConfirm.type(dynamicPassword);
 
       await page.click('form button[type="submit"]');
       await new Promise(r => setTimeout(r, 2000));
@@ -341,7 +390,10 @@ async function runCrudTests() {
     }
 
     console.log('\n================================================================');
-    console.log('🎉 ALL 7 INTERACTIVE CRUD FUNCTIONS VERIFIED & DOCUMENTED!');
+    console.log('🎉 ALL 7 INTERACTIVE CRUD UI FLOWS EXECUTED & SCREENSHOTS CAPTURED');
+    console.log('ℹ️  Note: This Puppeteer script performs end-to-end browser walkthroughs.');
+    console.log('    For automated invariant regression testing (262+ checks), run:');
+    console.log('    node backend/test_phase2_suite.js');
     console.log('================================================================');
 
   } catch (error) {

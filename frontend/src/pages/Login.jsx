@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import { LogIn, Eye, EyeOff } from 'lucide-react';
@@ -20,14 +20,8 @@ const Login = () => {
     const { login } = useContext(AuthContext);
     const navigate = useNavigate();
 
-    useEffect(() => {
-        // Ensure real cloud database mode is active
-        localStorage.removeItem('jlin_use_mock');
-    }, []);
-
     const handleLogin = async (e) => {
         e.preventDefault();
-        localStorage.removeItem('jlin_use_mock');
         setErrorMessage('');
         try {
             // Validate data
