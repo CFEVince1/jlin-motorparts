@@ -31,9 +31,9 @@ echo ===================================================
 echo  System is running!
 echo ===================================================
 echo.
-echo  Default Login Credentials:
-echo    * Administrator:  admin / admin123
-echo    * Staff/Cashier:  staff / staff123
+echo  Login Credentials:
+echo    * Use your configured administrator or staff credentials.
+echo    * To configure or reset credentials, run: node backend/reset-admin.js
 echo.
 echo  URLs:
 echo    * Frontend: http://localhost:5173

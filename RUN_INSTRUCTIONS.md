@@ -6,14 +6,14 @@ A desktop-optimized Sales, Inventory, and Point of Sale (POS) management system 
 
 ## 1. System Credentials
 
-The database comes pre-configured with two user tiers:
+The system provides two standard role tiers:
 
 | Role | Username | Password | Access Level |
 | :--- | :--- | :--- | :--- |
-| **Administrator** | `admin` | `admin123` | Full access: Dashboard, POS, Products Directory, Manage Compatibility, Inventory, Business Reports, User Management |
-| **Staff / Cashier** | `staff` | `staff123` | Operational access: Point of Sale (POS), Inventory Stock In/Out, Transaction History |
+| **Administrator** | `admin` | *(Configured during setup / `.env`)* | Full access: Dashboard, POS, Products Directory, Manage Compatibility, Inventory, Business Reports, User Management |
+| **Staff / Cashier** | `staff` | *(Configured during setup / `.env`)* | Operational access: Point of Sale (POS), Inventory Stock In/Out, Transaction History |
 
-> **Note:** Passwords can also be changed or added under **System Users** (`/users`) when logged in as `admin`.
+> **Security Note:** Passwords must be at least 8 characters. Set `INITIAL_ADMIN_PASSWORD` and `INITIAL_STAFF_PASSWORD` in `backend/.env` before running database initialization, or use the randomly generated passwords printed to the console during setup. Passwords can also be changed or added under **System Users** (`/users`) when logged in as `admin`.
 
 ---
 
@@ -78,8 +78,8 @@ npm run dev
    http://localhost:5173
    ```
 2. Enter your credentials on the Login screen:
-   * **Admin:** Username `admin` | Password `admin123`
-   * **Staff:** Username `staff` | Password `staff123`
+   * **Admin:** Username `admin` | Password `<your_configured_admin_password>`
+   * **Staff:** Username `staff` | Password `<your_configured_staff_password>`
 3. Click **Sign In**.
 
 ---
@@ -98,8 +98,13 @@ DB_USER=root
 DB_PASSWORD=
 DB_NAME=jlin_inventory_db
 
-# Security
+# Security (Must be 32+ characters / 256-bit key in production)
+# Generate a secret: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 JWT_SECRET=<your_secure_random_jwt_secret_here>
+
+# Initial Setup Passwords (Optional: used only if users table is empty during db:setup)
+# INITIAL_ADMIN_PASSWORD=your_secure_admin_password_min_8_chars
+# INITIAL_STAFF_PASSWORD=your_secure_staff_password_min_8_chars
 ```
 
 ---

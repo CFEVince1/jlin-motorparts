@@ -4,12 +4,14 @@ A high-density Sales, Inventory, and Point of Sale (POS) management system tailo
 
 ---
 
-## Quick Start Credentials
+## System Roles & Access
 
-| Role | Username | Password |
+| Role | Username | Initial Password |
 | :--- | :--- | :--- |
-| **Admin** | `admin` | `admin123` |
-| **Staff** | `staff` | `staff123` |
+| **Admin** | `admin` | *(Set in `.env` / Initial setup)* |
+| **Staff** | `staff` | *(Set in `.env` / Initial setup)* |
+
+> **Note:** Configure `INITIAL_ADMIN_PASSWORD` and `INITIAL_STAFF_PASSWORD` in `backend/.env` (minimum 8 characters) before running setup, or use the generated credentials printed on initial setup. Password resets can be managed via `backend/reset-admin.js`.
 
 ---
 

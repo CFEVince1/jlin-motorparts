@@ -36,8 +36,9 @@ async function setupDatabase() {
 
         console.log("Table created. Generating admin account...");
 
-        // Hash the password 'admin123'
-        const hashedPassword = await bcrypt.hash('admin123', 10);
+        const crypto = require('crypto');
+        const adminPass = process.env.INITIAL_ADMIN_PASSWORD || crypto.randomBytes(9).toString('base64').replace(/[+/=]/g, 'a').slice(0, 12);
+        const hashedPassword = await bcrypt.hash(adminPass, 10);
 
         // Insert the default admin user (IGNORE prevents errors if it already exists)
         await connection.execute(
@@ -45,7 +46,12 @@ async function setupDatabase() {
             ['admin', hashedPassword, 'admin']
         );
 
-        console.log("✅ SUCCESS! Admin user created. You can now log in!");
+        console.log("✅ SUCCESS! Admin user created.");
+        if (process.env.INITIAL_ADMIN_PASSWORD) {
+            console.log("Password set from INITIAL_ADMIN_PASSWORD.");
+        } else {
+            console.log("Generated Admin Password: " + adminPass);
+        }
         process.exit(0);
     } catch (error) {
         console.error("❌ ERROR:", error);

@@ -1,6 +1,7 @@
 require('dotenv').config();
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 async function setupDatabase() {
     console.log('[Setup] Initializing canonical database tables...');
@@ -282,16 +283,25 @@ async function setupDatabase() {
         // Seed Admin & Staff Users
         const [existingUsers] = await db.query('SELECT COUNT(*) as count FROM users');
         if (existingUsers[0].count === 0) {
-            console.log('[Setup] Seeding default Admin and Staff accounts...');
-            const adminHash = await bcrypt.hash('admin123', 10);
-            const staffHash = await bcrypt.hash('staff123', 10);
+            console.log('[Setup] Initializing Admin and Staff accounts...');
+            const adminPass = process.env.INITIAL_ADMIN_PASSWORD || crypto.randomBytes(9).toString('base64').replace(/[+/=]/g, 'a').slice(0, 12);
+            const staffPass = process.env.INITIAL_STAFF_PASSWORD || crypto.randomBytes(9).toString('base64').replace(/[+/=]/g, 'b').slice(0, 12);
+            const adminHash = await bcrypt.hash(adminPass, 10);
+            const staffHash = await bcrypt.hash(staffPass, 10);
 
             await db.query(`
                 INSERT INTO users (username, password, role) VALUES 
                 ('admin', ?, 'admin'),
                 ('staff', ?, 'staff')
             `, [adminHash, staffHash]);
-            console.log('[Setup] Default users created: admin/admin123 and staff/staff123');
+            console.log('[Setup] Initial user accounts created successfully.');
+            if (process.env.INITIAL_ADMIN_PASSWORD && process.env.INITIAL_STAFF_PASSWORD) {
+                console.log('[Setup] Passwords provisioned from environment variables.');
+            } else {
+                console.log('[Setup] Generated initial credentials (save safely or change immediately):');
+                console.log(`  * Administrator: admin / ${adminPass}`);
+                console.log(`  * Staff/Cashier: staff / ${staffPass}`);
+            }
         }
 
         // Seed Suppliers if empty (Names only, no fabricated contact details)

@@ -16,9 +16,9 @@ This guide provides step-by-step instructions for deploying the **JLIN Motorcycl
 
 The system includes a built-in **In-Browser Demo / Mock Data Engine** (`frontend/src/services/mockEngine.js`):
 - **Why it matters**: If the cloud backend on Render is sleeping (Render free tier sleeps after 15 min of inactivity) or if you want to demonstrate the app on Vercel without setting up databases, the app automatically serves realistic mock data!
-- **Fast-fill credentials** are available on the Login screen:
-  - **Admin**: `admin` / `admin123`
-  - **Staff**: `staff` / `staff123`
+- **Demo fast-fill accounts** are available on the Login screen when running in mock mode:
+  - **Admin**: Role with full system access
+  - **Staff**: Role with cashier and inventory operation access
 - **Forced Mock Mode**: Set `VITE_USE_MOCK=true` in Vercel environment variables to run completely standalone with zero backend dependencies.
 
 ---
@@ -50,7 +50,7 @@ The system includes a built-in **In-Browser Demo / Mock Data Engine** (`frontend
    
    npm run db:setup
    ```
-   *This creates all tables (`users`, `products`, `motorcycle_units`, `motorcycle_models`, `product_compatibilities`, `suppliers`, `receiving_records`, `sales`, `inventory_transactions`) and seeds default `admin` and `staff` accounts.*
+   *This creates all tables (`users`, `products`, `motorcycle_units`, `motorcycle_models`, `product_compatibilities`, `suppliers`, `receiving_records`, `sales`, `inventory_transactions`) and initializes `admin` and `staff` accounts using `INITIAL_ADMIN_PASSWORD` / `INITIAL_STAFF_PASSWORD` (or securely generated keys).*
 
 ---
 
@@ -73,7 +73,7 @@ The system includes a built-in **In-Browser Demo / Mock Data Engine** (`frontend
    |---|---|---|
    | `NODE_ENV` | `production` | Production mode |
    | `PORT` | `5000` | Server listening port |
-   | `JWT_SECRET` | `your_custom_secret_key_123` | Token signing secret |
+   | `JWT_SECRET` | *(64-character random hex key)* | Token signing secret (generate with `openssl rand -hex 32` or node crypto) |
    | `DATABASE_URL` | `mysql://avnadmin:...@.../defaultdb?ssl-mode=REQUIRED` | Aiven connection URI |
    | `FRONTEND_URL` | `https://your-app.vercel.app` | Your Vercel frontend URL |
 6. Click **Create Web Service**.
@@ -132,5 +132,5 @@ git push -u origin main
 
 | Role | Username | Password | Access Level |
 |---|---|---|---|
-| **Administrator** | `admin` | `admin123` | Full Access: POS, Inventory, Products Directory, Suppliers, Stock Receive, Sales Reports, Compatibility Rules, Users |
-| **Sales Staff** | `staff` | `staff123` | POS Sales, Inventory View, Transaction History, Compatibility Search |
+| **Administrator** | `admin` | *(Set in `.env` / Initial setup)* | Full Access: POS, Inventory, Products Directory, Suppliers, Stock Receive, Sales Reports, Compatibility Rules, Users |
+| **Sales Staff** | `staff` | *(Set in `.env` / Initial setup)* | POS Sales, Inventory View, Transaction History, Compatibility Search |
