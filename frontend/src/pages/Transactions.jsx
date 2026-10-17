@@ -9,6 +9,7 @@ import useTableFilter from '../hooks/useTableFilter';
 import { calculateSalesSummary } from '../utils/calculations';
 import { formatCurrency, formatAuditDate } from '../utils/formatters';
 import ReceiptPrint from '../components/ReceiptPrint';
+import PrintTransactionsReportModal from '../components/PrintTransactionsReportModal';
 
 const Transactions = () => {
     const { user } = useContext(AuthContext);
@@ -23,6 +24,7 @@ const Transactions = () => {
 
     // Reporting State
     const [timeframe, setTimeframe] = useState('Daily');
+    const [showPrintModal, setShowPrintModal] = useState(false);
 
     const filterTransactionsFn = useCallback((items, debouncedQuery, filters) => {
         const normalizedQuery = normalizeSearchText(debouncedQuery);
@@ -172,7 +174,7 @@ const Transactions = () => {
                         <option value="Monthly">Monthly Report</option>
                         <option value="Yearly">Yearly Report</option>
                     </select>
-                    <button onClick={handlePrint} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button onClick={() => setShowPrintModal(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <Printer size={16} /> Print {timeframe} {isStaff ? 'Self Records' : 'Transactions'}
                     </button>
                 </div>
@@ -326,6 +328,15 @@ const Transactions = () => {
                     </div>
                 </div>
             )}
+            <PrintTransactionsReportModal
+                isOpen={showPrintModal}
+                onClose={() => setShowPrintModal(false)}
+                initialTimeframe={timeframe}
+                user={user}
+                transactions={filteredTransactions}
+                currentFilterDate={filterDate}
+                searchQuery={searchQuery}
+            />
         </div>
     );
 };
