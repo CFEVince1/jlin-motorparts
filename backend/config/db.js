@@ -53,6 +53,8 @@ const getSslConfig = () => {
 
 const sslConfig = getSslConfig();
 
+const APP_TIMEZONE = process.env.APP_TIMEZONE || '+08:00';
+
 let poolConfig = {};
 
 if (dbUri) {
@@ -61,6 +63,7 @@ if (dbUri) {
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,
+        timezone: APP_TIMEZONE,
         flags: '-LOCAL_INFILE=0',
         ...sslConfig
     };
@@ -74,6 +77,7 @@ if (dbUri) {
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,
+        timezone: APP_TIMEZONE,
         flags: '-LOCAL_INFILE=0',
         ...sslConfig
     };
@@ -81,13 +85,23 @@ if (dbUri) {
 
 const pool = mysql.createPool(poolConfig);
 
+// Enforce Philippine Standard Time (PST / UTC+8) on every connection
+pool.on('connection', (connection) => {
+    connection.query(`SET time_zone = '${APP_TIMEZONE}'`, (err) => {
+        if (err) {
+            console.warn(`[Database Warning] Could not set session time_zone to ${APP_TIMEZONE}:`, err.message);
+        }
+    });
+});
+
 // Promise wrapper for easier async/await usage
 const promisePool = pool.promise();
 
 // Non-blocking connectivity test
-promisePool.query('SELECT 1')
-    .then(() => {
-        console.log(`[Database] Connected successfully (${isAivenOrCloud ? (caCert ? 'Cloud MySQL with Verified Aiven CA (rejectUnauthorized: true)' : 'Cloud MySQL / Remote SSL') : 'Local / Standard MySQL'})`);
+promisePool.query("SELECT 1 as ok, @@session.time_zone as tz, DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s') as pht_now")
+    .then(([rows]) => {
+        const info = rows[0] || {};
+        console.log(`[Database] Connected successfully (${isAivenOrCloud ? (caCert ? 'Cloud MySQL with Verified Aiven CA (rejectUnauthorized: true)' : 'Cloud MySQL / Remote SSL') : 'Local / Standard MySQL'}) | TimeZone: ${info.tz || APP_TIMEZONE} (PHT Now: ${info.pht_now})`);
     })
     .catch((err) => {
         console.warn(`[Database Warning] Could not connect to database: ${err.message}. Backend will run, check DB credentials.`);

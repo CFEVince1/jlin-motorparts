@@ -1,5 +1,14 @@
 const db = require('../config/db');
 
+// Helpers to format dates strictly in Philippine Standard Time (PST / UTC+8)
+const getPhilippineDate = () => {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
+};
+
+const getPhilippineMonth = () => {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit' }).format(new Date());
+};
+
 const buildDateAndUserFilters = (req, tableAlias = 's') => {
     const { startDate, endDate, period, date, month, year } = req.query;
     const where = [];
@@ -143,7 +152,7 @@ exports.getDailySales = async (req, res) => {
             dateCondition = 'DATE(s.sale_date) = ?';
             params.push(chosenDate);
         } else {
-            selectDate = 'CURDATE() as date';
+            selectDate = 'DATE_FORMAT(CURDATE(), "%Y-%m-%d") as date';
             dateCondition = 'DATE(s.sale_date) = CURDATE()';
         }
 
@@ -164,7 +173,7 @@ exports.getDailySales = async (req, res) => {
         const [sales] = await db.query(query, params);
         const result = sales[0] || {};
         res.json({
-            date: result.date || chosenDate || new Date().toISOString().split('T')[0],
+            date: result.date || chosenDate || getPhilippineDate(),
             total_revenue: Number(result.total_revenue) || 0,
             total_transactions: Number(result.total_transactions) || 0
         });
@@ -218,7 +227,7 @@ exports.getMonthlySales = async (req, res) => {
         } else {
             selectMonth = "DATE_FORMAT(CURDATE(), '%Y-%m') as month";
             dateCondition = 'YEAR(s.sale_date) = YEAR(CURDATE()) AND MONTH(s.sale_date) = MONTH(CURDATE())';
-            displayMonth = new Date().toISOString().slice(0, 7);
+            displayMonth = getPhilippineMonth();
         }
 
         let userCondition = '';
@@ -238,7 +247,7 @@ exports.getMonthlySales = async (req, res) => {
         const [sales] = await db.query(query, params);
         const result = sales[0] || {};
         res.json({
-            month: result.month || displayMonth,
+            month: result.month || displayMonth || getPhilippineMonth(),
             total_revenue: Number(result.total_revenue) || 0,
             total_transactions: Number(result.total_transactions) || 0
         });
@@ -462,12 +471,14 @@ exports.getAdminStats = async (req, res) => {
  */
 exports.getAdjustmentsReport = async (req, res, next) => {
     try {
-        const { from, to, startDate, endDate, type, transaction_type } = req.query;
+        const { from, to, startDate, endDate, type, transaction_type, movementType } = req.query;
         const fromDate = from || startDate;
         const toDate = to || endDate;
-        const targetType = type || transaction_type;
+        const targetType = type || transaction_type || movementType;
 
-        const where = ["it.transaction_type != 'SALE'"];
+        // Discrepancy adjustments only: Damage, Loss, Return to supplier, Found, Add/Sub manual adjustments.
+        // Strictly exclude standard inventory operations: SALE, STOCK_IN, PURCHASE_RECEIPT, and OPENING_BALANCE.
+        const where = ["it.transaction_type IN ('DAMAGE', 'LOSS', 'RETURN_TO_SUPPLIER', 'FOUND', 'ADJUSTMENT_ADD', 'ADJUSTMENT_SUB')"];
         const params = [];
 
         if (fromDate) {
@@ -539,8 +550,8 @@ exports.getAdjustmentsReport = async (req, res, next) => {
 
         const summary = {
             total_adjustments: adjustments.length,
-            total_units: adjustments.reduce((acc, a) => acc + Number(a.quantity), 0),
-            total_value: adjustments.reduce((acc, a) => acc + Number(a.total_value), 0),
+            total_units: adjustments.reduce((acc, a) => acc + Math.abs(Number(a.quantity_change || a.quantity || 0)), 0),
+            total_value: adjustments.reduce((acc, a) => acc + Number(a.total_value || 0), 0),
             DAMAGE: 0,
             LOSS: 0,
             RETURN_TO_SUPPLIER: 0,

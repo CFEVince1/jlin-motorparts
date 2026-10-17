@@ -408,6 +408,22 @@ async function runTestSuite() {
         assert(!!reportResult && Array.isArray(reportResult.adjustments), 'Adjustments report returns adjustments array');
         assert(Array.isArray(reportResult.grouped_totals), 'Adjustments report returns grouped_totals array');
 
+        // Verify adjustments report strictly excludes STOCK_IN, OPENING_BALANCE, and SALE
+        const hasStockInOrOpening = reportResult.adjustments.some(a => 
+            a.transaction_type === 'STOCK_IN' || 
+            a.transaction_type === 'OPENING_BALANCE' || 
+            a.transaction_type === 'SALE'
+        );
+        assert(!hasStockInOrOpening, 'Adjustments report strictly excludes STOCK_IN, OPENING_BALANCE, and SALE rows');
+
+        // Verify total_units matches sum of discrepancy adjustment quantities
+        const expectedTotalUnits = reportResult.adjustments.reduce((sum, a) => sum + Math.abs(Number(a.quantity_change || a.quantity || 0)), 0);
+        assert(reportResult.summary.total_units === expectedTotalUnits, 'Adjustments total_units matches sum of non-sales discrepancy quantities without stock-in inflation');
+
+        // Verify database connection enforces Philippine Standard Time (+08:00)
+        const [tzRows] = await db.query('SELECT @@session.time_zone as tz');
+        assert(tzRows[0].tz === '+08:00', 'Database session time zone is strictly set to Philippine Standard Time (+08:00)');
+
         // Test getDailySales with chosen date
         let dailyDateResult = null;
         const mockResDaily = {
