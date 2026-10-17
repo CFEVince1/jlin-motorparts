@@ -114,7 +114,7 @@ CREATE TABLE `inventory_transactions` (
   KEY `created_by` (`created_by`),
   CONSTRAINT `inventory_transactions_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`),
   CONSTRAINT `inventory_transactions_ibfk_2` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`),
-  CONSTRAINT `chk_it_quantity_change_sign` CHECK (`transaction_type` in ('SALE','DAMAGE','DEFECTIVE','RETURN_TO_SUPPLIER','LOSS') and `quantity_change` <= 0 or `transaction_type` in ('STOCK_IN','RETURN_FROM_CUSTOMER','CONVERSION_IN') and `quantity_change` >= 0 or `transaction_type` in ('ADJUSTMENT','OPENING_BALANCE'))
+  CONSTRAINT `chk_it_quantity_change_sign` CHECK ((`transaction_type` IN ('STOCK_OUT', 'SALE', 'DAMAGE', 'LOSS', 'RETURN_TO_SUPPLIER', 'ADJUSTMENT_SUB') AND `quantity_change` < 0) OR (`transaction_type` IN ('STOCK_IN', 'PURCHASE_RECEIPT', 'FOUND', 'RETURN', 'ADJUSTMENT_ADD') AND `quantity_change` > 0) OR (`transaction_type` = 'OPENING_BALANCE' AND `quantity_change` >= 0))
 ) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 

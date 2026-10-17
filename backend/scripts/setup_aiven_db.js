@@ -263,7 +263,12 @@ async function setupDatabase() {
             ) ENGINE=InnoDB;
         `);
 
-        // Ensure CHECK constraint exists even if table was already created
+        // Ensure CHECK constraint exists and is up-to-date even if table was already created
+        try {
+            await db.query('ALTER TABLE inventory_transactions DROP CHECK chk_it_quantity_change_sign;');
+        } catch (e) {
+            // Ignore if check constraint did not exist
+        }
         try {
             await db.query(`
                 ALTER TABLE inventory_transactions ADD CONSTRAINT chk_it_quantity_change_sign CHECK (
@@ -278,7 +283,139 @@ async function setupDatabase() {
             // Ignore if already exists
         }
 
-        console.log('[Setup] Canonical tables verified.');
+        // 10. Sentinel table to block TRUNCATE via foreign key reference
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS inventory_transactions_lock (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                transaction_id BIGINT DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_inv_tx_lock FOREIGN KEY (transaction_id) REFERENCES inventory_transactions(id)
+            ) ENGINE=InnoDB;
+        `);
+
+        // 11. Triggers for product sync and immutable ledger
+        try {
+            await db.query('DROP TRIGGER IF EXISTS trg_sync_products_insert;');
+            await db.query(`
+                CREATE TRIGGER trg_sync_products_insert
+                BEFORE INSERT ON products
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.sku IS NULL OR NEW.sku = '' THEN
+                        SET NEW.sku = NEW.part_number;
+                    END IF;
+                    IF NEW.part_number IS NULL OR NEW.part_number = '' THEN
+                        SET NEW.part_number = NEW.sku;
+                    END IF;
+                    IF NEW.current_stock IS NULL OR (NEW.current_stock = 0 AND NEW.stock IS NOT NULL AND NEW.stock != 0) THEN
+                        SET NEW.current_stock = COALESCE(NEW.stock, 0);
+                    ELSEIF NEW.stock IS NULL OR (NEW.stock = 0 AND NEW.current_stock IS NOT NULL AND NEW.current_stock != 0) THEN
+                        SET NEW.stock = COALESCE(NEW.current_stock, 0);
+                    END IF;
+                    IF NEW.retail_price IS NULL OR NEW.retail_price = 0 THEN
+                        SET NEW.retail_price = COALESCE(NEW.selling_price, 0.00);
+                    END IF;
+                    IF NEW.selling_price IS NULL OR NEW.selling_price = 0 THEN
+                        SET NEW.selling_price = COALESCE(NEW.retail_price, 0.00);
+                    END IF;
+                END;
+            `);
+        } catch (e) {
+            console.warn('[Setup] Notice creating trg_sync_products_insert:', e.message);
+        }
+
+        try {
+            await db.query('DROP TRIGGER IF EXISTS trg_sync_products_update;');
+            await db.query(`
+                CREATE TRIGGER trg_sync_products_update
+                BEFORE UPDATE ON products
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.current_stock != OLD.current_stock AND NEW.stock = OLD.stock THEN
+                        SET NEW.stock = NEW.current_stock;
+                    ELSEIF NEW.stock != OLD.stock AND NEW.current_stock = OLD.current_stock THEN
+                        SET NEW.current_stock = NEW.stock;
+                    END IF;
+
+                    IF NEW.sku != OLD.sku AND (NEW.part_number = OLD.part_number OR NEW.part_number IS NULL) THEN
+                        SET NEW.part_number = NEW.sku;
+                    ELSEIF NEW.part_number != OLD.part_number AND (NEW.sku = OLD.sku OR NEW.sku IS NULL) THEN
+                        SET NEW.sku = NEW.part_number;
+                    END IF;
+
+                    IF NEW.retail_price != OLD.retail_price AND NEW.selling_price = OLD.selling_price THEN
+                        SET NEW.selling_price = NEW.retail_price;
+                    ELSEIF NEW.selling_price != OLD.selling_price AND NEW.retail_price = OLD.retail_price THEN
+                        SET NEW.retail_price = NEW.selling_price;
+                    END IF;
+                END;
+            `);
+        } catch (e) {
+            console.warn('[Setup] Notice creating trg_sync_products_update:', e.message);
+        }
+
+        try {
+            await db.query('DROP TRIGGER IF EXISTS trg_block_inventory_transactions_update;');
+            await db.query(`
+                CREATE TRIGGER trg_block_inventory_transactions_update
+                BEFORE UPDATE ON inventory_transactions
+                FOR EACH ROW
+                BEGIN
+                    SIGNAL SQLSTATE '45000'
+                    SET MESSAGE_TEXT = 'Forbidden: inventory_transactions is an immutable append-only ledger and cannot be modified.';
+                END;
+            `);
+        } catch (e) {
+            console.warn('[Setup] Notice creating trg_block_inventory_transactions_update:', e.message);
+        }
+
+        try {
+            await db.query('DROP TRIGGER IF EXISTS trg_block_inventory_transactions_delete;');
+            await db.query(`
+                CREATE TRIGGER trg_block_inventory_transactions_delete
+                BEFORE DELETE ON inventory_transactions
+                FOR EACH ROW
+                BEGIN
+                    SIGNAL SQLSTATE '45000'
+                    SET MESSAGE_TEXT = 'Forbidden: inventory_transactions is an immutable append-only ledger and cannot be deleted.';
+                END;
+            `);
+        } catch (e) {
+            console.warn('[Setup] Notice creating trg_block_inventory_transactions_delete:', e.message);
+        }
+
+        // 12. Compatibility view: items
+        try {
+            await db.query(`
+                CREATE OR REPLACE VIEW items AS
+                SELECT 
+                    p.id,
+                    p.id AS item_id,
+                    COALESCE(p.sku, p.part_number) AS sku,
+                    p.part_number,
+                    p.name,
+                    p.brand,
+                    p.category,
+                    p.size,
+                    p.measurement,
+                    p.thread_type,
+                    p.cost_price,
+                    COALESCE(p.retail_price, p.selling_price) AS retail_price,
+                    p.selling_price,
+                    COALESCE(p.current_stock, p.stock) AS current_stock,
+                    p.stock,
+                    p.reorder_level,
+                    p.is_serialized,
+                    p.is_active,
+                    p.created_at,
+                    p.updated_at
+                FROM products p;
+            `);
+        } catch (e) {
+            console.warn('[Setup] Notice creating items view:', e.message);
+        }
+
+        console.log('[Setup] Canonical tables, triggers, and views verified.');
 
         // Seed Admin & Staff Users
         const [existingUsers] = await db.query('SELECT COUNT(*) as count FROM users');
