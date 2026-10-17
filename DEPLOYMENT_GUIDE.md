@@ -12,14 +12,10 @@ This guide provides step-by-step instructions for deploying the **JLIN Motorcycl
 
 ---
 
-## ⚡ Feature: In-Browser Demo / Mock Mode
+## ⚠️ Production Configuration: Live Backend vs. Mock Mode
 
-The system includes a built-in **In-Browser Demo / Mock Data Engine** (`frontend/src/services/mockEngine.js`):
-- **Why it matters**: If the cloud backend on Render is sleeping (Render free tier sleeps after 15 min of inactivity) or if you want to demonstrate the app on Vercel without setting up databases, the app automatically serves realistic mock data!
-- **Demo fast-fill accounts** are available on the Login screen when running in mock mode:
-  - **Admin**: Role with full system access
-  - **Staff**: Role with cashier and inventory operation access
-- **Forced Mock Mode**: Set `VITE_USE_MOCK=true` in Vercel environment variables to run completely standalone with zero backend dependencies.
+- **Production / Defense Requirement:** `VITE_USE_MOCK` MUST be set to `false`. Running with mock mode enabled bypasses the real backend, displays synthetic mock data, and uses fake in-memory logins, preventing genuine database transactions and ledger audit logs from saving.
+- **Render Backend Cold Starts:** On Render's free tier, the web service spins down after 15 minutes of inactivity. To ensure the backend is immediately responsive during the defense or grading, send a warm-up ping (e.g. `curl https://jlin-motorparts.onrender.com/api/products`) 2–3 minutes before the presentation rather than enabling mock mode.
 
 ---
 
@@ -94,10 +90,10 @@ The system includes a built-in **In-Browser Demo / Mock Data Engine** (`frontend
    - **Build Command**: `npm run build`
    - **Output Directory**: `dist`
 5. Expand **Environment Variables**:
-   | Key | Value |
-   |---|---|
-   | `VITE_API_URL` | `https://jlin-inventory-api.onrender.com/api` |
-   | `VITE_USE_MOCK` | `false` *(or `true` if you want instant demo mode without backend)* |
+   | Key | Value | Notes |
+   |---|---|---|
+   | `VITE_API_URL` | `https://jlin-motorparts.onrender.com/api` | Live Render backend endpoint |
+   | `VITE_USE_MOCK` | `false` | **MUST BE FALSE** in production to use live backend and real Aiven database |
 6. Click **Deploy**.
 7. Vercel will build and launch your site at `https://jlin-inventory.vercel.app`.
    - The included [`vercel.json`](file:///c:/Inventory/frontend/vercel.json) handles SPA routing so refreshing `/inventory`, `/pos`, etc., will never result in a 404 error.

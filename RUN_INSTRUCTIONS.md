@@ -131,7 +131,7 @@ To ensure every dry-run rehearsal and the live panel defense start from an ident
 ### 1-Click Instant Reset (Recommended)
 Double-click **`reset_demo.bat`** (or run `npm run reset-demo` in `backend`):
 * Instantly restores the baseline clean database state (`jlin_demo_clean.sql`) in ~1 second.
-* Automatically resets target inventory stock to 0, verifies ledger opening balances, and seeds defense compatibility rules.
+* Automatically resets inventory stock to 0, verifies ledger opening balances, and restores the canonical product compatibility matrix from the baseline snapshot.
 
 ### Re-running Migrations & Demo Seeds
 ```powershell
@@ -144,22 +144,7 @@ node backend/seeds/01_defense_demo_seed.js
 
 ### Capturing a New Clean Snapshot
 Double-click **`snapshot.bat`** (or run `npm run snapshot` in `backend`):
-* Exports the entire schema, triggers, sequences, and tables to `jlin_demo_clean.sql`.
-
-### CLI / Knex & PostgreSQL Equivalent Workflow
-For Knex or PostgreSQL environments:
-```bash
-# PostgreSQL CLI:
-createdb -U postgres jlin_demo_db
-npx knex migrate:latest --env demo
-npx knex seed:run --env demo
-pg_dump -U postgres -d jlin_demo_db -F c -b -v -f ./jlin_demo_clean.dump
-
-# Instant Reset:
-dropdb -U postgres --if-exists jlin_demo_db
-createdb -U postgres jlin_demo_db
-pg_restore -U postgres -d jlin_demo_db -v ./jlin_demo_clean.dump
-```
+* Exports the entire schema, triggers, and tables to `jlin_demo_clean.sql` with automated credential stripping.
 
 ---
 
@@ -197,7 +182,7 @@ INITIAL STATE: Stock = 0 | Reference: OPENING-<CURRENT_DATE>
    - Select Payment Method: GCASH.
    - Enter Ref: "102938472910". Amount Paid locks to ₱900.00 (Change: ₱0.00).
    - Complete Checkout -> Native print dialog opens showing 58mm/80mm receipt with GCash reference.
-   - Show Ledger: SALE | Qty: -2 | Balance: 8 | Ref: SO-2026-1001.
+   - Show Ledger: SALE | Qty: -2 | Balance: 8 | Ref: SO-2026-0001 (or auto-generated SO-YYYY-NNNN).
 
 5. Damage Write-Off:
    - Open Adjustment Modal for JLR-BP-AEROX.
@@ -233,7 +218,7 @@ INITIAL STATE: Stock = 0 | Reference: OPENING-<CURRENT_DATE>
      --------------------------------------------------------------------------------------------
      1   OPENING_BALANCE     +0        0     OPENING-DATE    Admin        Baseline balance init
      2   STOCK_IN           +10       10     OR-2026-001     Staff        Stock receiving ref: OR-2026-001
-     3   SALE                -2        8     SO-2026-1001    Staff        POS Sale: SO-2026-1001
+     3   SALE                -2        8     SO-2026-0001    Staff        POS Sale: SO-2026-0001
      4   DAMAGE              -1        7     DM-2026-001     Staff        Cracked friction lining
      5   RETURN_TO_SUPPLIER  -1        6     RTS-2026-001    Staff        Defective batch return
      6   LOSS                -1        5     LS-2026-001     Staff        Missing during count
@@ -244,7 +229,7 @@ INITIAL STATE: Stock = 0 | Reference: OPENING-<CURRENT_DATE>
     - Open Staff Profile (/profile) -> Change staff password -> Re-authenticate with new credentials.
     - Open Product Edit Modal for JLR-BP-AEROX -> Update product name/price.
     - Demonstrate that stock input is non-editable and remains locked at 6.
-    - (Optional panel demonstration in MySQL/psql client): Attempt raw SQL `DELETE FROM inventory_transactions;` or `UPDATE` to show the database trigger blocking the command.
+    - (Optional panel demonstration in MySQL client): Attempt raw SQL `DELETE FROM inventory_transactions;` or `UPDATE` to show the database trigger blocking the command.
 =================================================================================================
 ```
 
