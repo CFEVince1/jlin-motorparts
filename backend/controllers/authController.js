@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
+const { normalize } = require('../utils/recoveryCodes');
 
 // Pre-computed valid 10-round bcrypt hash to ensure constant-time response for nonexistent users
 // Prevents timing attacks / username enumeration
@@ -107,4 +108,82 @@ exports.logout = async (req, res) => {
 exports.verify = (req, res) => {
     // If this route is reached, the authMiddleware has already verified the token
     res.json({ user: req.user, message: 'Token is valid' });
+};
+
+exports.resetWithCode = async (req, res, next) => {
+  const failed = { message: 'Invalid username or recovery code.' };
+  try {
+    const { username, code, newPassword } = req.body || {};
+    if (
+      !username || !code || typeof newPassword !== 'string' || newPassword.length < 8
+    ) {
+      return res.status(422).json({
+        message: 'Username, recovery code, and a new password of at least 8 characters are required.',
+      });
+    }
+
+    const [users] = await db.query(
+      "SELECT id FROM users WHERE username = ? AND role = 'admin'",
+      [username.trim()]
+    );
+    const user = users[0];
+
+    // Always run a bcrypt comparison so timing doesn't reveal which accounts exist
+    if (!user) {
+      await bcrypt.compare(normalize(code), DUMMY_HASH);
+      return res.status(400).json(failed);
+    }
+
+    const [codes] = await db.query(
+      'SELECT id, code_hash FROM admin_recovery_codes WHERE user_id = ? AND used_at IS NULL',
+      [user.id]
+    );
+    if (codes.length === 0) {
+      await bcrypt.compare(normalize(code), DUMMY_HASH);
+      return res.status(400).json(failed);
+    }
+
+    let matchId = null;
+    for (const row of codes) {
+      if (await bcrypt.compare(normalize(code), row.code_hash)) {
+        matchId = row.id;
+        break;
+      }
+    }
+    if (matchId === null) {
+      return res.status(400).json(failed);
+    }
+
+    const conn = await db.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      // The WHERE clause stops two requests from using the same code
+      const [mark] = await conn.query(
+        'UPDATE admin_recovery_codes SET used_at = NOW() WHERE id = ? AND used_at IS NULL',
+        [matchId]
+      );
+      if (mark.affectedRows !== 1) {
+        await conn.rollback();
+        return res.status(400).json(failed);
+      }
+
+      const hash = await bcrypt.hash(newPassword, 10);
+      // Incrementing token_version logs out every existing session
+      await conn.query(
+        'UPDATE users SET password = ?, token_version = token_version + 1 WHERE id = ?',
+        [hash, user.id]
+      );
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+
+    return res.json({ message: 'Password reset. Please log in with your new password.' });
+  } catch (err) {
+    next(err);
+  }
 };

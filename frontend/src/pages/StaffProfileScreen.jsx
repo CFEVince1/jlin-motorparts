@@ -1,6 +1,6 @@
 import React, { useState, useContext } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { User, KeyRound, ShieldAlert, CheckCircle, Lock, Eye, EyeOff, Check, X, Settings2, Search } from 'lucide-react';
+import { User, KeyRound, ShieldAlert, CheckCircle, Lock, Eye, EyeOff, Check, X, Settings2, Search, Copy } from 'lucide-react';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -46,6 +46,40 @@ export const StaffProfileScreen = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Emergency Recovery Codes State (Admin Only - not stored in browser storage)
+  const [recoveryCodes, setRecoveryCodes] = useState([]);
+  const [codePassword, setCodePassword] = useState('');
+  const [showCodePassword, setShowCodePassword] = useState(false);
+  const [generatingCodes, setGeneratingCodes] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleGenerateCodes = async (e) => {
+    e.preventDefault();
+    if (!codePassword) {
+      toast.error('Current password is required to generate recovery codes');
+      return;
+    }
+    setGeneratingCodes(true);
+    try {
+      const res = await api.post('/staff/recovery-codes', { currentPassword: codePassword });
+      setRecoveryCodes(res.data.codes || []);
+      setCodePassword('');
+      toast.success('Recovery codes generated! Save them immediately.');
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.response?.data?.error || 'Failed to generate recovery codes');
+    } finally {
+      setGeneratingCodes(false);
+    }
+  };
+
+  const handleCopyCodes = () => {
+    if (recoveryCodes.length === 0) return;
+    navigator.clipboard.writeText(recoveryCodes.join('\n'));
+    setCopied(true);
+    toast.success('Recovery codes copied to clipboard');
+    setTimeout(() => setCopied(false), 3000);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -201,6 +235,7 @@ export const StaffProfileScreen = () => {
       ) : activeTab === 'fitment' ? (
         <CompatibilitySearch />
       ) : (
+        <>
         <div className="glass-panel" style={{ padding: '24px' }}>
         {/* User Badge Info */}
         <div style={{
@@ -408,6 +443,148 @@ export const StaffProfileScreen = () => {
           </button>
         </form>
       </div>
+
+      {isAdmin && (
+        <div className="glass-panel" style={{ padding: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              background: 'rgba(16, 185, 129, 0.15)',
+              color: 'var(--primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <KeyRound size={18} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                Emergency Recovery Codes
+              </h3>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                Generate 8 one-time emergency codes to reset your admin password if you are locked out.
+              </p>
+            </div>
+          </div>
+
+          {recoveryCodes.length > 0 ? (
+            <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{
+                padding: '12px 14px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.35)',
+                color: 'var(--danger)',
+                fontSize: '0.8rem',
+                lineHeight: '1.4'
+              }}>
+                <strong>Important:</strong> Save these 8 codes now. They will not be shown again. Each code can only be used once. Never log or share these codes.
+              </div>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: '8px',
+                background: 'var(--surface)',
+                padding: '14px',
+                borderRadius: '8px',
+                border: '1px solid var(--border)'
+              }}>
+                {recoveryCodes.map((code, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: '8px 12px',
+                      background: 'var(--surface-hover)',
+                      borderRadius: '6px',
+                      fontFamily: 'monospace',
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                      letterSpacing: '0.05em',
+                      color: 'var(--primary)',
+                      textAlign: 'center',
+                      border: '1px solid var(--border)'
+                    }}
+                  >
+                    {code}
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={handleCopyCodes}
+                  className="btn-secondary"
+                  style={{ flex: 1, height: '36px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                >
+                  <Copy size={14} /> {copied ? 'Copied to Clipboard!' : 'Copy All Codes'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecoveryCodes([]);
+                    setCopied(false);
+                  }}
+                  className="btn-primary"
+                  style={{ flex: 1, height: '36px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                >
+                  <CheckCircle size={14} /> Done (Dismiss Codes)
+                </button>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleGenerateCodes} style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                  Current Password (Required to generate codes)
+                </label>
+                <div style={{ position: 'relative', width: '100%' }}>
+                  <input
+                    type={showCodePassword ? "text" : "password"}
+                    placeholder="Enter your current password"
+                    className="input-premium"
+                    style={{ width: '100%', paddingRight: '40px' }}
+                    value={codePassword}
+                    onChange={(e) => setCodePassword(e.target.value)}
+                    required
+                    disabled={generatingCodes}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCodePassword(!showCodePassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '10px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: '4px'
+                    }}
+                  >
+                    {showCodePassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="btn-secondary"
+                style={{ width: '100%', height: '38px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                disabled={generatingCodes}
+              >
+                <ShieldAlert size={16} /> {generatingCodes ? 'Generating Codes...' : 'Generate 8 Recovery Codes'}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+      </>
       )}
     </div>
   );

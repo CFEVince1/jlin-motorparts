@@ -14,7 +14,16 @@ const loginLimiter = rateLimit({
     legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 });
 
+const resetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { message: 'Too many attempts. Try again in 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 router.post('/login', loginLimiter, authController.login);
+router.post('/reset-with-code', resetLimiter, authController.resetWithCode);
 router.post('/logout', authController.logout);
 router.get('/verify', authMiddleware, authController.verify);
 

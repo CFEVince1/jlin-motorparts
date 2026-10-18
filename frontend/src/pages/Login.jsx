@@ -1,5 +1,5 @@
 import { useState, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import { LogIn, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -19,6 +19,7 @@ const Login = () => {
     const [loading, setLoading] = useState(false);
     const { login } = useContext(AuthContext);
     const navigate = useNavigate();
+    const location = useLocation();
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -155,6 +156,36 @@ const Login = () => {
                                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                             </button>
                         </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-6px' }}>
+                            <Link 
+                                to="/forgot-password" 
+                                style={{ 
+                                    color: 'var(--primary)', 
+                                    fontSize: '0.8rem', 
+                                    textDecoration: 'none',
+                                    fontWeight: 500
+                                }}
+                                className="hover:underline"
+                            >
+                                Forgot password?
+                            </Link>
+                        </div>
+
+                        {location.state?.message && !errorMessage && (
+                            <div style={{
+                                padding: '10px 14px',
+                                borderRadius: '8px',
+                                backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                                border: '1px solid rgba(16, 185, 129, 0.4)',
+                                color: 'var(--primary)',
+                                fontSize: '0.85rem',
+                                fontWeight: 500,
+                                textAlign: 'left'
+                            }}>
+                                <span>{location.state.message}</span>
+                            </div>
+                        )}
 
                         {errorMessage && (
                             <div style={{
