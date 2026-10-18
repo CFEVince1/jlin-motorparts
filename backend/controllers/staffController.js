@@ -2,7 +2,6 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 const { AppValidationError } = require('../utils/errors');
-const { makeCode, normalize } = require('../utils/recoveryCodes');
 
 /**
  * Update Staff Profile & Password
@@ -107,51 +106,4 @@ exports.updateProfile = async (req, res, next) => {
     } catch (err) {
         next(err);
     }
-};
-
-exports.generateRecoveryCodes = async (req, res, next) => {
-  try {
-    const { currentPassword } = req.body || {};
-    if (!currentPassword) {
-      return res.status(422).json({ message: 'Current password is required.' });
-    }
-
-    const [rows] = await db.query('SELECT id, password FROM users WHERE id = ?', [req.user.id]);
-    const user = rows[0];
-    if (!user || !(await bcrypt.compare(currentPassword, user.password))) {
-      return res.status(422).json({ message: 'Incorrect current password.' });
-    }
-
-    const codes = Array.from({ length: 8 }, makeCode);
-
-    const conn = await db.getConnection();
-    try {
-      await conn.beginTransaction();
-      await conn.query(
-        'DELETE FROM admin_recovery_codes WHERE user_id = ? AND used_at IS NULL',
-        [user.id]
-      );
-      for (const code of codes) {
-        const hash = await bcrypt.hash(normalize(code), 10);
-        await conn.query(
-          'INSERT INTO admin_recovery_codes (user_id, code_hash) VALUES (?, ?)',
-          [user.id, hash]
-        );
-      }
-      await conn.commit();
-    } catch (err) {
-      await conn.rollback();
-      throw err;
-    } finally {
-      conn.release();
-    }
-
-    // Shown once. Never log these codes.
-    return res.json({
-      codes,
-      message: 'Save these codes now. They will not be shown again.',
-    });
-  } catch (err) {
-    next(err);
-  }
 };

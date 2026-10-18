@@ -5,7 +5,6 @@ import ProtectedRoute from './components/ProtectedRoute';
 import MainLayout from './components/MainLayout';
 
 import Login from './pages/Login';
-import ForgotPassword from './pages/ForgotPassword';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
 import Inventory from './pages/Inventory';
@@ -33,7 +32,6 @@ function App() {
         />
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
 
           {/* Protected Routes inside MainLayout */}
           <Route element={<ProtectedRoute />}>
