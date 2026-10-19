@@ -169,7 +169,7 @@ export const StaffProfileScreen = () => {
           }}
         >
           <Search size={16} />
-          <span>Motorcycle Fitment</span>
+          <span>Fitment Search</span>
         </button>
         {isAdmin && (
           <button

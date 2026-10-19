@@ -16,9 +16,7 @@ import {
     AlertOctagon,
     UserCircle2,
     Building2,
-    ChevronDown,
-    Search,
-    Settings2
+    ChevronDown
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -72,14 +70,12 @@ const Sidebar = () => {
     const primaryLinks = [
         { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={20} />, roles: ['admin', 'staff'] },
         { name: 'Sales (POS)', path: '/pos', icon: <ShoppingCart size={20} />, roles: ['admin', 'staff'] },
-        { name: 'Fitment Search', path: '/fitment', icon: <Search size={20} />, roles: ['admin', 'staff'] },
     ];
 
     const inventorySubLinks = [
         { name: 'Current Stock', path: '/inventory', icon: <Archive size={16} />, roles: ['admin', 'staff'] },
         { name: 'Self History', path: '/transactions', icon: <History size={16} />, roles: ['staff'] },
         { name: 'Product Directory', path: '/products', icon: <Package size={16} />, roles: ['admin'] },
-        { name: 'Compatibility Rules', path: '/manage-compatibility', icon: <Settings2 size={16} />, roles: ['admin'] },
         { name: 'Suppliers', path: '/suppliers', icon: <Building2 size={16} />, roles: ['admin'] },
         { name: 'Stock Receive', path: '/stock-receive', icon: <Truck size={16} />, roles: ['admin'] },
     ];

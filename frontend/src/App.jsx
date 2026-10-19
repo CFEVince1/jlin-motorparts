@@ -17,7 +17,6 @@ import AdjustmentsReport from './pages/AdjustmentsReport';
 import StaffProfileScreen from './pages/StaffProfileScreen';
 import Suppliers from './pages/Suppliers';
 import ForgotPassword from './pages/ForgotPassword';
-import CompatibilitySearch from './pages/CompatibilitySearch';
 
 function App() {
   return (
@@ -43,8 +42,8 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/pos" element={<POS />} />
               <Route path="/transactions" element={<Transactions />} />
-              <Route path="/fitment" element={<CompatibilitySearch />} />
-              <Route path="/compatibility-search" element={<Navigate to="/fitment" replace />} />
+              <Route path="/fitment" element={<Navigate to="/profile?tab=fitment" replace />} />
+              <Route path="/compatibility-search" element={<Navigate to="/profile?tab=fitment" replace />} />
               <Route path="/profile" element={<StaffProfileScreen />} />
               <Route path="/inventory" element={<Inventory />} />
               {/* Admin Roles */}
