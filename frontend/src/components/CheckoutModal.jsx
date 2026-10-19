@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Banknote, Smartphone, AlertCircle, X, Printer, CheckCircle, Split } from 'lucide-react';
+import { Banknote, Smartphone, AlertCircle, X, Printer, CheckCircle, Split, ArrowLeft } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 import { calculatePaymentDetails, roundCurrency } from '../utils/calculations';
 
@@ -34,7 +34,7 @@ export const CheckoutModal = ({
   const [splitCashTendered, setSplitCashTendered] = useState('');
   const [splitGcashRef, setSplitGcashRef] = useState('');
 
-  // Reset fields whenever modal opens
+  // Reset fields whenever modal opens & bind Escape key to close
   useEffect(() => {
     if (isOpen) {
       setCashTendered('');
@@ -44,8 +44,16 @@ export const CheckoutModal = ({
       setSplitCashTendered('');
       setSplitGcashRef('');
       setPaymentMethod('Cash');
+
+      const handleKeyDown = (e) => {
+        if (e.key === 'Escape' && !loading) {
+          handleClose();
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
     }
-  }, [isOpen]);
+  }, [isOpen, loading]);
 
   if (!isOpen) return null;
 
@@ -128,17 +136,25 @@ export const CheckoutModal = ({
   };
 
   return (
-    <div className="receipt-overlay no-print" style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(0,0,0,0.75)',
-      zIndex: 9999,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '16px',
-      overflowY: 'auto'
-    }}>
+    <div
+      className="receipt-overlay no-print"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !loading) {
+          handleClose();
+        }
+      }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.75)',
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px',
+        overflowY: 'auto'
+      }}
+    >
       <style>{`
         .cash-input-no-spin::-webkit-inner-spin-button,
         .cash-input-no-spin::-webkit-outer-spin-button {
@@ -149,19 +165,23 @@ export const CheckoutModal = ({
           -moz-appearance: textfield;
         }
       `}</style>
-      <div className="glass-panel" style={{
-        background: 'var(--surface)',
-        width: '460px',
-        maxWidth: '100%',
-        maxHeight: 'min(92vh, 680px)',
-        borderRadius: '12px',
-        boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
-        border: '1px solid var(--border)',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        margin: 'auto'
-      }}>
+      <div
+        className="glass-panel"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'var(--surface)',
+          width: '460px',
+          maxWidth: '100%',
+          maxHeight: 'min(92vh, 680px)',
+          borderRadius: '12px',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
+          border: '1px solid var(--border)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          margin: 'auto'
+        }}
+      >
         {/* Modal Header */}
         <div style={{
           display: 'flex',
@@ -611,11 +631,12 @@ export const CheckoutModal = ({
             <button
               type="button"
               className="btn-secondary"
-              style={{ flex: 1, padding: '10px 14px' }}
+              style={{ flex: 1, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
               onClick={handleClose}
               disabled={loading}
+              title="Return to cart to add or edit items"
             >
-              Cancel
+              <ArrowLeft size={16} /> Back to Cart
             </button>
             <button
               type="submit"
