@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Plus, Search, Phone, Mail, MapPin, Edit3, CheckCircle, RefreshCw } from 'lucide-react';
+import { Building2, Plus, Search, Phone, Mail, MapPin, Edit3, CheckCircle, RefreshCw, UserCheck, UserX } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import QuickAddSupplierModal from '../components/QuickAddSupplierModal';
+import EditSupplierModal from '../components/EditSupplierModal';
 
 /**
  * Suppliers Directory Page
  * 
  * Provides a management directory for all registered parts suppliers
- * and vendor contact channels.
+ * and vendor contact channels, with active/inactive status management.
  */
 export const Suppliers = () => {
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'inactive'
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [selectedSupplierForEdit, setSelectedSupplierForEdit] = useState(null);
 
   const fetchSuppliers = async () => {
     try {
@@ -37,14 +40,51 @@ export const Suppliers = () => {
     setSuppliers(prev => [newSupplier, ...prev]);
   };
 
+  const handleSupplierUpdated = (updatedSupplier) => {
+    setSuppliers(prev => prev.map(s => s.id === updatedSupplier.id ? updatedSupplier : s));
+  };
+
+  const handleToggleStatus = async (supplier) => {
+    const nextStatus = !supplier.is_active;
+    const actionLabel = nextStatus ? 'activate' : 'deactivate';
+    
+    if (!window.confirm(`Are you sure you want to ${actionLabel} supplier "${supplier.name}"?`)) {
+      return;
+    }
+
+    try {
+      const res = await api.put(`/suppliers/${supplier.id}`, {
+        is_active: nextStatus
+      });
+      setSuppliers(prev => prev.map(s => s.id === supplier.id ? res.data.supplier : s));
+      toast.success(
+        nextStatus 
+          ? `Supplier "${supplier.name}" is now Active` 
+          : `Supplier "${supplier.name}" marked as Inactive (hidden from stock receive)`
+      );
+    } catch (err) {
+      console.error('Failed to toggle supplier status:', err);
+      toast.error(err.response?.data?.message || 'Failed to update supplier status');
+    }
+  };
+
+  const activeCount = suppliers.filter(s => s.is_active).length;
+  const inactiveCount = suppliers.filter(s => !s.is_active).length;
+
   const filteredSuppliers = suppliers.filter(s => {
     const term = searchTerm.toLowerCase();
-    return (
+    const matchesSearch = (
       (s.name && s.name.toLowerCase().includes(term)) ||
       (s.contact_person && s.contact_person.toLowerCase().includes(term)) ||
       (s.email && s.email.toLowerCase().includes(term)) ||
       (s.phone && s.phone.toLowerCase().includes(term))
     );
+
+    if (!matchesSearch) return false;
+
+    if (statusFilter === 'active') return Boolean(s.is_active);
+    if (statusFilter === 'inactive') return !s.is_active;
+    return true;
   });
 
   return (
@@ -88,7 +128,7 @@ export const Suppliers = () => {
         </div>
       </div>
 
-      {/* Search Bar */}
+      {/* Search and Status Filter Bar */}
       <div style={{
         background: 'var(--surface)',
         borderRadius: '12px',
@@ -97,17 +137,73 @@ export const Suppliers = () => {
         marginBottom: '20px',
         display: 'flex',
         alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
         gap: '12px'
       }}>
-        <Search size={18} style={{ color: 'var(--text-muted)' }} />
-        <input
-          type="text"
-          placeholder="Search by vendor name, contact person, email, or phone..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="input-premium"
-          style={{ width: '100%', border: 'none', background: 'transparent', padding: '4px 0' }}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: '260px' }}>
+          <Search size={18} style={{ color: 'var(--text-muted)' }} />
+          <input
+            type="text"
+            placeholder="Search by vendor name, contact person, email, or phone..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="input-premium"
+            style={{ width: '100%', border: 'none', background: 'transparent', padding: '4px 0' }}
+          />
+        </div>
+
+        {/* Status Filter Tabs */}
+        <div style={{ display: 'inline-flex', background: 'var(--surface-hover)', padding: '3px', borderRadius: '8px', gap: '4px' }}>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('all')}
+            style={{
+              padding: '6px 12px',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              borderRadius: '6px',
+              border: 'none',
+              cursor: 'pointer',
+              background: statusFilter === 'all' ? 'var(--primary)' : 'transparent',
+              color: statusFilter === 'all' ? '#ffffff' : 'var(--text-muted)'
+            }}
+          >
+            All ({suppliers.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('active')}
+            style={{
+              padding: '6px 12px',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              borderRadius: '6px',
+              border: 'none',
+              cursor: 'pointer',
+              background: statusFilter === 'active' ? 'var(--primary)' : 'transparent',
+              color: statusFilter === 'active' ? '#ffffff' : 'var(--text-muted)'
+            }}
+          >
+            Active ({activeCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('inactive')}
+            style={{
+              padding: '6px 12px',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              borderRadius: '6px',
+              border: 'none',
+              cursor: 'pointer',
+              background: statusFilter === 'inactive' ? 'var(--danger)' : 'transparent',
+              color: statusFilter === 'inactive' ? '#ffffff' : 'var(--text-muted)'
+            }}
+          >
+            Inactive ({inactiveCount})
+          </button>
+        </div>
       </div>
 
       {/* Table Container */}
@@ -126,28 +222,29 @@ export const Suppliers = () => {
                 <th style={{ padding: '12px 16px', fontWeight: '600', color: 'var(--text-muted)' }}>Contact Info</th>
                 <th style={{ padding: '12px 16px', fontWeight: '600', color: 'var(--text-muted)' }}>Address</th>
                 <th style={{ padding: '12px 16px', fontWeight: '600', color: 'var(--text-muted)', textAlign: 'center' }}>Status</th>
+                <th style={{ padding: '12px 16px', fontWeight: '600', color: 'var(--text-muted)', textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
                     Loading suppliers directory...
                   </td>
                 </tr>
               ) : filteredSuppliers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
                     No suppliers found matching your query.
                   </td>
                 </tr>
               ) : (
                 filteredSuppliers.map((supplier) => (
-                  <tr key={supplier.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <tr key={supplier.id} style={{ borderBottom: '1px solid var(--border)', opacity: supplier.is_active ? 1 : 0.75 }}>
                     <td style={{ padding: '12px 16px', fontWeight: 'bold' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Building2 size={16} style={{ color: 'var(--primary)' }} />
-                        <span>{supplier.name}</span>
+                        <Building2 size={16} style={{ color: supplier.is_active ? 'var(--primary)' : 'var(--text-muted)' }} />
+                        <span style={{ color: supplier.is_active ? 'inherit' : 'var(--text-muted)' }}>{supplier.name}</span>
                       </div>
                     </td>
                     <td style={{ padding: '12px 16px', color: 'var(--text-main)' }}>
@@ -179,10 +276,67 @@ export const Suppliers = () => {
                         fontSize: '0.75rem',
                         fontWeight: '600',
                         backgroundColor: supplier.is_active ? 'rgba(50, 215, 75, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                        color: supplier.is_active ? 'var(--primary)' : 'var(--danger)'
+                        color: supplier.is_active ? 'var(--primary)' : 'var(--danger)',
+                        border: `1px solid ${supplier.is_active ? 'rgba(50, 215, 75, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
                       }}>
                         {supplier.is_active ? 'Active' : 'Inactive'}
                       </span>
+                    </td>
+                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                      <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
+                        {/* Edit Supplier Button */}
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          style={{
+                            padding: '4px 10px',
+                            fontSize: '0.8rem',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                          onClick={() => setSelectedSupplierForEdit(supplier)}
+                          title="Edit supplier details & status"
+                        >
+                          <Edit3 size={13} /> Edit
+                        </button>
+
+                        {/* Quick Status Toggle Button */}
+                        <button
+                          type="button"
+                          style={{
+                            padding: '4px 10px',
+                            fontSize: '0.8rem',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontWeight: 500,
+                            border: supplier.is_active 
+                              ? '1px solid rgba(239, 68, 68, 0.3)' 
+                              : '1px solid rgba(50, 215, 75, 0.3)',
+                            background: supplier.is_active 
+                              ? 'rgba(239, 68, 68, 0.08)' 
+                              : 'rgba(50, 215, 75, 0.08)',
+                            color: supplier.is_active 
+                              ? 'var(--danger)' 
+                              : 'var(--primary)'
+                          }}
+                          onClick={() => handleToggleStatus(supplier)}
+                          title={supplier.is_active ? 'Deactivate supplier' : 'Reactivate supplier'}
+                        >
+                          {supplier.is_active ? (
+                            <>
+                              <UserX size={13} /> Deactivate
+                            </>
+                          ) : (
+                            <>
+                              <UserCheck size={13} /> Activate
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -192,14 +346,23 @@ export const Suppliers = () => {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Quick Add Supplier Modal */}
       <QuickAddSupplierModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onSupplierCreated={handleSupplierCreated}
+      />
+
+      {/* Edit Supplier Modal */}
+      <EditSupplierModal
+        isOpen={Boolean(selectedSupplierForEdit)}
+        onClose={() => setSelectedSupplierForEdit(null)}
+        supplier={selectedSupplierForEdit}
+        onSupplierUpdated={handleSupplierUpdated}
       />
     </div>
   );
 };
 
 export default Suppliers;
+
