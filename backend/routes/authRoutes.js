@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
+const recoveryController = require('../controllers/recoveryController');
 const authMiddleware = require('../middleware/authMiddleware');
 const rateLimit = require('express-rate-limit');
 
@@ -14,8 +15,19 @@ const loginLimiter = rateLimit({
     legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 });
 
+const recoveryLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { message: 'Too many requests. Try again in 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 router.post('/login', loginLimiter, authController.login);
 router.post('/logout', authController.logout);
 router.get('/verify', authMiddleware, authController.verify);
+
+router.post('/forgot-password', recoveryLimiter, recoveryController.forgotPassword);
+router.post('/reset-password', recoveryLimiter, recoveryController.resetPassword);
 
 module.exports = router;

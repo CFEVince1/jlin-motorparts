@@ -513,15 +513,28 @@ const POS = () => {
                 `}</style>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h1 style={{ margin: 0 }}>Point of Sale</h1>
-                    <button
-                        onClick={() => navigate('/transactions')}
-                        className="btn-secondary"
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', padding: '6px 14px' }}
-                        title={user?.role === 'staff' ? 'View My Sales History' : 'View All Transaction History'}
-                    >
-                        <History size={16} />
-                        <span>{user?.role === 'staff' ? 'Self History' : 'Recent Sales'}</span>
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <button
+                            type="button"
+                            onClick={() => navigate('/fitment')}
+                            className="btn-secondary"
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', padding: '6px 14px' }}
+                            title="Check parts compatibility by motorcycle model and version"
+                        >
+                            <Search size={16} />
+                            <span>Fitment Lookup</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => navigate('/transactions')}
+                            className="btn-secondary"
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', padding: '6px 14px' }}
+                            title={user?.role === 'staff' ? 'View My Sales History' : 'View All Transaction History'}
+                        >
+                            <History size={16} />
+                            <span>{user?.role === 'staff' ? 'Self History' : 'Recent Sales'}</span>
+                        </button>
+                    </div>
                 </div>
 
                 {/* Filter bar on a single compact row: 4 columns on desktop */}

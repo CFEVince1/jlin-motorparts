@@ -6,6 +6,7 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import ManageCompatibility from './ManageCompatibility';
 import CompatibilitySearch from './CompatibilitySearch';
+import RecoveryEmailCard from '../components/RecoveryEmailCard';
 
 /**
  * StaffProfileScreen Page
@@ -407,6 +408,8 @@ export const StaffProfileScreen = () => {
             )}
           </button>
         </form>
+
+        {isAdmin && <RecoveryEmailCard />}
       </div>
       )}
     </div>

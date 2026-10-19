@@ -26,6 +26,7 @@ export const CompatibilitySearch = () => {
   // Results State
   const [searchResults, setSearchResults] = useState(null); // { compatible: [], incompatible: [] }
   const [searching, setSearching] = useState(false);
+  const [filterText, setFilterText] = useState('');
 
   useEffect(() => {
     const fetchOptions = async () => {
@@ -90,6 +91,19 @@ export const CompatibilitySearch = () => {
       setSearching(false);
     }
   };
+
+  const matchesFilter = (item) => {
+    if (!filterText.trim()) return true;
+    const q = filterText.toLowerCase();
+    const name = (item.product_name || item.name || '').toLowerCase();
+    const partNo = (item.part_number || item.sku || '').toLowerCase();
+    const brand = (item.brand || '').toLowerCase();
+    const notes = (item.notes || item.compatibility_notes || '').toLowerCase();
+    return name.includes(q) || partNo.includes(q) || brand.includes(q) || notes.includes(q);
+  };
+
+  const filteredCompatible = searchResults?.compatible?.filter(matchesFilter) || [];
+  const filteredIncompatible = searchResults?.incompatible?.filter(matchesFilter) || [];
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -179,25 +193,45 @@ export const CompatibilitySearch = () => {
 
       {/* Split-View Results Section */}
       {searchResults && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
-          {/* Compatible Parts Column */}
-          <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <CheckCircle2 size={20} style={{ color: 'var(--success)' }} />
-                <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: 0, color: 'var(--success)' }}>
-                  Confirmed Compatible Parts ({searchResults.compatible?.length || 0})
-                </h3>
-              </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ position: 'relative', width: '100%', maxWidth: '360px' }}>
+              <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input
+                type="text"
+                placeholder="Filter results by part name, #, or brand..."
+                className="input-premium"
+                style={{ paddingLeft: '32px', width: '100%', height: '36px' }}
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+              />
             </div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Showing <strong>{filteredCompatible.length}</strong> compatible, <strong>{filteredIncompatible.length}</strong> incompatible
+            </div>
+          </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {searchResults.compatible?.length === 0 ? (
-                <div style={{ padding: '30px 10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                  No compatible items registered for this model version.
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
+            {/* Compatible Parts Column */}
+            <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CheckCircle2 size={20} style={{ color: 'var(--success)' }} />
+                  <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: 0, color: 'var(--success)' }}>
+                    Confirmed Compatible Parts ({filteredCompatible.length})
+                  </h3>
                 </div>
-              ) : (
-                searchResults.compatible.map((item, idx) => (
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {filteredCompatible.length === 0 ? (
+                  <div style={{ padding: '30px 10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    {searchResults.compatible?.length === 0
+                      ? 'No compatible items registered for this model version.'
+                      : 'No compatible items match your filter.'}
+                  </div>
+                ) : (
+                  filteredCompatible.map((item, idx) => (
                   <div key={item.item_id || item.id || item.sku || idx} style={{
                     padding: '12px 14px',
                     borderRadius: '8px',
@@ -246,18 +280,20 @@ export const CompatibilitySearch = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <XCircle size={20} style={{ color: 'var(--danger)' }} />
                 <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: 0, color: 'var(--danger)' }}>
-                  Explicitly Incompatible Parts ({searchResults.incompatible?.length || 0})
+                  Explicitly Incompatible Parts ({filteredIncompatible.length})
                 </h3>
               </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {searchResults.incompatible?.length === 0 ? (
+              {filteredIncompatible.length === 0 ? (
                 <div style={{ padding: '30px 10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                  No known incompatible parts logged for this model version.
+                  {searchResults.incompatible?.length === 0
+                    ? 'No known incompatible parts logged for this model version.'
+                    : 'No incompatible items match your filter.'}
                 </div>
               ) : (
-                searchResults.incompatible.map((item, idx) => (
+                filteredIncompatible.map((item, idx) => (
                   <div key={item.item_id || item.id || item.sku || idx} style={{
                     padding: '12px 14px',
                     borderRadius: '8px',
@@ -300,6 +336,7 @@ export const CompatibilitySearch = () => {
             </div>
           </div>
         </div>
+      </div>
       )}
     </div>
   );

@@ -1,5 +1,5 @@
-import { useState, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useContext, useEffect } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import { LogIn, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -16,9 +16,17 @@ const Login = () => {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
+    const [infoMessage, setInfoMessage] = useState('');
     const [loading, setLoading] = useState(false);
     const { login } = useContext(AuthContext);
     const navigate = useNavigate();
+    const location = useLocation();
+
+    useEffect(() => {
+        if (location.state?.message) {
+            setInfoMessage(location.state.message);
+        }
+    }, [location.state]);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -109,6 +117,22 @@ const Login = () => {
                     </h2>
                     <p style={{ color: 'var(--text-muted)', marginBottom: '24px', fontSize: '0.9rem' }}>Inventory & Sales Tracking</p>
 
+                    {infoMessage && (
+                        <div style={{
+                            padding: '10px 14px',
+                            borderRadius: '8px',
+                            backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                            border: '1px solid rgba(16, 185, 129, 0.4)',
+                            color: 'var(--primary)',
+                            fontSize: '0.85rem',
+                            fontWeight: 500,
+                            textAlign: 'left',
+                            marginBottom: '16px'
+                        }}>
+                            <span>{infoMessage}</span>
+                        </div>
+                    )}
+
                     <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                         <input
                             type="text"
@@ -154,6 +178,22 @@ const Login = () => {
                             >
                                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                             </button>
+                        </div>
+
+                        <div style={{ textAlign: 'right', marginTop: '-6px' }}>
+                            <Link 
+                                to="/forgot-password" 
+                                style={{ 
+                                    color: 'var(--text-muted)', 
+                                    fontSize: '0.85rem', 
+                                    textDecoration: 'none',
+                                    transition: 'color 0.2s'
+                                }}
+                                onMouseEnter={(e) => e.target.style.color = 'var(--primary)'}
+                                onMouseLeave={(e) => e.target.style.color = 'var(--text-muted)'}
+                            >
+                                Forgot password?
+                            </Link>
                         </div>
 
                         {errorMessage && (

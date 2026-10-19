@@ -32,10 +32,21 @@ exports.createMotorcycleUnit = async (req, res) => {
         if (isMissing(brand)) throw new Error('Brand is required');
         if (isMissing(model)) throw new Error('Model is required');
 
+        const trimmedBrand = String(brand).trim();
+        const trimmedModel = String(model).trim();
+        const trimmedYear = isMissing(year_model) ? null : String(year_model).trim();
+
         const [result] = await db.query(
             'INSERT INTO motorcycle_units (brand, model, year_model) VALUES (?, ?, ?)',
-            [String(brand).trim(), String(model).trim(), isMissing(year_model) ? null : String(year_model).trim()]
+            [trimmedBrand, trimmedModel, trimmedYear]
         );
+
+        // Keep motorcycle_models synchronized so fitment search immediately reflects new units
+        await db.query(
+            'INSERT IGNORE INTO motorcycle_models (brand, model, year_model) VALUES (?, ?, ?)',
+            [trimmedBrand, trimmedModel, trimmedYear]
+        );
+
         res.status(201).json({ message: 'Motorcycle unit created successfully', id: result.insertId });
     } catch (err) {
         console.error('Error creating motorcycle unit:', err);
@@ -56,11 +67,27 @@ exports.updateMotorcycleUnit = async (req, res) => {
         if (isMissing(brand)) throw new Error('Brand is required');
         if (isMissing(model)) throw new Error('Model is required');
 
+        const trimmedBrand = String(brand).trim();
+        const trimmedModel = String(model).trim();
+        const trimmedYear = isMissing(year_model) ? null : String(year_model).trim();
+
+        const [prevRows] = await db.query('SELECT brand, model, year_model FROM motorcycle_units WHERE id = ?', [id]);
+        if (prevRows.length === 0) return res.status(404).json({ message: 'Motorcycle unit not found' });
+        const prev = prevRows[0];
+
         const [result] = await db.query(
             'UPDATE motorcycle_units SET brand = ?, model = ?, year_model = ? WHERE id = ?',
-            [String(brand).trim(), String(model).trim(), isMissing(year_model) ? null : String(year_model).trim(), id]
+            [trimmedBrand, trimmedModel, trimmedYear, id]
         );
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Motorcycle unit not found' });
+
+        // Update corresponding motorcycle_models row
+        await db.query(`
+            UPDATE motorcycle_models 
+            SET brand = ?, model = ?, year_model = ?
+            WHERE brand = ? AND model = ? AND (year_model = ? OR (year_model IS NULL AND ? IS NULL))
+        `, [trimmedBrand, trimmedModel, trimmedYear, prev.brand, prev.model, prev.year_model, prev.year_model]);
+
         res.json({ message: 'Motorcycle unit updated successfully' });
     } catch (err) {
         console.error('Error updating motorcycle unit:', err);
@@ -77,9 +104,21 @@ exports.updateMotorcycleUnit = async (req, res) => {
 exports.deleteMotorcycleUnit = async (req, res) => {
     const { id } = req.params;
     try {
-        // Due to ON DELETE CASCADE, this will also remove from compatibility_group_units
+        const [prevRows] = await db.query('SELECT brand, model, year_model FROM motorcycle_units WHERE id = ?', [id]);
+        if (prevRows.length === 0) return res.status(404).json({ message: 'Motorcycle unit not found' });
+        const prev = prevRows[0];
+
         const [result] = await db.query('DELETE FROM motorcycle_units WHERE id = ?', [id]);
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Motorcycle unit not found' });
+
+        // Clean up motorcycle_models if not referenced by active product_compatibilities
+        await db.query(`
+            DELETE mm FROM motorcycle_models mm
+            LEFT JOIN product_compatibilities pc ON pc.motorcycle_model_id = mm.id
+            WHERE mm.brand = ? AND mm.model = ? AND (mm.year_model = ? OR (mm.year_model IS NULL AND ? IS NULL))
+              AND pc.id IS NULL
+        `, [prev.brand, prev.model, prev.year_model, prev.year_model]);
+
         res.json({ message: 'Motorcycle unit deleted successfully' });
     } catch (err) {
         console.error('Error deleting motorcycle unit:', err);
@@ -93,6 +132,13 @@ exports.deleteMotorcycleUnit = async (req, res) => {
 
 exports.getCompatibilityGroups = async (req, res) => {
     try {
+        const [tables] = await db.query(
+            "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'compatibility_groups'"
+        );
+        if (tables.length === 0) {
+            return res.json([]);
+        }
+
         const [groups] = await db.query(`
             SELECT 
                 cg.id, 
@@ -231,6 +277,24 @@ exports.deleteCompatibilityGroup = async (req, res) => {
     }
 };
 
+const canonicalBrand = (rawBrand) => {
+    if (!rawBrand) return 'Other';
+    const b = rawBrand.trim();
+    const lower = b.toLowerCase();
+    if (lower === 'honda') return 'Honda';
+    if (lower === 'yamaha') return 'Yamaha';
+    if (lower === 'suzuki' || lower === 'susuki') return 'Suzuki';
+    if (lower === 'kawasaki') return 'Kawasaki';
+    if (lower === 'kymco') return 'Kymco';
+    if (lower === 'vespa') return 'Vespa';
+    return b.charAt(0).toUpperCase() + b.slice(1);
+};
+
+const canonicalModel = (rawModel) => {
+    if (!rawModel) return 'Standard';
+    return rawModel.trim().replace(/\b[a-z]/g, (char) => char.toUpperCase());
+};
+
 /**
  * GET /api/compatibility/options
  * Return a hierarchical tree (Brand -> Model -> Version) where each version node includes its database id.
@@ -247,9 +311,9 @@ exports.getCompatibilityOptions = async (req, res, next) => {
         const brandMap = new Map();
 
         for (const row of models) {
-            const brand = (row.brand || 'Other').trim();
+            const brand = canonicalBrand(row.brand);
             // Clean model name: if model contains "Aerox 155 V1", baseModel could be "Aerox 155"
-            let baseModel = row.model.trim();
+            let baseModel = canonicalModel(row.model);
             let version = row.year_model ? row.year_model.trim() : '';
 
             // Extract version suffix from model string (e.g. "Aerox 155 V1" -> baseModel: "Aerox 155", version: "V1")

@@ -262,22 +262,12 @@ const Users = () => {
                         ) : null}
                     </div>
 
-                    <select
-                        name="role"
-                        className="input-premium"
-                        value={formData.role}
-                        onChange={handleChange}
-                        disabled
-                    >
-                        <option value="staff">Staff / Cashier</option>
-                    </select>
-
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                        <button type="submit" className="btn-primary" style={{ padding: '12px 24px' }}>
-                            <UserPlus size={20} /> {editingId ? 'Update' : 'Add'}
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <button type="submit" className="btn-primary" style={{ padding: '12px 24px', height: '42px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <UserPlus size={18} /> {editingId ? 'Update' : 'Add User'}
                         </button>
                         {editingId && (
-                            <button type="button" className="btn-secondary" onClick={() => { setEditingId(null); resetForm(); }}>
+                            <button type="button" className="btn-secondary" style={{ height: '42px', display: 'flex', alignItems: 'center' }} onClick={() => { setEditingId(null); resetForm(); }}>
                                 Cancel
                             </button>
                         )}

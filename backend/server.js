@@ -175,6 +175,8 @@ const errorHandler = (err, req, res, next) => {
 app.use(errorHandler);
 
 if (require.main === module) {
+    const ensureSchema = require('./utils/ensureSchema');
+    ensureSchema().catch((err) => console.warn('[Startup Schema Warning]:', err.message));
     app.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
     });
