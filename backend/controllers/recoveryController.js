@@ -116,7 +116,9 @@ exports.requestEmailVerification = async (req, res, next) => {
     }
 
     const code = await createOtp(user.id, 'verify_email');
-    await sendOtpEmail(cleanEmail, code, 'verify your email for JLIN password recovery');
+    sendOtpEmail(cleanEmail, code, 'verify your email for JLIN password recovery').catch((err) =>
+      console.error('[SMTP Error] Failed to send verification code:', err.message)
+    );
 
     return res.json({ message: 'We sent a 6-digit code to that email.' });
   } catch (err) {
