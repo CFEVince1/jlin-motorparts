@@ -240,7 +240,8 @@ export default function RecoveryEmailCard() {
                     padding: '4px',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    zIndex: 2
                   }}
                   title={showOtp ? 'Hide code' : 'Show code'}
                 >
