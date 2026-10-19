@@ -14,12 +14,12 @@ const mdContent = fs.readFileSync(MD_PATH, 'utf8');
 
 // Parse markdown to HTML sections
 function markdownToHtml(md) {
-  // Extract diagrams
+  // 1. Extract diagrams with safe placeholders so line parsing doesn't touch them
   const blocks = [];
   let processed = md.replace(/```mermaid\s*([\s\S]*?)```/g, (match, code) => {
     const id = `diagram_${blocks.length}`;
-    blocks.push(code.trim());
-    return `<div class="diagram-wrapper"><pre class="mermaid" id="${id}">${code.trim()}</pre></div>`;
+    blocks.push({ id, code: code.trim() });
+    return `%%%MERMAID_PLACEHOLDER_${blocks.length - 1}%%%`;
   });
 
   // Convert basic markdown elements
@@ -36,7 +36,7 @@ function markdownToHtml(md) {
   // Horizontal rules
   processed = processed.replace(/^---$/gim, '<hr class="doc-divider"/>');
 
-  // Tables
+  // Tables & Paragraphs
   const lines = processed.split('\n');
   const resultLines = [];
   let inTable = false;
@@ -44,6 +44,15 @@ function markdownToHtml(md) {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
+    if (line.startsWith('%%%MERMAID_PLACEHOLDER_')) {
+      if (inTable) {
+        resultLines.push('</tbody></table></div>');
+        inTable = false;
+      }
+      resultLines.push(line);
+      continue;
+    }
+
     if (line.startsWith('|') && line.endsWith('|')) {
       if (!inTable) {
         inTable = true;
@@ -81,7 +90,15 @@ function markdownToHtml(md) {
     resultLines.push('</tbody></table></div>');
   }
 
-  return resultLines.join('\n');
+  let finalHtml = resultLines.join('\n');
+
+  // 2. Re-inject clean, untouched Mermaid diagrams
+  blocks.forEach((item, index) => {
+    const replacement = `<div class="diagram-wrapper"><pre class="mermaid" id="${item.id}">${item.code}</pre></div>`;
+    finalHtml = finalHtml.replace(`%%%MERMAID_PLACEHOLDER_${index}%%%`, replacement);
+  });
+
+  return finalHtml;
 }
 
 const bodyHtml = markdownToHtml(mdContent);
