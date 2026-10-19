@@ -9,6 +9,7 @@ export default function RecoveryEmailCard() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState('');
+  const [showOtp, setShowOtp] = useState(false);
   
   // UI states
   const [isChangingEmail, setIsChangingEmail] = useState(false);
@@ -201,27 +202,51 @@ export default function RecoveryEmailCard() {
               Enter 6-Digit Verification Code
             </label>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <input
-                type="text"
-                placeholder="123456"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={6}
-                autoFocus
-                className="input-premium"
-                style={{
-                  flex: 1,
-                  letterSpacing: '6px',
-                  fontSize: '1.25rem',
-                  fontWeight: '700',
-                  textAlign: 'center',
-                  height: '44px'
-                }}
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                required
-                disabled={loading}
-              />
+              <div style={{ position: 'relative', flex: 1 }}>
+                <input
+                  type={showOtp ? 'text' : 'password'}
+                  placeholder={showOtp ? '123456' : '••••••'}
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  autoFocus
+                  className="input-premium"
+                  style={{
+                    width: '100%',
+                    letterSpacing: showOtp ? '6px' : '4px',
+                    fontSize: '1.25rem',
+                    fontWeight: '700',
+                    textAlign: 'center',
+                    height: '44px',
+                    paddingRight: '40px'
+                  }}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                  required
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowOtp(prev => !prev)}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  title={showOtp ? 'Hide code' : 'Show code'}
+                >
+                  {showOtp ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               <button
                 type="submit"
                 className="btn-primary"

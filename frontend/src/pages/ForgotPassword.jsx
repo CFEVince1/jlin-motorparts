@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
-import { KeyRound, ArrowLeft, Mail, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { KeyRound, ArrowLeft, Mail, ShieldAlert, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [username, setUsername] = useState('');
   const [form, setForm] = useState({ otp: '', newPassword: '', confirm: '' });
+  const [showOtp, setShowOtp] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -190,58 +193,129 @@ export default function ForgotPassword() {
                 <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', textAlign: 'left', marginBottom: '4px' }}>
                   6-Digit Verification Code
                 </label>
-                <input
-                  placeholder="000000"
-                  inputMode="numeric"
-                  maxLength={6}
-                  className="input-premium"
-                  style={{ width: '100%', letterSpacing: '4px', textAlign: 'center', fontSize: '1.2rem' }}
-                  value={form.otp}
-                  onChange={(e) => {
-                    setForm({ ...form, otp: e.target.value });
-                    if (error) setError('');
-                  }}
-                  required
-                  disabled={busy}
-                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showOtp ? 'text' : 'password'}
+                    placeholder={showOtp ? '000000' : '••••••'}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    className="input-premium"
+                    style={{ width: '100%', letterSpacing: showOtp ? '4px' : '3px', textAlign: 'center', fontSize: '1.2rem', paddingRight: '40px' }}
+                    value={form.otp}
+                    onChange={(e) => {
+                      setForm({ ...form, otp: e.target.value.replace(/\D/g, '') });
+                      if (error) setError('');
+                    }}
+                    required
+                    disabled={busy}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowOtp(p => !p)}
+                    style={{
+                      position: 'absolute',
+                      right: '10px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                    title={showOtp ? 'Hide code' : 'Show code'}
+                  >
+                    {showOtp ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', textAlign: 'left', marginBottom: '4px' }}>
                   New Password (8+ characters)
                 </label>
-                <input
-                  type="password"
-                  placeholder="New password (8+ characters)"
-                  className="input-premium"
-                  style={{ width: '100%' }}
-                  value={form.newPassword}
-                  onChange={(e) => {
-                    setForm({ ...form, newPassword: e.target.value });
-                    if (error) setError('');
-                  }}
-                  required
-                  disabled={busy}
-                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    placeholder="New password (8+ characters)"
+                    className="input-premium"
+                    style={{ width: '100%', paddingRight: '40px' }}
+                    value={form.newPassword}
+                    onChange={(e) => {
+                      setForm({ ...form, newPassword: e.target.value });
+                      if (error) setError('');
+                    }}
+                    required
+                    disabled={busy}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(p => !p)}
+                    style={{
+                      position: 'absolute',
+                      right: '10px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                    title={showNewPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', textAlign: 'left', marginBottom: '4px' }}>
                   Confirm New Password
                 </label>
-                <input
-                  type="password"
-                  placeholder="Confirm new password"
-                  className="input-premium"
-                  style={{ width: '100%' }}
-                  value={form.confirm}
-                  onChange={(e) => {
-                    setForm({ ...form, confirm: e.target.value });
-                    if (error) setError('');
-                  }}
-                  required
-                  disabled={busy}
-                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    placeholder="Confirm new password"
+                    className="input-premium"
+                    style={{ width: '100%', paddingRight: '40px' }}
+                    value={form.confirm}
+                    onChange={(e) => {
+                      setForm({ ...form, confirm: e.target.value });
+                      if (error) setError('');
+                    }}
+                    required
+                    disabled={busy}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(p => !p)}
+                    style={{
+                      position: 'absolute',
+                      right: '10px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                    title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               {error && (
