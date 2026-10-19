@@ -501,7 +501,7 @@ exports.getSales = async (req, res, next) => {
         const dataQuery = `
             SELECT s.id, COALESCE(s.order_number, CONCAT('SO-', s.id)) AS order_number,
                    s.total_amount, s.tendered_amount, s.change_due, s.payment_method,
-                   s.payment_reference, s.cash_amount, s.gcash_amount, s.sale_date, u.username as cashier,
+                   s.payment_reference, s.cash_amount, s.gcash_amount, COALESCE(s.status, 'COMPLETED') AS status, s.sale_date, u.username as cashier,
                    GROUP_CONCAT(DISTINCT si.product_name ORDER BY si.product_name SEPARATOR ', ') as products_included,
                    GROUP_CONCAT(DISTINCT COALESCE(NULLIF(si.part_number, ''), p.part_number, p.sku) ORDER BY si.part_number SEPARATOR ', ') as part_numbers,
                    GROUP_CONCAT(DISTINCT COALESCE(NULLIF(si.part_number, ''), p.part_number, p.sku) ORDER BY si.part_number SEPARATOR ', ') as part_number,
@@ -509,7 +509,7 @@ exports.getSales = async (req, res, next) => {
                    GROUP_CONCAT(DISTINCT si.size ORDER BY si.size SEPARATOR ', ') as sizes
             FROM (
                 SELECT s.id, s.user_id, s.order_number, s.total_amount, s.tendered_amount,
-                       s.change_due, s.payment_method, s.payment_reference, s.cash_amount, s.gcash_amount, s.sale_date
+                       s.change_due, s.payment_method, s.payment_reference, s.cash_amount, s.gcash_amount, s.status, s.sale_date
                 FROM sales s
                 ${whereSQL}
                 ORDER BY s.sale_date DESC, s.id DESC
@@ -518,7 +518,7 @@ exports.getSales = async (req, res, next) => {
             JOIN users u ON s.user_id = u.id
             LEFT JOIN sale_items si ON s.id = si.sale_id
             LEFT JOIN products p ON p.id = si.product_id
-            GROUP BY s.id, s.order_number, s.total_amount, s.tendered_amount, s.change_due, s.payment_method, s.payment_reference, s.sale_date, u.username
+            GROUP BY s.id, s.order_number, s.total_amount, s.tendered_amount, s.change_due, s.payment_method, s.payment_reference, s.status, s.sale_date, u.username
             ORDER BY s.sale_date DESC, s.id DESC
         `;
 
@@ -552,7 +552,7 @@ exports.getSaleById = async (req, res, next) => {
         let query = `
             SELECT s.id, COALESCE(s.order_number, CONCAT('SO-', s.id)) AS order_number,
                    s.total_amount, s.tendered_amount, s.change_due, s.payment_method,
-                   s.payment_reference, s.cash_amount, s.gcash_amount, s.sale_date, u.username as cashier
+                   s.payment_reference, s.cash_amount, s.gcash_amount, COALESCE(s.status, 'COMPLETED') AS status, s.sale_date, u.username as cashier
             FROM sales s
             JOIN users u ON s.user_id = u.id
             WHERE s.id = ?
@@ -682,3 +682,128 @@ exports.getBestSellers = async (req, res) => {
         return res.status(500).json({ error: 'Failed to retrieve best-selling products.' });
     }
 };
+
+// ==========================================
+// VOID SALE AND REOPEN ITEMS INTO CART
+// POST /api/sales/:id/void-and-reopen
+// ==========================================
+exports.voidAndReopen = async (req, res, next) => {
+    const saleId = Number(req.params.id);
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+
+    if (!saleId || !Number.isInteger(saleId) || saleId <= 0) {
+        return res.status(400).json({ message: 'Valid sale ID is required' });
+    }
+
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 1. Fetch sale with pessimistic lock
+        const [sales] = await connection.query(
+            'SELECT * FROM sales WHERE id = ? FOR UPDATE',
+            [saleId]
+        );
+
+        if (sales.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ message: 'Sale record not found' });
+        }
+
+        const sale = sales[0];
+
+        // Authorization check: Cashier who created the sale or any Admin
+        if (userRole !== 'admin' && sale.user_id !== userId) {
+            await connection.rollback();
+            return res.status(403).json({ 
+                message: 'Unauthorized: Only the cashier who made this sale or an administrator can void and reopen it' 
+            });
+        }
+
+        if (sale.status === 'VOIDED') {
+            await connection.rollback();
+            return res.status(422).json({ message: 'This transaction has already been voided' });
+        }
+
+        // 2. Fetch all sale items with current product metadata
+        const [saleItems] = await connection.query(
+            `SELECT si.*, p.name as current_product_name, p.is_serialized, p.cost_price as current_cost_price, p.selling_price, p.retail_price
+             FROM sale_items si
+             JOIN products p ON si.product_id = p.id
+             WHERE si.sale_id = ?`,
+            [saleId]
+        );
+
+        // 3. Reverse inventory movements & release serials
+        for (const item of saleItems) {
+            // Restore inventory using immutable 'RETURN' ledger movement
+            await applyMovement(connection, {
+                itemId: item.product_id,
+                transactionType: 'RETURN',
+                quantityChange: item.quantity,
+                referenceNo: sale.order_number || `SO-${sale.id}`,
+                referenceType: 'SALE_VOID',
+                referenceId: sale.id,
+                unitCost: Number(item.cost_price || 0),
+                remarks: `Sale Void & Reopen: ${sale.order_number || sale.id} (${item.quantity}x ${item.product_name})`,
+                createdBy: userId
+            });
+
+            // If item has serial numbers, restore them to available
+            const [serials] = await connection.query(
+                'SELECT serial_id FROM sale_item_serials WHERE sale_item_id = ?',
+                [item.id]
+            );
+
+            if (serials.length > 0) {
+                const serialIds = serials.map(s => s.serial_id);
+                const placeholders = serialIds.map(() => '?').join(', ');
+                await connection.query(
+                    `UPDATE product_serials SET status = 'available' WHERE id IN (${placeholders})`,
+                    serialIds
+                );
+            }
+        }
+
+        // 4. Mark sale as VOIDED in database
+        const reason = req.body.reason || 'Customer requested additional forgotten items (Reopened into cart)';
+        await connection.query(
+            "UPDATE sales SET status = 'VOIDED', voided_at = NOW(), void_reason = ? WHERE id = ?",
+            [reason, saleId]
+        );
+
+        await connection.commit();
+
+        // 5. Structure items so the POS frontend can directly populate the cart
+        const cartItems = saleItems.map(item => ({
+            id: item.product_id,
+            product_id: item.product_id,
+            productId: item.product_id,
+            name: item.product_name,
+            product_name: item.product_name,
+            part_number: item.part_number,
+            brand: item.brand,
+            size: item.size,
+            price: Number(item.price || item.selling_price || item.retail_price || 0),
+            quantity: Number(item.quantity),
+            is_serialized: normalizeBoolean(item.is_serialized),
+            serial_ids: []
+        }));
+
+        res.status(200).json({
+            success: true,
+            message: `Order ${sale.order_number || ('#' + sale.id)} voided successfully. Items returned to cart.`,
+            orderNumber: sale.order_number || ('SO-' + sale.id),
+            saleId: sale.id,
+            items: cartItems
+        });
+
+    } catch (err) {
+        await connection.rollback();
+        next(err);
+    } finally {
+        connection.release();
+    }
+};
+

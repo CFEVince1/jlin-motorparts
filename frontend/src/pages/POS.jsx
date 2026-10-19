@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { ShoppingCart, Printer, Search, Plus, Minus, Trash2, CheckCircle2, X, AlertCircle, Banknote, CreditCard, Smartphone, History } from 'lucide-react';
+import { ShoppingCart, Printer, Search, Plus, Minus, Trash2, CheckCircle2, X, AlertCircle, Banknote, CreditCard, Smartphone, History, RotateCcw } from 'lucide-react';
 import { filterProducts, isSerializedProduct, normalizePartNumberSearch } from '../utils/productFilter';
 import useTableFilter from '../hooks/useTableFilter';
 import { calculateCartTotals, calculateItemSubtotal, calculatePaymentDetails } from '../utils/calculations';
@@ -318,7 +318,8 @@ const POS = () => {
 
             // Save details for the receipt modal
             setLastTransaction({
-                id: res.data.order_number || res.data.sale_id || `SO-${Date.now()}`,
+                id: res.data.sale_id || res.data.id || res.data.order_number || `SO-${Date.now()}`,
+                saleId: res.data.sale_id || res.data.id,
                 orderNumber: res.data.order_number,
                 date: new Date(),
                 items: [...cart],
@@ -367,6 +368,51 @@ const POS = () => {
         setTenderedAmount('');
         setCustomerName('');
         setCustomerAddress('');
+    };
+
+    // Void recent sale and restore its items to the cart (if customer forgot an item)
+    const [voidingSale, setVoidingSale] = useState(false);
+    const handleVoidAndReopen = async () => {
+        if (!lastTransaction) return;
+        const targetId = lastTransaction.saleId || lastTransaction.id;
+        const orderNo = lastTransaction.orderNumber || targetId;
+
+        const confirmMsg = `Void order ${orderNo} and return all its items to the cart so the customer can add forgotten items?`;
+        if (!window.confirm(confirmMsg)) return;
+
+        setVoidingSale(true);
+        try {
+            const res = await api.post(`/sales/${targetId}/void-and-reopen`, {
+                reason: 'Customer forgot items, reopened to add more'
+            });
+
+            // Restore items into cart
+            const restoredItems = (lastTransaction.items && lastTransaction.items.length > 0)
+                ? lastTransaction.items
+                : (res.data?.items || []);
+            setCart([...restoredItems]);
+            if (lastTransaction.customerName && lastTransaction.customerName !== 'Walk-in Customer') {
+                setCustomerName(lastTransaction.customerName);
+            }
+            if (lastTransaction.customerAddress) {
+                setCustomerAddress(lastTransaction.customerAddress);
+            }
+
+            // Close receipt modal
+            setShowReceipt(false);
+            setLastTransaction(null);
+
+            // Refresh products catalog so available stock counts are restored
+            const resProducts = await api.get('/products');
+            const activeProducts = resProducts.data.filter(p => p.stock > 0);
+            setProducts(activeProducts);
+
+            toast.success(`Order ${orderNo} voided! Items returned to cart — you can now add forgotten items and checkout again.`);
+        } catch (err) {
+            toast.error(err.response?.data?.message || err.response?.data?.error || 'Failed to void and reopen sale');
+        } finally {
+            setVoidingSale(false);
+        }
     };
 
     const processBarcodeScan = useCallback((scannedCode) => {
@@ -914,12 +960,39 @@ const POS = () => {
                             />
                         </div>
 
-                        <div className="no-print" style={{ marginTop: '20px', display: 'flex', gap: '12px', width: '100%', maxWidth: '300px' }}>
-                            <button className="btn-primary" style={{ flex: 1, padding: '12px' }} onClick={handlePrint}>
-                                <Printer size={20} /> Print Receipt
-                            </button>
-                            <button className="btn-secondary" style={{ flex: 1, padding: '12px' }} onClick={closeReceipt}>
-                                Close
+                        <div className="no-print" style={{ marginTop: '18px', display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '340px' }}>
+                            <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+                                <button className="btn-primary" style={{ flex: 1, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={handlePrint}>
+                                    <Printer size={16} /> Print Receipt
+                                </button>
+                                <button className="btn-secondary" style={{ flex: 1, padding: '10px 14px' }} onClick={closeReceipt}>
+                                    Done / Close
+                                </button>
+                            </div>
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                style={{
+                                    width: '100%',
+                                    padding: '9px 12px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '6px',
+                                    color: '#e11d48',
+                                    borderColor: 'rgba(225, 29, 72, 0.35)',
+                                    background: 'rgba(225, 29, 72, 0.05)',
+                                    fontWeight: '600',
+                                    fontSize: '0.82rem',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer'
+                                }}
+                                onClick={handleVoidAndReopen}
+                                disabled={voidingSale}
+                                title="Customer forgot something? Void this transaction and return items to cart to add more items."
+                            >
+                                <RotateCcw size={15} />
+                                {voidingSale ? 'Voiding & Restoring Cart...' : '↩ Void & Return to Cart'}
                             </button>
                         </div>
                     </div>

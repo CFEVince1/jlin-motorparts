@@ -19,11 +19,11 @@ async function ensureSchema() {
       console.log('[Schema] Added email_verified_at column to users table.');
     }
 
-    // 1b. Check sales table for split payment columns
+    // 1b. Check sales table for split payment and void columns
     const [salesCols] = await db.query(
       `SELECT COLUMN_NAME, DATA_TYPE FROM information_schema.COLUMNS
        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sales'
-         AND COLUMN_NAME IN ('cash_amount', 'gcash_amount', 'payment_method')`
+         AND COLUMN_NAME IN ('cash_amount', 'gcash_amount', 'payment_method', 'status', 'voided_at', 'void_reason')`
     );
     const salesColNames = salesCols.map((c) => c.COLUMN_NAME);
     const paymentMethodCol = salesCols.find((c) => c.COLUMN_NAME === 'payment_method');
@@ -52,6 +52,33 @@ async function ensureSchema() {
         console.log('[Schema] Added gcash_amount column to sales table.');
       } catch (err) {
         console.warn('[Schema] Failed to add gcash_amount to sales:', err.message);
+      }
+    }
+
+    if (!salesColNames.includes('status')) {
+      try {
+        await db.query("ALTER TABLE sales ADD COLUMN status VARCHAR(50) NOT NULL DEFAULT 'COMPLETED'");
+        console.log('[Schema] Added status column to sales table.');
+      } catch (err) {
+        console.warn('[Schema] Failed to add status to sales:', err.message);
+      }
+    }
+
+    if (!salesColNames.includes('voided_at')) {
+      try {
+        await db.query('ALTER TABLE sales ADD COLUMN voided_at DATETIME NULL');
+        console.log('[Schema] Added voided_at column to sales table.');
+      } catch (err) {
+        console.warn('[Schema] Failed to add voided_at to sales:', err.message);
+      }
+    }
+
+    if (!salesColNames.includes('void_reason')) {
+      try {
+        await db.query('ALTER TABLE sales ADD COLUMN void_reason TEXT NULL');
+        console.log('[Schema] Added void_reason column to sales table.');
+      } catch (err) {
+        console.warn('[Schema] Failed to add void_reason to sales:', err.message);
       }
     }
 

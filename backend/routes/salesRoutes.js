@@ -12,8 +12,9 @@ router.post('/', salesController.checkout);
 // Best Sellers
 router.get('/best-sellers', salesController.getBestSellers);
 
-// Transaction History
+// Transaction History & Void
 router.get('/', salesController.getSales);
 router.get('/:id', salesController.getSaleById);
+router.post('/:id/void-and-reopen', salesController.voidAndReopen);
 
 module.exports = router;

@@ -228,8 +228,23 @@ const Transactions = () => {
                                 ) : (
                                     filteredTransactions.map(t => (
                                         <tr key={t.id}>
-                                            <td style={{ fontWeight: 'bold', color: 'var(--primary)', fontFamily: 'monospace' }}>
+                                            <td style={{ fontWeight: 'bold', color: t.status === 'VOIDED' ? 'var(--text-muted)' : 'var(--primary)', fontFamily: 'monospace' }}>
                                                 {t.order_number || `SO-${t.id}`}
+                                                {t.status === 'VOIDED' && (
+                                                    <span style={{
+                                                        marginLeft: '6px',
+                                                        display: 'inline-block',
+                                                        padding: '1px 6px',
+                                                        borderRadius: '4px',
+                                                        fontSize: '0.68rem',
+                                                        fontWeight: 'bold',
+                                                        background: 'rgba(239, 68, 68, 0.15)',
+                                                        color: '#ef4444',
+                                                        border: '1px solid rgba(239, 68, 68, 0.3)'
+                                                    }}>
+                                                        VOIDED
+                                                    </span>
+                                                )}
                                             </td>
                                             <td>{formatAuditDate(t.sale_date)}</td>
                                             <td style={{ textTransform: 'capitalize' }}>{t.cashier}</td>
@@ -288,7 +303,13 @@ const Transactions = () => {
                                                     t.payment_method || 'Cash'
                                                 )}
                                             </td>
-                                            <td className="text-right" style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{formatCurrency(t.total_amount)}</td>
+                                            <td className="text-right" style={{
+                                                fontWeight: 'bold',
+                                                color: t.status === 'VOIDED' ? 'var(--text-muted)' : 'var(--primary)',
+                                                textDecoration: t.status === 'VOIDED' ? 'line-through' : 'none'
+                                            }}>
+                                                {formatCurrency(t.total_amount)}
+                                            </td>
                                             <td>
                                                 <button
                                                     onClick={() => handleViewReceipt(t.id)}
@@ -353,6 +374,22 @@ const Transactions = () => {
                         <button className="no-print" onClick={closeReceipt} style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                             <X size={24} />
                         </button>
+
+                        {receiptDetails.status === 'VOIDED' && (
+                            <div className="no-print" style={{
+                                background: 'rgba(239, 68, 68, 0.12)',
+                                border: '1px solid rgba(239, 68, 68, 0.35)',
+                                color: '#ef4444',
+                                padding: '8px 12px',
+                                borderRadius: '6px',
+                                fontSize: '0.78rem',
+                                fontWeight: 'bold',
+                                marginBottom: '14px',
+                                textAlign: 'center'
+                            }}>
+                                ⚠️ THIS TRANSACTION HAS BEEN VOIDED / REOPENED
+                            </div>
+                        )}
 
                         <ReceiptPrint
                             orderNumber={receiptDetails.order_number || `SO-${receiptDetails.id}`}
