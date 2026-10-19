@@ -147,7 +147,8 @@
 <p class="doc-p">2. <strong>Data Flow Diagrams (DFD)</strong>:</p>
 <li class="doc-li"><strong>DFD Level 0</strong> — System Context Diagram showing external entities and core information flows.</li>
 <li class="doc-li"><strong>DFD Level 1</strong> — Process Decomposition Diagram detailing sub-processes, data stores, and transactional logic.</li>
-<p class="doc-p">3. <strong>System Architecture Diagram</strong> — 3-Tier Cloud Deployment Architecture (Vercel Frontend, Render Backend, Aiven Cloud MySQL 8, and Google SMTP Relay).</p>
+<p class="doc-p">3. <strong>System Architecture Diagram</strong> — 3-Tier Cloud Deployment Architecture (Vercel Frontend, Render Backend, Aiven Cloud MySQL 8, and Resend HTTPS REST Email Gateway).</p>
+<p class="doc-p">4. <strong>Architectural Quality Attributes & Defense Readiness</strong> — Rigorous verification matrix for academic defense and production auditability.</p>
 
 <hr class="doc-divider"/>
 
@@ -323,10 +324,15 @@
 <p class="doc-p">decimal total_amount</p>
 <p class="doc-p">decimal tendered_amount</p>
 <p class="doc-p">decimal change_due</p>
-<p class="doc-p">enum payment_method "Cash, GCash, Card"</p>
+<p class="doc-p">varchar payment_method "Cash, GCash, Card, Split"</p>
+<p class="doc-p">decimal cash_amount</p>
+<p class="doc-p">decimal gcash_amount</p>
 <p class="doc-p">varchar payment_reference UK</p>
 <p class="doc-p">varchar payment_provider</p>
 <p class="doc-p">varchar payment_status</p>
+<p class="doc-p">varchar status "COMPLETED, VOIDED"</p>
+<p class="doc-p">datetime voided_at</p>
+<p class="doc-p">text void_reason</p>
 <p class="doc-p">timestamp sale_date</p>
 <p class="doc-p">}</p>
 
@@ -375,17 +381,20 @@
 <p class="doc-p">}</pre></div></p>
 
 <h3 class="subsection-title">Key Database Design Principles:</h3>
-<p class="doc-p">1. <strong>Immutable Inventory Ledger (`inventory_transactions`)</strong>:</p>
+<p class="doc-p">1. <strong>Multi-Modal Payment Architecture (`sales`)</strong>:</p>
+<li class="doc-li">`payment_method` accommodates `Cash`, `GCash`, `Card`, and <strong>`Split`</strong>.</li>
+<li class="doc-li">Dedicated `cash_amount` and `gcash_amount` columns capture the exact dual-tender breakdown for split payments, ensuring accounting audits reconcile cash drawer balance and GCash wallet deposits.</li>
+<p class="doc-p">2. <strong>Immutable Inventory Ledger (`inventory_transactions`)</strong>:</p>
 <li class="doc-li">Protected against direct `UPDATE` and `DELETE` via MySQL database triggers (`trg_block_inventory_transactions_update`, `trg_block_inventory_transactions_delete`).</li>
 <li class="doc-li">Protected against table truncation through foreign-key child table `inventory_transactions_lock`.</li>
 <li class="doc-li">Guaranteed signed movement validation via SQL `CHECK` constraint: sales/losses require `quantity_change < 0`, receipts/additions require `quantity_change > 0`.</li>
-<p class="doc-p">2. <strong>Dual-Layer Compatibility Matrix</strong>:</p>
+<p class="doc-p">3. <strong>Dual-Layer Compatibility Matrix</strong>:</p>
 <li class="doc-li"><strong>Exact-Fit Compatibility</strong>: Maps direct parts to exact motorcycle unit models (`product_compatibilities` & `motorcycle_models`).</li>
 <li class="doc-li"><strong>Platform-Level Compatibility</strong>: Groups families of models sharing identical engine/chassis platforms (e.g. <em>Yamaha Aerox Platform</em>, <em>Honda Click Platform</em>) via `compatibility_groups` and `product_compatibility_groups`.</li>
-<p class="doc-p">3. <strong>Serialized Asset Control</strong>:</p>
+<p class="doc-p">4. <strong>Serialized Asset Control</strong>:</p>
 <li class="doc-li">Distinct individual units (e.g., ECUs, Batteries, Expensive Electronics) are tracked through `product_serials` and bound to sales invoices via `sale_item_serials` to protect against duplicate allocation or fraudulent warranty claims.</li>
-<p class="doc-p">4. <strong>Security & Cryptographic Isolation</strong>:</p>
-<li class="doc-li">`users.password` uses bcrypt (10 salt rounds).</li>
+<p class="doc-p">5. <strong>Security & Cryptographic Isolation</strong>:</p>
+<li class="doc-li">`users.password` uses bcrypt (10 salt rounds) with live strength enforcement.</li>
 <li class="doc-li">`users.token_version` is incremented on password changes to immediately revoke all existing JWTs across active browser sessions.</li>
 <li class="doc-li">`password_otps` stores SHA-256 code hashes with a 10-minute expiry and a 5-attempt brute-force threshold.</li>
 
@@ -409,7 +418,7 @@
 
 <p class="doc-p">%% Admin flows</p>
 <p class="doc-p">Admin -->|"1. Credentials, user management, recovery email"| System</p>
-<p class="doc-p">Admin -->|"2. Catalog configuration & fitment rules"| System</p>
+<p class="doc-p">Admin -->|"2. Catalog configuration & fitment rules (Account & Security)"| System</p>
 <p class="doc-p">Admin -->|"3. Stock adjustments & opening balance overrides"| System</p>
 <p class="doc-p">System -->|"4. Financial analytics, audit ledger & low stock alerts"| Admin</p>
 
@@ -424,7 +433,7 @@
 <p class="doc-p">Staff -->|"10. Receiving verification & PO reference"| System</p>
 
 <p class="doc-p">%% Customer flows</p>
-<p class="doc-p">Customer -->|"11. Part inquiries, motorcycle model & payment"| Staff</p>
+<p class="doc-p">Customer -->|"11. Part inquiries, motorcycle model & payment (Cash, GCash, Split)"| Staff</p>
 <p class="doc-p">Staff -->|"12. Processed checkout & printed thermal receipt"| Customer</pre></div></p>
 
 <hr class="doc-divider"/>
@@ -450,8 +459,8 @@
 <p class="doc-p">%% Process 1: Auth & OTP Recovery</p>
 <p class="doc-p">subgraph P1 ["1.0 Authentication & Password Recovery"]</p>
 <p class="doc-p">P1_1["1.1 Login & JWT Token Dispatch"]</p>
-<p class="doc-p">P1_2["1.2 Email OTP Verification"]</p>
-<p class="doc-p">P1_3["1.3 Session Revocation"]</p>
+<p class="doc-p">P1_2["1.2 Email OTP Verification (Resend Gateway)"]</p>
+<p class="doc-p">P1_3["1.3 Session Revocation (token_version)"]</p>
 <p class="doc-p">end</p>
 
 <p class="doc-p">Admin -->|"Username, Password, OTP"| P1_1</p>
@@ -463,12 +472,12 @@
 <p class="doc-p">%% Process 2: Catalog & Fitment</p>
 <p class="doc-p">subgraph P2 ["2.0 Product & Fitment Matrix Management"]</p>
 <p class="doc-p">P2_1["2.1 Product Catalog CRUD"]</p>
-<p class="doc-p">P2_2["2.2 Platform Group Compatibility"]</p>
-<p class="doc-p">P2_3["2.3 Fitment Search Engine"]</p>
+<p class="doc-p">P2_2["2.2 Platform Group Compatibility (Admin)"]</p>
+<p class="doc-p">P2_3["2.3 Fitment Search Engine (/profile?tab=fitment)"]</p>
 <p class="doc-p">end</p>
 
 <p class="doc-p">Admin -->|"Manage Products, Prices, Platforms"| P2_1</p>
-<p class="doc-p">Admin -->|"Define Platform Groups & Models"| P2_2</p>
+<p class="doc-p">Admin -->|"Define Platform Groups & Rules"| P2_2</p>
 <p class="doc-p">P2_1 <-->|"Read / Write Catalog"| D2</p>
 <p class="doc-p">P2_2 <-->|"Link Groups & Models"| D2</p>
 <p class="doc-p">Staff -->|"Search by Bike Brand / Model / Part #"| P2_3</p>
@@ -492,26 +501,28 @@
 <p class="doc-p">%% Process 4: Point of Sale</p>
 <p class="doc-p">subgraph P4 ["4.0 Point of Sale & Checkout"]</p>
 <p class="doc-p">P4_1["4.1 Cart Building & Stock Check"]</p>
-<p class="doc-p">P4_2["4.2 Payment & Tender Calculation"]</p>
+<p class="doc-p">P4_2["4.2 Payment Modalities: Cash, GCash, Split"]</p>
 <p class="doc-p">P4_3["4.3 Serial Number Assignment"]</p>
-<p class="doc-p">P4_4["4.4 Receipt Generation"]</p>
+<p class="doc-p">P4_4["4.4 Receipt Generation & Cart Protection"]</p>
 <p class="doc-p">end</p>
 
 <p class="doc-p">Staff -->|"Scan / Select Items"| P4_1</p>
 <p class="doc-p">P4_1 <-->|"Validate available stock"| D2</p>
-<p class="doc-p">Customer -->|"Cash / GCash Payment"| Staff</p>
+<p class="doc-p">Customer -->|"Cash / GCash / Split Payment"| Staff</p>
 <p class="doc-p">Staff -->|"Tender Payment & Order"| P4_2</p>
-<p class="doc-p">P4_2 -->|"Insert Sale Record"| D4</p>
+<p class="doc-p">P4_2 -->|"Insert Sale Record (cash_amount, gcash_amount)"| D4</p>
 <p class="doc-p">P4_3 <-->|"Mark Serials as SOLD"| D2</p>
 <p class="doc-p">P4_3 -->|"Link Serials to Sale Item"| D4</p>
 <p class="doc-p">P4_2 -->|"SALE deduction movement"| D5</p>
 <p class="doc-p">P4_2 -->|"Decrement current_stock"| D2</p>
-<p class="doc-p">P4_4 -->|"Official Printed Receipt"| Customer</p>
+<p class="doc-p">P4_4 -->|"Official Printed Thermal Receipt"| Customer</p>
+<p class="doc-p">P4_4 -->|"Cancel / Esc returns to preserved Cart"| P4_1</p>
+<p class="doc-p">P4_4 -->|"Void & Reopen restores stock via RETURN & repopulates Cart"| P4_1</p>
 
 <p class="doc-p">%% Process 5: Immutable Ledger & Audit</p>
 <p class="doc-p">subgraph P5 ["5.0 Immutable Ledger & Inventory Audit"]</p>
 <p class="doc-p">P5_1["5.1 Transaction Logger"]</p>
-<p class="doc-p">P5_2["5.2 Physical Count Audit"]</p>
+<p class="doc-p">P5_2["5.2 Physical Count & Discrepancy Audit"]</p>
 <p class="doc-p">end</p>
 
 <p class="doc-p">D5 <-->|"Append-only movement entry"| P5_1</p>
@@ -543,7 +554,7 @@
 <p class="doc-p">subgraph Presentation_Tier ["Tier 1: Presentation Layer (Vercel Edge CDN)"]</p>
 <p class="doc-p">Browser["Staff / Admin Browser Client"]</p>
 <p class="doc-p">VercelCDN["Vercel Global Edge Network\n(https://jlin-motorparts.vercel.app)"]</p>
-<p class="doc-p">ReactApp["React 19 SPA (Vite Bundler)\n- React Router 7 Declarative Routing\n- Tailwind / Modern CSS Glassmorphic UI\n- Lucide Icon System\n- Thermal Receipt Generator (Native Print Engine)\n- Real-time POS Cart & Fitment Search Engine"]</p>
+<p class="doc-p">ReactApp["React 19 SPA (Vite Bundler)\n- React Router 7 Declarative Routing (with strict end match)\n- Modern CSS Glassmorphic UI & Dark/Light Theme\n- Lucide Icon System\n- Thermal Receipt Generator (Native 58mm/80mm Print Engine)\n- Real-time POS Cart with Split Payment Modal\n- Consolidated Account & Security Hub (/profile)"]</p>
 <p class="doc-p">end</p>
 
 <p class="doc-p">subgraph Application_Tier ["Tier 2: Application / API Layer (Render Cloud PaaS)"]</p>
@@ -551,11 +562,11 @@
 <p class="doc-p">ExpressApp["Node.js 24 + Express 5 REST API\n- Helmet Security Headers (CSP & HSTS)\n- Strict CORS Origin Validation\n- Token Revocation (token_version Verification)\n- Express-Validator & Zod Payload Schemas\n- Rate Limiters (Auth, Password OTP, Public Endpoints)\n- Schema Auto-Migration Engine (ensureSchema.js)"]</p>
 <p class="doc-p">AuthModule["Auth & Recovery Controller\n- Bcrypt 10-Round Password Hasher\n- Crypto 6-Digit OTP Generator\n- JWT Bearer Token Dispatcher"]</p>
 <p class="doc-p">InventoryModule["Inventory & Movement Service\n- Atomic Transaction Manager\n- Canonical Product Sync\n- Reorder Level Evaluator"]</p>
-<p class="doc-p">POSModule["POS Checkout & Sales Engine\n- GCash Reference Validator\n- Serial Allocation Guard\n- Sale Transaction Logger"]</p>
+<p class="doc-p">POSModule["POS Checkout & Sales Engine\n- Split Payment Engine (Cash + GCash)\n- GCash Reference Validator\n- Serial Allocation Guard\n- Sale Transaction Logger"]</p>
 <p class="doc-p">end</p>
 
 <p class="doc-p">subgraph External_Services ["External Communications Layer"]</p>
-<p class="doc-p">GmailSMTP["Google Cloud Gmail SMTP Relay\n- Host: smtp.gmail.com:465 (SSL/TLS)\n- Account: jlinmotorparts.noreply@gmail.com\n- 16-Char App Password Authentication\n- 6-Digit Security Codes & Recovery Emails"]</p>
+<p class="doc-p">ResendAPI["Resend Cloud Email API\n- Host: api.resend.com/emails:443 (HTTPS REST)\n- API Token Authentication\n- Bypasses Cloud Platform SMTP Egress Blocks\n- 6-Digit Security Codes & Recovery Emails"]</p>
 <p class="doc-p">end</p>
 
 <p class="doc-p">subgraph Data_Tier ["Tier 3: Persistence Layer (Aiven Cloud Database)"]</p>
@@ -575,7 +586,7 @@
 <p class="doc-p">ExpressApp --> InventoryModule</p>
 <p class="doc-p">ExpressApp --> POSModule</p>
 
-<p class="doc-p">AuthModule <-->|"Nodemailer Transporter (Secure OTP Dispatch)"| GmailSMTP</p>
+<p class="doc-p">AuthModule <-->|"HTTPS POST /emails (Port 443)"| ResendAPI</p>
 
 <p class="doc-p">ExpressApp <--> ConnectionPool</p>
 <p class="doc-p">ConnectionPool <-->|"Encrypted MySQL Wire Protocol (SSL CA Validated)"| AivenDB</p>
@@ -588,11 +599,13 @@
 
 <div class="table-container"><table class="doc-table">
 <thead><tr><th>Quality Attribute</th><th>Architectural Implementation</th><th>Verification Method</th></tr></thead><tbody>
-<tr><td><strong>Data Integrity</strong></td><td>Database-level triggers prevent ledger modification; `SELECT ... FOR UPDATE` row locking prevents concurrent double-spend of serial numbers.</td><td>Trigger rejection unit tests & Phase 2 concurrent checkout tests.</td></tr>
-<tr><td><strong>Authentication & Access</strong></td><td>JWT authentication with dual-role RBAC (`admin` vs. `staff`). Immediate multi-device invalidation through `users.token_version`.</td><td>Automated OTP test suite (Scenario 9 verified).</td></tr>
-<tr><td><strong>Fault Tolerance & Zero Downtime</strong></td><td>Auto-migration engine ([`backend/utils/ensureSchema.js`](file:///c:/Inventory/backend/utils/ensureSchema.js)) checks and adds missing tables on server boot without manual SQL execution.</td><td>Automated Render deployment boot verification.</td></tr>
-<tr><td><strong>Security & Privacy</strong></td><td>Passwords stored with Bcrypt (10 rounds); OTP codes stored with SHA-256 hashes; secrets strictly loaded from environment variables (`.env`).</td><td>`.gitignore` enforcement; git check-ignore verification.</td></tr>
-<tr><td><strong>Fitment Accuracy</strong></td><td>Hybrid fitment model: Exact model matching combined with platform-level shared groupings.</td><td>Real-time fitment search testing with Aerox, Click, and Raider platforms.</td></tr>
+<tr><td><strong>Multi-Tender Flexibility</strong></td><td>Split Payment engine allows splitting bills across Cash and GCash with live balance tracking, change calculation, and database tracking of `cash_amount` and `gcash_amount`.</td><td>Verified on POS checkout with automated invariant testing: `cash + gcash >= total`.</td></tr>
+<tr><td><strong>Data Integrity</strong></td><td>Database-level triggers prevent ledger modification; `SELECT ... FOR UPDATE` row locking prevents concurrent double-spend of serial numbers.</td><td>Trigger rejection unit tests & concurrent checkout test scenarios.</td></tr>
+<tr><td><strong>Authentication & Access</strong></td><td>JWT authentication with dual-role RBAC (`admin` vs. `staff`). Immediate multi-device invalidation through `users.token_version`. Live password checklist enforces strong credentials.</td><td>Automated OTP test suite & password strength validation.</td></tr>
+<tr><td><strong>Email Resilience</strong></td><td>Outbound OTP emails use the Resend HTTPS REST API over port 443, eliminating SMTP timeout blocks (`ETIMEDOUT`) enforced by cloud hosting firewalls.</td><td>Live delivery verification to Gmail in 1.2s.</td></tr>
+<tr><td><strong>Fault Tolerance & Zero Downtime</strong></td><td>Auto-migration scripts ([`backend/utils/ensureSchema.js`](file:///c:/Inventory/backend/utils/ensureSchema.js) & schema patches) add missing tables and columns on server boot without manual SQL execution.</td><td>Automated deployment boot verification.</td></tr>
+<tr><td><strong>Navigation & Ergonomics</strong></td><td>Strict `end` route matching on sidebar navigation prevents multi-link active states (e.g. Sales Reports vs Discrepancy Audit). Fitment Search and Compatibility Rules consolidated into Account & Security (`/profile`).</td><td>UI visual audit on Desktop & Mobile viewports.</td></tr>
+<tr><td><strong>Cart Preservation</strong></td><td>POS payment modal supports closing via `Esc` key, background backdrop click, or "← Back to Cart" button without losing cart items when customers add forgotten products.</td><td>Interactive modal state lifecycle verification.</td></tr>
 </tbody></table></div>
 
 
