@@ -167,6 +167,7 @@ const Sidebar = () => {
                     <NavLink
                         key={link.path}
                         to={link.path}
+                        end
                         className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
                     >
                         {link.icon} <span className="link-text">{link.name}</span>
@@ -201,6 +202,7 @@ const Sidebar = () => {
                                 <NavLink
                                     key={sub.path}
                                     to={sub.path}
+                                    end
                                     className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
                                 >
                                     {sub.icon}
@@ -215,6 +217,7 @@ const Sidebar = () => {
                     <NavLink
                         key={link.path}
                         to={link.path}
+                        end
                         className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
                     >
                         {link.icon} <span className="link-text">{link.name}</span>
