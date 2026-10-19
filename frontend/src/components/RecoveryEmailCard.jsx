@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import api from '../services/api';
-import { Mail, CheckCircle2, AlertCircle, KeyRound, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Mail, CheckCircle2, AlertCircle, KeyRound, ShieldCheck, RefreshCw, Eye, EyeOff } from 'lucide-react';
 
 export default function RecoveryEmailCard() {
   const [status, setStatus] = useState({ email: null, verified: false });
   const [email, setEmail] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState('');
   const [codeSent, setCodeSent] = useState(false);
   const [msg, setMsg] = useState('');
@@ -108,16 +109,39 @@ export default function RecoveryEmailCard() {
             <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
               Current Password (to authorize change)
             </label>
-            <input
-              type="password"
-              placeholder="Enter your current password"
-              className="input-premium"
-              style={{ width: '100%' }}
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              required
-              disabled={loading}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Enter your current password"
+                className="input-premium"
+                style={{ width: '100%', paddingRight: '40px' }}
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+                disabled={loading}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(p => !p)}
+                style={{
+                  position: 'absolute',
+                  right: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
 
           <button
