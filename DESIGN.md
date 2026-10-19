@@ -1,133 +1,474 @@
-# JLIN Motorparts — System Design & UI/UX Architecture
+# System Design Documents: JLIN Motorparts Inventory & POS System
 
-## 1. Product Vision & Operational Context
-
-**JLIN Motorparts** is a specialized Sales, Inventory, and Point-of-Sale (POS) management system purpose-built for motorcycle parts retail shops and repair centers in the Philippines. 
-
-### Operational Context
-- **Counter Environment:** High-tempo front counter with rapid customer turnover, walk-in mechanics, and counter inquiries requiring sub-second parts compatibility checks.
-- **Physical Environment:** Retail shop floor and garage settings with bright fluorescent lighting, counter barcode scanners, and compact thermal receipt printers.
-- **Core Business Goal:** Eliminate stock discrepancies, prevent stockouts of high-velocity motorcycle consumables (bolts, spark plugs, brake pads), enforce immutable auditability on inventory adjustments, provide instant fitment verification across motorcycle models, and support flexible checkout tenders including split payments.
-
----
-
-## 2. Visual Theme & Aesthetic Principles
-
-The design language conveys **industrial precision, operational efficiency, and technical reliability**. It avoids decorative fluff in favor of high-density information architecture and instantaneous visual recognition.
-
-### Color Palette & Design Tokens
-
-| Token | Hex Value | Purpose / Usage |
-| :--- | :--- | :--- |
-| **Canvas Background** | `#0F172A` (Slate 900) | Primary dark application canvas minimizing eye fatigue in shop environments. |
-| **Card Surface** | `#1E293B` (Slate 800) | Elevated panels, tables, form containers, and modals. |
-| **Subsurface / Input** | `#334155` (Slate 700) | Search bars, form inputs, table headers, and borders (`#475569`). |
-| **Primary Brand Accent** | `#10B981` (Emerald 500) | Primary interactive actions, checkout buttons, active navigation pills. |
-| **Secondary Accent / GCash** | `#0284C7` (Sky 600) | GCash digital wallet payments, references, and balance indicators. |
-| **Split Tender Accent** | `#A855F7` (Purple 500) | Split payment badges, dual-tender indicators (`#C084FC`). |
-| **Warning / Reorder** | `#F59E0B` (Amber 500) | Low stock warnings, reorder thresholds, `CONDITIONAL` fitment notes. |
-| **Negative / Outflow** | `#EF4444` (Red 500) | Damages, losses, returns to supplier, `NOT_COMPATIBLE` badges, void alerts. |
-| **Text Primary** | `#F8FAFC` (Slate 50) | High-contrast data values, item titles, prices, and header text. |
-| **Text Muted** | `#94A3B8` (Slate 400) | Secondary metadata, SKUs, timestamps, column labels, table captions. |
+This document contains the complete formal software engineering design diagrams for the **JLIN Motorparts Inventory & POS System**:
+1. **Entity-Relationship Diagram (ERD)** — Database architecture, table schemas, keys, constraints, and relational cardinality.
+2. **Data Flow Diagrams (DFD)**:
+   - **DFD Level 0** — System Context Diagram showing external entities and core information flows.
+   - **DFD Level 1** — Process Decomposition Diagram detailing sub-processes, data stores, and transactional logic.
+3. **System Architecture Diagram** — 3-Tier Cloud Deployment Architecture (Vercel Frontend, Render Backend, Aiven Cloud MySQL 8, and Resend HTTPS REST Email Gateway).
+4. **Architectural Quality Attributes & Defense Readiness** — Rigorous verification matrix for academic defense and production auditability.
 
 ---
 
-## 3. Typography & Numerical Formatting
+## 1. Entity-Relationship Diagram (ERD)
 
-1. **Interface Typography:**
-   - **Font Family:** `Inter`, `-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, `sans-serif`.
-   - **Scale:** 
-     - Page Headers: `1.5rem` (`24px`), font-weight 700.
-     - Section Headers & KPIs: `1.125rem` (`18px`) to `1.75rem` (`28px`), font-weight 600.
-     - Body & Form Controls: `0.875rem` (`14px`), font-weight 400/500.
-     - Table Data & Badges: `0.75rem` (`12px`) to `0.8125rem` (`13px`), font-weight 500.
+The JLIN Motorparts database is built on **MySQL 8** with strict InnoDB foreign key enforcement, transactional consistency, and database triggers protecting immutable audit trails.
 
-2. **Numerical & Tabular Data:**
-   - **Font Family:** `JetBrains Mono`, `ui-monospace`, `Menlo`, `monospace`.
-   - **Application:** SKUs, Part Numbers, Quantities, Currency (`₱`), Barcodes, Transaction UUIDs.
-   - **Currency Rule:** Strictly format Philippine Peso as `₱#,##0.00` (e.g. `₱450.00`, `₱1,250.00`). Monospace styling prevents numerical jitter across table rows.
+```mermaid
+erDiagram
+    users ||--o{ password_otps : "requests"
+    users ||--o{ receiving_records : "receives"
+    users ||--o{ sales : "processes"
+    users ||--o{ inventory_transactions : "logs"
+
+    suppliers ||--o{ receiving_records : "supplies"
+    receiving_records ||--|{ receiving_record_items : "contains"
+    products ||--o{ receiving_record_items : "replenished_via"
+
+    products ||--o{ product_serials : "tracks"
+    products ||--o{ sale_items : "sold_via"
+    products ||--o{ inventory_transactions : "audited_in"
+    products ||--o{ product_compatibilities : "fits_model"
+    products ||--o{ product_compatibility_groups : "grouped_in"
+
+    motorcycle_models ||--o{ product_compatibilities : "compatible_with"
+    motorcycle_units ||--o{ compatibility_group_units : "member_of"
+
+    compatibility_groups ||--o{ compatibility_group_units : "includes"
+    compatibility_groups ||--o{ product_compatibility_groups : "applies_to"
+
+    sales ||--|{ sale_items : "contains"
+    sale_items ||--o{ sale_item_serials : "allocates"
+    product_serials ||--o{ sale_item_serials : "assigned_to"
+
+    inventory_transactions ||--o| inventory_transactions_lock : "guarded_by"
+
+    users {
+        int id PK
+        varchar username UK
+        varchar password
+        enum role "admin, staff"
+        int token_version
+        varchar email UK
+        datetime email_verified_at
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    password_otps {
+        int id PK
+        int user_id FK
+        varchar purpose "link_email, password_reset"
+        varchar code_hash
+        int attempts
+        datetime expires_at
+        datetime used_at
+        timestamp created_at
+    }
+
+    suppliers {
+        int id PK
+        varchar name UK
+        varchar contact_person
+        varchar email
+        varchar phone
+        text address
+        boolean is_active
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    products {
+        int id PK
+        varchar part_number
+        varchar sku
+        varchar name
+        varchar brand
+        varchar category
+        varchar size
+        varchar measurement
+        varchar thread_type
+        decimal cost_price
+        decimal selling_price
+        decimal retail_price
+        int stock
+        int current_stock
+        int reorder_level
+        boolean is_serialized
+        boolean is_active
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    product_serials {
+        int id PK
+        int product_id FK
+        varchar serial_number UK
+        enum status "available, sold"
+        timestamp created_at
+    }
+
+    motorcycle_units {
+        int id PK
+        varchar brand
+        varchar model
+        varchar year_model
+    }
+
+    motorcycle_models {
+        int id PK
+        varchar brand
+        varchar model
+        int year_start
+        int year_end
+        varchar year_model
+        varchar engine_displacement
+        timestamp created_at
+    }
+
+    product_compatibilities {
+        int id PK
+        int product_id FK
+        int motorcycle_model_id FK
+        enum compatibility_status "COMPATIBLE, NOT_COMPATIBLE, CONDITIONAL"
+        varchar notes
+        timestamp created_at
+    }
+
+    compatibility_groups {
+        int id PK
+        varchar group_name UK
+        text description
+    }
+
+    compatibility_group_units {
+        int id PK
+        int compatibility_group_id FK
+        int motorcycle_unit_id FK
+    }
+
+    product_compatibility_groups {
+        int id PK
+        int product_id FK
+        int compatibility_group_id FK
+    }
+
+    receiving_records {
+        int id PK
+        int supplier_id FK
+        varchar reference_number
+        varchar reference_no
+        int received_by FK
+        timestamp received_at
+        decimal total_cost
+        enum status "draft, received, cancelled"
+        text notes
+        timestamp created_at
+    }
+
+    receiving_record_items {
+        int id PK
+        int receiving_record_id FK
+        int product_id FK
+        int quantity
+        decimal cost_price
+        decimal subtotal
+        timestamp created_at
+    }
+
+    sales {
+        int id PK
+        int user_id FK
+        varchar order_number
+        decimal total_amount
+        decimal tendered_amount
+        decimal change_due
+        varchar payment_method "Cash, GCash, Card, Split"
+        decimal cash_amount
+        decimal gcash_amount
+        varchar payment_reference UK
+        varchar payment_provider
+        varchar payment_status
+        varchar status "COMPLETED, VOIDED"
+        datetime voided_at
+        text void_reason
+        timestamp sale_date
+    }
+
+    sale_items {
+        int id PK
+        int sale_id FK
+        int product_id FK
+        varchar part_number
+        varchar product_name
+        varchar brand
+        varchar size
+        int quantity
+        decimal price
+        decimal cost_price
+        decimal subtotal
+    }
+
+    sale_item_serials {
+        int id PK
+        int sale_item_id FK
+        int serial_id FK,UK
+    }
+
+    inventory_transactions {
+        bigint id PK
+        varchar transaction_number UK
+        varchar reference_no
+        int product_id FK
+        varchar transaction_type "STOCK_IN, SALE, DAMAGE, LOSS, OPENING_BALANCE, etc."
+        int quantity
+        int quantity_change
+        int balance_before
+        int balance_after
+        decimal unit_cost
+        varchar reference_type
+        int reference_id
+        text remarks
+        int created_by FK
+        timestamp created_at
+    }
+
+    inventory_transactions_lock {
+        int id PK
+        bigint transaction_id FK
+        timestamp created_at
+    }
+```
+
+### Key Database Design Principles:
+1. **Multi-Modal Payment Architecture (`sales`)**:
+   - `payment_method` accommodates `Cash`, `GCash`, `Card`, and **`Split`**.
+   - Dedicated `cash_amount` and `gcash_amount` columns capture the exact dual-tender breakdown for split payments, ensuring accounting audits reconcile cash drawer balance and GCash wallet deposits.
+2. **Immutable Inventory Ledger (`inventory_transactions`)**:
+   - Protected against direct `UPDATE` and `DELETE` via MySQL database triggers (`trg_block_inventory_transactions_update`, `trg_block_inventory_transactions_delete`).
+   - Protected against table truncation through foreign-key child table `inventory_transactions_lock`.
+   - Guaranteed signed movement validation via SQL `CHECK` constraint: sales/losses require `quantity_change < 0`, receipts/additions require `quantity_change > 0`.
+3. **Dual-Layer Compatibility Matrix**:
+   - **Exact-Fit Compatibility**: Maps direct parts to exact motorcycle unit models (`product_compatibilities` & `motorcycle_models`).
+   - **Platform-Level Compatibility**: Groups families of models sharing identical engine/chassis platforms (e.g. *Yamaha Aerox Platform*, *Honda Click Platform*) via `compatibility_groups` and `product_compatibility_groups`.
+4. **Serialized Asset Control**:
+   - Distinct individual units (e.g., ECUs, Batteries, Expensive Electronics) are tracked through `product_serials` and bound to sales invoices via `sale_item_serials` to protect against duplicate allocation or fraudulent warranty claims.
+5. **Security & Cryptographic Isolation**:
+   - `users.password` uses bcrypt (10 salt rounds) with live strength enforcement.
+   - `users.token_version` is incremented on password changes to immediately revoke all existing JWTs across active browser sessions.
+   - `password_otps` stores SHA-256 code hashes with a 10-minute expiry and a 5-attempt brute-force threshold.
 
 ---
 
-## 4. Core Subsystems & UX Flows
+## 2. Data Flow Diagrams (DFD)
 
-### 4.1. Point of Sale (POS) Counter Terminal (`/pos`)
-- **Single-Screen Ergonomics:** Split layout with product catalog / fast-picker on the left and sticky transaction receipt ticket on the right.
-- **Barcode & Fast Search:** Immediate autofocus on the search input for hands-free USB barcode scanner input. Typing or scanning automatically increments cart quantity for existing items.
-- **Triple Payment Modalities:**
-  - **Cash:** Real-time tendered amount keypad with instant change calculation. Prevents checkout if tendered < total.
-  - **GCash (E-Wallet):** Tendered amount automatically locks to exact cart total. Enforces a non-empty alphanumeric GCash Reference Number (`gcash_reference_no` $\ge$ 6 characters) before completing payment.
-  - **Split Payment (Cash + GCash):** Accommodates customers with insufficient cash and insufficient GCash balances to pay the bill with two tenders:
-    - User inputs the cash portion (e.g., ₱500); remaining GCash portion auto-calculates (e.g., ₱1,000).
-    - If customer tenders a larger bill (e.g., ₱1,000 for a ₱500 cash portion), cash change is calculated accurately.
-    - Mandatory GCash reference number verified and stored with unique constraint.
-- **Cart Protection & Exit Modality:**
-  - Cashiers can safely close the checkout modal via `Esc` key, clicking the backdrop overlay, or clicking **"← Back to Cart"**.
-  - All items in the cart remain 100% preserved so forgotten products can be added without losing work.
-- **Thermal Receipt Printing:**
-  - Dual-width support for standard 58mm and 80mm ESC/POS receipt rolls.
-  - Explicitly details dual-tender breakdowns when split payments are utilized.
+### DFD Level 0: System Context Diagram
 
-### 4.2. Consolidated Motorcycle Compatibility & Fitment (`/profile?tab=fitment`)
-- **Streamlined Navigation:** Fitment Search and Compatibility Rules are consolidated into **Account & Security (`/profile`)**, keeping the main sidebar uncluttered for primary sales operations.
-- **Vehicle Hierarchy:** 3-tier cascade: `Brand` $\rightarrow$ `Model` $\rightarrow$ `Year / Generation`.
-- **Instant Fitment Matrix:**
-  - **COMPATIBLE:** Guaranteed direct OEM or aftermarket bolt-on fitment.
-  - **CONDITIONAL:** Requires specific adaptations or brackets (annotated with technical notes).
-  - **NOT_COMPATIBLE:** Explicitly verified non-fitment (annotated with technical differences).
+The Context Diagram outlines the high-level boundary of the **JLIN Motorparts Inventory & POS System** and interactions with all external entities.
 
-### 4.3. Append-Only Inventory Ledger & Audit Trail (`/inventory`, `/reports/adjustments`)
-- **Immutable Ledger Rule:** Stock is never manually overwritten or directly edited in the database. Stock count is strictly a read-only projection backed by `SUM(quantity_change)`.
-- **Database Trigger Protection:** MySQL triggers (`trg_block_inventory_transactions_update`, `trg_block_inventory_transactions_delete`) unconditionally block raw `UPDATE` and `DELETE` queries on the ledger.
-- **Sentinel Lock Table:** `inventory_transactions_lock` holds a foreign key reference preventing table `TRUNCATE`.
-- **Discrepancy Audit Navigation:** Uses strict `end` route matching on `/reports/adjustments` to prevent dual-highlighting alongside `/reports`.
+```mermaid
+flowchart TD
+    subgraph External_Entities ["External Entities"]
+        Admin["Administrator / Owner"]
+        Staff["Cashier / Staff"]
+        Supplier["Parts Supplier"]
+        Customer["Walk-in Customer"]
+    end
 
-### 4.4. Security, Credentials & Password Recovery (`/forgot-password`, `/profile`)
-- **Live Password Complexity Checklist:**
-  - `8+ characters` with real-time green check / gray X.
-  - `Uppercase, lowercase, number & special char` with real-time regex feedback.
-  - Password mismatch alert highlighting confirmation field in red.
-- **Show/Hide Password & OTP Eye Toggles:** Elevated z-index eye/eye-off toggle buttons across OTP and password inputs.
-- **Resend HTTPS Gateway:** Outbound 6-digit OTP delivery runs via Resend REST API over port 443, eliminating cloud provider SMTP egress timeouts.
+    System["JLIN Motorparts Inventory & POS System"]
+
+    %% Admin flows
+    Admin -->|"1. Credentials, user management, recovery email"| System
+    Admin -->|"2. Catalog configuration & fitment rules (Account & Security)"| System
+    Admin -->|"3. Stock adjustments & opening balance overrides"| System
+    System -->|"4. Financial analytics, audit ledger & low stock alerts"| Admin
+
+    %% Staff flows
+    Staff -->|"5. Authentication & POS transaction cart"| System
+    Staff -->|"6. Barcode scan / Part # lookup & Fitment search"| System
+    Staff -->|"7. Supplier stock receive & serial numbers"| System
+    System -->|"8. Item availability, fitment results & shift receipts"| Staff
+
+    %% Supplier flows
+    Supplier -->|"9. Delivery invoice & physical motorparts"| Staff
+    Staff -->|"10. Receiving verification & PO reference"| System
+
+    %% Customer flows
+    Customer -->|"11. Part inquiries, motorcycle model & payment (Cash, GCash, Split)"| Staff
+    Staff -->|"12. Processed checkout & printed thermal receipt"| Customer
+```
 
 ---
 
-## 5. Component Design Standards
+### DFD Level 1: Process Decomposition Diagram
 
-### Tables
-- Compact padding (`py-2.5 px-3`) for maximum row density.
-- Sticky column headers with subtle border separator (`#334155`).
-- Alternating row zebra striping or subtle hover highlight (`#1E293B` to `#334155`).
-- Right-aligned monetary values and quantities for tabular readability.
+The Level 1 diagram breaks the system into its six core operational processes, detailing interactions with the data stores.
 
-### Modals & Dialogs
-- Centered backdrop overlay with blur (`bg-black/60 backdrop-blur-sm`).
-- Dismissible via backdrop click, `Esc` keyboard shortcut, or cancel button.
-- Form inputs default to autofocus on the primary field.
+```mermaid
+flowchart TD
+    %% Entities
+    Admin["Admin"]
+    Staff["Cashier / Staff"]
+    Customer["Customer"]
+    Supplier["Supplier"]
 
-### Badges & Status Indicators
-- Rounded-full pill tags (`px-2.5 py-0.5 text-xs font-semibold`).
-- `Split (Cash + GCash)`: Purple pill badge (`bg-purple-950 text-purple-300 border border-purple-700`).
-- `COMPATIBLE`: Green background (`bg-emerald-950 text-emerald-300 border border-emerald-700`).
-- `NOT_COMPATIBLE`: Red background (`bg-rose-950 text-rose-300 border border-rose-700`).
-- `CONDITIONAL`: Amber background (`bg-amber-950 text-amber-300 border border-amber-700`).
-- `Low Stock`: Crimson alert badge (`bg-red-500/20 text-red-400 border border-red-500/30`).
+    %% Data Stores
+    D1[("D1: Users & Auth OTPs")]
+    D2[("D2: Product & Fitment Catalog")]
+    D3[("D3: Suppliers & Receiving Records")]
+    D4[("D4: POS Sales & Serial Allocation")]
+    D5[("D5: Immutable Inventory Ledger")]
+
+    %% Process 1: Auth & OTP Recovery
+    subgraph P1 ["1.0 Authentication & Password Recovery"]
+        P1_1["1.1 Login & JWT Token Dispatch"]
+        P1_2["1.2 Email OTP Verification (Resend Gateway)"]
+        P1_3["1.3 Session Revocation (token_version)"]
+    end
+
+    Admin -->|"Username, Password, OTP"| P1_1
+    Staff -->|"Username, Password"| P1_1
+    P1_1 <-->|"Verify credentials & token_version"| D1
+    P1_2 <-->|"Validate 6-digit OTP hash & expiry"| D1
+    P1_3 -->|"Bump token_version on password reset"| D1
+
+    %% Process 2: Catalog & Fitment
+    subgraph P2 ["2.0 Product & Fitment Matrix Management"]
+        P2_1["2.1 Product Catalog CRUD"]
+        P2_2["2.2 Platform Group Compatibility (Admin)"]
+        P2_3["2.3 Fitment Search Engine (/profile?tab=fitment)"]
+    end
+
+    Admin -->|"Manage Products, Prices, Platforms"| P2_1
+    Admin -->|"Define Platform Groups & Rules"| P2_2
+    P2_1 <-->|"Read / Write Catalog"| D2
+    P2_2 <-->|"Link Groups & Models"| D2
+    Staff -->|"Search by Bike Brand / Model / Part #"| P2_3
+    P2_3 <-->|"Query Compatible Parts"| D2
+
+    %% Process 3: Stock Inflow
+    subgraph P3 ["3.0 Stock Receiving & Supplier Inflow"]
+        P3_1["3.1 Supplier & Receipt Verification"]
+        P3_2["3.2 Item Quantity & Cost Check"]
+        P3_3["3.3 Serial Number Enrollment"]
+    end
+
+    Supplier -->|"Delivery Slip & Parts"| Staff
+    Staff -->|"Input Supplier Receipt & Qty"| P3_1
+    P3_1 <-->|"Verify Supplier"| D3
+    P3_2 -->|"Store Inflow Records"| D3
+    P3_2 -->|"STOCK_IN movement"| D5
+    P3_2 -->|"Increment current_stock"| D2
+    P3_3 -->|"Register Serial Numbers"| D2
+
+    %% Process 4: Point of Sale
+    subgraph P4 ["4.0 Point of Sale & Checkout"]
+        P4_1["4.1 Cart Building & Stock Check"]
+        P4_2["4.2 Payment Modalities: Cash, GCash, Split"]
+        P4_3["4.3 Serial Number Assignment"]
+        P4_4["4.4 Receipt Generation & Cart Protection"]
+    end
+
+    Staff -->|"Scan / Select Items"| P4_1
+    P4_1 <-->|"Validate available stock"| D2
+    Customer -->|"Cash / GCash / Split Payment"| Staff
+    Staff -->|"Tender Payment & Order"| P4_2
+    P4_2 -->|"Insert Sale Record (cash_amount, gcash_amount)"| D4
+    P4_3 <-->|"Mark Serials as SOLD"| D2
+    P4_3 -->|"Link Serials to Sale Item"| D4
+    P4_2 -->|"SALE deduction movement"| D5
+    P4_2 -->|"Decrement current_stock"| D2
+    P4_4 -->|"Official Printed Thermal Receipt"| Customer
+    P4_4 -->|"Cancel / Esc returns to preserved Cart"| P4_1
+    P4_4 -->|"Void & Reopen restores stock via RETURN & repopulates Cart"| P4_1
+
+    %% Process 5: Immutable Ledger & Audit
+    subgraph P5 ["5.0 Immutable Ledger & Inventory Audit"]
+        P5_1["5.1 Transaction Logger"]
+        P5_2["5.2 Physical Count & Discrepancy Audit"]
+    end
+
+    D5 <-->|"Append-only movement entry"| P5_1
+    Admin -->|"Log Discrepancy Adjustment"| P5_2
+    P5_2 -->|"ADJUSTMENT_ADD / LOSS record"| D5
+    P5_2 -->|"Synchronize current_stock"| D2
+
+    %% Process 6: Reports & Analytics
+    subgraph P6 ["6.0 Reports & Business Analytics"]
+        P6_1["6.1 Sales & Revenue Reports"]
+        P6_2["6.2 Fast / Slow Moving Parts"]
+        P6_3["6.3 Cashier Sales Breakdown"]
+    end
+
+    D4 -->|"Sales Data"| P6_1
+    D5 -->|"Movement History"| P6_2
+    D4 -->|"User Sales Log"| P6_3
+    P6_1 -->|"Exportable Reports & Graphs"| Admin
+    P6_2 -->|"Restock Recommendations"| Admin
+    P6_3 -->|"Cashier Reconciliation"| Admin
+```
 
 ---
 
-## 6. Architecture Do's and Don'ts
+## 3. System Architecture Diagram
 
-### Do's
-- ✅ **DO** ensure every inventory change originates from an audited business transaction (`PURCHASE_RECEIPT`, `SALE`, or signed `ADJUSTMENT`).
-- ✅ **DO** display the Philippine Peso symbol (`₱`) with all monetary values.
-- ✅ **DO** support multi-tender split payments (Cash + GCash) with exact dual-amount recording.
-- ✅ **DO** preserve cart state when cashiers close the payment modal to retrieve forgotten items.
-- ✅ **DO** use monospace fonts for SKUs, part numbers, quantities, prices, and references.
-- ✅ **DO** send OTP emails over HTTPS REST (port 443) rather than blocking SMTP ports on cloud hosts.
+The system follows a modern **3-Tier Web Architecture** built for cloud-native deployment with strict HTTPS, zero-trust backend authorization, and managed database high availability.
 
-### Don'ts
-- ❌ **DON'T** allow direct manual edits to `products.stock` or `products.current_stock` via CRUD forms.
-- ❌ **DON'T** clear cart items prematurely before payment confirmation is fully processed.
-- ❌ **DON'T** use prefix route matching on parent paths like `/reports` when child routes `/reports/adjustments` exist.
-- ❌ **DON'T** store raw user passwords or credentials in SQL snapshot files or seed dumps.
-- ❌ **DON'T** write non-deterministic transaction numbers; use collision-proof database IDs or UUIDs.
+```mermaid
+flowchart TD
+    subgraph Presentation_Tier ["Tier 1: Presentation Layer (Vercel Edge CDN)"]
+        Browser["Staff / Admin Browser Client"]
+        VercelCDN["Vercel Global Edge Network\n(https://jlin-motorparts.vercel.app)"]
+        ReactApp["React 19 SPA (Vite Bundler)\n- React Router 7 Declarative Routing (with strict end match)\n- Modern CSS Glassmorphic UI & Dark/Light Theme\n- Lucide Icon System\n- Thermal Receipt Generator (Native 58mm/80mm Print Engine)\n- Real-time POS Cart with Split Payment Modal\n- Consolidated Account & Security Hub (/profile)"]
+    end
+
+    subgraph Application_Tier ["Tier 2: Application / API Layer (Render Cloud PaaS)"]
+        RenderService["Render Web Service\n(https://jlin-motorparts.onrender.com)"]
+        ExpressApp["Node.js 24 + Express 5 REST API\n- Helmet Security Headers (CSP & HSTS)\n- Strict CORS Origin Validation\n- Token Revocation (token_version Verification)\n- Express-Validator & Zod Payload Schemas\n- Rate Limiters (Auth, Password OTP, Public Endpoints)\n- Schema Auto-Migration Engine (ensureSchema.js)"]
+        AuthModule["Auth & Recovery Controller\n- Bcrypt 10-Round Password Hasher\n- Crypto 6-Digit OTP Generator\n- JWT Bearer Token Dispatcher"]
+        InventoryModule["Inventory & Movement Service\n- Atomic Transaction Manager\n- Canonical Product Sync\n- Reorder Level Evaluator"]
+        POSModule["POS Checkout & Sales Engine\n- Split Payment Engine (Cash + GCash)\n- GCash Reference Validator\n- Serial Allocation Guard\n- Sale Transaction Logger"]
+    end
+
+    subgraph External_Services ["External Communications Layer"]
+        ResendAPI["Resend Cloud Email API\n- Host: api.resend.com/emails:443 (HTTPS REST)\n- API Token Authentication\n- Bypasses Cloud Platform SMTP Egress Blocks\n- 6-Digit Security Codes & Recovery Emails"]
+    end
+
+    subgraph Data_Tier ["Tier 3: Persistence Layer (Aiven Cloud Database)"]
+        AivenDB["Aiven Cloud MySQL 8 Cluster\n- Host: mysql-*.aivencloud.com\n- Port: 3306\n- Database: defaultdb / jlin_inventory_db\n- TLS/SSL Enforced (aiven-ca.pem Root CA)"]
+        ConnectionPool["mysql2 Connection Pool\n- Promise-based Query Execution\n- Connection Re-use & Auto-reconnect\n- UTC / PHT (+08:00) Timezone Alignment"]
+        Triggers["Database Engine Triggers\n- trg_sync_products_insert / update\n- trg_block_inventory_transactions_update\n- trg_block_inventory_transactions_delete"]
+        StorageEngine["InnoDB Storage Engine\n- ACID Transaction Guarantees\n- Row-Level Locking (SELECT ... FOR UPDATE)\n- Cascade Integrity Constraints"]
+    end
+
+    %% Connections
+    Browser <-->|"HTTPS / TLS 1.3"| VercelCDN
+    VercelCDN <-->|"Delivers Optimized Static Chunks"| ReactApp
+    ReactApp <-->|"RESTful API Calls (JSON with JWT Bearer Token)"| RenderService
+    RenderService <-->|"Express Routing & Middleware"| ExpressApp
+
+    ExpressApp --> AuthModule
+    ExpressApp --> InventoryModule
+    ExpressApp --> POSModule
+
+    AuthModule <-->|"HTTPS POST /emails (Port 443)"| ResendAPI
+
+    ExpressApp <--> ConnectionPool
+    ConnectionPool <-->|"Encrypted MySQL Wire Protocol (SSL CA Validated)"| AivenDB
+    AivenDB --> Triggers
+    AivenDB --> StorageEngine
+```
+
+---
+
+## 4. Architectural Quality Attributes & Defense Readiness
+
+| Quality Attribute | Architectural Implementation | Verification Method |
+|---|---|---|
+| **Multi-Tender Flexibility** | Split Payment engine allows splitting bills across Cash and GCash with live balance tracking, change calculation, and database tracking of `cash_amount` and `gcash_amount`. | Verified on POS checkout with automated invariant testing: `cash + gcash >= total`. |
+| **Data Integrity** | Database-level triggers prevent ledger modification; `SELECT ... FOR UPDATE` row locking prevents concurrent double-spend of serial numbers. | Trigger rejection unit tests & concurrent checkout test scenarios. |
+| **Authentication & Access** | JWT authentication with dual-role RBAC (`admin` vs. `staff`). Immediate multi-device invalidation through `users.token_version`. Live password checklist enforces strong credentials. | Automated OTP test suite & password strength validation. |
+| **Email Resilience** | Outbound OTP emails use the Resend HTTPS REST API over port 443, eliminating SMTP timeout blocks (`ETIMEDOUT`) enforced by cloud hosting firewalls. | Live delivery verification to Gmail in 1.2s. |
+| **Fault Tolerance & Zero Downtime** | Auto-migration scripts ([`backend/utils/ensureSchema.js`](file:///c:/Inventory/backend/utils/ensureSchema.js) & schema patches) add missing tables and columns on server boot without manual SQL execution. | Automated deployment boot verification. |
+| **Navigation & Ergonomics** | Strict `end` route matching on sidebar navigation prevents multi-link active states (e.g. Sales Reports vs Discrepancy Audit). Fitment Search and Compatibility Rules consolidated into Account & Security (`/profile`). | UI visual audit on Desktop & Mobile viewports. |
+| **Cart Preservation** | POS payment modal supports closing via `Esc` key, background backdrop click, or "← Back to Cart" button without losing cart items when customers add forgotten products. | Interactive modal state lifecycle verification. |

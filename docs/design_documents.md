@@ -189,6 +189,9 @@ erDiagram
         varchar payment_reference UK
         varchar payment_provider
         varchar payment_status
+        varchar status "COMPLETED, VOIDED"
+        datetime voided_at
+        text void_reason
         timestamp sale_date
     }
 
@@ -377,6 +380,7 @@ flowchart TD
     P4_2 -->|"Decrement current_stock"| D2
     P4_4 -->|"Official Printed Thermal Receipt"| Customer
     P4_4 -->|"Cancel / Esc returns to preserved Cart"| P4_1
+    P4_4 -->|"Void & Reopen restores stock via RETURN & repopulates Cart"| P4_1
 
     %% Process 5: Immutable Ledger & Audit
     subgraph P5 ["5.0 Immutable Ledger & Inventory Audit"]
