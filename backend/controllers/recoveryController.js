@@ -229,44 +229,19 @@ exports.resetPassword = async (req, res, next) => {
 
 exports.testSmtp = async (req, res) => {
   try {
-    const nodemailer = require('nodemailer');
     const to = req.query.to || req.body?.to || 'icovincent@gmail.com';
-    const testPort = Number(req.query.port || process.env.SMTP_PORT || 587);
-    const testSecure = req.query.secure === 'true' || testPort === 465;
-
-    const testTransporter = nodemailer.createTransport({
-      host: req.query.host || process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: testPort,
-      secure: testSecure,
-      family: 4,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-      connectionTimeout: 8000,
-      tls: { rejectUnauthorized: false }
-    });
-
-    const info = await testTransporter.sendMail({
-      from: `"JLIN Motorparts" <${process.env.SMTP_USER}>`,
-      to,
-      subject: `Test from Render Port ${testPort}`,
-      text: `Testing port ${testPort} with secure=${testSecure}`
-    });
-
+    const info = await sendOtpEmail(to, '123999', 'test live email delivery via Resend');
     return res.json({
       success: true,
-      port: testPort,
-      secure: testSecure,
-      messageId: info.messageId,
-      accepted: info.accepted
+      message: 'Email delivered successfully via Resend HTTPS API!',
+      to,
+      info
     });
   } catch (err) {
     return res.status(500).json({
       success: false,
       error: err.message,
-      code: err.code,
-      command: err.command
+      code: err.code
     });
   }
 };
