@@ -1,16 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { Banknote, Smartphone, AlertCircle, X, Printer, CheckCircle, Split, ArrowLeft } from 'lucide-react';
+import { Banknote, Smartphone, AlertCircle, X, CheckCircle, Split, ArrowLeft } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 import { calculatePaymentDetails, roundCurrency } from '../utils/calculations';
 
 /**
- * CheckoutModal Component
+ * Sanitize numeric inputs: disallows negative signs, allows digits and single decimal.
+ */
+const sanitizeNumeric = (val) => {
+  if (val === null || val === undefined) return '';
+  let str = String(val).replace(/[^0-9.]/g, '');
+  const parts = str.split('.');
+  if (parts.length > 2) {
+    str = parts[0] + '.' + parts.slice(1).join('');
+  }
+  return str;
+};
+
+/**
+ * CheckoutModal Component (Ultra-Compact POS Edition)
  * 
- * Payment selector toggle (Cash / GCash / Split).
- * - Cash: validate amountPaid >= totalAmount; auto-calculate change.
+ * - Payment selector toggle: Cash / GCash / Split (Cash + GCash).
+ * - Cash: validate amountPaid >= totalAmount; auto-calculate change; quick cash presets.
  * - GCash: lock tendered to exact total; lock change to ₱0.00; mandatory reference >= 6 chars.
- * - Split: customer pays part in Cash and remaining in GCash.
- * - On success: triggers window.print() or callback for thermal receipt.
+ * - Split: 2-way auto-balancing between Cash and GCash; cash tendered change calculation; strictly non-negative.
+ * - Preserves cart on exit via Escape, backdrop click, or 'Back to Cart' button.
+ * - Ultra-compact layout: fits on all screens without scrolling.
  */
 export const CheckoutModal = ({
   isOpen,
@@ -34,6 +48,9 @@ export const CheckoutModal = ({
   const [splitCashTendered, setSplitCashTendered] = useState('');
   const [splitGcashRef, setSplitGcashRef] = useState('');
 
+  // Optional customer details collapsible state
+  const [showCustomer, setShowCustomer] = useState(Boolean(customerName || customerAddress));
+
   // Reset fields whenever modal opens & bind Escape key to close
   useEffect(() => {
     if (isOpen) {
@@ -44,6 +61,7 @@ export const CheckoutModal = ({
       setSplitCashTendered('');
       setSplitGcashRef('');
       setPaymentMethod('Cash');
+      setShowCustomer(Boolean(customerName || customerAddress));
 
       const handleKeyDown = (e) => {
         if (e.key === 'Escape' && !loading) {
@@ -65,11 +83,45 @@ export const CheckoutModal = ({
   const paymentDetails = calculatePaymentDetails(totalAmount, tenderedNumeric, paymentMethod);
 
   // Split calculations
-  const numSplitCash = parseFloat(splitCash) || 0;
-  const numSplitGcash = parseFloat(splitGcash) || 0;
-  const numSplitCashTendered = splitCashTendered !== '' ? (parseFloat(splitCashTendered) || 0) : numSplitCash;
+  const numSplitCash = Math.max(0, parseFloat(splitCash) || 0);
+  const numSplitGcash = Math.max(0, parseFloat(splitGcash) || 0);
+  const numSplitCashTendered = splitCashTendered !== '' ? Math.max(0, parseFloat(splitCashTendered) || 0) : numSplitCash;
   const splitChangeDue = Math.max(0, roundCurrency(numSplitCashTendered - numSplitCash));
-  const splitRemainingToCover = roundCurrency(totalAmount - (numSplitCash + numSplitGcash));
+  const splitCovered = roundCurrency(numSplitCash + numSplitGcash);
+
+  // Split auto-balancing handlers
+  const handleSelectSplit = () => {
+    setPaymentMethod('Split');
+    if (!splitCash && !splitGcash) {
+      const half = roundCurrency(totalAmount / 2);
+      setSplitCash(String(half));
+      setSplitGcash(String(roundCurrency(totalAmount - half)));
+    }
+  };
+
+  const handleSplitCashChange = (raw) => {
+    const clean = sanitizeNumeric(raw);
+    setSplitCash(clean);
+    if (clean === '') {
+      setSplitGcash(String(roundCurrency(totalAmount)));
+      return;
+    }
+    const num = parseFloat(clean) || 0;
+    const remaining = Math.max(0, roundCurrency(totalAmount - num));
+    setSplitGcash(String(remaining));
+  };
+
+  const handleSplitGcashChange = (raw) => {
+    const clean = sanitizeNumeric(raw);
+    setSplitGcash(clean);
+    if (clean === '') {
+      setSplitCash(String(roundCurrency(totalAmount)));
+      return;
+    }
+    const num = parseFloat(clean) || 0;
+    const remaining = Math.max(0, roundCurrency(totalAmount - num));
+    setSplitCash(String(remaining));
+  };
 
   // Validation rules
   const isCashValid = isCash && cashTendered !== '' && roundCurrency(tenderedNumeric) >= roundCurrency(totalAmount);
@@ -77,7 +129,7 @@ export const CheckoutModal = ({
   const isSplitValid = isSplit &&
     numSplitCash > 0 &&
     numSplitGcash > 0 &&
-    roundCurrency(numSplitCash + numSplitGcash) >= roundCurrency(totalAmount) &&
+    splitCovered >= roundCurrency(totalAmount) &&
     numSplitCashTendered >= numSplitCash &&
     splitGcashRef.trim().length >= 6;
 
@@ -151,7 +203,7 @@ export const CheckoutModal = ({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '16px',
+        padding: '12px',
         overflowY: 'auto'
       }}
     >
@@ -170,11 +222,11 @@ export const CheckoutModal = ({
         onClick={(e) => e.stopPropagation()}
         style={{
           background: 'var(--surface)',
-          width: '460px',
-          maxWidth: '100%',
-          maxHeight: 'min(92vh, 680px)',
+          width: '450px',
+          maxWidth: '96vw',
+          maxHeight: 'min(92vh, 560px)',
           borderRadius: '12px',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
+          boxShadow: '0 12px 36px rgba(0,0,0,0.4)',
           border: '1px solid var(--border)',
           display: 'flex',
           flexDirection: 'column',
@@ -182,20 +234,21 @@ export const CheckoutModal = ({
           margin: 'auto'
         }}
       >
-        {/* Modal Header */}
+        {/* Compact Modal Header */}
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: '16px 20px',
+          padding: '12px 18px',
           borderBottom: '1px solid var(--border)',
+          background: 'var(--surface-hover)',
           flexShrink: 0
         }}>
           <div>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: 0, color: 'var(--text-main)' }}>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: 0, color: 'var(--text-main)' }}>
               Complete Payment
             </h2>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+            <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '1px 0 0 0' }}>
               Select payment method and verify amount
             </p>
           </div>
@@ -215,7 +268,7 @@ export const CheckoutModal = ({
               borderRadius: '6px'
             }}
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
@@ -226,404 +279,422 @@ export const CheckoutModal = ({
           minHeight: 0,
           overflow: 'hidden'
         }}>
-          {/* Scrollable Form Body */}
+          {/* Compact Scrollable Form Body */}
           <div style={{
             flex: 1,
             overflowY: 'auto',
-            padding: '16px 20px',
+            padding: '12px 18px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '14px'
+            gap: '10px'
           }}>
-          {/* Total Display */}
-          <div style={{
-            background: 'var(--surface-hover)',
-            padding: '14px 16px',
-            borderRadius: '8px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            border: '1px solid var(--border)'
-          }}>
-            <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Payable Amount:</span>
-            <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--primary)' }}>
-              {formatCurrency(totalAmount)}
-            </span>
-          </div>
-
-          {/* Payment Method Selector */}
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>
-              Payment Method
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.3fr', gap: '8px' }}>
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('Cash')}
-                style={{
-                  padding: '10px 8px',
-                  borderRadius: '8px',
-                  border: isCash ? '2px solid var(--primary)' : '1px solid var(--border)',
-                  background: isCash ? 'rgba(5, 150, 105, 0.12)' : 'var(--input-bg)',
-                  color: isCash ? 'var(--primary)' : 'var(--text-main)',
-                  fontWeight: '600',
-                  fontSize: '0.82rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  cursor: 'pointer'
-                }}
-              >
-                <Banknote size={16} /> Cash
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('GCash')}
-                style={{
-                  padding: '10px 8px',
-                  borderRadius: '8px',
-                  border: isGcash ? '2px solid #0284c7' : '1px solid var(--border)',
-                  background: isGcash ? 'rgba(2, 132, 199, 0.12)' : 'var(--input-bg)',
-                  color: isGcash ? '#0284c7' : 'var(--text-main)',
-                  fontWeight: '600',
-                  fontSize: '0.82rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  cursor: 'pointer'
-                }}
-              >
-                <Smartphone size={16} /> GCash
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setPaymentMethod('Split');
-                  if (!splitCash && !splitGcash) {
-                    const half = roundCurrency(totalAmount / 2);
-                    setSplitCash(String(half));
-                    setSplitGcash(String(roundCurrency(totalAmount - half)));
-                  }
-                }}
-                style={{
-                  padding: '10px 8px',
-                  borderRadius: '8px',
-                  border: isSplit ? '2px solid #a855f7' : '1px solid var(--border)',
-                  background: isSplit ? 'rgba(168, 85, 247, 0.15)' : 'var(--input-bg)',
-                  color: isSplit ? '#c084fc' : 'var(--text-main)',
-                  fontWeight: '600',
-                  fontSize: '0.82rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  cursor: 'pointer'
-                }}
-              >
-                <Split size={16} /> Split (Cash + GCash)
-              </button>
+            {/* Compact Payable Amount Banner */}
+            <div style={{
+              background: 'rgba(5, 150, 105, 0.08)',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              border: '1px solid rgba(5, 150, 105, 0.25)'
+            }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total Payable:</span>
+              <span style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--primary)' }}>
+                {formatCurrency(totalAmount)}
+              </span>
             </div>
-          </div>
 
-          {/* Conditional Method Inputs */}
-          {isSplit ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{
-                background: 'rgba(168, 85, 247, 0.08)',
-                border: '1px solid rgba(168, 85, 247, 0.25)',
-                borderRadius: '8px',
-                padding: '8px 12px',
-                fontSize: '0.78rem',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
-                <span style={{ color: 'var(--text-muted)' }}>Split Breakdown:</span>
-                <span style={{ fontWeight: 600, color: '#c084fc' }}>
-                  Cash: {formatCurrency(numSplitCash)} + GCash: {formatCurrency(numSplitGcash)}
-                </span>
+            {/* Compact Payment Method Selector */}
+            <div>
+              <label style={{ fontSize: '0.7rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>
+                Payment Method
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.35fr', gap: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('Cash')}
+                  style={{
+                    padding: '7px 6px',
+                    borderRadius: '6px',
+                    border: isCash ? '2px solid var(--primary)' : '1px solid var(--border)',
+                    background: isCash ? 'rgba(5, 150, 105, 0.12)' : 'var(--input-bg)',
+                    color: isCash ? 'var(--primary)' : 'var(--text-main)',
+                    fontWeight: '600',
+                    fontSize: '0.78rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '5px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Banknote size={15} /> Cash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('GCash')}
+                  style={{
+                    padding: '7px 6px',
+                    borderRadius: '6px',
+                    border: isGcash ? '2px solid #0284c7' : '1px solid var(--border)',
+                    background: isGcash ? 'rgba(2, 132, 199, 0.12)' : 'var(--input-bg)',
+                    color: isGcash ? '#0284c7' : 'var(--text-main)',
+                    fontWeight: '600',
+                    fontSize: '0.78rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '5px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Smartphone size={15} /> GCash
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSelectSplit}
+                  style={{
+                    padding: '7px 6px',
+                    borderRadius: '6px',
+                    border: isSplit ? '2px solid #a855f7' : '1px solid var(--border)',
+                    background: isSplit ? 'rgba(168, 85, 247, 0.15)' : 'var(--input-bg)',
+                    color: isSplit ? '#c084fc' : 'var(--text-main)',
+                    fontWeight: '600',
+                    fontSize: '0.78rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '5px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Split size={15} /> Split (Cash+GCash)
+                </button>
               </div>
+            </div>
 
-              {/* Cash Portion and Cash Tendered */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                    1. Cash Amount (₱) *
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    placeholder="Cash part"
-                    className="input-premium cash-input-no-spin"
-                    value={splitCash}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setSplitCash(val);
-                      const num = parseFloat(val) || 0;
-                      if (num >= 0 && num <= totalAmount) {
-                        setSplitGcash(String(roundCurrency(totalAmount - num)));
-                      }
-                    }}
-                    required
-                  />
+            {/* Conditional Method Inputs */}
+            {isSplit ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {/* Row 1: Split amounts side-by-side */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
+                      1. Cash Amount (₱) *
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder="Cash part"
+                      className="input-premium cash-input-no-spin"
+                      style={{ height: '36px', fontSize: '0.85rem' }}
+                      value={splitCash}
+                      onChange={(e) => handleSplitCashChange(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
+                      2. GCash Portion (₱) *
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder="GCash part"
+                      className="input-premium cash-input-no-spin"
+                      style={{ height: '36px', fontSize: '0.85rem' }}
+                      value={splitGcash}
+                      onChange={(e) => handleSplitGcashChange(e.target.value)}
+                      required
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                    Cash Received (₱)
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    placeholder={splitCash ? `Min ₱${splitCash}` : 'Tendered'}
-                    className="input-premium cash-input-no-spin"
-                    value={splitCashTendered}
-                    onChange={(e) => setSplitCashTendered(e.target.value)}
-                  />
+
+                {/* Row 2: Cash Tendered & GCash Ref side-by-side */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
+                      Cash Received (₱)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder={splitCash ? `Min ₱${splitCash}` : 'Exact'}
+                      className="input-premium cash-input-no-spin"
+                      style={{ height: '36px', fontSize: '0.85rem' }}
+                      value={splitCashTendered}
+                      onChange={(e) => setSplitCashTendered(sanitizeNumeric(e.target.value))}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
+                      GCash Ref Code *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Min 6 chars"
+                      className="input-premium"
+                      style={{ height: '36px', fontSize: '0.85rem' }}
+                      value={splitGcashRef}
+                      onChange={(e) => setSplitGcashRef(e.target.value)}
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
 
-              {/* GCash Portion */}
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                  2. GCash Portion (₱) *
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  placeholder="GCash part"
-                  className="input-premium cash-input-no-spin"
-                  value={splitGcash}
-                  onChange={(e) => setSplitGcash(e.target.value)}
-                  required
-                />
-              </div>
+                {/* Row 3: Status Summary bar */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  background: splitChangeDue > 0 ? 'rgba(16, 185, 129, 0.12)' : 'var(--surface-hover)',
+                  border: splitChangeDue > 0 ? '1px solid var(--primary)' : '1px solid var(--border)',
+                  fontSize: '0.8rem'
+                }}>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>Cash Change: </span>
+                    <span style={{ fontWeight: 'bold', color: splitChangeDue > 0 ? 'var(--primary)' : 'var(--text-main)' }}>
+                      {formatCurrency(splitChangeDue)}
+                    </span>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>Covered: </span>
+                    <span style={{
+                      fontWeight: 'bold',
+                      color: splitCovered >= totalAmount ? 'var(--primary)' : 'var(--danger)'
+                    }}>
+                      {formatCurrency(splitCovered)} / {formatCurrency(totalAmount)}
+                      {splitCovered >= totalAmount ? ' ✓' : ''}
+                    </span>
+                  </div>
+                </div>
 
-              {/* GCash Reference Code */}
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                  GCash Reference Code (Min. 6 chars) *
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 1029384756"
-                  className="input-premium"
-                  value={splitGcashRef}
-                  onChange={(e) => setSplitGcashRef(e.target.value)}
-                  required
-                />
+                {/* Validation Warnings */}
                 {splitGcashRef.length > 0 && splitGcashRef.trim().length < 6 && (
-                  <div style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <AlertCircle size={14} /> Reference number must be at least 6 characters
+                  <div style={{ fontSize: '0.7rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <AlertCircle size={12} /> Reference number must be at least 6 characters
+                  </div>
+                )}
+                {numSplitCash > 0 && numSplitGcash > 0 && splitCovered < totalAmount && (
+                  <div style={{ fontSize: '0.7rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <AlertCircle size={12} /> Shortfall of {formatCurrency(totalAmount - splitCovered)} still needed!
+                  </div>
+                )}
+                {splitCashTendered !== '' && numSplitCashTendered < numSplitCash && (
+                  <div style={{ fontSize: '0.7rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <AlertCircle size={12} /> Cash received ({formatCurrency(numSplitCashTendered)}) is less than cash amount ({formatCurrency(numSplitCash)})!
                   </div>
                 )}
               </div>
-
-              {/* Split Summary / Change Due */}
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '10px 14px',
-                borderRadius: '8px',
-                background: splitChangeDue > 0 ? 'rgba(16, 185, 129, 0.15)' : 'var(--surface-hover)',
-                border: splitChangeDue > 0 ? '1.5px solid var(--primary)' : '1px solid var(--border)',
-                fontSize: '0.85rem'
-              }}>
+            ) : isCash ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div>
-                  <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Cash Change:</span>
-                  <span style={{ fontWeight: 'bold', fontSize: '1.1rem', color: splitChangeDue > 0 ? 'var(--primary)' : 'var(--text-main)' }}>
-                    {formatCurrency(splitChangeDue)}
-                  </span>
+                  <label style={{ fontSize: '0.7rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
+                    Amount Tendered (₱) *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="Enter cash received"
+                    className="input-premium cash-input-no-spin"
+                    style={{ height: '38px', fontSize: '1rem', fontWeight: '600' }}
+                    value={cashTendered}
+                    onChange={(e) => setCashTendered(sanitizeNumeric(e.target.value))}
+                    onKeyDown={handleCashKeyDown}
+                    autoFocus
+                    required
+                  />
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Covered vs Total:</span>
-                  <span style={{ fontWeight: 'bold', color: roundCurrency(numSplitCash + numSplitGcash) >= totalAmount ? 'var(--primary)' : 'var(--danger)' }}>
-                    {formatCurrency(numSplitCash + numSplitGcash)} / {formatCurrency(totalAmount)}
-                  </span>
-                </div>
-              </div>
 
-              {numSplitCash > 0 && numSplitGcash > 0 && roundCurrency(numSplitCash + numSplitGcash) < totalAmount && (
-                <div style={{ fontSize: '0.75rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <AlertCircle size={14} /> Shortfall of {formatCurrency(totalAmount - (numSplitCash + numSplitGcash))} still needed to cover full total!
-                </div>
-              )}
-            </div>
-          ) : isCash ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                  Amount Tendered (₱)
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  placeholder="Enter cash received"
-                  className="input-premium cash-input-no-spin"
-                  value={cashTendered}
-                  onChange={(e) => setCashTendered(e.target.value)}
-                  onKeyDown={handleCashKeyDown}
-                  autoFocus
-                  required
-                />
-
-                {/* Quick Cash Presets & Quick Add */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Set:</span>
+                {/* Compact Quick Cash Presets */}
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => setCashTendered(String(totalAmount))}
+                    className="btn-secondary"
+                    style={{ padding: '3px 8px', fontSize: '0.75rem', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                    Exact ({formatCurrency(totalAmount)})
+                  </button>
+                  {[50, 100, 200, 500, 1000].filter(amt => amt >= totalAmount).map(amt => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setCashTendered(String(amt))}
+                      className="btn-secondary"
+                      style={{ padding: '3px 8px', fontSize: '0.75rem', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      ₱{amt}
+                    </button>
+                  ))}
+                  {[20, 50, 100, 500].map(addAmt => (
+                    <button
+                      key={addAmt}
+                      type="button"
+                      onClick={() => handleAddCash(addAmt)}
+                      className="btn-secondary"
+                      style={{ padding: '3px 8px', fontSize: '0.75rem', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      +₱{addAmt}
+                    </button>
+                  ))}
+                  {cashTendered !== '' && (
                     <button
                       type="button"
-                      onClick={() => setCashTendered(String(totalAmount))}
-                      className="btn-secondary"
-                      style={{ padding: '6px 12px', minHeight: '34px', fontSize: '0.8rem', borderRadius: '6px', cursor: 'pointer' }}
+                      onClick={() => setCashTendered('')}
+                      style={{ padding: '3px 8px', fontSize: '0.75rem', borderRadius: '4px', cursor: 'pointer', background: 'none', border: '1px solid var(--border)', color: 'var(--danger)' }}
                     >
-                      Exact ({formatCurrency(totalAmount)})
+                      Clear
                     </button>
-                    {[50, 100, 200, 500, 1000].filter(amt => amt >= totalAmount).map(amt => (
-                      <button
-                        key={amt}
-                        type="button"
-                        onClick={() => setCashTendered(String(amt))}
-                        className="btn-secondary"
-                        style={{ padding: '6px 12px', minHeight: '34px', fontSize: '0.8rem', borderRadius: '6px', cursor: 'pointer' }}
-                      >
-                        ₱{amt}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Add:</span>
-                    {[20, 50, 100, 500, 1000].map(addAmt => (
-                      <button
-                        key={addAmt}
-                        type="button"
-                        onClick={() => handleAddCash(addAmt)}
-                        className="btn-secondary"
-                        style={{ padding: '6px 12px', minHeight: '34px', fontSize: '0.8rem', borderRadius: '6px', cursor: 'pointer' }}
-                      >
-                        +₱{addAmt}
-                      </button>
-                    ))}
-                    {cashTendered !== '' && (
-                      <button
-                        type="button"
-                        onClick={() => setCashTendered('')}
-                        style={{ padding: '6px 12px', minHeight: '34px', fontSize: '0.8rem', borderRadius: '6px', cursor: 'pointer', background: 'none', border: '1px solid var(--border)', color: 'var(--danger)' }}
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
+                  )}
                 </div>
-              </div>
 
-              {/* Change calculation */}
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '12px 14px',
-                borderRadius: '8px',
-                background: isCashValid && paymentDetails.changeDue > 0 ? 'rgba(16, 185, 129, 0.15)' : 'var(--surface-hover)',
-                border: isCashValid && paymentDetails.changeDue > 0 ? '1.5px solid var(--primary)' : '1px solid var(--border)',
-                fontSize: '0.95rem'
-              }}>
-                <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Change Due:</span>
-                <span style={{
-                  fontWeight: 'bold',
-                  fontSize: '1.25rem',
-                  color: isCashValid ? 'var(--primary)' : 'var(--text-muted)'
+                {/* Change calculation */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  background: isCashValid && paymentDetails.changeDue > 0 ? 'rgba(16, 185, 129, 0.12)' : 'var(--surface-hover)',
+                  border: isCashValid && paymentDetails.changeDue > 0 ? '1px solid var(--primary)' : '1px solid var(--border)',
+                  fontSize: '0.85rem'
                 }}>
-                  {formatCurrency(paymentDetails.changeDue)}
-                </span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Change Due:</span>
+                  <span style={{
+                    fontWeight: 'bold',
+                    fontSize: '1.15rem',
+                    color: isCashValid ? 'var(--primary)' : 'var(--text-muted)'
+                  }}>
+                    {formatCurrency(paymentDetails.changeDue)}
+                  </span>
+                </div>
+                {cashTendered !== '' && !isCashValid && (
+                  <div style={{ fontSize: '0.7rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <AlertCircle size={12} /> Amount tendered must be at least {formatCurrency(totalAmount)}
+                  </div>
+                )}
               </div>
-              {cashTendered !== '' && !isCashValid && (
-                <div style={{ fontSize: '0.75rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <AlertCircle size={14} /> Amount tendered must be at least {formatCurrency(totalAmount)}
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div>
+                  <label style={{ fontSize: '0.7rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
+                    Amount Tendered (Locked to Total)
+                  </label>
+                  <input
+                    type="text"
+                    className="input-premium"
+                    style={{ height: '36px', fontSize: '0.85rem' }}
+                    value={formatCurrency(totalAmount)}
+                    disabled
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.7rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
+                    GCash Reference Code (Min. 6 chars) *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 1029384756"
+                    className="input-premium"
+                    style={{ height: '36px', fontSize: '0.85rem' }}
+                    value={gcashRef}
+                    onChange={(e) => setGcashRef(e.target.value)}
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  background: 'var(--surface-hover)',
+                  border: '1px solid var(--border)',
+                  fontSize: '0.8rem'
+                }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Change Due:</span>
+                  <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>₱0.00</span>
+                </div>
+
+                {gcashRef.length > 0 && gcashRef.trim().length < 6 && (
+                  <div style={{ fontSize: '0.7rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <AlertCircle size={12} /> Reference number must be at least 6 characters
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Customer Optional Fields - Collapsible */}
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '6px' }}>
+              {!showCustomer && !customerName && !customerAddress ? (
+                <button
+                  type="button"
+                  onClick={() => setShowCustomer(true)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    fontSize: '0.72rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '2px 0'
+                  }}
+                >
+                  + Add Customer Details (Optional)
+                </button>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                      Customer Details (Optional)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowCustomer(false)}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.7rem', cursor: 'pointer' }}
+                    >
+                      Hide
+                    </button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                    <input
+                      type="text"
+                      placeholder="Customer Name"
+                      className="input-premium"
+                      style={{ height: '34px', fontSize: '0.8rem' }}
+                      value={customerName}
+                      onChange={(e) => onCustomerNameChange && onCustomerNameChange(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Address / Contact"
+                      className="input-premium"
+                      style={{ height: '34px', fontSize: '0.8rem' }}
+                      value={customerAddress}
+                      onChange={(e) => onCustomerAddressChange && onCustomerAddressChange(e.target.value)}
+                    />
+                  </div>
                 </div>
               )}
             </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                  Amount Tendered (Locked to Total)
-                </label>
-                <input
-                  type="text"
-                  className="input-premium"
-                  value={formatCurrency(totalAmount)}
-                  disabled
-                  style={{ opacity: 0.8 }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                  GCash Reference Code (Min. 6 chars) *
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 1029384756"
-                  className="input-premium"
-                  value={gcashRef}
-                  onChange={(e) => setGcashRef(e.target.value)}
-                  autoFocus
-                  required
-                />
-              </div>
-
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                padding: '8px 12px',
-                borderRadius: '6px',
-                background: 'var(--surface-hover)',
-                border: '1px solid var(--border)',
-                fontSize: '0.85rem'
-              }}>
-                <span style={{ color: 'var(--text-muted)' }}>Change Due:</span>
-                <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>₱0.00</span>
-              </div>
-
-              {gcashRef.length > 0 && gcashRef.trim().length < 6 && (
-                <div style={{ fontSize: '0.75rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <AlertCircle size={14} /> Reference number must be at least 6 characters
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Customer Optional Fields */}
-          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Customer Details (Optional)
-            </span>
-            <input
-              type="text"
-              placeholder="Customer Name"
-              className="input-premium"
-              value={customerName}
-              onChange={(e) => onCustomerNameChange && onCustomerNameChange(e.target.value)}
-            />
-            <input
-              type="text"
-              placeholder="Customer Address / Contact"
-              className="input-premium"
-              value={customerAddress}
-              onChange={(e) => onCustomerAddressChange && onCustomerAddressChange(e.target.value)}
-            />
-          </div>
           </div>
 
-          {/* Sticky Actions Footer */}
+          {/* Compact Sticky Actions Footer */}
           <div style={{
             display: 'flex',
-            gap: '10px',
-            padding: '14px 20px',
+            gap: '8px',
+            padding: '10px 18px',
             borderTop: '1px solid var(--border)',
             background: 'var(--surface)',
             flexShrink: 0
@@ -631,22 +702,22 @@ export const CheckoutModal = ({
             <button
               type="button"
               className="btn-secondary"
-              style={{ flex: 1, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+              style={{ flex: 1, padding: '8px 12px', fontSize: '0.82rem', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
               onClick={handleClose}
               disabled={loading}
               title="Return to cart to add or edit items"
             >
-              <ArrowLeft size={16} /> Back to Cart
+              <ArrowLeft size={15} /> Back to Cart
             </button>
             <button
               type="submit"
               className="btn-primary"
-              style={{ flex: 1.4, padding: '10px 14px' }}
+              style={{ flex: 1.4, padding: '8px 12px', fontSize: '0.82rem', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
               disabled={!canSubmit}
             >
               {loading ? 'Processing...' : (
                 <>
-                  <CheckCircle size={16} /> Confirm & Pay
+                  <CheckCircle size={15} /> Confirm & Pay
                 </>
               )}
             </button>
