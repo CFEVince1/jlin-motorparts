@@ -12,7 +12,13 @@ export default function RecoveryEmailCard() {
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const load = () => api.get('/staff/email').then((r) => setStatus(r.data));
+  const load = () =>
+    api.get('/staff/email').then((r) => {
+      setStatus(r.data);
+      if (r.data?.email) {
+        setEmail(r.data.email);
+      }
+    });
   useEffect(() => { load().catch(() => {}); }, []);
 
   const requestCode = async (e) => {
@@ -103,6 +109,9 @@ export default function RecoveryEmailCard() {
               required
               disabled={loading}
             />
+            <p style={{ margin: '4px 0 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+              {status.email ? '💡 To change your recovery email to a different address, simply replace the email above.' : 'Enter your email address to receive password reset codes.'}
+            </p>
           </div>
 
           <div>
