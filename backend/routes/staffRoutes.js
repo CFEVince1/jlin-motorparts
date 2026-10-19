@@ -14,5 +14,6 @@ router.patch('/profile', authenticateToken, staffController.updateProfile);
 router.get('/email', authenticateToken, adminOnly, recoveryController.getEmailStatus);
 router.post('/email/request', authenticateToken, adminOnly, recoveryController.requestEmailVerification);
 router.post('/email/confirm', authenticateToken, adminOnly, recoveryController.confirmEmailVerification);
+router.get('/email/test-smtp', authenticateToken, adminOnly, recoveryController.testSmtp);
 
 module.exports = router;

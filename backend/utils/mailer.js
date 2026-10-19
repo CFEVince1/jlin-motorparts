@@ -47,7 +47,7 @@ async function sendOtpEmail(to, code, purposeText) {
     </div>
   `;
 
-  await transporter.sendMail({
+  return await transporter.sendMail({
     from: sender,
     to,
     subject: `${code} is your JLIN Motorparts verification code`,

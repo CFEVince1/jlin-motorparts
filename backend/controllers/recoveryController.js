@@ -226,3 +226,25 @@ exports.resetPassword = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.testSmtp = async (req, res) => {
+  try {
+    const to = req.query.to || req.body?.to || 'icovincent@gmail.com';
+    const info = await sendOtpEmail(to, '888999', 'test SMTP connection from Render');
+    return res.json({
+      success: true,
+      message: 'Email delivered to SMTP transport!',
+      to,
+      messageId: info.messageId,
+      response: info.response,
+      accepted: info.accepted
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      error: err.message,
+      code: err.code,
+      command: err.command
+    });
+  }
+};
