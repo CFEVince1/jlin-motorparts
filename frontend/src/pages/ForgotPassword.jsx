@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
-import { KeyRound, ArrowLeft, Mail, ShieldAlert, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { KeyRound, ArrowLeft, Mail, ShieldAlert, CheckCircle2, Eye, EyeOff, Check, X } from 'lucide-react';
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
@@ -33,9 +33,23 @@ export default function ForgotPassword() {
   const reset = async (e) => {
     e.preventDefault();
     setError('');
-    if (form.newPassword !== form.confirm) {
-      return setError('Passwords do not match.');
+
+    if (!form.otp || form.otp.trim().length !== 6) {
+      return setError('Please enter the 6-digit verification code.');
     }
+
+    if (form.newPassword.length < 8) {
+      return setError('Password must be at least 8 characters.');
+    }
+
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).*$/.test(form.newPassword)) {
+      return setError('Password must contain uppercase, lowercase, number & special character.');
+    }
+
+    if (form.newPassword !== form.confirm) {
+      return setError('New password and confirmation do not match.');
+    }
+
     setBusy(true);
     try {
       await api.post('/auth/reset-password', {
@@ -225,7 +239,8 @@ export default function ForgotPassword() {
                       padding: '4px',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center'
+                      justifyContent: 'center',
+                      zIndex: 2
                     }}
                     title={showOtp ? 'Hide code' : 'Show code'}
                   >
@@ -267,13 +282,37 @@ export default function ForgotPassword() {
                       padding: '4px',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center'
+                      justifyContent: 'center',
+                      zIndex: 2
                     }}
                     title={showNewPassword ? 'Hide password' : 'Show password'}
                   >
                     {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+
+                {form.newPassword.length > 0 && (
+                  <div style={{ 
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: '6px', 
+                    marginTop: '6px', 
+                    fontSize: '0.75rem',
+                    textAlign: 'left'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: form.newPassword.length >= 8 ? 'var(--success)' : 'var(--text-muted)' }}>
+                      {form.newPassword.length >= 8 ? <Check size={14} /> : <X size={14} />} 8+ characters
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).*$/.test(form.newPassword) ? 'var(--success)' : 'var(--text-muted)' }}>
+                      {/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).*$/.test(form.newPassword) ? <Check size={14} /> : <X size={14} />} Uppercase, lowercase, number & special char
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -285,7 +324,11 @@ export default function ForgotPassword() {
                     type={showConfirmPassword ? 'text' : 'password'}
                     placeholder="Confirm new password"
                     className="input-premium"
-                    style={{ width: '100%', paddingRight: '40px' }}
+                    style={{ 
+                      width: '100%', 
+                      paddingRight: '40px',
+                      borderColor: form.confirm && form.newPassword !== form.confirm ? 'var(--danger)' : undefined
+                    }}
                     value={form.confirm}
                     onChange={(e) => {
                       setForm({ ...form, confirm: e.target.value });
@@ -309,13 +352,19 @@ export default function ForgotPassword() {
                       padding: '4px',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center'
+                      justifyContent: 'center',
+                      zIndex: 2
                     }}
                     title={showConfirmPassword ? 'Hide password' : 'Show password'}
                   >
                     {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+                {form.confirm && form.newPassword !== form.confirm && (
+                  <span style={{ color: 'var(--danger)', fontSize: '0.8rem', marginTop: '4px', display: 'block', textAlign: 'left' }}>
+                    New password does not match. Enter new password again here.
+                  </span>
+                )}
               </div>
 
               {error && (
