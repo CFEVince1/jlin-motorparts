@@ -136,11 +136,11 @@ export default function PrintTransactionsReportModal({
         }
         @media print {
           @page {
-            size: A4 landscape !important;
-            margin: 10mm 8mm !important;
+            size: A4 landscape;
+            margin: 10mm 8mm;
           }
           body * {
-            visibility: hidden !important;
+            visibility: hidden;
           }
           #printable-transactions-report,
           #printable-transactions-report * {

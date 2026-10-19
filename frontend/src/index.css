@@ -723,12 +723,11 @@ tr:hover td {
 }
 
 /* =========================================================
-   ROCK-SOLID THERMAL PRINT ENGINE (58mm)
+   UNIVERSAL PRINT SYSTEM (Supports A4 Reports & Receipts)
    ========================================================= */
 @media print {
   @page {
-    size: 58mm auto;
-    margin: 0mm;
+    margin: 8mm;
   }
 
   html, body {
@@ -737,19 +736,42 @@ tr:hover td {
     background: #ffffff !important;
     color: #000000 !important;
     width: 100% !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
-  /* 1. Hide full screen chrome by default */
-  body * {
-    visibility: hidden;
+  /* Reset layout containers so content paginates across sheets */
+  #root,
+  .app-container,
+  .main-content {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
   }
 
-  /* 2. Neutralize modal wrappers so they DO NOT hide their children */
+  /* 1. Hide full screen chrome, buttons, sidebars, navigation by default */
+  .no-print,
+  .print-hide,
+  button,
+  header,
+  nav,
+  aside,
+  .sidebar,
   .receipt-overlay,
-  .receipt-modal,
-  .modal-backdrop,
+  .modal-backdrop {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* 2. Neutralize modal wrappers when printing */
   [role="dialog"] {
     visibility: visible !important;
     display: block !important;
@@ -762,91 +784,23 @@ tr:hover td {
     transform: none !important;
   }
 
-  /* 3. Make the receipt wrapper and ALL its descendants visible */
-  #printable-receipt,
-  #printable-receipt *,
-  .printable-receipt,
-  .printable-receipt * {
-    visibility: visible !important;
-  }
-
-  /* 4. Pin the receipt to the top-left of the 58mm roll */
-  #printable-receipt,
-  .printable-receipt {
-    position: fixed !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 48mm !important;
-    max-width: 48mm !important;
-    margin: 0 !important;
-    padding: 2mm 1mm !important;
-    background: #ffffff !important;
-    color: #000000 !important;
-    font-family: 'Courier New', Courier, monospace !important;
-    font-size: 10px !important;
-    line-height: 1.25 !important;
-    z-index: 999999 !important;
-    box-shadow: none !important;
-    border: none !important;
-    height: auto !important;
-    overflow: visible !important;
-  }
-
-  #printable-receipt div,
-  .printable-receipt div {
-    display: block !important;
-    overflow: visible !important;
-    height: auto !important;
-    max-height: none !important;
-    color: #000000 !important;
-  }
-
-  #printable-receipt div[style*="display: flex"],
-  .printable-receipt div[style*="display: flex"] {
-    display: flex !important;
-  }
-
-  #printable-receipt table,
-  .printable-receipt table {
-    display: table !important;
-    width: 100% !important;
+  /* 3. Table printing rules */
+  table {
     border-collapse: collapse !important;
-    table-layout: fixed !important;
   }
 
-  #printable-receipt thead,
-  .printable-receipt thead {
+  thead {
     display: table-header-group !important;
   }
 
-  #printable-receipt tbody,
-  .printable-receipt tbody {
-    display: table-row-group !important;
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
-  #printable-receipt tr,
-  .printable-receipt tr {
-    display: table-row !important;
-  }
-
-  #printable-receipt td, 
-  #printable-receipt th,
-  .printable-receipt td, 
-  .printable-receipt th {
-    display: table-cell !important;
+  td, th {
     word-break: break-word !important;
     overflow-wrap: break-word !important;
     color: #000000 !important;
-  }
-
-  /* 5. Hide ONLY external chrome, buttons, headers, and navigation */
-  button,
-  .no-print,
-  header,
-  nav,
-  aside,
-  .sidebar {
-    display: none !important;
-    visibility: hidden !important;
   }
 }

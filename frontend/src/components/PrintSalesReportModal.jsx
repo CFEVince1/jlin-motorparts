@@ -77,11 +77,11 @@ export default function PrintSalesReportModal({
         }
         @media print {
           @page {
-            size: A4 portrait !important;
-            margin: 10mm 8mm !important;
+            size: A4 portrait;
+            margin: 10mm 8mm;
           }
           body * {
-            visibility: hidden !important;
+            visibility: hidden;
           }
           #printable-sales-report,
           #printable-sales-report * {

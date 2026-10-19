@@ -42,6 +42,32 @@ export const ReceiptPrint = ({
       boxSizing: 'border-box'
     }}>
       <style>{`
+        @media print {
+          @page {
+            size: ${is58mm ? '58mm auto' : '80mm auto'};
+            margin: 0;
+          }
+          body * {
+            visibility: hidden;
+          }
+          #printable-receipt,
+          #printable-receipt * {
+            visibility: visible !important;
+          }
+          #printable-receipt {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: ${containerWidth} !important;
+            max-width: ${containerWidth} !important;
+            margin: 0 !important;
+            padding: 2mm 1mm !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            display: block !important;
+            z-index: 9999999 !important;
+          }
+        }
         .thermal-receipt-root table {
           width: 100%;
           border-collapse: collapse;

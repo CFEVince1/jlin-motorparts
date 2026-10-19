@@ -61,11 +61,11 @@ export default function PrintInventoryModal({
         }
         @media print {
           @page {
-            size: A4 portrait !important;
-            margin: 12mm 10mm !important;
+            size: A4 portrait;
+            margin: 12mm 10mm;
           }
           body * {
-            visibility: hidden !important;
+            visibility: hidden;
           }
           #printable-inventory-report,
           #printable-inventory-report * {
