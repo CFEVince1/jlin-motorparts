@@ -70,11 +70,57 @@ export const calculateCartTotals = (cart = [], discount = 0) => {
 /**
  * Calculate change due and verified tendered amount for a checkout transaction.
  */
-export const calculatePaymentDetails = (totalAmount, tenderedAmount, paymentMethod = 'Cash') => {
+export const calculatePaymentDetails = (totalAmount, tenderedAmount, paymentMethod = 'Cash', options = {}) => {
     const total = roundCurrency(totalAmount);
     const tendered = roundCurrency(tenderedAmount);
     const normMethod = String(paymentMethod || '').trim().toUpperCase();
     const isCash = normMethod === 'CASH' || normMethod === '';
+    const isSplit = normMethod === 'SPLIT' || normMethod === 'CASH + GCASH';
+
+    if (isSplit) {
+        const cashPortion = roundCurrency(options.cashAmount || 0);
+        const gcashPortion = roundCurrency(options.gcashAmount || 0);
+        const cashTendered = roundCurrency(options.cashTendered !== undefined && options.cashTendered !== '' ? options.cashTendered : cashPortion);
+
+        if (cashPortion <= 0 || gcashPortion <= 0) {
+            return {
+                isValid: false,
+                totalAmount: total,
+                tenderedAmount: roundCurrency(cashTendered + gcashPortion),
+                changeDue: 0,
+                errorMessage: 'Both Cash and GCash portions must be greater than zero'
+            };
+        }
+
+        if (roundCurrency(cashPortion + gcashPortion) < total) {
+            return {
+                isValid: false,
+                totalAmount: total,
+                tenderedAmount: roundCurrency(cashTendered + gcashPortion),
+                changeDue: 0,
+                errorMessage: 'Combined Cash and GCash is less than total payable amount'
+            };
+        }
+
+        if (cashTendered < cashPortion) {
+            return {
+                isValid: false,
+                totalAmount: total,
+                tenderedAmount: roundCurrency(cashTendered + gcashPortion),
+                changeDue: 0,
+                errorMessage: 'Cash tendered is less than the cash portion'
+            };
+        }
+
+        const changeDue = roundCurrency(cashTendered - cashPortion);
+        return {
+            isValid: true,
+            totalAmount: total,
+            tenderedAmount: roundCurrency(cashTendered + gcashPortion),
+            changeDue,
+            errorMessage: null
+        };
+    }
 
     if (!isCash) {
         return {

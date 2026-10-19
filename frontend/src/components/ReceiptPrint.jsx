@@ -22,6 +22,8 @@ export const ReceiptPrint = ({
   amountTendered = 0,
   changeDue = 0,
   gcashReference = '',
+  cashAmount = null,
+  gcashAmount = null,
   width = '80mm', // '58mm' or '80mm'
 }) => {
   const is58mm = width === '58mm';
@@ -165,8 +167,22 @@ export const ReceiptPrint = ({
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: is58mm ? '9px' : '10px' }}>
           <span>Method:</span>
-          <span style={{ fontWeight: 'bold' }}>{paymentMethod.toUpperCase()}</span>
+          <span style={{ fontWeight: 'bold' }}>
+            {paymentMethod.toUpperCase() === 'SPLIT' ? 'SPLIT (CASH + GCASH)' : paymentMethod.toUpperCase()}
+          </span>
         </div>
+        {paymentMethod.toUpperCase() === 'SPLIT' && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: is58mm ? '8px' : '9px', paddingLeft: '6px' }}>
+              <span>- Cash Part:</span>
+              <span>{formatCurrency(cashAmount || 0)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: is58mm ? '8px' : '9px', paddingLeft: '6px' }}>
+              <span>- GCash Part:</span>
+              <span>{formatCurrency(gcashAmount || 0)}</span>
+            </div>
+          </>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: is58mm ? '9px' : '10px' }}>
           <span>Tendered:</span>
           <span>{formatCurrency(amountTendered)}</span>
@@ -175,7 +191,7 @@ export const ReceiptPrint = ({
           <span>Change:</span>
           <span>{formatCurrency(changeDue)}</span>
         </div>
-        {paymentMethod.toUpperCase() === 'GCASH' && gcashReference && (
+        {(paymentMethod.toUpperCase() === 'GCASH' || paymentMethod.toUpperCase() === 'SPLIT') && gcashReference && (
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: is58mm ? '8px' : '9px', marginTop: '2px', color: '#111827' }}>
             <span>GCash Ref:</span>
             <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{gcashReference}</span>

@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Banknote, Smartphone, AlertCircle, X, Printer, CheckCircle } from 'lucide-react';
+import { Banknote, Smartphone, AlertCircle, X, Printer, CheckCircle, Split } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 import { calculatePaymentDetails, roundCurrency } from '../utils/calculations';
 
 /**
  * CheckoutModal Component
  * 
- * Payment selector toggle (Cash / GCash).
+ * Payment selector toggle (Cash / GCash / Split).
  * - Cash: validate amountPaid >= totalAmount; auto-calculate change.
  * - GCash: lock tendered to exact total; lock change to ₱0.00; mandatory reference >= 6 chars.
+ * - Split: customer pays part in Cash and remaining in GCash.
  * - On success: triggers window.print() or callback for thermal receipt.
  */
 export const CheckoutModal = ({
@@ -23,15 +24,25 @@ export const CheckoutModal = ({
   onProcessPayment,
   loading = false,
 }) => {
-  const [paymentMethod, setPaymentMethod] = useState('Cash'); // 'Cash' | 'GCash'
+  const [paymentMethod, setPaymentMethod] = useState('Cash'); // 'Cash' | 'GCash' | 'Split'
   const [cashTendered, setCashTendered] = useState('');
   const [gcashRef, setGcashRef] = useState('');
+
+  // Split payment state
+  const [splitCash, setSplitCash] = useState('');
+  const [splitGcash, setSplitGcash] = useState('');
+  const [splitCashTendered, setSplitCashTendered] = useState('');
+  const [splitGcashRef, setSplitGcashRef] = useState('');
 
   // Reset fields whenever modal opens
   useEffect(() => {
     if (isOpen) {
       setCashTendered('');
       setGcashRef('');
+      setSplitCash('');
+      setSplitGcash('');
+      setSplitCashTendered('');
+      setSplitGcashRef('');
       setPaymentMethod('Cash');
     }
   }, [isOpen]);
@@ -40,13 +51,29 @@ export const CheckoutModal = ({
 
   const isCash = (paymentMethod || '').toUpperCase() === 'CASH';
   const isGcash = (paymentMethod || '').toUpperCase() === 'GCASH';
+  const isSplit = (paymentMethod || '').toUpperCase() === 'SPLIT';
+
   const tenderedNumeric = isCash ? (Number(cashTendered) || 0) : totalAmount;
   const paymentDetails = calculatePaymentDetails(totalAmount, tenderedNumeric, paymentMethod);
+
+  // Split calculations
+  const numSplitCash = parseFloat(splitCash) || 0;
+  const numSplitGcash = parseFloat(splitGcash) || 0;
+  const numSplitCashTendered = splitCashTendered !== '' ? (parseFloat(splitCashTendered) || 0) : numSplitCash;
+  const splitChangeDue = Math.max(0, roundCurrency(numSplitCashTendered - numSplitCash));
+  const splitRemainingToCover = roundCurrency(totalAmount - (numSplitCash + numSplitGcash));
 
   // Validation rules
   const isCashValid = isCash && cashTendered !== '' && roundCurrency(tenderedNumeric) >= roundCurrency(totalAmount);
   const isGcashValid = isGcash && gcashRef.trim().length >= 6;
-  const canSubmit = !loading && (isCashValid || isGcashValid);
+  const isSplitValid = isSplit &&
+    numSplitCash > 0 &&
+    numSplitGcash > 0 &&
+    roundCurrency(numSplitCash + numSplitGcash) >= roundCurrency(totalAmount) &&
+    numSplitCashTendered >= numSplitCash &&
+    splitGcashRef.trim().length >= 6;
+
+  const canSubmit = !loading && (isCashValid || isGcashValid || isSplitValid);
 
   const handleAddCash = (increment) => {
     const current = parseFloat(cashTendered) || 0;
@@ -69,12 +96,28 @@ export const CheckoutModal = ({
   const handleClose = () => {
     setCashTendered('');
     setGcashRef('');
+    setSplitCash('');
+    setSplitGcash('');
+    setSplitCashTendered('');
+    setSplitGcashRef('');
     if (onClose) onClose();
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!canSubmit) return;
+
+    if (isSplit) {
+      onProcessPayment({
+        paymentMethod: 'Split',
+        cashAmount: numSplitCash,
+        gcashAmount: numSplitGcash,
+        tenderedAmount: roundCurrency(numSplitCashTendered + numSplitGcash),
+        changeDue: splitChangeDue,
+        gcashReference: splitGcashRef.trim()
+      });
+      return;
+    }
 
     onProcessPayment({
       paymentMethod: isCash ? 'Cash' : 'GCash',
@@ -193,52 +236,202 @@ export const CheckoutModal = ({
             <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>
               Payment Method
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.3fr', gap: '8px' }}>
               <button
                 type="button"
                 onClick={() => setPaymentMethod('Cash')}
                 style={{
-                  padding: '10px 12px',
+                  padding: '10px 8px',
                   borderRadius: '8px',
                   border: isCash ? '2px solid var(--primary)' : '1px solid var(--border)',
                   background: isCash ? 'rgba(5, 150, 105, 0.12)' : 'var(--input-bg)',
                   color: isCash ? 'var(--primary)' : 'var(--text-main)',
                   fontWeight: '600',
-                  fontSize: '0.85rem',
+                  fontSize: '0.82rem',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '8px',
+                  gap: '6px',
                   cursor: 'pointer'
                 }}
               >
-                <Banknote size={18} /> Cash
+                <Banknote size={16} /> Cash
               </button>
               <button
                 type="button"
                 onClick={() => setPaymentMethod('GCash')}
                 style={{
-                  padding: '10px 12px',
+                  padding: '10px 8px',
                   borderRadius: '8px',
                   border: isGcash ? '2px solid #0284c7' : '1px solid var(--border)',
                   background: isGcash ? 'rgba(2, 132, 199, 0.12)' : 'var(--input-bg)',
                   color: isGcash ? '#0284c7' : 'var(--text-main)',
                   fontWeight: '600',
-                  fontSize: '0.85rem',
+                  fontSize: '0.82rem',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '8px',
+                  gap: '6px',
                   cursor: 'pointer'
                 }}
               >
-                <Smartphone size={18} /> GCash
+                <Smartphone size={16} /> GCash
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentMethod('Split');
+                  if (!splitCash && !splitGcash) {
+                    const half = roundCurrency(totalAmount / 2);
+                    setSplitCash(String(half));
+                    setSplitGcash(String(roundCurrency(totalAmount - half)));
+                  }
+                }}
+                style={{
+                  padding: '10px 8px',
+                  borderRadius: '8px',
+                  border: isSplit ? '2px solid #a855f7' : '1px solid var(--border)',
+                  background: isSplit ? 'rgba(168, 85, 247, 0.15)' : 'var(--input-bg)',
+                  color: isSplit ? '#c084fc' : 'var(--text-main)',
+                  fontWeight: '600',
+                  fontSize: '0.82rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                <Split size={16} /> Split (Cash + GCash)
               </button>
             </div>
           </div>
 
           {/* Conditional Method Inputs */}
-          {isCash ? (
+          {isSplit ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{
+                background: 'rgba(168, 85, 247, 0.08)',
+                border: '1px solid rgba(168, 85, 247, 0.25)',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                fontSize: '0.78rem',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <span style={{ color: 'var(--text-muted)' }}>Split Breakdown:</span>
+                <span style={{ fontWeight: 600, color: '#c084fc' }}>
+                  Cash: {formatCurrency(numSplitCash)} + GCash: {formatCurrency(numSplitGcash)}
+                </span>
+              </div>
+
+              {/* Cash Portion and Cash Tendered */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                    1. Cash Amount (₱) *
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="Cash part"
+                    className="input-premium cash-input-no-spin"
+                    value={splitCash}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSplitCash(val);
+                      const num = parseFloat(val) || 0;
+                      if (num >= 0 && num <= totalAmount) {
+                        setSplitGcash(String(roundCurrency(totalAmount - num)));
+                      }
+                    }}
+                    required
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                    Cash Received (₱)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder={splitCash ? `Min ₱${splitCash}` : 'Tendered'}
+                    className="input-premium cash-input-no-spin"
+                    value={splitCashTendered}
+                    onChange={(e) => setSplitCashTendered(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* GCash Portion */}
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                  2. GCash Portion (₱) *
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="GCash part"
+                  className="input-premium cash-input-no-spin"
+                  value={splitGcash}
+                  onChange={(e) => setSplitGcash(e.target.value)}
+                  required
+                />
+              </div>
+
+              {/* GCash Reference Code */}
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                  GCash Reference Code (Min. 6 chars) *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 1029384756"
+                  className="input-premium"
+                  value={splitGcashRef}
+                  onChange={(e) => setSplitGcashRef(e.target.value)}
+                  required
+                />
+                {splitGcashRef.length > 0 && splitGcashRef.trim().length < 6 && (
+                  <div style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <AlertCircle size={14} /> Reference number must be at least 6 characters
+                  </div>
+                )}
+              </div>
+
+              {/* Split Summary / Change Due */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                background: splitChangeDue > 0 ? 'rgba(16, 185, 129, 0.15)' : 'var(--surface-hover)',
+                border: splitChangeDue > 0 ? '1.5px solid var(--primary)' : '1px solid var(--border)',
+                fontSize: '0.85rem'
+              }}>
+                <div>
+                  <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Cash Change:</span>
+                  <span style={{ fontWeight: 'bold', fontSize: '1.1rem', color: splitChangeDue > 0 ? 'var(--primary)' : 'var(--text-main)' }}>
+                    {formatCurrency(splitChangeDue)}
+                  </span>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Covered vs Total:</span>
+                  <span style={{ fontWeight: 'bold', color: roundCurrency(numSplitCash + numSplitGcash) >= totalAmount ? 'var(--primary)' : 'var(--danger)' }}>
+                    {formatCurrency(numSplitCash + numSplitGcash)} / {formatCurrency(totalAmount)}
+                  </span>
+                </div>
+              </div>
+
+              {numSplitCash > 0 && numSplitGcash > 0 && roundCurrency(numSplitCash + numSplitGcash) < totalAmount && (
+                <div style={{ fontSize: '0.75rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <AlertCircle size={14} /> Shortfall of {formatCurrency(totalAmount - (numSplitCash + numSplitGcash))} still needed to cover full total!
+                </div>
+              )}
+            </div>
+          ) : isCash ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div>
                 <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>

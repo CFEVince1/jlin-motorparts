@@ -268,7 +268,26 @@ const Transactions = () => {
                                                     <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{t.compatibility_display}</div>
                                                 )}
                                             </td>
-                                            <td>{t.payment_method || 'Cash'}</td>
+                                            <td>
+                                                {t.payment_method === 'Split' ? (
+                                                    <span style={{
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px',
+                                                        background: 'rgba(168, 85, 247, 0.15)',
+                                                        color: '#c084fc',
+                                                        padding: '2px 8px',
+                                                        borderRadius: '4px',
+                                                        fontSize: '0.75rem',
+                                                        fontWeight: 600,
+                                                        border: '1px solid rgba(168, 85, 247, 0.3)'
+                                                    }}>
+                                                        Split (Cash + GCash)
+                                                    </span>
+                                                ) : (
+                                                    t.payment_method || 'Cash'
+                                                )}
+                                            </td>
                                             <td className="text-right" style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{formatCurrency(t.total_amount)}</td>
                                             <td>
                                                 <button
@@ -345,6 +364,8 @@ const Transactions = () => {
                             amountTendered={receiptDetails.tendered_amount || receiptDetails.total_amount}
                             changeDue={receiptDetails.change_due || 0}
                             gcashReference={receiptDetails.payment_reference || ''}
+                            cashAmount={receiptDetails.cash_amount}
+                            gcashAmount={receiptDetails.gcash_amount}
                             width="80mm"
                         />
 

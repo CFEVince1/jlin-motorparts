@@ -32,7 +32,12 @@ exports.checkout = async (req, res, next) => {
     const cartItems = items || cart || [];
     const rawMethod = (payment_method || paymentMethod || 'Cash').trim();
     const methodUpper = rawMethod.toUpperCase();
-    const method = methodUpper === 'GCASH' ? 'GCash' : (methodUpper === 'CARD' ? 'Card' : 'Cash');
+    let method = 'Cash';
+    if (methodUpper === 'GCASH') method = 'GCash';
+    else if (methodUpper === 'CARD') method = 'Card';
+    else if (methodUpper === 'SPLIT' || methodUpper === 'CASH + GCASH') method = 'Split';
+    else method = 'Cash';
+
     const rawTendered = tendered_amount !== undefined ? tendered_amount : tenderedAmount;
     const refNo = (payment_reference || paymentReference || req.body.gcash_reference_no || req.body.reference_no || '').trim();
     const userId = req.user?.id;
@@ -41,7 +46,7 @@ exports.checkout = async (req, res, next) => {
         return res.status(422).json({ message: 'Cart cannot be empty for checkout' });
     }
 
-    const validMethods = ['Cash', 'GCash', 'Card'];
+    const validMethods = ['Cash', 'GCash', 'Card', 'Split'];
     if (!validMethods.includes(method)) {
         return res.status(422).json({ 
             message: `Invalid payment method "${rawMethod}". Supported: ${validMethods.join(', ')}` 
@@ -170,6 +175,8 @@ exports.checkout = async (req, res, next) => {
         // 3. Enforce Payment Invariants (tally in integer centavos)
         let tenderedCentavos = 0;
         let changeDueCentavos = 0;
+        let cashAmountCentavos = null;
+        let gcashAmountCentavos = null;
 
         if (method === 'Cash') {
             if (rawTendered === null || rawTendered === undefined || rawTendered === '') {
@@ -187,10 +194,14 @@ exports.checkout = async (req, res, next) => {
                 );
             }
             changeDueCentavos = tenderedCentavos - totalAmountCentavos;
+            cashAmountCentavos = totalAmountCentavos;
+            gcashAmountCentavos = 0;
         } else if (method === 'GCash') {
             // Invariant: GCash requires exact amount, zero change, and reference number >= 6 chars
             tenderedCentavos = totalAmountCentavos;
             changeDueCentavos = 0;
+            cashAmountCentavos = 0;
+            gcashAmountCentavos = totalAmountCentavos;
 
             if (!refNo || refNo.length < 6) {
                 throw new AppValidationError('GCash payment requires a valid reference number of at least 6 characters');
@@ -206,6 +217,52 @@ exports.checkout = async (req, res, next) => {
                     `GCash reference already used: "${refNo}" has already been used on order ${existingSales[0].order_number || ('#' + existingSales[0].id)}`
                 );
             }
+        } else if (method === 'Split') {
+            const rawCash = req.body.cash_amount !== undefined ? req.body.cash_amount : req.body.cashAmount;
+            const rawGcash = req.body.gcash_amount !== undefined ? req.body.gcash_amount : req.body.gcashAmount;
+            const rawCashTendered = rawTendered !== undefined && rawTendered !== '' ? rawTendered : rawCash;
+
+            const numCash = Number(rawCash);
+            const numGcash = Number(rawGcash);
+            const numCashTendered = Number(rawCashTendered);
+
+            if (!Number.isFinite(numCash) || numCash <= 0) {
+                throw new AppValidationError('A valid numeric cash portion is required for split payment');
+            }
+            if (!Number.isFinite(numGcash) || numGcash <= 0) {
+                throw new AppValidationError('A valid numeric GCash portion is required for split payment');
+            }
+            if (!Number.isFinite(numCashTendered) || numCashTendered < numCash) {
+                throw new AppValidationError(`Cash tendered must be at least the cash portion (₱${numCash.toFixed(2)})`);
+            }
+
+            cashAmountCentavos = Math.round(numCash * 100);
+            gcashAmountCentavos = Math.round(numGcash * 100);
+            const cashTenderedCentavos = Math.round(numCashTendered * 100);
+
+            if (cashAmountCentavos + gcashAmountCentavos < totalAmountCentavos) {
+                throw new AppValidationError(
+                    `Combined cash and GCash (₱${((cashAmountCentavos + gcashAmountCentavos) / 100).toFixed(2)}) is less than total amount (₱${totalAmount.toFixed(2)})`
+                );
+            }
+
+            if (!refNo || refNo.length < 6) {
+                throw new AppValidationError('GCash reference number of at least 6 characters is required for the GCash portion');
+            }
+
+            // Invariant: GCash reference number must be unique across all sales
+            const [existingSales] = await connection.query(
+                'SELECT id, order_number FROM sales WHERE payment_reference = ? LIMIT 1',
+                [refNo]
+            );
+            if (existingSales.length > 0) {
+                throw new AppValidationError(
+                    `GCash reference already used: "${refNo}" has already been used on order ${existingSales[0].order_number || ('#' + existingSales[0].id)}`
+                );
+            }
+
+            tenderedCentavos = cashTenderedCentavos + gcashAmountCentavos;
+            changeDueCentavos = cashTenderedCentavos - cashAmountCentavos;
         } else {
             // Card or other electronic payments
             tenderedCentavos = totalAmountCentavos;
@@ -214,14 +271,16 @@ exports.checkout = async (req, res, next) => {
 
         const finalTendered = tenderedCentavos / 100;
         const finalChangeDue = changeDueCentavos / 100;
+        const finalCashAmount = cashAmountCentavos !== null ? (cashAmountCentavos / 100) : null;
+        const finalGcashAmount = gcashAmountCentavos !== null ? (gcashAmountCentavos / 100) : null;
         const paymentReferenceToSave = (method === 'Cash') ? null : (refNo || null);
 
         // 4. Insert single source of truth sales record first to obtain atomic auto-increment ID
         const [saleResult] = await connection.query(
             `INSERT INTO sales (
-                user_id, total_amount, tendered_amount, change_due, payment_method, order_number, payment_reference, sale_date
-            ) VALUES (?, ?, ?, ?, ?, NULL, ?, NOW())`,
-            [userId, totalAmount, finalTendered, finalChangeDue, method, paymentReferenceToSave]
+                user_id, total_amount, tendered_amount, change_due, payment_method, order_number, payment_reference, sale_date, cash_amount, gcash_amount
+            ) VALUES (?, ?, ?, ?, ?, NULL, ?, NOW(), ?, ?)`,
+            [userId, totalAmount, finalTendered, finalChangeDue, method, paymentReferenceToSave, finalCashAmount, finalGcashAmount]
         );
         const saleId = saleResult.insertId;
 
@@ -290,6 +349,8 @@ exports.checkout = async (req, res, next) => {
             tendered_amount: finalTendered,
             change_due: finalChangeDue,
             payment_reference: refNo || null,
+            cash_amount: finalCashAmount,
+            gcash_amount: finalGcashAmount,
             items: validatedItems
         };
 
@@ -304,6 +365,8 @@ exports.checkout = async (req, res, next) => {
             tendered_amount: finalTendered,
             change_due: finalChangeDue,
             payment_reference: refNo || null,
+            cash_amount: finalCashAmount,
+            gcash_amount: finalGcashAmount,
             items: validatedItems,
             order: orderSummary
         });
@@ -438,7 +501,7 @@ exports.getSales = async (req, res, next) => {
         const dataQuery = `
             SELECT s.id, COALESCE(s.order_number, CONCAT('SO-', s.id)) AS order_number,
                    s.total_amount, s.tendered_amount, s.change_due, s.payment_method,
-                   s.payment_reference, s.sale_date, u.username as cashier,
+                   s.payment_reference, s.cash_amount, s.gcash_amount, s.sale_date, u.username as cashier,
                    GROUP_CONCAT(DISTINCT si.product_name ORDER BY si.product_name SEPARATOR ', ') as products_included,
                    GROUP_CONCAT(DISTINCT COALESCE(NULLIF(si.part_number, ''), p.part_number, p.sku) ORDER BY si.part_number SEPARATOR ', ') as part_numbers,
                    GROUP_CONCAT(DISTINCT COALESCE(NULLIF(si.part_number, ''), p.part_number, p.sku) ORDER BY si.part_number SEPARATOR ', ') as part_number,
@@ -446,7 +509,7 @@ exports.getSales = async (req, res, next) => {
                    GROUP_CONCAT(DISTINCT si.size ORDER BY si.size SEPARATOR ', ') as sizes
             FROM (
                 SELECT s.id, s.user_id, s.order_number, s.total_amount, s.tendered_amount,
-                       s.change_due, s.payment_method, s.payment_reference, s.sale_date
+                       s.change_due, s.payment_method, s.payment_reference, s.cash_amount, s.gcash_amount, s.sale_date
                 FROM sales s
                 ${whereSQL}
                 ORDER BY s.sale_date DESC, s.id DESC
@@ -489,7 +552,7 @@ exports.getSaleById = async (req, res, next) => {
         let query = `
             SELECT s.id, COALESCE(s.order_number, CONCAT('SO-', s.id)) AS order_number,
                    s.total_amount, s.tendered_amount, s.change_due, s.payment_method,
-                   s.payment_reference, s.sale_date, u.username as cashier
+                   s.payment_reference, s.cash_amount, s.gcash_amount, s.sale_date, u.username as cashier
             FROM sales s
             JOIN users u ON s.user_id = u.id
             WHERE s.id = ?

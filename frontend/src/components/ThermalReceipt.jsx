@@ -18,6 +18,8 @@ export const ThermalReceipt = ({
   changeDue,
   paymentReference = '',
   gcashReference = '',
+  cashAmount = null,
+  gcashAmount = null,
 }) => {
   const displayReceiptNo = orderNumber || receiptId || 'PENDING';
   const displayCustomer = customer || customerName || '';
@@ -110,14 +112,26 @@ export const ThermalReceipt = ({
           <span>{formatCurrency(displayTotal)}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginBottom: '2px' }}>
-          <span>Payment ({paymentMethod}):</span>
+          <span>Payment ({paymentMethod.toUpperCase() === 'SPLIT' ? 'Split Cash+GCash' : paymentMethod}):</span>
           <span>{formatCurrency(amountTendered || displayTotal)}</span>
         </div>
+        {paymentMethod.toUpperCase() === 'SPLIT' && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', paddingLeft: '6px' }}>
+              <span>- Cash Part:</span>
+              <span>{formatCurrency(cashAmount || 0)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', paddingLeft: '6px' }}>
+              <span>- GCash Part:</span>
+              <span>{formatCurrency(gcashAmount || 0)}</span>
+            </div>
+          </>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}>
           <span>Change:</span>
           <span>{formatCurrency(displayChange || 0)}</span>
         </div>
-        {(isGcash || displayRef) && displayRef && (
+        {(isGcash || paymentMethod.toUpperCase() === 'SPLIT' || displayRef) && displayRef && (
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginTop: '2px' }}>
             <span>GCash Ref:</span>
             <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{displayRef}</span>

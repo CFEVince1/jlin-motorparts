@@ -284,7 +284,7 @@ const POS = () => {
 
     // 2. Process payment from CheckoutModal
     const [submittingPayment, setSubmittingPayment] = useState(false);
-    const processPayment = async ({ paymentMethod: method, tenderedAmount: amount, changeDue: change, gcashReference: gcashRef }) => {
+    const processPayment = async ({ paymentMethod: method, tenderedAmount: amount, changeDue: change, gcashReference: gcashRef, cashAmount, gcashAmount }) => {
         const missingSerialItem = cart.find(item => item.is_serialized && (!item.serial_ids || item.serial_ids.length === 0));
         if (missingSerialItem) {
             toast.error(`Select a serial number for ${missingSerialItem.name}`);
@@ -306,6 +306,8 @@ const POS = () => {
                 paymentMethod: method,
                 tendered_amount: Number(amount) || 0,
                 tenderedAmount: Number(amount) || 0,
+                cash_amount: cashAmount !== undefined ? Number(cashAmount) : undefined,
+                gcash_amount: gcashAmount !== undefined ? Number(gcashAmount) : undefined,
                 customer_name: customerName || 'Walk-in Customer',
                 customer_address: customerAddress || undefined,
                 gcash_reference_no: gcashRef || undefined
@@ -325,6 +327,8 @@ const POS = () => {
                 tenderedAmount: res.data.tendered_amount ?? amount,
                 changeDue: res.data.change_due !== undefined ? res.data.change_due : change,
                 gcashReference: gcashRef,
+                cashAmount: res.data.cash_amount ?? cashAmount,
+                gcashAmount: res.data.gcash_amount ?? gcashAmount,
                 customerName: customerName || 'Walk-in Customer',
                 customerAddress,
                 cashier: user.username
@@ -905,6 +909,8 @@ const POS = () => {
                                 amountTendered={lastTransaction.tenderedAmount}
                                 changeDue={lastTransaction.changeDue}
                                 gcashReference={lastTransaction.gcashReference}
+                                cashAmount={lastTransaction.cashAmount}
+                                gcashAmount={lastTransaction.gcashAmount}
                             />
                         </div>
 
