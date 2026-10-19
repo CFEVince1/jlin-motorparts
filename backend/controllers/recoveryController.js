@@ -20,10 +20,11 @@ async function canSend(userId, purpose) {
   return rows[0].n < MAX_SENDS_PER_15_MIN;
 }
 
-// Creates a new code and invalidates any older unused codes for the same purpose
+// Creates a new code and cleans up expired ones
 async function createOtp(userId, purpose) {
+  // Invalidate any expired unused codes for cleanup
   await db.query(
-    'UPDATE password_otps SET used_at = NOW() WHERE user_id = ? AND purpose = ? AND used_at IS NULL',
+    'UPDATE password_otps SET used_at = NOW() WHERE user_id = ? AND purpose = ? AND used_at IS NULL AND expires_at <= NOW()',
     [userId, purpose]
   );
   const code = makeOtp();
@@ -36,32 +37,42 @@ async function createOtp(userId, purpose) {
   return code;
 }
 
-// Returns true only once, for a correct, unexpired, unused code
+// Returns true only once, for any correct, unexpired, unused code generated for this user
 async function consumeOtp(userId, purpose, input) {
+  const cleanInput = String(input || '').trim();
+  if (!cleanInput) return false;
+
   const [rows] = await db.query(
     `SELECT id, code_hash, attempts FROM password_otps
      WHERE user_id = ? AND purpose = ? AND used_at IS NULL AND expires_at > NOW()
-     ORDER BY id DESC LIMIT 1`,
+     ORDER BY id DESC LIMIT 5`,
     [userId, purpose]
   );
-  const row = rows[0];
-  if (!row || row.attempts >= MAX_ATTEMPTS) {
-    await bcrypt.compare(String(input), DUMMY_HASH);
+
+  if (!rows || rows.length === 0) {
+    await bcrypt.compare(cleanInput, DUMMY_HASH);
     return false;
   }
 
-  const ok = await bcrypt.compare(String(input).trim(), row.code_hash);
-  if (!ok) {
-    await db.query('UPDATE password_otps SET attempts = attempts + 1 WHERE id = ?', [row.id]);
-    return false;
+  for (const row of rows) {
+    if (row.attempts >= MAX_ATTEMPTS) continue;
+
+    const ok = await bcrypt.compare(cleanInput, row.code_hash);
+    if (ok) {
+      // Consume all active codes for this user and purpose so none can be reused
+      await db.query(
+        'UPDATE password_otps SET used_at = NOW() WHERE user_id = ? AND purpose = ? AND used_at IS NULL',
+        [userId, purpose]
+      );
+      return true;
+    }
   }
 
-  // The WHERE clause stops two simultaneous requests from using the same code
-  const [mark] = await db.query(
-    'UPDATE password_otps SET used_at = NOW() WHERE id = ? AND used_at IS NULL',
-    [row.id]
-  );
-  return mark.affectedRows === 1;
+  // Increment attempts on the latest code
+  if (rows[0]) {
+    await db.query('UPDATE password_otps SET attempts = attempts + 1 WHERE id = ?', [rows[0].id]);
+  }
+  return false;
 }
 
 // ---- Admin: link and verify email (logged in) ----
