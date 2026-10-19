@@ -1,0 +1,248 @@
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+  <meta charset="utf-8">
+  <title>System Design Documents - JLIN Motorparts</title>
+  <!--[if gte mso 9]>
+  <xml>
+    <w:WordDocument>
+      <w:View>Print</w:View>
+      <w:Zoom>100</w:Zoom>
+      <w:DoNotOptimizeForBrowser/>
+    </w:WordDocument>
+  </xml>
+  <![endif]-->
+</head>
+<html lang="en"><head>
+  <meta charset="UTF-8">
+  <title>System Design Documents - JLIN Motorparts</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    @page {
+      size: A4;
+      margin: 20mm 15mm 20mm 15mm;
+    }
+    body {
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: #1e293b;
+      background: #f8fafc;
+      margin: 0;
+      padding: 40px;
+    }
+    .page-container {
+      max-width: 960px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 50px;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    }
+    .doc-title {
+      font-size: 2.2rem;
+      color: #0f172a;
+      border-bottom: 3px solid #3b82f6;
+      padding-bottom: 12px;
+      margin-bottom: 24px;
+      font-weight: 800;
+    }
+    .section-title {
+      font-size: 1.5rem;
+      color: #1e3a8a;
+      margin-top: 40px;
+      margin-bottom: 16px;
+      border-bottom: 1.5px solid #e2e8f0;
+      padding-bottom: 8px;
+      font-weight: 700;
+      page-break-after: avoid;
+    }
+    .subsection-title {
+      font-size: 1.2rem;
+      color: #2563eb;
+      margin-top: 24px;
+      margin-bottom: 12px;
+      font-weight: 600;
+      page-break-after: avoid;
+    }
+    .doc-p {
+      color: #334155;
+      font-size: 0.95rem;
+      margin-bottom: 14px;
+    }
+    .doc-li {
+      color: #334155;
+      font-size: 0.92rem;
+      margin-bottom: 6px;
+    }
+    .doc-divider {
+      border: none;
+      border-top: 1px solid #e2e8f0;
+      margin: 36px 0;
+    }
+    .diagram-wrapper {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 24px 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow-x: auto;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+      page-break-inside: avoid;
+    }
+    .diagram-wrapper svg {
+      max-width: 100% !important;
+      height: auto !important;
+    }
+    .table-container {
+      margin: 20px 0;
+      overflow-x: auto;
+      page-break-inside: avoid;
+    }
+    .doc-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    .doc-table th {
+      background: #f1f5f9;
+      color: #0f172a;
+      font-weight: 700;
+      text-align: left;
+      padding: 10px 14px;
+      border: 1px solid #cbd5e1;
+    }
+    .doc-table td {
+      padding: 10px 14px;
+      border: 1px solid #e2e8f0;
+      color: #334155;
+    }
+    .doc-table tr:nth-child(even) {
+      background: #f8fafc;
+    }
+    @media print {
+      body {
+        background: #ffffff;
+        padding: 0;
+      }
+      .page-container {
+        box-shadow: none;
+        padding: 0;
+        max-width: 100%;
+      }
+      .diagram-wrapper {
+        border: 1px solid #cbd5e1;
+        box-shadow: none;
+        page-break-inside: avoid;
+      }
+      .section-title {
+        page-break-before: always;
+      }
+      .section-title:first-of-type {
+        page-break-before: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">
+      <span style="font-size: 0.85rem; font-weight: 700; color: #64748b; letter-spacing: 0.05em; text-transform: uppercase;">Software Engineering Specification Document</span>
+      <span style="font-size: 0.85rem; color: #64748b;">JLIN Motorparts Inventory &amp; POS System</span>
+    </div>
+
+    <h1 class="doc-title">System Design Documents: JLIN Motorparts Inventory &amp; POS System</h1>
+
+<p class="doc-p">This document contains the complete formal software engineering design diagrams for the <strong>JLIN Motorparts Inventory &amp; POS System</strong>:</p>
+<p class="doc-p">1. <strong>Entity-Relationship Diagram (ERD)</strong> — Database architecture, table schemas, keys, constraints, and relational cardinality.</p>
+<p class="doc-p">2. <strong>Data Flow Diagrams (DFD)</strong>:</p>
+<li class="doc-li"><strong>DFD Level 0</strong> — System Context Diagram showing external entities and core information flows.</li>
+<li class="doc-li"><strong>DFD Level 1</strong> — Process Decomposition Diagram detailing sub-processes, data stores, and transactional logic.</li>
+<p class="doc-p">3. <strong>System Architecture Diagram</strong> — 3-Tier Cloud Deployment Architecture (Vercel Frontend, Render Backend, Aiven Cloud MySQL 8, and Google SMTP Relay).</p>
+
+<hr class="doc-divider">
+
+<h2 class="section-title">1. Entity-Relationship Diagram (ERD)</h2>
+
+<p class="doc-p">The JLIN Motorparts database is built on <strong>MySQL 8</strong> with strict InnoDB foreign key enforcement, transactional consistency, and database triggers protecting immutable audit trails.</p>
+
+<div class="diagram-wrapper"><pre class="mermaid" id="diagram_0" data-processed="true"><div id="dmermaid-1792403269139" style="font-family: &quot;trebuchet ms&quot;, verdana, arial, sans-serif;"><svg id="mermaid-1792403269139" width="100%" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 2412 512" style="max-width: 512px;" role="graphics-document document" aria-roledescription="error"><style>#mermaid-1792403269139{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;fill:#333;}#mermaid-1792403269139 .error-icon{fill:#552222;}#mermaid-1792403269139 .error-text{fill:#552222;stroke:#552222;}#mermaid-1792403269139 .edge-thickness-normal{stroke-width:2px;}#mermaid-1792403269139 .edge-thickness-thick{stroke-width:3.5px;}#mermaid-1792403269139 .edge-pattern-solid{stroke-dasharray:0;}#mermaid-1792403269139 .edge-pattern-dashed{stroke-dasharray:3;}#mermaid-1792403269139 .edge-pattern-dotted{stroke-dasharray:2;}#mermaid-1792403269139 .marker{fill:#333333;stroke:#333333;}#mermaid-1792403269139 .marker.cross{stroke:#333333;}#mermaid-1792403269139 svg{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;}#mermaid-1792403269139 :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style><g></g><g><path class="error-icon" d="m411.313,123.313c6.25-6.25 6.25-16.375 0-22.625s-16.375-6.25-22.625,0l-32,32-9.375,9.375-20.688-20.688c-12.484-12.5-32.766-12.5-45.25,0l-16,16c-1.261,1.261-2.304,2.648-3.31,4.051-21.739-8.561-45.324-13.426-70.065-13.426-105.867,0-192,86.133-192,192s86.133,192 192,192 192-86.133 192-192c0-24.741-4.864-48.327-13.426-70.065 1.402-1.007 2.79-2.049 4.051-3.31l16-16c12.5-12.492 12.5-32.758 0-45.25l-20.688-20.688 9.375-9.375 32.001-31.999zm-219.313,100.687c-52.938,0-96,43.063-96,96 0,8.836-7.164,16-16,16s-16-7.164-16-16c0-70.578 57.422-128 128-128 8.836,0 16,7.164 16,16s-7.164,16-16,16z"></path><path class="error-icon" d="m459.02,148.98c-6.25-6.25-16.375-6.25-22.625,0s-6.25,16.375 0,22.625l16,16c3.125,3.125 7.219,4.688 11.313,4.688 4.094,0 8.188-1.563 11.313-4.688 6.25-6.25 6.25-16.375 0-22.625l-16.001-16z"></path><path class="error-icon" d="m340.395,75.605c3.125,3.125 7.219,4.688 11.313,4.688 4.094,0 8.188-1.563 11.313-4.688 6.25-6.25 6.25-16.375 0-22.625l-16-16c-6.25-6.25-16.375-6.25-22.625,0s-6.25,16.375 0,22.625l15.999,16z"></path><path class="error-icon" d="m400,64c8.844,0 16-7.164 16-16v-32c0-8.836-7.156-16-16-16-8.844,0-16,7.164-16,16v32c0,8.836 7.156,16 16,16z"></path><path class="error-icon" d="m496,96.586h-32c-8.844,0-16,7.164-16,16 0,8.836 7.156,16 16,16h32c8.844,0 16-7.164 16-16 0-8.836-7.156-16-16-16z"></path><path class="error-icon" d="m436.98,75.605c3.125,3.125 7.219,4.688 11.313,4.688 4.094,0 8.188-1.563 11.313-4.688l32-32c6.25-6.25 6.25-16.375 0-22.625s-16.375-6.25-22.625,0l-32,32c-6.251,6.25-6.251,16.375-0.001,22.625z"></path><text class="error-text" x="1440" y="250" font-size="150px" style="text-anchor: middle;">Syntax error in text</text><text class="error-text" x="1250" y="400" font-size="100px" style="text-anchor: middle;">mermaid version 10.9.8</text></g></svg></div></pre></div><p></p>
+
+<h3 class="subsection-title">Key Database Design Principles:</h3>
+<p class="doc-p">1. <strong>Immutable Inventory Ledger (`inventory_transactions`)</strong>:</p>
+<li class="doc-li">Protected against direct `UPDATE` and `DELETE` via MySQL database triggers (`trg_block_inventory_transactions_update`, `trg_block_inventory_transactions_delete`).</li>
+<li class="doc-li">Protected against table truncation through foreign-key child table `inventory_transactions_lock`.</li>
+<li class="doc-li">Guaranteed signed movement validation via SQL `CHECK` constraint: sales/losses require `quantity_change &lt; 0`, receipts/additions require `quantity_change &gt; 0`.</li>
+<p class="doc-p">2. <strong>Dual-Layer Compatibility Matrix</strong>:</p>
+<li class="doc-li"><strong>Exact-Fit Compatibility</strong>: Maps direct parts to exact motorcycle unit models (`product_compatibilities` &amp; `motorcycle_models`).</li>
+<li class="doc-li"><strong>Platform-Level Compatibility</strong>: Groups families of models sharing identical engine/chassis platforms (e.g. <em>Yamaha Aerox Platform</em>, <em>Honda Click Platform</em>) via `compatibility_groups` and `product_compatibility_groups`.</li>
+<p class="doc-p">3. <strong>Serialized Asset Control</strong>:</p>
+<li class="doc-li">Distinct individual units (e.g., ECUs, Batteries, Expensive Electronics) are tracked through `product_serials` and bound to sales invoices via `sale_item_serials` to protect against duplicate allocation or fraudulent warranty claims.</li>
+<p class="doc-p">4. <strong>Security &amp; Cryptographic Isolation</strong>:</p>
+<li class="doc-li">`users.password` uses bcrypt (10 salt rounds).</li>
+<li class="doc-li">`users.token_version` is incremented on password changes to immediately revoke all existing JWTs across active browser sessions.</li>
+<li class="doc-li">`password_otps` stores SHA-256 code hashes with a 10-minute expiry and a 5-attempt brute-force threshold.</li>
+
+<hr class="doc-divider">
+
+<h2 class="section-title">2. Data Flow Diagrams (DFD)</h2>
+
+<h3 class="subsection-title">DFD Level 0: System Context Diagram</h3>
+
+<p class="doc-p">The Context Diagram outlines the high-level boundary of the <strong>JLIN Motorparts Inventory &amp; POS System</strong> and interactions with all external entities.</p>
+
+<div class="diagram-wrapper"><pre class="mermaid" id="diagram_1" data-processed="true"><div id="dmermaid-1792403269172" style="font-family: &quot;trebuchet ms&quot;, verdana, arial, sans-serif;"><svg id="mermaid-1792403269172" width="100%" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 2412 512" style="max-width: 512px;" role="graphics-document document" aria-roledescription="error"><style>#mermaid-1792403269172{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;fill:#333;}#mermaid-1792403269172 .error-icon{fill:#552222;}#mermaid-1792403269172 .error-text{fill:#552222;stroke:#552222;}#mermaid-1792403269172 .edge-thickness-normal{stroke-width:2px;}#mermaid-1792403269172 .edge-thickness-thick{stroke-width:3.5px;}#mermaid-1792403269172 .edge-pattern-solid{stroke-dasharray:0;}#mermaid-1792403269172 .edge-pattern-dashed{stroke-dasharray:3;}#mermaid-1792403269172 .edge-pattern-dotted{stroke-dasharray:2;}#mermaid-1792403269172 .marker{fill:#333333;stroke:#333333;}#mermaid-1792403269172 .marker.cross{stroke:#333333;}#mermaid-1792403269172 svg{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;}#mermaid-1792403269172 :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style><g></g><g><path class="error-icon" d="m411.313,123.313c6.25-6.25 6.25-16.375 0-22.625s-16.375-6.25-22.625,0l-32,32-9.375,9.375-20.688-20.688c-12.484-12.5-32.766-12.5-45.25,0l-16,16c-1.261,1.261-2.304,2.648-3.31,4.051-21.739-8.561-45.324-13.426-70.065-13.426-105.867,0-192,86.133-192,192s86.133,192 192,192 192-86.133 192-192c0-24.741-4.864-48.327-13.426-70.065 1.402-1.007 2.79-2.049 4.051-3.31l16-16c12.5-12.492 12.5-32.758 0-45.25l-20.688-20.688 9.375-9.375 32.001-31.999zm-219.313,100.687c-52.938,0-96,43.063-96,96 0,8.836-7.164,16-16,16s-16-7.164-16-16c0-70.578 57.422-128 128-128 8.836,0 16,7.164 16,16s-7.164,16-16,16z"></path><path class="error-icon" d="m459.02,148.98c-6.25-6.25-16.375-6.25-22.625,0s-6.25,16.375 0,22.625l16,16c3.125,3.125 7.219,4.688 11.313,4.688 4.094,0 8.188-1.563 11.313-4.688 6.25-6.25 6.25-16.375 0-22.625l-16.001-16z"></path><path class="error-icon" d="m340.395,75.605c3.125,3.125 7.219,4.688 11.313,4.688 4.094,0 8.188-1.563 11.313-4.688 6.25-6.25 6.25-16.375 0-22.625l-16-16c-6.25-6.25-16.375-6.25-22.625,0s-6.25,16.375 0,22.625l15.999,16z"></path><path class="error-icon" d="m400,64c8.844,0 16-7.164 16-16v-32c0-8.836-7.156-16-16-16-8.844,0-16,7.164-16,16v32c0,8.836 7.156,16 16,16z"></path><path class="error-icon" d="m496,96.586h-32c-8.844,0-16,7.164-16,16 0,8.836 7.156,16 16,16h32c8.844,0 16-7.164 16-16 0-8.836-7.156-16-16-16z"></path><path class="error-icon" d="m436.98,75.605c3.125,3.125 7.219,4.688 11.313,4.688 4.094,0 8.188-1.563 11.313-4.688l32-32c6.25-6.25 6.25-16.375 0-22.625s-16.375-6.25-22.625,0l-32,32c-6.251,6.25-6.251,16.375-0.001,22.625z"></path><text class="error-text" x="1440" y="250" font-size="150px" style="text-anchor: middle;">Syntax error in text</text><text class="error-text" x="1250" y="400" font-size="100px" style="text-anchor: middle;">mermaid version 10.9.8</text></g></svg></div></pre></div><p></p>
+
+<hr class="doc-divider">
+
+<h3 class="subsection-title">DFD Level 1: Process Decomposition Diagram</h3>
+
+<p class="doc-p">The Level 1 diagram breaks the system into its six core operational processes, detailing interactions with the data stores.</p>
+
+<div class="diagram-wrapper"><pre class="mermaid" id="diagram_2" data-processed="true"><div id="dmermaid-1792403269188" style="font-family: &quot;trebuchet ms&quot;, verdana, arial, sans-serif;"><svg id="mermaid-1792403269188" width="100%" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 2412 512" style="max-width: 512px;" role="graphics-document document" aria-roledescription="error"><style>#mermaid-1792403269188{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;fill:#333;}#mermaid-1792403269188 .error-icon{fill:#552222;}#mermaid-1792403269188 .error-text{fill:#552222;stroke:#552222;}#mermaid-1792403269188 .edge-thickness-normal{stroke-width:2px;}#mermaid-1792403269188 .edge-thickness-thick{stroke-width:3.5px;}#mermaid-1792403269188 .edge-pattern-solid{stroke-dasharray:0;}#mermaid-1792403269188 .edge-pattern-dashed{stroke-dasharray:3;}#mermaid-1792403269188 .edge-pattern-dotted{stroke-dasharray:2;}#mermaid-1792403269188 .marker{fill:#333333;stroke:#333333;}#mermaid-1792403269188 .marker.cross{stroke:#333333;}#mermaid-1792403269188 svg{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;}#mermaid-1792403269188 :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style><g></g><g><path class="error-icon" d="m411.313,123.313c6.25-6.25 6.25-16.375 0-22.625s-16.375-6.25-22.625,0l-32,32-9.375,9.375-20.688-20.688c-12.484-12.5-32.766-12.5-45.25,0l-16,16c-1.261,1.261-2.304,2.648-3.31,4.051-21.739-8.561-45.324-13.426-70.065-13.426-105.867,0-192,86.133-192,192s86.133,192 192,192 192-86.133 192-192c0-24.741-4.864-48.327-13.426-70.065 1.402-1.007 2.79-2.049 4.051-3.31l16-16c12.5-12.492 12.5-32.758 0-45.25l-20.688-20.688 9.375-9.375 32.001-31.999zm-219.313,100.687c-52.938,0-96,43.063-96,96 0,8.836-7.164,16-16,16s-16-7.164-16-16c0-70.578 57.422-128 128-128 8.836,0 16,7.164 16,16s-7.164,16-16,16z"></path><path class="error-icon" d="m459.02,148.98c-6.25-6.25-16.375-6.25-22.625,0s-6.25,16.375 0,22.625l16,16c3.125,3.125 7.219,4.688 11.313,4.688 4.094,0 8.188-1.563 11.313-4.688 6.25-6.25 6.25-16.375 0-22.625l-16.001-16z"></path><path class="error-icon" d="m340.395,75.605c3.125,3.125 7.219,4.688 11.313,4.688 4.094,0 8.188-1.563 11.313-4.688 6.25-6.25 6.25-16.375 0-22.625l-16-16c-6.25-6.25-16.375-6.25-22.625,0s-6.25,16.375 0,22.625l15.999,16z"></path><path class="error-icon" d="m400,64c8.844,0 16-7.164 16-16v-32c0-8.836-7.156-16-16-16-8.844,0-16,7.164-16,16v32c0,8.836 7.156,16 16,16z"></path><path class="error-icon" d="m496,96.586h-32c-8.844,0-16,7.164-16,16 0,8.836 7.156,16 16,16h32c8.844,0 16-7.164 16-16 0-8.836-7.156-16-16-16z"></path><path class="error-icon" d="m436.98,75.605c3.125,3.125 7.219,4.688 11.313,4.688 4.094,0 8.188-1.563 11.313-4.688l32-32c6.25-6.25 6.25-16.375 0-22.625s-16.375-6.25-22.625,0l-32,32c-6.251,6.25-6.251,16.375-0.001,22.625z"></path><text class="error-text" x="1440" y="250" font-size="150px" style="text-anchor: middle;">Syntax error in text</text><text class="error-text" x="1250" y="400" font-size="100px" style="text-anchor: middle;">mermaid version 10.9.8</text></g></svg></div></pre></div><p></p>
+
+<hr class="doc-divider">
+
+<h2 class="section-title">3. System Architecture Diagram</h2>
+
+<p class="doc-p">The system follows a modern <strong>3-Tier Web Architecture</strong> built for cloud-native deployment with strict HTTPS, zero-trust backend authorization, and managed database high availability.</p>
+
+<div class="diagram-wrapper"><pre class="mermaid" id="diagram_3" data-processed="true"><div id="dmermaid-1792403269222" style="font-family: &quot;trebuchet ms&quot;, verdana, arial, sans-serif;"><svg id="mermaid-1792403269222" width="100%" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 2412 512" style="max-width: 512px;" role="graphics-document document" aria-roledescription="error"><style>#mermaid-1792403269222{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;fill:#333;}#mermaid-1792403269222 .error-icon{fill:#552222;}#mermaid-1792403269222 .error-text{fill:#552222;stroke:#552222;}#mermaid-1792403269222 .edge-thickness-normal{stroke-width:2px;}#mermaid-1792403269222 .edge-thickness-thick{stroke-width:3.5px;}#mermaid-1792403269222 .edge-pattern-solid{stroke-dasharray:0;}#mermaid-1792403269222 .edge-pattern-dashed{stroke-dasharray:3;}#mermaid-1792403269222 .edge-pattern-dotted{stroke-dasharray:2;}#mermaid-1792403269222 .marker{fill:#333333;stroke:#333333;}#mermaid-1792403269222 .marker.cross{stroke:#333333;}#mermaid-1792403269222 svg{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;}#mermaid-1792403269222 :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style><g></g><g><path class="error-icon" d="m411.313,123.313c6.25-6.25 6.25-16.375 0-22.625s-16.375-6.25-22.625,0l-32,32-9.375,9.375-20.688-20.688c-12.484-12.5-32.766-12.5-45.25,0l-16,16c-1.261,1.261-2.304,2.648-3.31,4.051-21.739-8.561-45.324-13.426-70.065-13.426-105.867,0-192,86.133-192,192s86.133,192 192,192 192-86.133 192-192c0-24.741-4.864-48.327-13.426-70.065 1.402-1.007 2.79-2.049 4.051-3.31l16-16c12.5-12.492 12.5-32.758 0-45.25l-20.688-20.688 9.375-9.375 32.001-31.999zm-219.313,100.687c-52.938,0-96,43.063-96,96 0,8.836-7.164,16-16,16s-16-7.164-16-16c0-70.578 57.422-128 128-128 8.836,0 16,7.164 16,16s-7.164,16-16,16z"></path><path class="error-icon" d="m459.02,148.98c-6.25-6.25-16.375-6.25-22.625,0s-6.25,16.375 0,22.625l16,16c3.125,3.125 7.219,4.688 11.313,4.688 4.094,0 8.188-1.563 11.313-4.688 6.25-6.25 6.25-16.375 0-22.625l-16.001-16z"></path><path class="error-icon" d="m340.395,75.605c3.125,3.125 7.219,4.688 11.313,4.688 4.094,0 8.188-1.563 11.313-4.688 6.25-6.25 6.25-16.375 0-22.625l-16-16c-6.25-6.25-16.375-6.25-22.625,0s-6.25,16.375 0,22.625l15.999,16z"></path><path class="error-icon" d="m400,64c8.844,0 16-7.164 16-16v-32c0-8.836-7.156-16-16-16-8.844,0-16,7.164-16,16v32c0,8.836 7.156,16 16,16z"></path><path class="error-icon" d="m496,96.586h-32c-8.844,0-16,7.164-16,16 0,8.836 7.156,16 16,16h32c8.844,0 16-7.164 16-16 0-8.836-7.156-16-16-16z"></path><path class="error-icon" d="m436.98,75.605c3.125,3.125 7.219,4.688 11.313,4.688 4.094,0 8.188-1.563 11.313-4.688l32-32c6.25-6.25 6.25-16.375 0-22.625s-16.375-6.25-22.625,0l-32,32c-6.251,6.25-6.251,16.375-0.001,22.625z"></path><text class="error-text" x="1440" y="250" font-size="150px" style="text-anchor: middle;">Syntax error in text</text><text class="error-text" x="1250" y="400" font-size="100px" style="text-anchor: middle;">mermaid version 10.9.8</text></g></svg></div></pre></div><p></p>
+
+<hr class="doc-divider">
+
+<h2 class="section-title">4. Architectural Quality Attributes &amp; Defense Readiness</h2>
+
+<div class="table-container"><table class="doc-table">
+<thead><tr><th>Quality Attribute</th><th>Architectural Implementation</th><th>Verification Method</th></tr></thead><tbody>
+<tr><td><strong>Data Integrity</strong></td><td>Database-level triggers prevent ledger modification; `SELECT ... FOR UPDATE` row locking prevents concurrent double-spend of serial numbers.</td><td>Trigger rejection unit tests &amp; Phase 2 concurrent checkout tests.</td></tr>
+<tr><td><strong>Authentication &amp; Access</strong></td><td>JWT authentication with dual-role RBAC (`admin` vs. `staff`). Immediate multi-device invalidation through `users.token_version`.</td><td>Automated OTP test suite (Scenario 9 verified).</td></tr>
+<tr><td><strong>Fault Tolerance &amp; Zero Downtime</strong></td><td>Auto-migration engine ([`backend/utils/ensureSchema.js`](file:///c:/Inventory/backend/utils/ensureSchema.js)) checks and adds missing tables on server boot without manual SQL execution.</td><td>Automated Render deployment boot verification.</td></tr>
+<tr><td><strong>Security &amp; Privacy</strong></td><td>Passwords stored with Bcrypt (10 rounds); OTP codes stored with SHA-256 hashes; secrets strictly loaded from environment variables (`.env`).</td><td>`.gitignore` enforcement; git check-ignore verification.</td></tr>
+<tr><td><strong>Fitment Accuracy</strong></td><td>Hybrid fitment model: Exact model matching combined with platform-level shared groupings.</td><td>Real-time fitment search testing with Aerox, Click, and Raider platforms.</td></tr>
+</tbody></table></div>
+
+
+    <div style="margin-top: 50px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 0.82rem;">
+      JLIN Motorparts Management &amp; POS System • Design Documents • Generated October 2026
+    </div>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'default',
+      securityLevel: 'loose',
+      er: {
+        useMaxWidth: false
+      },
+      flowchart: {
+        useMaxWidth: false,
+        htmlLabels: true
+      }
+    });
+  </script>
+
+</body></html>
+</html>

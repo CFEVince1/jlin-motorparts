@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>System Design Documents - JLIN Motorparts</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    @page {
+      size: A4;
+      margin: 20mm 15mm 20mm 15mm;
+    }
+    body {
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: #1e293b;
+      background: #f8fafc;
+      margin: 0;
+      padding: 40px;
+    }
+    .page-container {
+      max-width: 960px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 50px;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    }
+    .doc-title {
+      font-size: 2.2rem;
+      color: #0f172a;
+      border-bottom: 3px solid #3b82f6;
+      padding-bottom: 12px;
+      margin-bottom: 24px;
+      font-weight: 800;
+    }
+    .section-title {
+      font-size: 1.5rem;
+      color: #1e3a8a;
+      margin-top: 40px;
+      margin-bottom: 16px;
+      border-bottom: 1.5px solid #e2e8f0;
+      padding-bottom: 8px;
+      font-weight: 700;
+      page-break-after: avoid;
+    }
+    .subsection-title {
+      font-size: 1.2rem;
+      color: #2563eb;
+      margin-top: 24px;
+      margin-bottom: 12px;
+      font-weight: 600;
+      page-break-after: avoid;
+    }
+    .doc-p {
+      color: #334155;
+      font-size: 0.95rem;
+      margin-bottom: 14px;
+    }
+    .doc-li {
+      color: #334155;
+      font-size: 0.92rem;
+      margin-bottom: 6px;
+    }
+    .doc-divider {
+      border: none;
+      border-top: 1px solid #e2e8f0;
+      margin: 36px 0;
+    }
+    .diagram-wrapper {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 24px 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow-x: auto;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+      page-break-inside: avoid;
+    }
+    .diagram-wrapper svg {
+      max-width: 100% !important;
+      height: auto !important;
+    }
+    .table-container {
+      margin: 20px 0;
+      overflow-x: auto;
+      page-break-inside: avoid;
+    }
+    .doc-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    .doc-table th {
+      background: #f1f5f9;
+      color: #0f172a;
+      font-weight: 700;
+      text-align: left;
+      padding: 10px 14px;
+      border: 1px solid #cbd5e1;
+    }
+    .doc-table td {
+      padding: 10px 14px;
+      border: 1px solid #e2e8f0;
+      color: #334155;
+    }
+    .doc-table tr:nth-child(even) {
+      background: #f8fafc;
+    }
+    @media print {
+      body {
+        background: #ffffff;
+        padding: 0;
+      }
+      .page-container {
+        box-shadow: none;
+        padding: 0;
+        max-width: 100%;
+      }
+      .diagram-wrapper {
+        border: 1px solid #cbd5e1;
+        box-shadow: none;
+        page-break-inside: avoid;
+      }
+      .section-title {
+        page-break-before: always;
+      }
+      .section-title:first-of-type {
+        page-break-before: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">
+      <span style="font-size: 0.85rem; font-weight: 700; color: #64748b; letter-spacing: 0.05em; text-transform: uppercase;">Software Engineering Specification Document</span>
+      <span style="font-size: 0.85rem; color: #64748b;">JLIN Motorparts Inventory & POS System</span>
+    </div>
+
+    <h1 class="doc-title">System Design Documents: JLIN Motorparts Inventory & POS System</h1>
+
+<p class="doc-p">This document contains the complete formal software engineering design diagrams for the <strong>JLIN Motorparts Inventory & POS System</strong>:</p>
+<p class="doc-p">1. <strong>Entity-Relationship Diagram (ERD)</strong> — Database architecture, table schemas, keys, constraints, and relational cardinality.</p>
+<p class="doc-p">2. <strong>Data Flow Diagrams (DFD)</strong>:</p>
+<li class="doc-li"><strong>DFD Level 0</strong> — System Context Diagram showing external entities and core information flows.</li>
+<li class="doc-li"><strong>DFD Level 1</strong> — Process Decomposition Diagram detailing sub-processes, data stores, and transactional logic.</li>
+<p class="doc-p">3. <strong>System Architecture Diagram</strong> — 3-Tier Cloud Deployment Architecture (Vercel Frontend, Render Backend, Aiven Cloud MySQL 8, and Google SMTP Relay).</p>
+
+<hr class="doc-divider"/>
+
+<h2 class="section-title">1. Entity-Relationship Diagram (ERD)</h2>
+
+<p class="doc-p">The JLIN Motorparts database is built on <strong>MySQL 8</strong> with strict InnoDB foreign key enforcement, transactional consistency, and database triggers protecting immutable audit trails.</p>
+
+<div class="diagram-wrapper"><pre class="mermaid" id="diagram_0">erDiagram
+<p class="doc-p">users ||--o{ password_otps : "requests"</p>
+<p class="doc-p">users ||--o{ receiving_records : "receives"</p>
+<p class="doc-p">users ||--o{ sales : "processes"</p>
+<p class="doc-p">users ||--o{ inventory_transactions : "logs"</p>
+
+<p class="doc-p">suppliers ||--o{ receiving_records : "supplies"</p>
+<p class="doc-p">receiving_records ||--|{ receiving_record_items : "contains"</p>
+<p class="doc-p">products ||--o{ receiving_record_items : "replenished_via"</p>
+
+<p class="doc-p">products ||--o{ product_serials : "tracks"</p>
+<p class="doc-p">products ||--o{ sale_items : "sold_via"</p>
+<p class="doc-p">products ||--o{ inventory_transactions : "audited_in"</p>
+<p class="doc-p">products ||--o{ product_compatibilities : "fits_model"</p>
+<p class="doc-p">products ||--o{ product_compatibility_groups : "grouped_in"</p>
+
+<p class="doc-p">motorcycle_models ||--o{ product_compatibilities : "compatible_with"</p>
+<p class="doc-p">motorcycle_units ||--o{ compatibility_group_units : "member_of"</p>
+
+<p class="doc-p">compatibility_groups ||--o{ compatibility_group_units : "includes"</p>
+<p class="doc-p">compatibility_groups ||--o{ product_compatibility_groups : "applies_to"</p>
+
+<p class="doc-p">sales ||--|{ sale_items : "contains"</p>
+<p class="doc-p">sale_items ||--o{ sale_item_serials : "allocates"</p>
+<p class="doc-p">product_serials ||--o{ sale_item_serials : "assigned_to"</p>
+
+<p class="doc-p">inventory_transactions ||--o| inventory_transactions_lock : "guarded_by"</p>
+
+<p class="doc-p">users {</p>
+<p class="doc-p">int id PK</p>
+<p class="doc-p">varchar username UK</p>
+<p class="doc-p">varchar password</p>
+<p class="doc-p">enum role "admin, staff"</p>
+<p class="doc-p">int token_version</p>
+<p class="doc-p">varchar email UK</p>
+<p class="doc-p">datetime email_verified_at</p>
+<p class="doc-p">timestamp created_at</p>
+<p class="doc-p">timestamp updated_at</p>
+<p class="doc-p">}</p>
+
+<p class="doc-p">password_otps {</p>
+<p class="doc-p">int id PK</p>
+<p class="doc-p">int user_id FK</p>
+<p class="doc-p">varchar purpose "link_email, password_reset"</p>
+<p class="doc-p">varchar code_hash</p>
+<p class="doc-p">int attempts</p>
+<p class="doc-p">datetime expires_at</p>
+<p class="doc-p">datetime used_at</p>
+<p class="doc-p">timestamp created_at</p>
+<p class="doc-p">}</p>
+
+<p class="doc-p">suppliers {</p>
+<p class="doc-p">int id PK</p>
+<p class="doc-p">varchar name UK</p>
+<p class="doc-p">varchar contact_person</p>
+<p class="doc-p">varchar email</p>
+<p class="doc-p">varchar phone</p>
+<p class="doc-p">text address</p>
+<p class="doc-p">boolean is_active</p>
+<p class="doc-p">timestamp created_at</p>
+<p class="doc-p">timestamp updated_at</p>
+<p class="doc-p">}</p>
+
+<p class="doc-p">products {</p>
+<p class="doc-p">int id PK</p>
+<p class="doc-p">varchar part_number</p>
+<p class="doc-p">varchar sku</p>
+<p class="doc-p">varchar name</p>
+<p class="doc-p">varchar brand</p>
+<p class="doc-p">varchar category</p>
+<p class="doc-p">varchar size</p>
+<p class="doc-p">varchar measurement</p>
+<p class="doc-p">varchar thread_type</p>
+<p class="doc-p">decimal cost_price</p>
+<p class="doc-p">decimal selling_price</p>
+<p class="doc-p">decimal retail_price</p>
+<p class="doc-p">int stock</p>
+<p class="doc-p">int current_stock</p>
+<p class="doc-p">int reorder_level</p>
+<p class="doc-p">boolean is_serialized</p>
+<p class="doc-p">boolean is_active</p>
+<p class="doc-p">timestamp created_at</p>
+<p class="doc-p">timestamp updated_at</p>
+<p class="doc-p">}</p>
+
+<p class="doc-p">product_serials {</p>
+<p class="doc-p">int id PK</p>
+<p class="doc-p">int product_id FK</p>
+<p class="doc-p">varchar serial_number UK</p>
+<p class="doc-p">enum status "available, sold"</p>
+<p class="doc-p">timestamp created_at</p>
+<p class="doc-p">}</p>
+
+<p class="doc-p">motorcycle_units {</p>
+<p class="doc-p">int id PK</p>
+<p class="doc-p">varchar brand</p>
+<p class="doc-p">varchar model</p>
+<p class="doc-p">varchar year_model</p>
+<p class="doc-p">}</p>
+
+<p class="doc-p">motorcycle_models {</p>
+<p class="doc-p">int id PK</p>
+<p class="doc-p">varchar brand</p>
+<p class="doc-p">varchar model</p>
+<p class="doc-p">int year_start</p>
+<p class="doc-p">int year_end</p>
+<p class="doc-p">varchar year_model</p>
+<p class="doc-p">varchar engine_displacement</p>
+<p class="doc-p">timestamp created_at</p>
+<p class="doc-p">}</p>
+
+<p class="doc-p">product_compatibilities {</p>
+<p class="doc-p">int id PK</p>
+<p class="doc-p">int product_id FK</p>
+<p class="doc-p">int motorcycle_model_id FK</p>
+<p class="doc-p">enum compatibility_status "COMPATIBLE, NOT_COMPATIBLE, CONDITIONAL"</p>
+<p class="doc-p">varchar notes</p>
+<p class="doc-p">timestamp created_at</p>
+<p class="doc-p">}</p>
+
+<p class="doc-p">compatibility_groups {</p>
+<p class="doc-p">int id PK</p>
+<p class="doc-p">varchar group_name UK</p>
+<p class="doc-p">text description</p>
+<p class="doc-p">}</p>
+
+<p class="doc-p">compatibility_group_units {</p>
+<p class="doc-p">int id PK</p>
+<p class="doc-p">int compatibility_group_id FK</p>
+<p class="doc-p">int motorcycle_unit_id FK</p>
+<p class="doc-p">}</p>
+
+<p class="doc-p">product_compatibility_groups {</p>
+<p class="doc-p">int id PK</p>
+<p class="doc-p">int product_id FK</p>
+<p class="doc-p">int compatibility_group_id FK</p>
+<p class="doc-p">}</p>
+
+<p class="doc-p">receiving_records {</p>
+<p class="doc-p">int id PK</p>
+<p class="doc-p">int supplier_id FK</p>
+<p class="doc-p">varchar reference_number</p>
+<p class="doc-p">varchar reference_no</p>
+<p class="doc-p">int received_by FK</p>
+<p class="doc-p">timestamp received_at</p>
+<p class="doc-p">decimal total_cost</p>
+<p class="doc-p">enum status "draft, received, cancelled"</p>
+<p class="doc-p">text notes</p>
+<p class="doc-p">timestamp created_at</p>
+<p class="doc-p">}</p>
+
+<p class="doc-p">receiving_record_items {</p>
+<p class="doc-p">int id PK</p>
+<p class="doc-p">int receiving_record_id FK</p>
+<p class="doc-p">int product_id FK</p>
+<p class="doc-p">int quantity</p>
+<p class="doc-p">decimal cost_price</p>
+<p class="doc-p">decimal subtotal</p>
+<p class="doc-p">timestamp created_at</p>
+<p class="doc-p">}</p>
+
+<p class="doc-p">sales {</p>
+<p class="doc-p">int id PK</p>
+<p class="doc-p">int user_id FK</p>
+<p class="doc-p">varchar order_number</p>
+<p class="doc-p">decimal total_amount</p>
+<p class="doc-p">decimal tendered_amount</p>
+<p class="doc-p">decimal change_due</p>
+<p class="doc-p">enum payment_method "Cash, GCash, Card"</p>
+<p class="doc-p">varchar payment_reference UK</p>
+<p class="doc-p">varchar payment_provider</p>
+<p class="doc-p">varchar payment_status</p>
+<p class="doc-p">timestamp sale_date</p>
+<p class="doc-p">}</p>
+
+<p class="doc-p">sale_items {</p>
+<p class="doc-p">int id PK</p>
+<p class="doc-p">int sale_id FK</p>
+<p class="doc-p">int product_id FK</p>
+<p class="doc-p">varchar part_number</p>
+<p class="doc-p">varchar product_name</p>
+<p class="doc-p">varchar brand</p>
+<p class="doc-p">varchar size</p>
+<p class="doc-p">int quantity</p>
+<p class="doc-p">decimal price</p>
+<p class="doc-p">decimal cost_price</p>
+<p class="doc-p">decimal subtotal</p>
+<p class="doc-p">}</p>
+
+<p class="doc-p">sale_item_serials {</p>
+<p class="doc-p">int id PK</p>
+<p class="doc-p">int sale_item_id FK</p>
+<p class="doc-p">int serial_id FK,UK</p>
+<p class="doc-p">}</p>
+
+<p class="doc-p">inventory_transactions {</p>
+<p class="doc-p">bigint id PK</p>
+<p class="doc-p">varchar transaction_number UK</p>
+<p class="doc-p">varchar reference_no</p>
+<p class="doc-p">int product_id FK</p>
+<p class="doc-p">varchar transaction_type "STOCK_IN, SALE, DAMAGE, LOSS, OPENING_BALANCE, etc."</p>
+<p class="doc-p">int quantity</p>
+<p class="doc-p">int quantity_change</p>
+<p class="doc-p">int balance_before</p>
+<p class="doc-p">int balance_after</p>
+<p class="doc-p">decimal unit_cost</p>
+<p class="doc-p">varchar reference_type</p>
+<p class="doc-p">int reference_id</p>
+<p class="doc-p">text remarks</p>
+<p class="doc-p">int created_by FK</p>
+<p class="doc-p">timestamp created_at</p>
+<p class="doc-p">}</p>
+
+<p class="doc-p">inventory_transactions_lock {</p>
+<p class="doc-p">int id PK</p>
+<p class="doc-p">bigint transaction_id FK</p>
+<p class="doc-p">timestamp created_at</p>
+<p class="doc-p">}</pre></div></p>
+
+<h3 class="subsection-title">Key Database Design Principles:</h3>
+<p class="doc-p">1. <strong>Immutable Inventory Ledger (`inventory_transactions`)</strong>:</p>
+<li class="doc-li">Protected against direct `UPDATE` and `DELETE` via MySQL database triggers (`trg_block_inventory_transactions_update`, `trg_block_inventory_transactions_delete`).</li>
+<li class="doc-li">Protected against table truncation through foreign-key child table `inventory_transactions_lock`.</li>
+<li class="doc-li">Guaranteed signed movement validation via SQL `CHECK` constraint: sales/losses require `quantity_change < 0`, receipts/additions require `quantity_change > 0`.</li>
+<p class="doc-p">2. <strong>Dual-Layer Compatibility Matrix</strong>:</p>
+<li class="doc-li"><strong>Exact-Fit Compatibility</strong>: Maps direct parts to exact motorcycle unit models (`product_compatibilities` & `motorcycle_models`).</li>
+<li class="doc-li"><strong>Platform-Level Compatibility</strong>: Groups families of models sharing identical engine/chassis platforms (e.g. <em>Yamaha Aerox Platform</em>, <em>Honda Click Platform</em>) via `compatibility_groups` and `product_compatibility_groups`.</li>
+<p class="doc-p">3. <strong>Serialized Asset Control</strong>:</p>
+<li class="doc-li">Distinct individual units (e.g., ECUs, Batteries, Expensive Electronics) are tracked through `product_serials` and bound to sales invoices via `sale_item_serials` to protect against duplicate allocation or fraudulent warranty claims.</li>
+<p class="doc-p">4. <strong>Security & Cryptographic Isolation</strong>:</p>
+<li class="doc-li">`users.password` uses bcrypt (10 salt rounds).</li>
+<li class="doc-li">`users.token_version` is incremented on password changes to immediately revoke all existing JWTs across active browser sessions.</li>
+<li class="doc-li">`password_otps` stores SHA-256 code hashes with a 10-minute expiry and a 5-attempt brute-force threshold.</li>
+
+<hr class="doc-divider"/>
+
+<h2 class="section-title">2. Data Flow Diagrams (DFD)</h2>
+
+<h3 class="subsection-title">DFD Level 0: System Context Diagram</h3>
+
+<p class="doc-p">The Context Diagram outlines the high-level boundary of the <strong>JLIN Motorparts Inventory & POS System</strong> and interactions with all external entities.</p>
+
+<div class="diagram-wrapper"><pre class="mermaid" id="diagram_1">flowchart TD
+<p class="doc-p">subgraph External_Entities ["External Entities"]</p>
+<p class="doc-p">Admin["Administrator / Owner"]</p>
+<p class="doc-p">Staff["Cashier / Staff"]</p>
+<p class="doc-p">Supplier["Parts Supplier"]</p>
+<p class="doc-p">Customer["Walk-in Customer"]</p>
+<p class="doc-p">end</p>
+
+<p class="doc-p">System["JLIN Motorparts Inventory & POS System"]</p>
+
+<p class="doc-p">%% Admin flows</p>
+<p class="doc-p">Admin -->|"1. Credentials, user management, recovery email"| System</p>
+<p class="doc-p">Admin -->|"2. Catalog configuration & fitment rules"| System</p>
+<p class="doc-p">Admin -->|"3. Stock adjustments & opening balance overrides"| System</p>
+<p class="doc-p">System -->|"4. Financial analytics, audit ledger & low stock alerts"| Admin</p>
+
+<p class="doc-p">%% Staff flows</p>
+<p class="doc-p">Staff -->|"5. Authentication & POS transaction cart"| System</p>
+<p class="doc-p">Staff -->|"6. Barcode scan / Part # lookup & Fitment search"| System</p>
+<p class="doc-p">Staff -->|"7. Supplier stock receive & serial numbers"| System</p>
+<p class="doc-p">System -->|"8. Item availability, fitment results & shift receipts"| Staff</p>
+
+<p class="doc-p">%% Supplier flows</p>
+<p class="doc-p">Supplier -->|"9. Delivery invoice & physical motorparts"| Staff</p>
+<p class="doc-p">Staff -->|"10. Receiving verification & PO reference"| System</p>
+
+<p class="doc-p">%% Customer flows</p>
+<p class="doc-p">Customer -->|"11. Part inquiries, motorcycle model & payment"| Staff</p>
+<p class="doc-p">Staff -->|"12. Processed checkout & printed thermal receipt"| Customer</pre></div></p>
+
+<hr class="doc-divider"/>
+
+<h3 class="subsection-title">DFD Level 1: Process Decomposition Diagram</h3>
+
+<p class="doc-p">The Level 1 diagram breaks the system into its six core operational processes, detailing interactions with the data stores.</p>
+
+<div class="diagram-wrapper"><pre class="mermaid" id="diagram_2">flowchart TD
+<p class="doc-p">%% Entities</p>
+<p class="doc-p">Admin["Admin"]</p>
+<p class="doc-p">Staff["Cashier / Staff"]</p>
+<p class="doc-p">Customer["Customer"]</p>
+<p class="doc-p">Supplier["Supplier"]</p>
+
+<p class="doc-p">%% Data Stores</p>
+<p class="doc-p">D1[("D1: Users & Auth OTPs")]</p>
+<p class="doc-p">D2[("D2: Product & Fitment Catalog")]</p>
+<p class="doc-p">D3[("D3: Suppliers & Receiving Records")]</p>
+<p class="doc-p">D4[("D4: POS Sales & Serial Allocation")]</p>
+<p class="doc-p">D5[("D5: Immutable Inventory Ledger")]</p>
+
+<p class="doc-p">%% Process 1: Auth & OTP Recovery</p>
+<p class="doc-p">subgraph P1 ["1.0 Authentication & Password Recovery"]</p>
+<p class="doc-p">P1_1["1.1 Login & JWT Token Dispatch"]</p>
+<p class="doc-p">P1_2["1.2 Email OTP Verification"]</p>
+<p class="doc-p">P1_3["1.3 Session Revocation"]</p>
+<p class="doc-p">end</p>
+
+<p class="doc-p">Admin -->|"Username, Password, OTP"| P1_1</p>
+<p class="doc-p">Staff -->|"Username, Password"| P1_1</p>
+<p class="doc-p">P1_1 <-->|"Verify credentials & token_version"| D1</p>
+<p class="doc-p">P1_2 <-->|"Validate 6-digit OTP hash & expiry"| D1</p>
+<p class="doc-p">P1_3 -->|"Bump token_version on password reset"| D1</p>
+
+<p class="doc-p">%% Process 2: Catalog & Fitment</p>
+<p class="doc-p">subgraph P2 ["2.0 Product & Fitment Matrix Management"]</p>
+<p class="doc-p">P2_1["2.1 Product Catalog CRUD"]</p>
+<p class="doc-p">P2_2["2.2 Platform Group Compatibility"]</p>
+<p class="doc-p">P2_3["2.3 Fitment Search Engine"]</p>
+<p class="doc-p">end</p>
+
+<p class="doc-p">Admin -->|"Manage Products, Prices, Platforms"| P2_1</p>
+<p class="doc-p">Admin -->|"Define Platform Groups & Models"| P2_2</p>
+<p class="doc-p">P2_1 <-->|"Read / Write Catalog"| D2</p>
+<p class="doc-p">P2_2 <-->|"Link Groups & Models"| D2</p>
+<p class="doc-p">Staff -->|"Search by Bike Brand / Model / Part #"| P2_3</p>
+<p class="doc-p">P2_3 <-->|"Query Compatible Parts"| D2</p>
+
+<p class="doc-p">%% Process 3: Stock Inflow</p>
+<p class="doc-p">subgraph P3 ["3.0 Stock Receiving & Supplier Inflow"]</p>
+<p class="doc-p">P3_1["3.1 Supplier & Receipt Verification"]</p>
+<p class="doc-p">P3_2["3.2 Item Quantity & Cost Check"]</p>
+<p class="doc-p">P3_3["3.3 Serial Number Enrollment"]</p>
+<p class="doc-p">end</p>
+
+<p class="doc-p">Supplier -->|"Delivery Slip & Parts"| Staff</p>
+<p class="doc-p">Staff -->|"Input Supplier Receipt & Qty"| P3_1</p>
+<p class="doc-p">P3_1 <-->|"Verify Supplier"| D3</p>
+<p class="doc-p">P3_2 -->|"Store Inflow Records"| D3</p>
+<p class="doc-p">P3_2 -->|"STOCK_IN movement"| D5</p>
+<p class="doc-p">P3_2 -->|"Increment current_stock"| D2</p>
+<p class="doc-p">P3_3 -->|"Register Serial Numbers"| D2</p>
+
+<p class="doc-p">%% Process 4: Point of Sale</p>
+<p class="doc-p">subgraph P4 ["4.0 Point of Sale & Checkout"]</p>
+<p class="doc-p">P4_1["4.1 Cart Building & Stock Check"]</p>
+<p class="doc-p">P4_2["4.2 Payment & Tender Calculation"]</p>
+<p class="doc-p">P4_3["4.3 Serial Number Assignment"]</p>
+<p class="doc-p">P4_4["4.4 Receipt Generation"]</p>
+<p class="doc-p">end</p>
+
+<p class="doc-p">Staff -->|"Scan / Select Items"| P4_1</p>
+<p class="doc-p">P4_1 <-->|"Validate available stock"| D2</p>
+<p class="doc-p">Customer -->|"Cash / GCash Payment"| Staff</p>
+<p class="doc-p">Staff -->|"Tender Payment & Order"| P4_2</p>
+<p class="doc-p">P4_2 -->|"Insert Sale Record"| D4</p>
+<p class="doc-p">P4_3 <-->|"Mark Serials as SOLD"| D2</p>
+<p class="doc-p">P4_3 -->|"Link Serials to Sale Item"| D4</p>
+<p class="doc-p">P4_2 -->|"SALE deduction movement"| D5</p>
+<p class="doc-p">P4_2 -->|"Decrement current_stock"| D2</p>
+<p class="doc-p">P4_4 -->|"Official Printed Receipt"| Customer</p>
+
+<p class="doc-p">%% Process 5: Immutable Ledger & Audit</p>
+<p class="doc-p">subgraph P5 ["5.0 Immutable Ledger & Inventory Audit"]</p>
+<p class="doc-p">P5_1["5.1 Transaction Logger"]</p>
+<p class="doc-p">P5_2["5.2 Physical Count Audit"]</p>
+<p class="doc-p">end</p>
+
+<p class="doc-p">D5 <-->|"Append-only movement entry"| P5_1</p>
+<p class="doc-p">Admin -->|"Log Discrepancy Adjustment"| P5_2</p>
+<p class="doc-p">P5_2 -->|"ADJUSTMENT_ADD / LOSS record"| D5</p>
+<p class="doc-p">P5_2 -->|"Synchronize current_stock"| D2</p>
+
+<p class="doc-p">%% Process 6: Reports & Analytics</p>
+<p class="doc-p">subgraph P6 ["6.0 Reports & Business Analytics"]</p>
+<p class="doc-p">P6_1["6.1 Sales & Revenue Reports"]</p>
+<p class="doc-p">P6_2["6.2 Fast / Slow Moving Parts"]</p>
+<p class="doc-p">P6_3["6.3 Cashier Sales Breakdown"]</p>
+<p class="doc-p">end</p>
+
+<p class="doc-p">D4 -->|"Sales Data"| P6_1</p>
+<p class="doc-p">D5 -->|"Movement History"| P6_2</p>
+<p class="doc-p">D4 -->|"User Sales Log"| P6_3</p>
+<p class="doc-p">P6_1 -->|"Exportable Reports & Graphs"| Admin</p>
+<p class="doc-p">P6_2 -->|"Restock Recommendations"| Admin</p>
+<p class="doc-p">P6_3 -->|"Cashier Reconciliation"| Admin</pre></div></p>
+
+<hr class="doc-divider"/>
+
+<h2 class="section-title">3. System Architecture Diagram</h2>
+
+<p class="doc-p">The system follows a modern <strong>3-Tier Web Architecture</strong> built for cloud-native deployment with strict HTTPS, zero-trust backend authorization, and managed database high availability.</p>
+
+<div class="diagram-wrapper"><pre class="mermaid" id="diagram_3">flowchart TD
+<p class="doc-p">subgraph Presentation_Tier ["Tier 1: Presentation Layer (Vercel Edge CDN)"]</p>
+<p class="doc-p">Browser["Staff / Admin Browser Client"]</p>
+<p class="doc-p">VercelCDN["Vercel Global Edge Network\n(https://jlin-motorparts.vercel.app)"]</p>
+<p class="doc-p">ReactApp["React 19 SPA (Vite Bundler)\n- React Router 7 Declarative Routing\n- Tailwind / Modern CSS Glassmorphic UI\n- Lucide Icon System\n- Thermal Receipt Generator (Native Print Engine)\n- Real-time POS Cart & Fitment Search Engine"]</p>
+<p class="doc-p">end</p>
+
+<p class="doc-p">subgraph Application_Tier ["Tier 2: Application / API Layer (Render Cloud PaaS)"]</p>
+<p class="doc-p">RenderService["Render Web Service\n(https://jlin-motorparts.onrender.com)"]</p>
+<p class="doc-p">ExpressApp["Node.js 24 + Express 5 REST API\n- Helmet Security Headers (CSP & HSTS)\n- Strict CORS Origin Validation\n- Token Revocation (token_version Verification)\n- Express-Validator & Zod Payload Schemas\n- Rate Limiters (Auth, Password OTP, Public Endpoints)\n- Schema Auto-Migration Engine (ensureSchema.js)"]</p>
+<p class="doc-p">AuthModule["Auth & Recovery Controller\n- Bcrypt 10-Round Password Hasher\n- Crypto 6-Digit OTP Generator\n- JWT Bearer Token Dispatcher"]</p>
+<p class="doc-p">InventoryModule["Inventory & Movement Service\n- Atomic Transaction Manager\n- Canonical Product Sync\n- Reorder Level Evaluator"]</p>
+<p class="doc-p">POSModule["POS Checkout & Sales Engine\n- GCash Reference Validator\n- Serial Allocation Guard\n- Sale Transaction Logger"]</p>
+<p class="doc-p">end</p>
+
+<p class="doc-p">subgraph External_Services ["External Communications Layer"]</p>
+<p class="doc-p">GmailSMTP["Google Cloud Gmail SMTP Relay\n- Host: smtp.gmail.com:465 (SSL/TLS)\n- Account: jlinmotorparts.noreply@gmail.com\n- 16-Char App Password Authentication\n- 6-Digit Security Codes & Recovery Emails"]</p>
+<p class="doc-p">end</p>
+
+<p class="doc-p">subgraph Data_Tier ["Tier 3: Persistence Layer (Aiven Cloud Database)"]</p>
+<p class="doc-p">AivenDB["Aiven Cloud MySQL 8 Cluster\n- Host: mysql-*.aivencloud.com\n- Port: 3306\n- Database: defaultdb / jlin_inventory_db\n- TLS/SSL Enforced (aiven-ca.pem Root CA)"]</p>
+<p class="doc-p">ConnectionPool["mysql2 Connection Pool\n- Promise-based Query Execution\n- Connection Re-use & Auto-reconnect\n- UTC / PHT (+08:00) Timezone Alignment"]</p>
+<p class="doc-p">Triggers["Database Engine Triggers\n- trg_sync_products_insert / update\n- trg_block_inventory_transactions_update\n- trg_block_inventory_transactions_delete"]</p>
+<p class="doc-p">StorageEngine["InnoDB Storage Engine\n- ACID Transaction Guarantees\n- Row-Level Locking (SELECT ... FOR UPDATE)\n- Cascade Integrity Constraints"]</p>
+<p class="doc-p">end</p>
+
+<p class="doc-p">%% Connections</p>
+<p class="doc-p">Browser <-->|"HTTPS / TLS 1.3"| VercelCDN</p>
+<p class="doc-p">VercelCDN <-->|"Delivers Optimized Static Chunks"| ReactApp</p>
+<p class="doc-p">ReactApp <-->|"RESTful API Calls (JSON with JWT Bearer Token)"| RenderService</p>
+<p class="doc-p">RenderService <-->|"Express Routing & Middleware"| ExpressApp</p>
+
+<p class="doc-p">ExpressApp --> AuthModule</p>
+<p class="doc-p">ExpressApp --> InventoryModule</p>
+<p class="doc-p">ExpressApp --> POSModule</p>
+
+<p class="doc-p">AuthModule <-->|"Nodemailer Transporter (Secure OTP Dispatch)"| GmailSMTP</p>
+
+<p class="doc-p">ExpressApp <--> ConnectionPool</p>
+<p class="doc-p">ConnectionPool <-->|"Encrypted MySQL Wire Protocol (SSL CA Validated)"| AivenDB</p>
+<p class="doc-p">AivenDB --> Triggers</p>
+<p class="doc-p">AivenDB --> StorageEngine</pre></div></p>
+
+<hr class="doc-divider"/>
+
+<h2 class="section-title">4. Architectural Quality Attributes & Defense Readiness</h2>
+
+<div class="table-container"><table class="doc-table">
+<thead><tr><th>Quality Attribute</th><th>Architectural Implementation</th><th>Verification Method</th></tr></thead><tbody>
+<tr><td><strong>Data Integrity</strong></td><td>Database-level triggers prevent ledger modification; `SELECT ... FOR UPDATE` row locking prevents concurrent double-spend of serial numbers.</td><td>Trigger rejection unit tests & Phase 2 concurrent checkout tests.</td></tr>
+<tr><td><strong>Authentication & Access</strong></td><td>JWT authentication with dual-role RBAC (`admin` vs. `staff`). Immediate multi-device invalidation through `users.token_version`.</td><td>Automated OTP test suite (Scenario 9 verified).</td></tr>
+<tr><td><strong>Fault Tolerance & Zero Downtime</strong></td><td>Auto-migration engine ([`backend/utils/ensureSchema.js`](file:///c:/Inventory/backend/utils/ensureSchema.js)) checks and adds missing tables on server boot without manual SQL execution.</td><td>Automated Render deployment boot verification.</td></tr>
+<tr><td><strong>Security & Privacy</strong></td><td>Passwords stored with Bcrypt (10 rounds); OTP codes stored with SHA-256 hashes; secrets strictly loaded from environment variables (`.env`).</td><td>`.gitignore` enforcement; git check-ignore verification.</td></tr>
+<tr><td><strong>Fitment Accuracy</strong></td><td>Hybrid fitment model: Exact model matching combined with platform-level shared groupings.</td><td>Real-time fitment search testing with Aerox, Click, and Raider platforms.</td></tr>
+</tbody></table></div>
+
+
+    <div style="margin-top: 50px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 0.82rem;">
+      JLIN Motorparts Management & POS System &bull; Design Documents &bull; Generated October 2026
+    </div>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'default',
+      securityLevel: 'loose',
+      er: {
+        useMaxWidth: false
+      },
+      flowchart: {
+        useMaxWidth: false,
+        htmlLabels: true
+      }
+    });
+  </script>
+</body>
+</html>
