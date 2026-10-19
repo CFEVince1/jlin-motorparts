@@ -41,7 +41,7 @@ async function sendOtpEmail(to, code, purposeText) {
   await transporter.sendMail({
     from: sender,
     to,
-    subject: 'Your JLIN Motorparts verification code',
+    subject: `${code} is your JLIN Motorparts verification code`,
     text:
       `Use this code to ${purposeText}:\n\n${code}\n\n` +
       'It expires in 10 minutes. If you did not request this, ignore this email.',

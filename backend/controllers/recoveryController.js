@@ -5,7 +5,7 @@ const { sendOtpEmail } = require('../utils/mailer');
 
 const OTP_MINUTES = 10;
 const MAX_ATTEMPTS = 5;           // wrong guesses allowed per code
-const MAX_SENDS_PER_15_MIN = 3;   // codes emailed per user per purpose
+const MAX_SENDS_PER_15_MIN = 10;  // codes emailed per user per purpose
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const FAILED = { message: 'Invalid or expired code.' };
 const SENT_GENERIC = { message: 'If this admin account has a verified email, a code has been sent.' };
@@ -111,10 +111,12 @@ exports.requestEmailVerification = async (req, res, next) => {
       [user.id]
     );
 
-    if (await canSend(user.id, 'verify_email')) {
-      const code = await createOtp(user.id, 'verify_email');
-      await sendOtpEmail(cleanEmail, code, 'verify your email for JLIN password recovery');
+    if (!(await canSend(user.id, 'verify_email'))) {
+      return res.status(429).json({ message: 'Too many requests. Please wait a few minutes before requesting another code.' });
     }
+
+    const code = await createOtp(user.id, 'verify_email');
+    await sendOtpEmail(cleanEmail, code, 'verify your email for JLIN password recovery');
 
     return res.json({ message: 'We sent a 6-digit code to that email.' });
   } catch (err) {
