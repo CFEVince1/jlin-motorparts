@@ -19,6 +19,42 @@ async function ensureSchema() {
       console.log('[Schema] Added email_verified_at column to users table.');
     }
 
+    // 1b. Check sales table for split payment columns
+    const [salesCols] = await db.query(
+      `SELECT COLUMN_NAME, DATA_TYPE FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sales'
+         AND COLUMN_NAME IN ('cash_amount', 'gcash_amount', 'payment_method')`
+    );
+    const salesColNames = salesCols.map((c) => c.COLUMN_NAME);
+    const paymentMethodCol = salesCols.find((c) => c.COLUMN_NAME === 'payment_method');
+
+    if (paymentMethodCol && paymentMethodCol.DATA_TYPE === 'enum') {
+      try {
+        await db.query("ALTER TABLE sales MODIFY COLUMN payment_method VARCHAR(50) NOT NULL DEFAULT 'Cash'");
+        console.log('[Schema] Updated sales.payment_method to VARCHAR(50).');
+      } catch (err) {
+        console.warn('[Schema] Failed to update sales.payment_method:', err.message);
+      }
+    }
+
+    if (!salesColNames.includes('cash_amount')) {
+      try {
+        await db.query('ALTER TABLE sales ADD COLUMN cash_amount DECIMAL(10,2) DEFAULT NULL');
+        console.log('[Schema] Added cash_amount column to sales table.');
+      } catch (err) {
+        console.warn('[Schema] Failed to add cash_amount to sales:', err.message);
+      }
+    }
+
+    if (!salesColNames.includes('gcash_amount')) {
+      try {
+        await db.query('ALTER TABLE sales ADD COLUMN gcash_amount DECIMAL(10,2) DEFAULT NULL');
+        console.log('[Schema] Added gcash_amount column to sales table.');
+      } catch (err) {
+        console.warn('[Schema] Failed to add gcash_amount to sales:', err.message);
+      }
+    }
+
     // 2. Ensure password_otps table
     await db.query(`
       CREATE TABLE IF NOT EXISTS password_otps (
