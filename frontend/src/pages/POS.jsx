@@ -501,13 +501,13 @@ const POS = () => {
                     }
                     @media (max-width: 768px) {
                         .pos-qty-btn {
-                            width: 40px !important;
-                            height: 40px !important;
+                            width: 32px !important;
+                            height: 32px !important;
                         }
                         .pos-qty-input {
-                            width: 52px !important;
-                            height: 40px !important;
-                            font-size: 16px !important;
+                            width: 46px !important;
+                            height: 32px !important;
+                            font-size: 14px !important;
                         }
                     }
                 `}</style>
@@ -614,8 +614,13 @@ const POS = () => {
 
             {/* CART AREA (4 of 12 columns on desktop) */}
             <div className="glass-panel no-print cart-container pos-cart-wrapper" style={{ display: 'flex', flexDirection: 'column', padding: '0', minHeight: '480px', height: 'fit-content' }}>
-                <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', borderRadius: '12px 12px 0 0' }}>
+                <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', borderRadius: '12px 12px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1rem', fontWeight: 600 }}><ShoppingCart size={18} /> Current Order</h3>
+                    {cart.length > 0 && (
+                        <span style={{ fontSize: '0.75rem', background: 'rgba(99, 102, 241, 0.2)', color: 'var(--primary)', border: '1px solid rgba(99, 102, 241, 0.4)', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                            {cart.reduce((sum, item) => sum + item.quantity, 0)} {cart.reduce((sum, item) => sum + item.quantity, 0) === 1 ? 'item' : 'items'}
+                        </span>
+                    )}
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto', padding: '12px', maxHeight: '420px' }}>
                     {cart.length === 0 ? (
@@ -623,104 +628,174 @@ const POS = () => {
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {cart.map(item => (
-                                <div key={item.product_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-hover)', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)' }}>
-                                    <div style={{ flex: 1, minWidth: 0, paddingRight: '8px' }}>
-                                        <div style={{ fontWeight: '600', fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name} <span style={{fontSize: '0.75rem', color: 'var(--text-muted)'}}>({item.brand})</span></div>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.part_number} | {formatCurrency(item.price)}</div>
-                                        {item.is_serialized && (
-                                            <div style={{ fontSize: '0.75rem', color: 'var(--accent)', marginTop: '2px' }}>
-                                                Serials: {item.serial_numbers?.join(', ') || 'None selected'}
+                                <div
+                                    key={item.product_id}
+                                    style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '8px',
+                                        background: 'var(--surface-hover)',
+                                        padding: '10px 12px',
+                                        borderRadius: '8px',
+                                        border: '1px solid var(--border)'
+                                    }}
+                                >
+                                    {/* Top Row: Item Details & Remove Button */}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{
+                                                fontWeight: 600,
+                                                fontSize: '0.88rem',
+                                                color: 'var(--text-main)',
+                                                lineHeight: 1.35,
+                                                wordBreak: 'break-word'
+                                            }}>
+                                                {item.name}
+                                                {item.brand && (
+                                                    <span style={{
+                                                        fontSize: '0.75rem',
+                                                        color: 'var(--text-muted)',
+                                                        fontWeight: 'normal',
+                                                        marginLeft: '6px'
+                                                    }}>
+                                                        ({item.brand})
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div style={{
+                                                fontSize: '0.75rem',
+                                                color: 'var(--text-muted)',
+                                                marginTop: '3px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                flexWrap: 'wrap'
+                                            }}>
+                                                <span style={{ fontFamily: 'monospace', fontWeight: 500 }}>{item.part_number}</span>
+                                                <span>•</span>
+                                                <span>{formatCurrency(item.price)} each</span>
+                                            </div>
+                                            {item.is_serialized && (
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--accent)', marginTop: '4px' }}>
+                                                    Serials: {item.serial_numbers?.length > 0 ? item.serial_numbers.join(', ') : 'None selected'}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => removeFromCart(item.product_id)}
+                                            style={{
+                                                background: 'transparent',
+                                                border: 'none',
+                                                color: 'var(--text-muted)',
+                                                cursor: 'pointer',
+                                                padding: '4px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                borderRadius: '4px',
+                                                flexShrink: 0
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                e.currentTarget.style.color = 'var(--danger)';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.currentTarget.style.color = 'var(--text-muted)';
+                                            }}
+                                            title="Remove item"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+
+                                    {/* Bottom Row: Quantity Controls & Subtotal */}
+                                    <div style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        paddingTop: '6px',
+                                        borderTop: '1px solid rgba(255, 255, 255, 0.05)'
+                                    }}>
+                                        {item.is_serialized ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => openSerialPicker(products.find(product => product.id === item.product_id) || item)}
+                                                className="btn-secondary"
+                                                style={{ padding: '4px 10px', fontSize: '0.78rem', height: '28px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                            >
+                                                Serials ({item.quantity})
+                                            </button>
+                                        ) : (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => updateQuantity(item.product_id, -1)}
+                                                    className="btn-secondary"
+                                                    style={{
+                                                        width: '28px',
+                                                        height: '28px',
+                                                        padding: 0,
+                                                        borderRadius: '6px',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        flexShrink: 0
+                                                    }}
+                                                    title="Decrease quantity"
+                                                >
+                                                    <Minus size={14} />
+                                                </button>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    max={item.maxStock}
+                                                    value={item.quantity}
+                                                    onChange={(e) => setQuantityDirect(item.product_id, e.target.value)}
+                                                    className="input-premium"
+                                                    style={{
+                                                        width: '42px',
+                                                        height: '28px',
+                                                        textAlign: 'center',
+                                                        padding: '0 2px',
+                                                        fontSize: '0.85rem',
+                                                        fontWeight: '600',
+                                                        borderRadius: '6px'
+                                                    }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => updateQuantity(item.product_id, 1)}
+                                                    className="btn-secondary"
+                                                    style={{
+                                                        width: '28px',
+                                                        height: '28px',
+                                                        padding: 0,
+                                                        borderRadius: '6px',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        flexShrink: 0
+                                                    }}
+                                                    title="Increase quantity"
+                                                >
+                                                    <Plus size={14} />
+                                                </button>
                                             </div>
                                         )}
-                                    </div>
-                                    {item.is_serialized ? (
-                                        <button onClick={() => openSerialPicker(products.find(product => product.id === item.product_id) || item)} className="btn-secondary" style={{ padding: '4px 8px', fontSize: '0.75rem' }}>
-                                            Serials ({item.quantity})
-                                        </button>
-                                    ) : (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <button 
-                                                type="button"
-                                                onClick={() => updateQuantity(item.product_id, -1)} 
-                                                className="btn-secondary pos-qty-btn"
-                                                style={{ 
-                                                    width: '36px', 
-                                                    height: '36px', 
-                                                    padding: 0, 
-                                                    borderRadius: '6px', 
-                                                    cursor: 'pointer', 
-                                                    display: 'flex', 
-                                                    alignItems: 'center', 
-                                                    justifyContent: 'center', 
-                                                    flexShrink: 0 
-                                                }}
-                                                title="Decrease quantity"
-                                            >
-                                                <Minus size={16} />
-                                            </button>
-                                            <input 
-                                                type="number" 
-                                                min="1" 
-                                                max={item.maxStock} 
-                                                value={item.quantity} 
-                                                onChange={(e) => setQuantityDirect(item.product_id, e.target.value)} 
-                                                className="input-premium pos-qty-input"
-                                                style={{ 
-                                                    width: '48px', 
-                                                    height: '36px', 
-                                                    textAlign: 'center', 
-                                                    padding: '2px 4px', 
-                                                    fontSize: '0.95rem', 
-                                                    fontWeight: '600',
-                                                    borderRadius: '6px'
-                                                }} 
-                                            />
-                                            <button 
-                                                type="button"
-                                                onClick={() => updateQuantity(item.product_id, 1)} 
-                                                className="btn-secondary pos-qty-btn"
-                                                style={{ 
-                                                    width: '36px', 
-                                                    height: '36px', 
-                                                    padding: 0, 
-                                                    borderRadius: '6px', 
-                                                    cursor: 'pointer', 
-                                                    display: 'flex', 
-                                                    alignItems: 'center', 
-                                                    justifyContent: 'center', 
-                                                    flexShrink: 0 
-                                                }}
-                                                title="Increase quantity"
-                                            >
-                                                <Plus size={16} />
-                                            </button>
+
+                                        <div style={{ textAlign: 'right' }}>
+                                            <span style={{
+                                                fontWeight: 700,
+                                                fontSize: '0.95rem',
+                                                color: 'var(--text-main)'
+                                            }}>
+                                                {formatCurrency(item.subtotal)}
+                                            </span>
                                         </div>
-                                    )}
-                                    <div style={{ width: '80px', textAlign: 'right', fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--text-main)' }}>{formatCurrency(item.subtotal)}</div>
-                                    <button 
-                                        type="button"
-                                        onClick={() => removeFromCart(item.product_id)} 
-                                        style={{ 
-                                            background: 'none', 
-                                            border: 'none', 
-                                            color: 'var(--danger)', 
-                                            cursor: 'pointer', 
-                                            marginLeft: '6px', 
-                                            padding: '8px', 
-                                            minWidth: '36px', 
-                                            minHeight: '36px', 
-                                            display: 'flex', 
-                                            alignItems: 'center', 
-                                            justifyContent: 'center', 
-                                            opacity: 0.85, 
-                                            transition: 'opacity 0.2s' 
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-                                        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.85'}
-                                        title="Remove item"
-                                    >
-                                        <Trash2 size={18} />
-                                    </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
