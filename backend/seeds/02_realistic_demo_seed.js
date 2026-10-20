@@ -21,10 +21,10 @@ async function seed() {
     try {
         await conn.beginTransaction();
 
-        // 1. Purge "Snapshot Profit Test Part" and test artifacts
-        console.log('1. Cleaning up old test data (Snapshot Profit Test Part)...');
-        await conn.query("DELETE FROM sale_items WHERE product_name LIKE '%Snapshot%' OR product_name LIKE '%Test Part%'");
-        await conn.query("UPDATE products SET is_active = FALSE, name = CONCAT('[ARCHIVED] ', name) WHERE name LIKE '%Snapshot%' AND name NOT LIKE '[ARCHIVED]%'");
+        // 1. Purge "Snapshot Profit Test Part", generic "Bolt M8", and test artifacts
+        console.log('1. Cleaning up old test data (Snapshot & generic Bolt M8)...');
+        await conn.query("DELETE FROM sale_items WHERE product_name LIKE '%Snapshot%' OR product_name LIKE '%Test Part%' OR product_name = 'Bolt M8'");
+        await conn.query("UPDATE products SET is_active = FALSE, name = CONCAT('[ARCHIVED] ', name) WHERE (name LIKE '%Snapshot%' OR name = 'Bolt M8') AND name NOT LIKE '[ARCHIVED]%'");
         console.log('   ✓ Test data deactivated and cleaned from sales reporting.');
 
         // Clean up orphan sales

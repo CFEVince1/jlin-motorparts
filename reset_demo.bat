@@ -22,6 +22,13 @@ echo Resetting database to clean defense demo state...
 echo.
 
 node "%~dp0scripts\reset_demo.js" %*
+echo.
+echo Populating 42 realistic motorcycle parts and 7-day sales trend...
+node "%~dp0backend\seeds\02_realistic_demo_seed.js"
 
+echo.
+echo ===================================================
+echo  Demo environment is 100%% ready for defense!
+echo ===================================================
 echo.
 pause
