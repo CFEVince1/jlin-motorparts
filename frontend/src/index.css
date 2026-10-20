@@ -1,87 +1,101 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
-:root, [data-theme='dark'], .dark {
-  --primary: #059669; /* Emerald 600 */
-  --primary-hover: #10b981; /* Emerald 500 */
-  --secondary: #09090b;
-  --bg-dark: #09090b;
-  --surface: #18181b; /* zinc-900 */
-  --surface-hover: #27272a; /* zinc-800 */
-  --text-main: #f4f4f5; /* text-zinc-100 / white */
-  --text-muted: #a1a1aa; /* text-zinc-400 */
-  --accent: #10b981;
-  --success: #10b981;
-  --danger: #ef4444;
-  --border: #27272a; /* border-zinc-800 */
-  --glass-bg: #18181b;
-  --glass-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
-  --input-bg: #18181b; /* bg-zinc-900 */
-  --input-border: #27272a; /* border-zinc-800 */
-  --input-color: #f4f4f5; /* text-zinc-100 */
-  --input-placeholder: #71717a;
-  --th-bg: rgba(39, 39, 42, 0.6); /* bg-zinc-800/60 */
-  --th-color: #d4d4d8; /* text-zinc-300 */
-  --td-color: #e4e4e7; /* text-zinc-200 */
-  --td-border: rgba(39, 39, 42, 0.5); /* border-zinc-800/50 */
-  --td-muted: #a1a1aa; /* text-zinc-400 */
-  --tr-hover: rgba(16, 185, 129, 0.06);
-  --badge-non-serialized-bg: #27272a; /* bg-zinc-800 */
-  --badge-non-serialized-color: #d4d4d8; /* text-zinc-300 */
-  --badge-non-serialized-border: #3f3f46; /* border-zinc-700 */
-  --badge-serialized-bg: rgba(120, 53, 15, 0.3); /* bg-amber-900/30 */
-  --badge-serialized-color: #fbbf24; /* text-amber-400 */
-  --badge-serialized-border: rgba(217, 119, 6, 0.5); /* border-amber-700/50 */
-  --btn-secondary-bg: #18181b; /* bg-zinc-900 */
-  --btn-secondary-hover: #27272a; /* hover:bg-zinc-800 */
-  --btn-secondary-color: #e4e4e7; /* text-zinc-200 */
-  --btn-secondary-border: #27272a; /* border-zinc-800 */
-  --sidebar-bg: #09090b; /* bg-zinc-950 */
-  --sidebar-border: #27272a; /* border-zinc-800 */
-  --sidebar-link: #a1a1aa; /* text-zinc-400 */
-  --sidebar-link-hover: #ffffff; /* hover:text-white */
-  --sidebar-link-hover-bg: #18181b; /* hover:bg-zinc-900 */
+:root, [data-theme='light'], .light {
+  --bg-base: #F9FAFB;
+  --bg-dark: #F9FAFB;
+  --surface: #FFFFFF;
+  --surface-card: #FFFFFF;
+  --primary: #16A34A;
+  --primary-hover: #15803D;
+  --text-main: #111111;
+  --text-muted: #6B7280;
+  --border: #E5E7EB;
+  --danger: #DC2626;
+  --warning: #D97706;
+  --success: #16A34A;
+  --accent: #16A34A;
+  --secondary: #F3F4F6;
+  --surface-hover: #F3F4F6;
+  --glass-bg: #FFFFFF;
+  --glass-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --input-bg: #FFFFFF;
+  --input-border: #D1D5DB;
+  --input-color: #111111;
+  --input-placeholder: #9CA3AF;
+  --th-bg: #F9FAFB;
+  --th-color: #374151;
+  --td-color: #111111;
+  --td-border: #F3F4F6;
+  --td-muted: #6B7280;
+  --tr-hover: #DCFCE7; /* table row hover in light green (#DCFCE7) */
+  --badge-non-serialized-bg: #F3F4F6;
+  --badge-non-serialized-color: #374151;
+  --badge-non-serialized-border: #E5E7EB;
+  --badge-serialized-bg: #FEF3C7;
+  --badge-serialized-color: #D97706;
+  --badge-serialized-border: #FCD34D;
+  --btn-secondary-bg: #FFFFFF;
+  --btn-secondary-hover: #F3F4F6;
+  --btn-secondary-color: #111111;
+  --btn-secondary-border: #E5E7EB;
+  --sidebar-bg: #111111; /* Make the sidebar black with the active item in green */
+  --sidebar-border: #1F2937;
+  --sidebar-link: #9CA3AF;
+  --sidebar-link-hover: #FFFFFF;
+  --sidebar-link-hover-bg: #1F2937;
 }
 
-[data-theme='light'], .light {
-  --primary: #059669; /* Emerald 600 */
-  --primary-hover: #10b981; /* Emerald 500 */
-  --secondary: #f4f4f5;
-  --bg-dark: #f8fafc; /* slate-50 */
-  --surface: #ffffff; /* pure white */
-  --surface-hover: #f1f5f9; /* slate-100 */
-  --text-main: #0f172a; /* slate-900 */
-  --text-muted: #64748b; /* slate-500 */
-  --accent: #059669;
-  --success: #059669;
-  --danger: #dc2626;
-  --border: #e2e8f0; /* slate-200 */
-  --glass-bg: #ffffff;
-  --glass-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.05); /* shadow-sm */
-  --input-bg: #ffffff; /* crisp white input */
-  --input-border: #cbd5e1; /* slate-300 */
-  --input-color: #0f172a; /* slate-900 */
-  --input-placeholder: #94a3b8; /* slate-400 */
-  --th-bg: #f8fafc; /* slate-50 */
-  --th-color: #334155; /* slate-700 */
-  --td-color: #0f172a; /* slate-900 */
-  --td-border: #f1f5f9; /* slate-100 */
-  --td-muted: #64748b; /* slate-500 */
-  --tr-hover: #f8fafc;
-  --badge-non-serialized-bg: #f1f5f9; /* slate-100 */
-  --badge-non-serialized-color: #334155; /* slate-700 */
-  --badge-non-serialized-border: #cbd5e1; /* slate-300 */
-  --badge-serialized-bg: #fffbeb; /* amber-50 */
-  --badge-serialized-color: #b45309; /* amber-700 */
-  --badge-serialized-border: #fcd34d; /* amber-300 */
-  --btn-secondary-bg: #ffffff; /* white */
-  --btn-secondary-hover: #f1f5f9; /* slate-100 */
-  --btn-secondary-color: #1e293b; /* slate-800 */
-  --btn-secondary-border: #cbd5e1; /* slate-300 */
-  --sidebar-bg: #ffffff; /* white */
-  --sidebar-border: #e2e8f0; /* slate-200 */
-  --sidebar-link: #64748b; /* slate-500 */
-  --sidebar-link-hover: #0f172a; /* slate-900 */
-  --sidebar-link-hover-bg: #f1f5f9; /* slate-100 */
+[data-theme='dark'], .dark {
+  --bg-base: #09090b;
+  --bg-dark: #09090b;
+  --surface: #18181b;
+  --surface-card: #18181b;
+  --primary: #16A34A;
+  --primary-hover: #15803D;
+  --text-main: #f4f4f5;
+  --text-muted: #a1a1aa;
+  --border: #27272a;
+  --danger: #ef4444;
+  --warning: #fbbf24;
+  --success: #16A34A;
+  --accent: #16A34A;
+  --secondary: #09090b;
+  --surface-hover: #27272a;
+  --glass-bg: #18181b;
+  --glass-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  --input-bg: #18181b;
+  --input-border: #27272a;
+  --input-color: #f4f4f5;
+  --input-placeholder: #71717a;
+  --th-bg: rgba(39, 39, 42, 0.6);
+  --th-color: #d4d4d8;
+  --td-color: #e4e4e7;
+  --td-border: rgba(39, 39, 42, 0.5);
+  --td-muted: #a1a1aa;
+  --tr-hover: rgba(22, 163, 74, 0.15);
+  --badge-non-serialized-bg: #27272a;
+  --badge-non-serialized-color: #d4d4d8;
+  --badge-non-serialized-border: #3f3f46;
+  --badge-serialized-bg: rgba(120, 53, 15, 0.3);
+  --badge-serialized-color: #fbbf24;
+  --badge-serialized-border: rgba(217, 119, 6, 0.5);
+  --btn-secondary-bg: #18181b;
+  --btn-secondary-hover: #27272a;
+  --btn-secondary-color: #e4e4e7;
+  --btn-secondary-border: #27272a;
+  --sidebar-bg: #09090b;
+  --sidebar-border: #27272a;
+  --sidebar-link: #a1a1aa;
+  --sidebar-link-hover: #ffffff;
+  --sidebar-link-hover-bg: #18181b;
+}
+
+.glass-panel, .card, .stat-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  backdrop-filter: none;
 }
 
 * {
@@ -198,7 +212,7 @@ select.input-premium option {
 
 /* Buttons - Emerald Brand Accent */
 .btn-primary {
-  background-color: #059669;
+  background-color: var(--primary);
   color: #ffffff;
   border: none;
   height: 40px;
@@ -215,7 +229,7 @@ select.input-premium option {
 }
 
 .btn-primary:hover {
-  background-color: #10b981;
+  background-color: var(--primary-hover);
 }
 
 /* Secondary / Logout Button:
@@ -381,9 +395,9 @@ tr:hover td {
 }
 
 .sidebar-link.active {
-  color: var(--primary) !important;
-  background-color: rgba(5, 150, 105, 0.12) !important;
-  border-left: 3px solid var(--primary) !important;
+  color: #16A34A !important;
+  background-color: rgba(22, 163, 74, 0.15) !important;
+  border-left: 3px solid #16A34A !important;
   font-weight: 600 !important;
 }
 
@@ -415,9 +429,9 @@ tr:hover td {
 }
 
 .sidebar-sublink.active {
-  color: var(--primary) !important;
+  color: #16A34A !important;
   font-weight: 600 !important;
-  background-color: rgba(5, 150, 105, 0.12) !important;
+  background-color: rgba(22, 163, 74, 0.15) !important;
 }
 
 .sidebar-user {

@@ -208,7 +208,7 @@ export default function PrintAdjustmentsReportModal({
               <span style={{ padding: '3px 8px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', fontWeight: 600 }}>
                 Lost: {summary.LOSS || 0}
               </span>
-              <span style={{ padding: '3px 8px', borderRadius: '4px', background: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', fontWeight: 600 }}>
+              <span style={{ padding: '3px 8px', borderRadius: '4px', background: 'rgba(55, 65, 81, 0.15)', color: '#374151', fontWeight: 600 }}>
                 Returned: {summary.RETURN_TO_SUPPLIER || 0}
               </span>
               <span style={{ padding: '3px 8px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', fontWeight: 600 }}>

@@ -410,7 +410,7 @@ const Transactions = () => {
                                 textAlign: 'center',
                                 width: '100%'
                             }}>
-                                ⚠️ THIS TRANSACTION HAS BEEN VOIDED / REOPENED
+                                THIS TRANSACTION HAS BEEN VOIDED / REOPENED
                             </div>
                         )}
 

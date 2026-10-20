@@ -68,7 +68,7 @@ const Dashboard = () => {
                 {user?.role === 'admin' ? (
                     <>
                         <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ background: 'rgba(5, 150, 105, 0.15)', padding: '10px', borderRadius: '8px', color: 'var(--primary)' }}>
+                            <div style={{ background: 'rgba(22, 163, 74, 0.12)', padding: '10px', borderRadius: '8px', color: 'var(--primary)' }}>
                                 <TrendingUp size={22} />
                             </div>
                             <div>
@@ -78,7 +78,7 @@ const Dashboard = () => {
                         </div>
 
                         <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ background: 'rgba(16, 185, 129, 0.15)', padding: '10px', borderRadius: '8px', color: 'var(--success)' }}>
+                            <div style={{ background: 'rgba(22, 163, 74, 0.12)', padding: '10px', borderRadius: '8px', color: 'var(--primary)' }}>
                                 <DollarSign size={22} />
                             </div>
                             <div>
@@ -88,7 +88,7 @@ const Dashboard = () => {
                         </div>
 
                         <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ background: 'rgba(10, 132, 255, 0.15)', padding: '10px', borderRadius: '8px', color: 'var(--accent)' }}>
+                            <div style={{ background: 'rgba(22, 163, 74, 0.12)', padding: '10px', borderRadius: '8px', color: 'var(--primary)' }}>
                                 <ShoppingCart size={22} />
                             </div>
                             <div>
@@ -112,7 +112,7 @@ const Dashboard = () => {
                 ) : (
                     <>
                         <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ background: 'rgba(5, 150, 105, 0.15)', padding: '10px', borderRadius: '8px', color: 'var(--primary)' }}>
+                            <div style={{ background: 'rgba(22, 163, 74, 0.12)', padding: '10px', borderRadius: '8px', color: 'var(--primary)' }}>
                                 <TrendingUp size={22} />
                             </div>
                             <div>
@@ -122,7 +122,7 @@ const Dashboard = () => {
                         </div>
 
                         <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ background: 'rgba(10, 132, 255, 0.15)', padding: '10px', borderRadius: '8px', color: 'var(--accent)' }}>
+                            <div style={{ background: 'rgba(22, 163, 74, 0.12)', padding: '10px', borderRadius: '8px', color: 'var(--primary)' }}>
                                 <ShoppingCart size={22} />
                             </div>
                             <div>
@@ -152,8 +152,8 @@ const Dashboard = () => {
             <div style={{ display: 'grid', gridTemplateColumns: user?.role === 'admin' ? 'repeat(auto-fit, minmax(400px, 1fr))' : '1fr', gap: '24px' }}>
                 {user?.role === 'admin' && (
                     <div className="glass-panel" style={{ padding: '24px' }}>
-                        <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Award size={20} color="var(--accent)" /> Best-Selling Products
+                        <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: 600 }}>
+                            <Award size={20} color="var(--primary)" /> Best-Selling Products
                         </h3>
                         {stats.bestSelling.length > 0 ? (
                             <div className="table-container">
@@ -181,8 +181,8 @@ const Dashboard = () => {
                 )}
 
                 <div className="glass-panel" style={{ padding: '24px' }}>
-                    <h3 style={{ marginBottom: '16px', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <AlertTriangle size={20} /> Low Stock Alerts
+                    <h3 style={{ marginBottom: '16px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem', fontWeight: 600 }}>
+                        <AlertTriangle size={20} color="var(--danger)" /> Low Stock Alerts
                     </h3>
                     {stats.lowStock.length > 0 ? (
                         <div className="table-container">
@@ -197,7 +197,7 @@ const Dashboard = () => {
                                     {currentLowStockItems.map(item => (
                                         <tr key={item.id}>
                                             <td>{item.product_name}</td>
-                                            <td style={{ color: 'var(--danger)', fontWeight: 'bold' }}>{item.stock}</td>
+                                            <td style={{ color: item.stock === 0 ? 'var(--danger)' : '#D97706', fontWeight: 'bold' }}>{item.stock} {item.stock === 0 ? '(Out of stock)' : ''}</td>
                                         </tr>
                                     ))}
                                 </tbody>

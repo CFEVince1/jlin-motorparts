@@ -338,12 +338,12 @@ const Inventory = () => {
                                             <td>{p.compatibility_display || '-'}</td>
                                             <td style={{ textAlign: 'right', fontWeight: '600', color: 'var(--primary)' }}>{formatCurrency(p.price)}</td>
                                             <td style={{
-                                                color: getStockStatus(p) === 'low_stock' || getStockStatus(p) === 'out_of_stock' ? 'var(--danger)' : 'var(--success)',
+                                                color: getStockStatus(p) === 'out_of_stock' ? 'var(--danger)' : getStockStatus(p) === 'low_stock' ? '#D97706' : 'var(--success)',
                                                 fontWeight: 'bold',
                                             }}>
                                                 {p.stock} in stock
-                                                {getStockStatus(p) === 'low_stock' && <span className="badge-pill" style={{marginLeft: '8px', background: 'var(--danger)', color: 'white'}}>LOW</span>}
-                                                {getStockStatus(p) === 'out_of_stock' && <span className="badge-pill" style={{marginLeft: '8px', background: 'var(--danger)', color: 'white'}}>OUT</span>}
+                                                {getStockStatus(p) === 'low_stock' && <span className="badge-pill" style={{marginLeft: '8px', background: '#FEF3C7', color: '#D97706', border: '1px solid #FCD34D'}}>LOW</span>}
+                                                {getStockStatus(p) === 'out_of_stock' && <span className="badge-pill" style={{marginLeft: '8px', background: 'rgba(220, 38, 38, 0.12)', color: 'var(--danger)', border: '1px solid rgba(220, 38, 38, 0.3)'}}>OUT</span>}
                                             </td>
                                             <td style={{ textAlign: 'center' }}>
                                                 <div style={{ display: 'inline-flex', gap: '6px' }}>

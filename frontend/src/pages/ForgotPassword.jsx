@@ -132,7 +132,7 @@ export default function ForgotPassword() {
       justifyContent: 'center',
       position: 'relative',
       overflow: 'hidden',
-      backgroundColor: '#0a0d0a'
+      backgroundColor: 'var(--bg-base)'
     }}>
       {/* Background Graphic */}
       <div style={{
@@ -148,7 +148,7 @@ export default function ForgotPassword() {
       <div style={{
         position: 'absolute',
         inset: 0,
-        background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.8) 100%)',
+        background: 'radial-gradient(ellipse at center, rgba(249, 250, 251, 0.4) 0%, rgba(243, 244, 246, 0.85) 100%)',
         pointerEvents: 'none',
         zIndex: 1
       }}></div>
@@ -162,11 +162,10 @@ export default function ForgotPassword() {
       }}>
         <div className="glass-panel" style={{
           padding: '36px 32px',
-          backgroundColor: 'rgba(18, 20, 18, 0.92)',
-          backdropFilter: 'blur(16px)',
-          border: '1px solid rgba(16, 185, 129, 0.35)',
+          backgroundColor: 'var(--surface)',
+          border: '1px solid var(--border)',
           borderRadius: '12px',
-          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.65), 0 0 30px rgba(16, 185, 129, 0.15)'
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)'
         }}>
           <img
             src="/jlin-logo.png"

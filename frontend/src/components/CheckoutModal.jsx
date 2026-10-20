@@ -469,7 +469,7 @@ export const CheckoutModal = ({
                       color: splitCovered >= totalAmount ? 'var(--primary)' : 'var(--danger)'
                     }}>
                       {formatCurrency(splitCovered)} / {formatCurrency(totalAmount)}
-                      {splitCovered >= totalAmount ? ' ✓' : ''}
+                      {splitCovered >= totalAmount ? '' : ''}
                     </span>
                   </div>
                 </div>

@@ -646,7 +646,7 @@ const POS = () => {
                                     <td style={{ fontWeight: '600' }}>{p.product_name}</td>
                                     <td>{p.brand}</td>
                                     <td>{p.size}</td>
-                                    <td style={{ textAlign: 'right', color: p.stock <= 5 ? 'var(--danger)' : 'var(--success)', fontWeight: 'bold' }}>{p.stock}</td>
+                                    <td style={{ textAlign: 'right', color: p.stock === 0 ? 'var(--danger)' : p.stock <= 5 ? '#D97706' : 'var(--text-main)', fontWeight: 'bold' }}>{p.stock}</td>
                                     <td style={{ textAlign: 'right', color: 'var(--primary)', fontWeight: 'bold' }}>{formatCurrency(p.price)}</td>
                                     <td>{p.compatibility_display || '-'}</td>
                                 </tr>
@@ -667,7 +667,7 @@ const POS = () => {
                 <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', borderRadius: '12px 12px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1rem', fontWeight: 600 }}><ShoppingCart size={18} /> Current Order</h3>
                     {cart.length > 0 && (
-                        <span style={{ fontSize: '0.75rem', background: 'rgba(99, 102, 241, 0.2)', color: 'var(--primary)', border: '1px solid rgba(99, 102, 241, 0.4)', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                        <span style={{ fontSize: '0.75rem', background: 'rgba(22, 163, 74, 0.12)', color: 'var(--primary)', border: '1px solid rgba(22, 163, 74, 0.3)', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
                             {cart.reduce((sum, item) => sum + item.quantity, 0)} {cart.reduce((sum, item) => sum + item.quantity, 0) === 1 ? 'item' : 'items'}
                         </span>
                     )}
@@ -992,7 +992,7 @@ const POS = () => {
                                 title="Customer forgot something? Void this transaction and return items to cart to add more items."
                             >
                                 <RotateCcw size={15} />
-                                {voidingSale ? 'Voiding & Restoring Cart...' : '↩ Void & Return to Cart'}
+                                {voidingSale ? 'Voiding & Restoring Cart...' : 'Void & Return to Cart'}
                             </button>
                         </div>
                     </div>
