@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
 import { KeyRound, ArrowLeft, Mail, ShieldAlert, CheckCircle2, Eye, EyeOff, Check, X } from 'lucide-react';
+
+const COOLDOWN_KEY = 'jlin_otp_forgot_cooldown';
+const COOLDOWN_DURATION = 60; // seconds
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
@@ -15,16 +18,71 @@ export default function ForgotPassword() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
+  // 60-second anti-spam cooldown timer with sessionStorage persistence
+  const [cooldown, setCooldown] = useState(() => {
+    try {
+      const expiresAt = parseInt(sessionStorage.getItem(COOLDOWN_KEY), 10);
+      if (expiresAt && expiresAt > Date.now()) {
+        return Math.ceil((expiresAt - Date.now()) / 1000);
+      }
+    } catch {}
+    return 0;
+  });
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const interval = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          sessionStorage.removeItem(COOLDOWN_KEY);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [cooldown]);
+
+  const startCooldown = (seconds = COOLDOWN_DURATION) => {
+    setCooldown(seconds);
+    try {
+      sessionStorage.setItem(COOLDOWN_KEY, String(Date.now() + seconds * 1000));
+    } catch {}
+  };
+
   const sendCode = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
+    if (cooldown > 0 || busy) return;
     setBusy(true);
     setError('');
     try {
       const { data } = await api.post('/auth/forgot-password', { username });
       setMessage(data.message);
+      startCooldown(COOLDOWN_DURATION);
       setStep(2);
     } catch (err) {
+      if (err.response?.status === 429 && err.response?.data?.retryAfter) {
+        startCooldown(err.response.data.retryAfter);
+      }
       setError(err.response?.data?.message || 'Could not send the code. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (cooldown > 0 || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const { data } = await api.post('/auth/forgot-password', { username });
+      setMessage(data.message || 'A new verification code has been sent to your email.');
+      startCooldown(COOLDOWN_DURATION);
+    } catch (err) {
+      if (err.response?.status === 429 && err.response?.data?.retryAfter) {
+        startCooldown(err.response.data.retryAfter);
+      }
+      setError(err.response?.data?.message || 'Could not resend the code. Try again.');
     } finally {
       setBusy(false);
     }
@@ -169,9 +227,13 @@ export default function ForgotPassword() {
                 type="submit"
                 className="btn-primary"
                 style={{ width: '100%', height: '42px', marginTop: '4px' }}
-                disabled={busy}
+                disabled={busy || cooldown > 0}
               >
-                <Mail size={18} /> {busy ? 'Sending code...' : 'Send code to my email'}
+                <Mail size={18} /> {
+                  busy ? 'Sending code...' :
+                  cooldown > 0 ? `Resend code in ${cooldown}s` :
+                  'Send code to my email'
+                }
               </button>
 
               <div style={{ marginTop: '8px' }}>
@@ -394,10 +456,22 @@ export default function ForgotPassword() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
                 <button
                   type="button"
-                  onClick={() => { setStep(1); setError(''); }}
-                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem' }}
+                  onClick={handleResendCode}
+                  disabled={cooldown > 0 || busy}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: cooldown > 0 ? 'var(--text-muted)' : 'var(--primary)',
+                    cursor: cooldown > 0 || busy ? 'not-allowed' : 'pointer',
+                    fontSize: '0.85rem',
+                    fontWeight: cooldown > 0 ? 'normal' : '600',
+                    opacity: cooldown > 0 ? 0.6 : 1,
+                    transition: 'all 0.2s ease',
+                    padding: '4px 0'
+                  }}
+                  title={cooldown > 0 ? `Please wait ${cooldown} seconds before requesting a new code` : 'Request a new verification code'}
                 >
-                  Resend code
+                  {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
                 </button>
                 <Link
                   to="/login"

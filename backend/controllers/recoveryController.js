@@ -6,10 +6,25 @@ const { sendOtpEmail } = require('../utils/mailer');
 const OTP_MINUTES = 10;
 const MAX_ATTEMPTS = 5;           // wrong guesses allowed per code
 const MAX_SENDS_PER_15_MIN = 10;  // codes emailed per user per purpose
+const COOLDOWN_SECONDS = 60;      // anti-spam cooldown between requests
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const FAILED = { message: 'Invalid or expired code.' };
 const SENT_GENERIC = { message: 'If this admin account has a verified email, a code has been sent.' };
 const DUMMY_HASH = bcrypt.hashSync('dummy-password', 10);
+
+async function getCooldownRemaining(userId, purpose) {
+  const [rows] = await db.query(
+    `SELECT TIMESTAMPDIFF(SECOND, created_at, NOW()) AS elapsed
+     FROM password_otps
+     WHERE user_id = ? AND purpose = ?
+     ORDER BY id DESC LIMIT 1`,
+    [userId, purpose]
+  );
+  if (rows && rows.length > 0 && rows[0].elapsed !== null && rows[0].elapsed < COOLDOWN_SECONDS) {
+    return Math.max(1, COOLDOWN_SECONDS - rows[0].elapsed);
+  }
+  return 0;
+}
 
 async function canSend(userId, purpose) {
   const [rows] = await db.query(
@@ -112,6 +127,14 @@ exports.requestEmailVerification = async (req, res, next) => {
       return res.status(422).json({ message: 'That email is already used by another account.' });
     }
 
+    const waitSec = await getCooldownRemaining(user.id, 'verify_email');
+    if (waitSec > 0) {
+      return res.status(429).json({
+        message: `Please wait ${waitSec}s before requesting another verification code.`,
+        retryAfter: waitSec
+      });
+    }
+
     // Changing the email makes it unverified until the new code is confirmed
     await db.query(
       'UPDATE users SET email = ?, email_verified_at = NULL WHERE id = ?',
@@ -172,13 +195,27 @@ exports.forgotPassword = async (req, res, next) => {
     );
     const user = rows[0];
 
-    if (user && (await canSend(user.id, 'reset_password'))) {
+    if (user) {
+      const waitSec = await getCooldownRemaining(user.id, 'reset_password');
+      if (waitSec > 0) {
+        return res.status(429).json({
+          message: `Please wait ${waitSec}s before requesting another recovery code.`,
+          retryAfter: waitSec
+        });
+      }
+
+      if (!(await canSend(user.id, 'reset_password'))) {
+        return res.status(429).json({
+          message: 'Too many recovery requests. Please wait 15 minutes before trying again.'
+        });
+      }
+
       const code = await createOtp(user.id, 'reset_password');
       // Not awaited, so response time doesn't reveal whether the account exists
       sendOtpEmail(user.email, code, 'reset your admin password').catch((err) =>
         console.error('[Recovery] Email send failed:', err.message)
       );
-    } else if (!user) {
+    } else {
       await bcrypt.compare('x', DUMMY_HASH);
     }
 

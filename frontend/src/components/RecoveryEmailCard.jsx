@@ -3,6 +3,9 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import { Mail, CheckCircle2, AlertCircle, Eye, EyeOff, Edit3, Send, Check } from 'lucide-react';
 
+const RECOVERY_COOLDOWN_KEY = 'jlin_otp_recovery_cooldown';
+const COOLDOWN_DURATION = 60; // seconds
+
 export default function RecoveryEmailCard() {
   const [status, setStatus] = useState({ email: null, verified: false });
   const [emailInput, setEmailInput] = useState('');
@@ -19,6 +22,38 @@ export default function RecoveryEmailCard() {
   
   const [msg, setMsg] = useState(null); // { text, type: 'success' | 'error' }
   const [loading, setLoading] = useState(false);
+
+  // 60-second anti-spam cooldown timer with sessionStorage persistence
+  const [cooldown, setCooldown] = useState(() => {
+    try {
+      const expiresAt = parseInt(sessionStorage.getItem(RECOVERY_COOLDOWN_KEY), 10);
+      if (expiresAt && expiresAt > Date.now()) {
+        return Math.ceil((expiresAt - Date.now()) / 1000);
+      }
+    } catch {}
+    return 0;
+  });
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const interval = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          sessionStorage.removeItem(RECOVERY_COOLDOWN_KEY);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [cooldown]);
+
+  const startCooldown = (seconds = COOLDOWN_DURATION) => {
+    setCooldown(seconds);
+    try {
+      sessionStorage.setItem(RECOVERY_COOLDOWN_KEY, String(Date.now() + seconds * 1000));
+    } catch {}
+  };
 
   const loadStatus = async () => {
     try {
@@ -39,6 +74,7 @@ export default function RecoveryEmailCard() {
   // Request new code (used when setting or changing email)
   const handleRequestCode = async (e) => {
     e.preventDefault();
+    if (cooldown > 0 || loading) return;
     setLoading(true);
     setMsg(null);
     try {
@@ -52,8 +88,12 @@ export default function RecoveryEmailCard() {
       setPassword('');
       setIsChangingEmail(false);
       setShowResendBox(false);
+      startCooldown(COOLDOWN_DURATION);
       await loadStatus();
     } catch (err) {
+      if (err.response?.status === 429 && err.response?.data?.retryAfter) {
+        startCooldown(err.response.data.retryAfter);
+      }
       const errText = err.response?.data?.message || 'Could not send verification code.';
       setMsg({ text: errText, type: 'error' });
       toast.error(errText);
@@ -65,7 +105,7 @@ export default function RecoveryEmailCard() {
   // Resend code to current email
   const handleResendCode = async (e) => {
     e.preventDefault();
-    if (!status.email) return;
+    if (!status.email || cooldown > 0 || loading) return;
     setLoading(true);
     setMsg(null);
     try {
@@ -78,7 +118,11 @@ export default function RecoveryEmailCard() {
       toast.success(successText);
       setResendPassword('');
       setShowResendBox(false);
+      startCooldown(COOLDOWN_DURATION);
     } catch (err) {
+      if (err.response?.status === 429 && err.response?.data?.retryAfter) {
+        startCooldown(err.response.data.retryAfter);
+      }
       const errText = err.response?.data?.message || 'Failed to resend verification code.';
       setMsg({ text: errText, type: 'error' });
       toast.error(errText);
@@ -276,11 +320,25 @@ export default function RecoveryEmailCard() {
             {!showResendBox ? (
               <button
                 type="button"
-                onClick={() => { setShowResendBox(true); setMsg(null); }}
-                style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
-                disabled={loading}
+                onClick={() => {
+                  if (cooldown > 0) return;
+                  setShowResendBox(true);
+                  setMsg(null);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: cooldown > 0 ? 'var(--text-muted)' : 'var(--primary)',
+                  cursor: cooldown > 0 || loading ? 'not-allowed' : 'pointer',
+                  padding: 0,
+                  textDecoration: cooldown > 0 ? 'none' : 'underline',
+                  opacity: cooldown > 0 ? 0.7 : 1,
+                  fontSize: '0.8rem'
+                }}
+                disabled={loading || cooldown > 0}
+                title={cooldown > 0 ? `Wait ${cooldown} seconds before resending` : 'Resend verification code'}
               >
-                Didn't get the code? Resend Code
+                {cooldown > 0 ? `Resend Code available in ${cooldown}s` : "Didn't get the code? Resend Code"}
               </button>
             ) : null}
 
@@ -349,9 +407,9 @@ export default function RecoveryEmailCard() {
                   type="submit"
                   className="btn-primary"
                   style={{ height: '34px', fontSize: '0.8rem', padding: '0 14px' }}
-                  disabled={loading}
+                  disabled={loading || cooldown > 0}
                 >
-                  {loading ? 'Sending...' : 'Send New Code'}
+                  {loading ? 'Sending...' : cooldown > 0 ? `Wait ${cooldown}s` : 'Send New Code'}
                 </button>
                 <button
                   type="button"
@@ -434,10 +492,10 @@ export default function RecoveryEmailCard() {
               type="submit"
               className="btn-primary"
               style={{ flex: 1, height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-              disabled={loading}
+              disabled={loading || cooldown > 0}
             >
               <Send size={15} />
-              {loading ? 'Sending Code...' : 'Send Verification Code'}
+              {loading ? 'Sending Code...' : cooldown > 0 ? `Resend Code in ${cooldown}s` : 'Send Verification Code'}
             </button>
             {status.email && (
               <button

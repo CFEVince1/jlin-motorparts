@@ -765,14 +765,15 @@ tr:hover td {
   nav,
   aside,
   .sidebar,
-  .receipt-overlay,
   .modal-backdrop {
     display: none !important;
     visibility: hidden !important;
   }
 
-  /* 2. Neutralize modal wrappers when printing */
-  [role="dialog"] {
+  /* 2. Neutralize modal wrappers & receipt overlays when printing */
+  [role="dialog"],
+  .receipt-modal,
+  .receipt-overlay:not(.no-print) {
     visibility: visible !important;
     display: block !important;
     position: static !important;
@@ -782,6 +783,22 @@ tr:hover td {
     margin: 0 !important;
     overflow: visible !important;
     transform: none !important;
+    width: auto !important;
+    max-height: none !important;
+    inset: auto !important;
+  }
+
+  .receipt-modal > div,
+  .receipt-overlay:not(.no-print) > div {
+    position: static !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+    overflow: visible !important;
+    max-height: none !important;
+    width: auto !important;
   }
 
   /* 3. Table printing rules */

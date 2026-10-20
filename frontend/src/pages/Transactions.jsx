@@ -21,6 +21,7 @@ const Transactions = () => {
     const [selectedTransaction, setSelectedTransaction] = useState(null);
     const [receiptDetails, setReceiptDetails] = useState(null);
     const [loadingReceipt, setLoadingReceipt] = useState(false);
+    const [receiptWidth, setReceiptWidth] = useState('80mm');
 
     // Reporting State
     const [timeframe, setTimeframe] = useState('Daily');
@@ -368,12 +369,33 @@ const Transactions = () => {
 
             {/* RECEIPT MODAL (Only visible when selectedTransaction is set. Only this prints!) */}
             {selectedTransaction && receiptDetails && (
-                <div className="receipt-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div className="glass-panel" style={{ background: 'white', color: 'black', padding: '24px', width: '420px', borderRadius: '8px', position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
+                <div className="receipt-modal" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '40px', overflowY: 'auto' }}>
+                    <div className="glass-panel" style={{ background: 'white', color: 'black', padding: '24px', width: '420px', borderRadius: '8px', position: 'relative', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
 
                         <button className="no-print" onClick={closeReceipt} style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                             <X size={24} />
                         </button>
+
+                        {/* Format selector (Screen only) */}
+                        <div className="no-print" style={{ display: 'flex', gap: '8px', marginBottom: '14px', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.78rem', color: '#666', fontWeight: 600 }}>Paper:</span>
+                            <button
+                                type="button"
+                                className={receiptWidth === '80mm' ? 'btn-primary' : 'btn-secondary'}
+                                style={{ fontSize: '0.75rem', padding: '3px 10px', height: 'auto', borderRadius: '4px' }}
+                                onClick={() => setReceiptWidth('80mm')}
+                            >
+                                Standard 80mm
+                            </button>
+                            <button
+                                type="button"
+                                className={receiptWidth === '58mm' ? 'btn-primary' : 'btn-secondary'}
+                                style={{ fontSize: '0.75rem', padding: '3px 10px', height: 'auto', borderRadius: '4px' }}
+                                onClick={() => setReceiptWidth('58mm')}
+                            >
+                                Compact 58mm
+                            </button>
+                        </div>
 
                         {receiptDetails.status === 'VOIDED' && (
                             <div className="no-print" style={{
@@ -385,32 +407,37 @@ const Transactions = () => {
                                 fontSize: '0.78rem',
                                 fontWeight: 'bold',
                                 marginBottom: '14px',
-                                textAlign: 'center'
+                                textAlign: 'center',
+                                width: '100%'
                             }}>
                                 ⚠️ THIS TRANSACTION HAS BEEN VOIDED / REOPENED
                             </div>
                         )}
 
-                        <ReceiptPrint
-                            orderNumber={receiptDetails.order_number || `SO-${receiptDetails.id}`}
-                            date={receiptDetails.sale_date}
-                            cashier={receiptDetails.cashier}
-                            items={receiptDetails.items || []}
-                            totalAmount={receiptDetails.total_amount}
-                            paymentMethod={receiptDetails.payment_method || 'CASH'}
-                            amountTendered={receiptDetails.tendered_amount || receiptDetails.total_amount}
-                            changeDue={receiptDetails.change_due || 0}
-                            gcashReference={receiptDetails.payment_reference || ''}
-                            cashAmount={receiptDetails.cash_amount}
-                            gcashAmount={receiptDetails.gcash_amount}
-                            width="80mm"
-                        />
+                        <div className="receipt-container" style={{ display: 'block', width: '100%' }}>
+                            <ReceiptPrint
+                                orderNumber={receiptDetails.order_number || `SO-${receiptDetails.id}`}
+                                date={receiptDetails.sale_date}
+                                cashier={receiptDetails.cashier}
+                                customerName={receiptDetails.customer_name || ''}
+                                customerAddress={receiptDetails.customer_address || ''}
+                                items={receiptDetails.items || []}
+                                totalAmount={receiptDetails.total_amount}
+                                paymentMethod={receiptDetails.payment_method || 'CASH'}
+                                amountTendered={receiptDetails.tendered_amount || receiptDetails.total_amount}
+                                changeDue={receiptDetails.change_due || 0}
+                                gcashReference={receiptDetails.payment_reference || ''}
+                                cashAmount={receiptDetails.cash_amount}
+                                gcashAmount={receiptDetails.gcash_amount}
+                                width={receiptWidth}
+                            />
+                        </div>
 
-                        <div className="no-print" style={{ marginTop: '24px', display: 'flex', gap: '12px' }}>
-                            <button className="btn-primary no-print" style={{ flex: 1, padding: '10px' }} onClick={handlePrint}>
-                                <Printer size={18} /> Print
+                        <div className="no-print" style={{ marginTop: '20px', display: 'flex', gap: '10px', width: '100%' }}>
+                            <button className="btn-primary no-print" style={{ flex: 1, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={handlePrint}>
+                                <Printer size={16} /> Print Receipt
                             </button>
-                            <button className="btn-secondary no-print" style={{ flex: 1, padding: '10px' }} onClick={closeReceipt}>
+                            <button className="btn-secondary no-print" style={{ flex: 1, padding: '10px 14px' }} onClick={closeReceipt}>
                                 Close
                             </button>
                         </div>
