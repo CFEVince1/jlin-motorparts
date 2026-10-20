@@ -26,8 +26,8 @@ async function exportDiagrams() {
   });
 
   const page = await browser.newPage();
-  // 2.5x device scale factor for ultra-sharp, high-DPI retina rendering
-  await page.setViewport({ width: 1920, height: 3000, deviceScaleFactor: 2.5 });
+  // 2.0x device scale factor and 2400px width for ultra-sharp, high-DPI retina rendering
+  await page.setViewport({ width: 2400, height: 3500, deviceScaleFactor: 2.0 });
 
   const fileUrl = 'file://' + path.resolve(HTML_PATH).replace(/\\/g, '/');
   console.log('Loading:', fileUrl);

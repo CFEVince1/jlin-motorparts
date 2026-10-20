@@ -145,8 +145,8 @@
 <p class="doc-p">This document contains the complete formal software engineering design diagrams for the <strong>JLIN Motorparts Inventory & POS System</strong>:</p>
 <p class="doc-p">1. <strong>Entity-Relationship Diagram (ERD)</strong> — Database architecture, table schemas, keys, constraints, and relational cardinality.</p>
 <p class="doc-p">2. <strong>Data Flow Diagrams (DFD)</strong>:</p>
-<li class="doc-li"><strong>DFD Level 0</strong> — System Context Diagram showing external entities and core information flows.</li>
-<li class="doc-li"><strong>DFD Level 1</strong> — Process Decomposition Diagram detailing sub-processes, data stores, and transactional logic.</li>
+<li class="doc-li"><strong>DFD Level 0</strong> — System Context Diagram showing external entities and core information flows in a balanced radial architecture.</li>
+<li class="doc-li"><strong>DFD Level 1</strong> — Process Decomposition Diagram detailing sub-processes, data stores, and transactional logic across 4 structured layers.</li>
 <p class="doc-p">3. <strong>System Architecture Diagram</strong> — 3-Tier Cloud Deployment Architecture (Vercel Frontend, Render Backend, Aiven Cloud MySQL 8, and Resend HTTPS REST Email Gateway).</p>
 <p class="doc-p">4. <strong>Architectural Quality Attributes & Defense Readiness</strong> — Rigorous verification matrix for academic defense and production auditability.</p>
 
@@ -157,32 +157,33 @@
 <p class="doc-p">The JLIN Motorparts database is built on <strong>MySQL 8</strong> with strict InnoDB foreign key enforcement, transactional consistency, and database triggers protecting immutable audit trails.</p>
 
 <div class="diagram-wrapper"><pre class="mermaid" id="diagram_0">erDiagram
+    %% 1. User & Authentication
     users ||--o{ password_otps : "requests"
-    users ||--o{ receiving_records : "receives"
     users ||--o{ sales : "processes"
-    users ||--o{ inventory_transactions : "logs"
 
+    %% 2. Sales & Point of Sale Transactions
+    sales ||--|{ sale_items : "contains"
+    products ||--o{ sale_items : "sold_via"
+    sale_items ||--o{ sale_item_serials : "allocates"
+    product_serials ||--o{ sale_item_serials : "assigned_to"
+
+    %% 3. Supplier Inflow & Receiving Records
     suppliers ||--o{ receiving_records : "supplies"
     receiving_records ||--|{ receiving_record_items : "contains"
     products ||--o{ receiving_record_items : "replenished_via"
 
+    %% 4. Product Catalog & Serial Asset Tracking
     products ||--o{ product_serials : "tracks"
-    products ||--o{ sale_items : "sold_via"
     products ||--o{ inventory_transactions : "audited_in"
-    products ||--o{ product_compatibilities : "fits_model"
-    products ||--o{ product_compatibility_groups : "grouped_in"
-
-    motorcycle_models ||--o{ product_compatibilities : "compatible_with"
-    motorcycle_units ||--o{ compatibility_group_units : "member_of"
-
-    compatibility_groups ||--o{ compatibility_group_units : "includes"
-    compatibility_groups ||--o{ product_compatibility_groups : "applies_to"
-
-    sales ||--|{ sale_items : "contains"
-    sale_items ||--o{ sale_item_serials : "allocates"
-    product_serials ||--o{ sale_item_serials : "assigned_to"
-
     inventory_transactions ||--o| inventory_transactions_lock : "guarded_by"
+
+    %% 5. Fitment & Motorcycle Compatibility Matrix
+    products ||--o{ product_compatibilities : "fits_model"
+    motorcycle_models ||--o{ product_compatibilities : "compatible_with"
+    products ||--o{ product_compatibility_groups : "grouped_in"
+    compatibility_groups ||--o{ product_compatibility_groups : "applies_to"
+    compatibility_groups ||--o{ compatibility_group_units : "includes"
+    motorcycle_units ||--o{ compatibility_group_units : "member_of"
 
     users {
         int id PK
@@ -193,7 +194,6 @@
         varchar email UK
         datetime email_verified_at
         timestamp created_at
-        timestamp updated_at
     }
 
     password_otps {
@@ -203,8 +203,6 @@
         varchar code_hash
         int attempts
         datetime expires_at
-        datetime used_at
-        timestamp created_at
     }
 
     suppliers {
@@ -213,10 +211,26 @@
         varchar contact_person
         varchar email
         varchar phone
-        text address
         boolean is_active
-        timestamp created_at
-        timestamp updated_at
+    }
+
+    receiving_records {
+        int id PK
+        int supplier_id FK
+        varchar reference_no
+        int received_by FK
+        timestamp received_at
+        decimal total_cost
+        enum status "draft, received, cancelled"
+    }
+
+    receiving_record_items {
+        int id PK
+        int receiving_record_id FK
+        int product_id FK
+        int quantity
+        decimal cost_price
+        decimal subtotal
     }
 
     products {
@@ -226,19 +240,12 @@
         varchar name
         varchar brand
         varchar category
-        varchar size
-        varchar measurement
-        varchar thread_type
         decimal cost_price
         decimal selling_price
-        decimal retail_price
-        int stock
         int current_stock
         int reorder_level
         boolean is_serialized
         boolean is_active
-        timestamp created_at
-        timestamp updated_at
     }
 
     product_serials {
@@ -246,34 +253,74 @@
         int product_id FK
         varchar serial_number UK
         enum status "available, sold"
+    }
+
+    sales {
+        int id PK
+        int user_id FK
+        varchar order_number
+        decimal total_amount
+        decimal tendered_amount
+        decimal change_due
+        varchar payment_method "Cash, GCash, Split"
+        decimal cash_amount
+        decimal gcash_amount
+        varchar payment_reference UK
+        varchar status "COMPLETED, VOIDED"
+        timestamp sale_date
+    }
+
+    sale_items {
+        int id PK
+        int sale_id FK
+        int product_id FK
+        varchar part_number
+        varchar product_name
+        int quantity
+        decimal price
+        decimal cost_price
+        decimal subtotal
+    }
+
+    sale_item_serials {
+        int id PK
+        int sale_item_id FK
+        int serial_id FK,UK
+    }
+
+    inventory_transactions {
+        bigint id PK
+        varchar transaction_number UK
+        varchar reference_no
+        int product_id FK
+        varchar transaction_type "STOCK_IN, SALE, RETURN, etc."
+        int quantity
+        int quantity_change
+        int balance_before
+        int balance_after
+        decimal unit_cost
         timestamp created_at
     }
 
-    motorcycle_units {
+    inventory_transactions_lock {
         int id PK
-        varchar brand
-        varchar model
-        varchar year_model
+        bigint transaction_id FK
+        timestamp created_at
     }
 
     motorcycle_models {
         int id PK
         varchar brand
         varchar model
-        int year_start
-        int year_end
         varchar year_model
         varchar engine_displacement
-        timestamp created_at
     }
 
     product_compatibilities {
         int id PK
         int product_id FK
         int motorcycle_model_id FK
-        enum compatibility_status "COMPATIBLE, NOT_COMPATIBLE, CONDITIONAL"
-        varchar notes
-        timestamp created_at
+        enum compatibility_status "COMPATIBLE, CONDITIONAL"
     }
 
     compatibility_groups {
@@ -294,90 +341,11 @@
         int compatibility_group_id FK
     }
 
-    receiving_records {
+    motorcycle_units {
         int id PK
-        int supplier_id FK
-        varchar reference_number
-        varchar reference_no
-        int received_by FK
-        timestamp received_at
-        decimal total_cost
-        enum status "draft, received, cancelled"
-        text notes
-        timestamp created_at
-    }
-
-    receiving_record_items {
-        int id PK
-        int receiving_record_id FK
-        int product_id FK
-        int quantity
-        decimal cost_price
-        decimal subtotal
-        timestamp created_at
-    }
-
-    sales {
-        int id PK
-        int user_id FK
-        varchar order_number
-        decimal total_amount
-        decimal tendered_amount
-        decimal change_due
-        varchar payment_method "Cash, GCash, Card, Split"
-        decimal cash_amount
-        decimal gcash_amount
-        varchar payment_reference UK
-        varchar payment_provider
-        varchar payment_status
-        varchar status "COMPLETED, VOIDED"
-        datetime voided_at
-        text void_reason
-        timestamp sale_date
-    }
-
-    sale_items {
-        int id PK
-        int sale_id FK
-        int product_id FK
-        varchar part_number
-        varchar product_name
         varchar brand
-        varchar size
-        int quantity
-        decimal price
-        decimal cost_price
-        decimal subtotal
-    }
-
-    sale_item_serials {
-        int id PK
-        int sale_item_id FK
-        int serial_id FK,UK
-    }
-
-    inventory_transactions {
-        bigint id PK
-        varchar transaction_number UK
-        varchar reference_no
-        int product_id FK
-        varchar transaction_type "STOCK_IN, SALE, DAMAGE, LOSS, OPENING_BALANCE, etc."
-        int quantity
-        int quantity_change
-        int balance_before
-        int balance_after
-        decimal unit_cost
-        varchar reference_type
-        int reference_id
-        text remarks
-        int created_by FK
-        timestamp created_at
-    }
-
-    inventory_transactions_lock {
-        int id PK
-        bigint transaction_id FK
-        timestamp created_at
+        varchar model
+        varchar year_model
     }</pre></div>
 
 <h3 class="subsection-title">Key Database Design Principles:</h3>
@@ -407,142 +375,121 @@
 <p class="doc-p">The Context Diagram outlines the high-level boundary of the <strong>JLIN Motorparts Inventory & POS System</strong> and interactions with all external entities.</p>
 
 <div class="diagram-wrapper"><pre class="mermaid" id="diagram_1">flowchart TD
-    subgraph External_Entities ["External Entities"]
-        Admin["Administrator / Owner"]
-        Staff["Cashier / Staff"]
-        Supplier["Parts Supplier"]
-        Customer["Walk-in Customer"]
-    end
+    %% Top Entities
+    Admin["👤 Administrator / Owner"]
+    Supplier["🏢 Parts Supplier"]
 
-    System["JLIN Motorparts Inventory & POS System"]
+    %% Core System Center
+    System(("<b>0.0</b><br/><b>JLIN Motorparts</b><br/><b>Inventory & POS System</b><br/><i>(Core Processing Hub)</i>"))
 
-    %% Admin flows
-    Admin -->|"1. Credentials, user management, recovery email"| System
-    Admin -->|"2. Catalog configuration & fitment rules (Account & Security)"| System
-    Admin -->|"3. Stock adjustments & opening balance overrides"| System
-    System -->|"4. Financial analytics, audit ledger & low stock alerts"| Admin
+    %% Bottom Entities
+    Staff["🧑‍💼 Cashier / Counter Staff"]
+    Customer["👥 Walk-in Customer"]
 
-    %% Staff flows
-    Staff -->|"5. Authentication & POS transaction cart"| System
-    Staff -->|"6. Barcode scan / Part # lookup & Fitment search"| System
-    Staff -->|"7. Supplier stock receive & serial numbers"| System
-    System -->|"8. Item availability, fitment results & shift receipts"| Staff
+    %% Invisible alignment
+    Admin ~~~ Supplier
+    Staff ~~~ Customer
 
-    %% Supplier flows
-    Supplier -->|"9. Delivery invoice & physical motorparts"| Staff
-    Staff -->|"10. Receiving verification & PO reference"| System
+    %% Styling
+    classDef entity fill:#e0e7ff,stroke:#4338ca,stroke-width:2px,color:#1e1b4b,font-weight:bold;
+    classDef system fill:#fef3c7,stroke:#d97706,stroke-width:3px,color:#78350f,font-weight:bold;
 
-    %% Customer flows
-    Customer -->|"11. Part inquiries, motorcycle model & payment (Cash, GCash, Split)"| Staff
-    Staff -->|"12. Processed checkout & printed thermal receipt"| Customer</pre></div>
+    class Admin,Supplier,Customer,Staff entity;
+    class System system;
+
+    %% Clear Dual-Flows
+    Admin <-->|"1. User Accounts, Catalog Configuration & Stock Overrides<br/>2. Financial Analytics, Audit Ledger & Restock Alerts"| System
+    Supplier <-->|"3. Supplier Invoices, Motorparts Supply & Serial Numbers<br/>4. Goods Receipt Acknowledgement & Purchase Verification"| System
+
+    System <-->|"5. Staff Credentials, Barcode Scanning & Tender Info<br/>6. Real-time Inventory, Fitment Results & Shift Summary"| Staff
+    System <-->|"7. Parts Inquiries, Motorcycle Model & Tender (Cash/GCash/Split)<br/>8. Compatible Parts Advice, Printed Thermal Receipt & Change Due"| Customer</pre></div>
 
 <hr class="doc-divider"/>
 
 <h3 class="subsection-title">DFD Level 1: Process Decomposition Diagram</h3>
 
-<p class="doc-p">The Level 1 diagram breaks the system into its six core operational processes, detailing interactions with the data stores.</p>
+<p class="doc-p">The Level 1 diagram breaks the system into its core operational processes, detailing interactions between external entities, business logic, persistent data stores, and analytical outputs across 4 structured layers.</p>
 
 <div class="diagram-wrapper"><pre class="mermaid" id="diagram_2">flowchart TD
-    %% Entities
-    Admin["Admin"]
-    Staff["Cashier / Staff"]
-    Customer["Customer"]
-    Supplier["Supplier"]
-
-    %% Data Stores
-    D1[("D1: Users & Auth OTPs")]
-    D2[("D2: Product & Fitment Catalog")]
-    D3[("D3: Suppliers & Receiving Records")]
-    D4[("D4: POS Sales & Serial Allocation")]
-    D5[("D5: Immutable Inventory Ledger")]
-
-    %% Process 1: Auth & OTP Recovery
-    subgraph P1 ["1.0 Authentication & Password Recovery"]
-        P1_1["1.1 Login & JWT Token Dispatch"]
-        P1_2["1.2 Email OTP Verification (Resend Gateway)"]
-        P1_3["1.3 Session Revocation (token_version)"]
+    %% Layer 1: External System Entities
+    subgraph L1_Entities ["1. External System Entities"]
+        Staff["🧑‍💼 Cashier / Counter Staff"]
+        Supplier["🏢 Parts Supplier"]
+        Customer["👥 Walk-in Customer"]
+        Admin["👤 Administrator / Owner"]
     end
 
-    Admin -->|"Username, Password, OTP"| P1_1
-    Staff -->|"Username, Password"| P1_1
-    P1_1 <-->|"Verify credentials & token_version"| D1
-    P1_2 <-->|"Validate 6-digit OTP hash & expiry"| D1
-    P1_3 -->|"Bump token_version on password reset"| D1
-
-    %% Process 2: Catalog & Fitment
-    subgraph P2 ["2.0 Product & Fitment Matrix Management"]
-        P2_1["2.1 Product Catalog CRUD"]
-        P2_2["2.2 Platform Group Compatibility (Admin)"]
-        P2_3["2.3 Fitment Search Engine (/profile?tab=fitment)"]
+    %% Layer 2: Core Operational Business Processes
+    subgraph L2_Processes ["2. Operational Business Processes (Level 1)"]
+        P1["<b>1.0 User Authentication</b><br/>• Staff & Admin Login<br/>• Token & OTP Recovery"]
+        P2["<b>2.0 Catalog & Fitment</b><br/>• Parts, Brands & Pricing<br/>• Model Compatibility Matrix"]
+        P3["<b>3.0 Stock Receiving</b><br/>• Inflow PO Verification<br/>• Serial Enrollment"]
+        P4["<b>4.0 POS Checkout</b><br/>• Multi-Tender Split<br/>• Void & Return to Cart"]
+        P5["<b>5.0 Ledger & Audit</b><br/>• Immutable Movement Log<br/>• Physical Count Adjust"]
     end
 
-    Admin -->|"Manage Products, Prices, Platforms"| P2_1
-    Admin -->|"Define Platform Groups & Rules"| P2_2
-    P2_1 <-->|"Read / Write Catalog"| D2
-    P2_2 <-->|"Link Groups & Models"| D2
-    Staff -->|"Search by Bike Brand / Model / Part #"| P2_3
-    P2_3 <-->|"Query Compatible Parts"| D2
-
-    %% Process 3: Stock Inflow
-    subgraph P3 ["3.0 Stock Receiving & Supplier Inflow"]
-        P3_1["3.1 Supplier & Receipt Verification"]
-        P3_2["3.2 Item Quantity & Cost Check"]
-        P3_3["3.3 Serial Number Enrollment"]
+    %% Layer 3: Persistent Relational Data Stores
+    subgraph L3_Stores ["3. Persistent Data Stores (MySQL 8)"]
+        D1[("<b>D1: Users & Auth</b><br/>Credentials & OTPs")]
+        D2[("<b>D2: Catalog & Matrix</b><br/>Products & Bike Fitment")]
+        D3[("<b>D3: Inflow Records</b><br/>Supplier Receipts & POs")]
+        D4[("<b>D4: Sales Records</b><br/>Receipts, Tender & Serials")]
+        D5[("<b>D5: Immutable Ledger</b><br/>Audit Trails & Balances")]
     end
 
-    Supplier -->|"Delivery Slip & Parts"| Staff
-    Staff -->|"Input Supplier Receipt & Qty"| P3_1
-    P3_1 <-->|"Verify Supplier"| D3
-    P3_2 -->|"Store Inflow Records"| D3
-    P3_2 -->|"STOCK_IN movement"| D5
-    P3_2 -->|"Increment current_stock"| D2
-    P3_3 -->|"Register Serial Numbers"| D2
-
-    %% Process 4: Point of Sale
-    subgraph P4 ["4.0 Point of Sale & Checkout"]
-        P4_1["4.1 Cart Building & Stock Check"]
-        P4_2["4.2 Payment Modalities: Cash, GCash, Split"]
-        P4_3["4.3 Serial Number Assignment"]
-        P4_4["4.4 Receipt Generation & Cart Protection"]
+    %% Layer 4: Analytics & System Outputs
+    subgraph L4_Reporting ["4. Analytics, Auditing & Output Generation"]
+        P6["<b>6.0 Analytics & Reporting Engine</b><br/>• Daily Sales & Revenue Breakdown<br/>• Fast / Slow Moving Parts Analytics<br/>• Cashier Reconciliation & Low-Stock Alerts"]
+        Outputs["📊 Official Thermal Receipts & Business Dashboards"]
     end
 
-    Staff -->|"Scan / Select Items"| P4_1
-    P4_1 <-->|"Validate available stock"| D2
-    Customer -->|"Cash / GCash / Split Payment"| Staff
-    Staff -->|"Tender Payment & Order"| P4_2
-    P4_2 -->|"Insert Sale Record (cash_amount, gcash_amount)"| D4
-    P4_3 <-->|"Mark Serials as SOLD"| D2
-    P4_3 -->|"Link Serials to Sale Item"| D4
-    P4_2 -->|"SALE deduction movement"| D5
-    P4_2 -->|"Decrement current_stock"| D2
-    P4_4 -->|"Official Printed Thermal Receipt"| Customer
-    P4_4 -->|"Cancel / Esc returns to preserved Cart"| P4_1
-    P4_4 -->|"Void & Reopen restores stock via RETURN & repopulates Cart"| P4_1
+    %% Layer 1 -> Layer 2 Flows
+    Staff -->|"Login Credentials"| P1
+    Staff -->|"Query Part & Fitment"| P2
+    Staff -->|"Input Delivery Items"| P3
+    Staff -->|"Tender Order & Void Cart"| P4
 
-    %% Process 5: Immutable Ledger & Audit
-    subgraph P5 ["5.0 Immutable Ledger & Inventory Audit"]
-        P5_1["5.1 Transaction Logger"]
-        P5_2["5.2 Physical Count & Discrepancy Audit"]
-    end
+    Supplier -->|"Shipments & Invoices"| P3
 
-    D5 <-->|"Append-only movement entry"| P5_1
-    Admin -->|"Log Discrepancy Adjustment"| P5_2
-    P5_2 -->|"ADJUSTMENT_ADD / LOSS record"| D5
-    P5_2 -->|"Synchronize current_stock"| D2
+    Customer -->|"Orders & Payment (Cash/GCash)"| P4
 
-    %% Process 6: Reports & Analytics
-    subgraph P6 ["6.0 Reports & Business Analytics"]
-        P6_1["6.1 Sales & Revenue Reports"]
-        P6_2["6.2 Fast / Slow Moving Parts"]
-        P6_3["6.3 Cashier Sales Breakdown"]
-    end
+    Admin -->|"Credentials & Roles"| P1
+    Admin -->|"Manage Products & Groups"| P2
+    Admin -->|"Discrepancy Count"| P5
 
-    D4 -->|"Sales Data"| P6_1
-    D5 -->|"Movement History"| P6_2
-    D4 -->|"User Sales Log"| P6_3
-    P6_1 -->|"Exportable Reports & Graphs"| Admin
-    P6_2 -->|"Restock Recommendations"| Admin
-    P6_3 -->|"Cashier Reconciliation"| Admin</pre></div>
+    %% Layer 2 -> Layer 3 Flows
+    P1 -->|"Authenticate & Verify OTP"| D1
+    P2 -->|"Catalog CRUD & Sync"| D2
+
+    P3 -->|"Save Inflow Record"| D3
+    P3 -->|"Increment Stock & Serials"| D2
+    P3 -->|"Append STOCK_IN Movement"| D5
+
+    P4 -->|"Deduct Stock & Serials"| D2
+    P4 -->|"Insert Sale & Split Breakdown"| D4
+    P4 -->|"Append SALE / RETURN Movement"| D5
+
+    P5 -->|"Sync Actual Count"| D2
+    P5 -->|"Append ADJUSTMENT Record"| D5
+
+    %% Layer 3 -> Layer 4 Flows
+    D4 -->|"Sales Data"| P6
+    D5 -->|"Ledger History"| P6
+    D2 -->|"Current Stock Levels"| P6
+
+    P4 -->|"Printed Thermal Receipt"| Outputs
+    P6 -->|"Exported Business & Restock Reports"| Outputs
+
+    %% Styling
+    classDef entity fill:#e0e7ff,stroke:#4338ca,stroke-width:2px,color:#1e1b4b,font-weight:bold;
+    classDef proc fill:#f0fdf4,stroke:#16a34a,stroke-width:2px,color:#14532d,font-weight:bold;
+    classDef store fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#78350f,font-weight:bold;
+    classDef output fill:#fdf2f8,stroke:#db2777,stroke-width:2px,color:#831843,font-weight:bold;
+
+    class Staff,Supplier,Customer,Admin entity;
+    class P1,P2,P3,P4,P5,P6 proc;
+    class D1,D2,D3,D4,D5 store;
+    class Outputs output;</pre></div>
 
 <hr class="doc-divider"/>
 
@@ -551,36 +498,38 @@
 <p class="doc-p">The system follows a modern <strong>3-Tier Web Architecture</strong> built for cloud-native deployment with strict HTTPS, zero-trust backend authorization, and managed database high availability.</p>
 
 <div class="diagram-wrapper"><pre class="mermaid" id="diagram_3">flowchart TD
-    subgraph Presentation_Tier ["Tier 1: Presentation Layer (Vercel Edge CDN)"]
-        Browser["Staff / Admin Browser Client"]
-        VercelCDN["Vercel Global Edge Network\n(https://jlin-motorparts.vercel.app)"]
-        ReactApp["React 19 SPA (Vite Bundler)\n- React Router 7 Declarative Routing (with strict end match)\n- Modern CSS Glassmorphic UI & Dark/Light Theme\n- Lucide Icon System\n- Thermal Receipt Generator (Native 58mm/80mm Print Engine)\n- Real-time POS Cart with Split Payment Modal\n- Consolidated Account & Security Hub (/profile)"]
+    subgraph Tier1 ["Tier 1: Presentation Layer (Vercel Edge CDN)"]
+        Browser["🖥️ Staff / Admin Browser Client"]
+        VercelCDN["🌐 Vercel Global Edge Network\n(https://jlin-motorparts.vercel.app)"]
+        ReactApp["⚛️ React 19 SPA (Vite Bundler)\n• React Router 7 Declarative Navigation\n• Modern Glassmorphic UI & Dark/Light Theme\n• Native 58mm/80mm Thermal Receipt Generator\n• Real-time POS Cart with Split Payment Modal\n• Consolidated Account & Security Hub (/profile)"]
     end
 
-    subgraph Application_Tier ["Tier 2: Application / API Layer (Render Cloud PaaS)"]
-        RenderService["Render Web Service\n(https://jlin-motorparts.onrender.com)"]
-        ExpressApp["Node.js 24 + Express 5 REST API\n- Helmet Security Headers (CSP & HSTS)\n- Strict CORS Origin Validation\n- Token Revocation (token_version Verification)\n- Express-Validator & Zod Payload Schemas\n- Rate Limiters (Auth, Password OTP, Public Endpoints)\n- Schema Auto-Migration Engine (ensureSchema.js)"]
-        AuthModule["Auth & Recovery Controller\n- Bcrypt 10-Round Password Hasher\n- Crypto 6-Digit OTP Generator\n- JWT Bearer Token Dispatcher"]
-        InventoryModule["Inventory & Movement Service\n- Atomic Transaction Manager\n- Canonical Product Sync\n- Reorder Level Evaluator"]
-        POSModule["POS Checkout & Sales Engine\n- Split Payment Engine (Cash + GCash)\n- GCash Reference Validator\n- Serial Allocation Guard\n- Sale Transaction Logger"]
+    subgraph Tier2 ["Tier 2: Application / API Layer (Render Cloud PaaS)"]
+        RenderService["⚙️ Render Web Service\n(https://jlin-motorparts.onrender.com)"]
+        ExpressApp["⚡ Node.js 24 + Express 5 REST API\n• Helmet Security Headers (CSP & HSTS)\n• Strict CORS Origin & Rate Limit Protection\n• JWT Bearer Token Verification & Token Revocation\n• Express-Validator & Zod Payload Schemas\n• Automated Schema Migration (ensureSchema.js)"]
+        
+        subgraph Tier2_Modules ["Core Application Engine Modules"]
+            AuthModule["🔐 Auth & Recovery Controller\n• Bcrypt 10-Round Hasher\n• 6-Digit Crypto OTPs\n• JWT Token Dispatcher"]
+            InventoryModule["📦 Inventory & Fitment Service\n• Atomic Transaction Engine\n• Canonical Product Sync\n• Reorder Level Evaluator"]
+            POSModule["🛒 POS Checkout Engine\n• Split Payment (Cash + GCash)\n• Serial Number Guard\n• Void & Re-open Cart Engine"]
+        end
     end
 
-    subgraph External_Services ["External Communications Layer"]
-        ResendAPI["Resend Cloud Email API\n- Host: api.resend.com/emails:443 (HTTPS REST)\n- API Token Authentication\n- Bypasses Cloud Platform SMTP Egress Blocks\n- 6-Digit Security Codes & Recovery Emails"]
+    subgraph External_Services ["External Communications Gateway"]
+        ResendAPI["📧 Resend Cloud Email API (HTTPS REST Port 443)\n• Bypasses Cloud Platform SMTP Egress Blocks\n• Dispatches 6-Digit Verification Codes & OTPs"]
     end
 
-    subgraph Data_Tier ["Tier 3: Persistence Layer (Aiven Cloud Database)"]
-        AivenDB["Aiven Cloud MySQL 8 Cluster\n- Host: mysql-*.aivencloud.com\n- Port: 3306\n- Database: defaultdb / jlin_inventory_db\n- TLS/SSL Enforced (aiven-ca.pem Root CA)"]
-        ConnectionPool["mysql2 Connection Pool\n- Promise-based Query Execution\n- Connection Re-use & Auto-reconnect\n- UTC / PHT (+08:00) Timezone Alignment"]
-        Triggers["Database Engine Triggers\n- trg_sync_products_insert / update\n- trg_block_inventory_transactions_update\n- trg_block_inventory_transactions_delete"]
-        StorageEngine["InnoDB Storage Engine\n- ACID Transaction Guarantees\n- Row-Level Locking (SELECT ... FOR UPDATE)\n- Cascade Integrity Constraints"]
+    subgraph Tier3 ["Tier 3: Persistence Layer (Aiven Cloud Database)"]
+        ConnectionPool["🔌 mysql2 Connection Pool\n• Promise-based Execution & Auto-reconnect\n• UTC / Philippine Time (+08:00) Timezone Alignment"]
+        AivenDB[("🗄️ Aiven Cloud MySQL 8 Cluster\n• TLS/SSL Enforced (aiven-ca.pem Root CA)\n• InnoDB ACID Transactions & Row-Level Locking\n• Foreign Key Cascade Integrity")]
+        Triggers["🛡️ Database Engine Triggers & Audit Guards\n• trg_sync_products_insert / update\n• trg_block_inventory_transactions_update\n• trg_block_inventory_transactions_delete\n• inventory_transactions_lock Immutability Anchor"]
     end
 
-    %% Connections
+    %% Flow Connections
     Browser <-->|"HTTPS / TLS 1.3"| VercelCDN
-    VercelCDN <-->|"Delivers Optimized Static Chunks"| ReactApp
-    ReactApp <-->|"RESTful API Calls (JSON with JWT Bearer Token)"| RenderService
-    RenderService <-->|"Express Routing & Middleware"| ExpressApp
+    VercelCDN <-->|"Delivers Static Bundles"| ReactApp
+    ReactApp <-->|"REST API Requests (JSON with JWT Token)"| RenderService
+    RenderService <-->|"Express Routing & Middlewares"| ExpressApp
 
     ExpressApp --> AuthModule
     ExpressApp --> InventoryModule
@@ -589,9 +538,19 @@
     AuthModule <-->|"HTTPS POST /emails (Port 443)"| ResendAPI
 
     ExpressApp <--> ConnectionPool
-    ConnectionPool <-->|"Encrypted MySQL Wire Protocol (SSL CA Validated)"| AivenDB
+    ConnectionPool <-->|"Encrypted MySQL Protocol (SSL CA)"| AivenDB
     AivenDB --> Triggers
-    AivenDB --> StorageEngine</pre></div>
+
+    %% Styling
+    classDef t1 fill:#eff6ff,stroke:#2563eb,stroke-width:2px,color:#1e3a8a;
+    classDef t2 fill:#f0fdf4,stroke:#16a34a,stroke-width:2px,color:#14532d;
+    classDef t3 fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#78350f;
+    classDef ext fill:#fdf2f8,stroke:#db2777,stroke-width:2px,color:#831843;
+
+    class Tier1,Browser,VercelCDN,ReactApp t1;
+    class Tier2,RenderService,ExpressApp,AuthModule,InventoryModule,POSModule t2;
+    class Tier3,ConnectionPool,AivenDB,Triggers t3;
+    class External_Services,ResendAPI ext;</pre></div>
 
 <hr class="doc-divider"/>
 
@@ -605,7 +564,7 @@
 <tr><td><strong>Email Resilience</strong></td><td>Outbound OTP emails use the Resend HTTPS REST API over port 443, eliminating SMTP timeout blocks (`ETIMEDOUT`) enforced by cloud hosting firewalls.</td><td>Live delivery verification to Gmail in 1.2s.</td></tr>
 <tr><td><strong>Fault Tolerance & Zero Downtime</strong></td><td>Auto-migration scripts ([`backend/utils/ensureSchema.js`](file:///c:/Inventory/backend/utils/ensureSchema.js) & schema patches) add missing tables and columns on server boot without manual SQL execution.</td><td>Automated deployment boot verification.</td></tr>
 <tr><td><strong>Navigation & Ergonomics</strong></td><td>Strict `end` route matching on sidebar navigation prevents multi-link active states (e.g. Sales Reports vs Discrepancy Audit). Fitment Search and Compatibility Rules consolidated into Account & Security (`/profile`).</td><td>UI visual audit on Desktop & Mobile viewports.</td></tr>
-<tr><td><strong>Cart Preservation</strong></td><td>POS payment modal supports closing via `Esc` key, background backdrop click, or "← Back to Cart" button without losing cart items when customers add forgotten products.</td><td>Interactive modal state lifecycle verification.</td></tr>
+<tr><td><strong>Cart Preservation & Void Re-open</strong></td><td>POS payment modal supports closing via `Esc` key, background backdrop click, or "← Back to Cart" button without losing cart items. Completed sales can be immediately reversed via "↩ Void & Return to Cart" on the receipt modal, restoring stock and repopulating cart.</td><td>Interactive modal state lifecycle verification & database stock recovery test.</td></tr>
 </tbody></table></div>
 
 
