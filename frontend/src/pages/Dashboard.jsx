@@ -207,9 +207,9 @@ const Dashboard = () => {
                 {user?.role === 'admin' && (
                     <div className="glass-panel" style={{ padding: '24px' }}>
                         <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: 600 }}>
-                            <Award size={20} color="var(--primary)" /> Best-Selling Products
+                            <Award size={20} color="var(--primary)" /> Top 5 Best-Selling Products
                         </h3>
-                        {stats.bestSelling.length > 0 ? (
+                        {(stats.bestSelling || []).filter(i => !i.product_name?.toLowerCase().includes('snapshot') && !i.product_name?.toLowerCase().includes('test')).slice(0, 5).length > 0 ? (
                             <div className="table-container">
                                 <table>
                                     <thead>
@@ -219,7 +219,7 @@ const Dashboard = () => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {stats.bestSelling.map((item, index) => (
+                                        {(stats.bestSelling || []).filter(i => !i.product_name?.toLowerCase().includes('snapshot') && !i.product_name?.toLowerCase().includes('test')).slice(0, 5).map((item, index) => (
                                             <tr key={index}>
                                                 <td>{item.product_name}</td>
                                                 <td style={{ color: 'var(--success)', fontWeight: 'bold' }}>{item.total_sold}</td>

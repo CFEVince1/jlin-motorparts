@@ -535,7 +535,7 @@ const POS = () => {
                     }
                     .pos-filters-grid {
                         display: grid;
-                        grid-template-columns: repeat(4, minmax(0, 1fr));
+                        grid-template-columns: 2fr 1fr 1fr 1fr;
                         gap: 8px;
                         align-items: center;
                         width: 100%;
@@ -595,7 +595,7 @@ const POS = () => {
                         <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                         <input
                             type="text"
-                            placeholder="Search or scan part # (Enter to add)..."
+                            placeholder="Search or scan part #"
                             ref={searchInputRef} className="input-premium pos-search-input"
                             style={{ paddingLeft: '32px', width: '100%' }}
                             value={searchQuery}
@@ -632,7 +632,7 @@ const POS = () => {
                     <table>
                         <thead>
                             <tr>
-                                <th>Part Number</th>
+                                <th style={{ minWidth: '150px', whiteSpace: 'nowrap' }}>Part Number</th>
                                 <th>Product Name</th>
                                 <th>Brand</th>
                                 <th>Size</th>
@@ -644,7 +644,7 @@ const POS = () => {
                         <tbody>
                             {filteredProducts.length > 0 ? filteredProducts.map(p => (
                                 <tr key={p.id} onClick={() => addToCart(p)} style={{ cursor: 'pointer' }}>
-                                    <td style={{ color: 'var(--text-muted)', fontWeight: '600' }}>{p.part_number}</td>
+                                    <td style={{ color: 'var(--text-muted)', fontWeight: '600', minWidth: '150px', whiteSpace: 'nowrap' }}>{p.part_number}</td>
                                     <td style={{ fontWeight: '600' }}>{p.product_name}</td>
                                     <td>{p.brand}</td>
                                     <td>{p.size}</td>
@@ -669,9 +669,10 @@ const POS = () => {
                                                         color: 'var(--text-muted)',
                                                         padding: '1px 6px',
                                                         borderRadius: '4px',
-                                                        whiteSpace: 'nowrap'
+                                                        whiteSpace: 'nowrap',
+                                                        textTransform: 'capitalize'
                                                     }}>
-                                                        {chip.trim()}
+                                                        {chip.trim().replace(/\b\w/g, l => l.toUpperCase())}
                                                     </span>
                                                 ))}
                                             </div>
