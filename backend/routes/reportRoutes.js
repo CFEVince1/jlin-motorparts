@@ -11,6 +11,7 @@ const adminOnly = roleMiddleware(['admin']);
 
 // Allow staff to view their daily sales and global low stock
 router.get('/daily', reportController.getDailySales);
+router.get('/weekly-chart', reportController.getWeeklySalesChart);
 router.get('/monthly', adminOnly, reportController.getMonthlySales);
 router.get('/low-stock', reportController.getLowStock);
 router.get('/best-selling', adminOnly, reportController.getBestSelling);

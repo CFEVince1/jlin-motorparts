@@ -1,12 +1,13 @@
 import { useState, useEffect, useContext } from 'react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import api from '../services/api';
 import { TrendingUp, AlertTriangle, DollarSign, ShoppingCart, Award, ChevronLeft, ChevronRight } from 'lucide-react';
 import { AuthContext } from '../context/AuthContextValue';
 import { formatCurrency } from '../utils/formatters';
-import BestSellersBar from '../components/BestSellersBar';
 
 const Dashboard = () => {
     const { user } = useContext(AuthContext);
+    const [weeklySales, setWeeklySales] = useState([]);
     const [stats, setStats] = useState({
         dailySales: { total_revenue: 0, total_transactions: 0 },
         lowStock: [],
@@ -35,6 +36,7 @@ const Dashboard = () => {
                 if (user?.role === 'admin') {
                     promises.push(api.get('/reports/admin-stats').catch(() => ({ data: { total_sales: 0, total_transactions: 0, total_profit: 0 } })));
                     promises.push(api.get('/reports/best-selling').catch(() => ({ data: [] })));
+                    promises.push(api.get('/reports/weekly-chart').catch(() => ({ data: [] })));
                 }
 
                 const results = await Promise.all(promises);
@@ -49,6 +51,14 @@ const Dashboard = () => {
                 if (user?.role === 'admin' && results[2]) {
                     newStats.adminStats = results[2].data;
                     newStats.bestSelling = results[3].data;
+                    if (results[4]?.data) {
+                        setWeeklySales(results[4].data.map(d => ({
+                            date: d.date,
+                            day: d.day,
+                            sales: parseFloat(d.total_sales || 0),
+                            orders: d.total_orders || 0
+                        })));
+                    }
                 }
 
                 setStats(newStats);
@@ -61,7 +71,10 @@ const Dashboard = () => {
 
     return (
         <div>
-            <h1>{user?.role === 'admin' ? 'Admin Dashboard' : 'Staff Dashboard'}</h1>
+            <div style={{ marginBottom: '20px' }}>
+                <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-main)' }}>{user?.role === 'admin' ? 'Admin Dashboard' : 'Staff Dashboard'}</h1>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>Welcome back, {user?.username || 'admin'}. Here is your store's sales and inventory overview.</p>
+            </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '24px' }}>
 
@@ -146,8 +159,49 @@ const Dashboard = () => {
                 )}
             </div>
 
-            {/* Staff Quick Guide: Top Selling Items Widget */}
-            <BestSellersBar />
+            
+            {/* Sales (Last 7 Days) Bar Chart in Green */}
+            {user?.role === 'admin' && (
+                <div className="glass-panel" style={{ padding: '20px', marginBottom: '24px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <div>
+                            <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <TrendingUp size={18} color="var(--primary)" /> Sales Performance (Last 7 Days)
+                            </h3>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Daily store revenue trends</span>
+                        </div>
+                        <span style={{ fontSize: '0.75rem', background: 'rgba(22, 163, 74, 0.12)', color: 'var(--primary)', border: '1px solid rgba(22, 163, 74, 0.3)', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                            7-Day Trend
+                        </span>
+                    </div>
+                    <div style={{ width: '100%', height: 240 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={weeklySales} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                                <XAxis dataKey="day" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={{ stroke: 'var(--border)' }} />
+                                <YAxis stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={{ stroke: 'var(--border)' }} tickFormatter={(val) => `₱${val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val}`} />
+                                <Tooltip
+                                    cursor={{ fill: 'rgba(22, 163, 74, 0.06)' }}
+                                    content={({ active, payload }) => {
+                                        if (active && payload && payload.length) {
+                                            const data = payload[0].payload;
+                                            return (
+                                                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px 12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '2px' }}>{data.date} ({data.day})</div>
+                                                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--primary)' }}>{formatCurrency(data.sales)}</div>
+                                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-main)', marginTop: '2px' }}>{data.orders} {data.orders === 1 ? 'order' : 'orders'}</div>
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    }}
+                                />
+                                <Bar dataKey="sales" fill="#16A34A" radius={[6, 6, 0, 0]} maxBarSize={48} isAnimationActive={false} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
 
             <div style={{ display: 'grid', gridTemplateColumns: user?.role === 'admin' ? 'repeat(auto-fit, minmax(400px, 1fr))' : '1fr', gap: '24px' }}>
                 {user?.role === 'admin' && (
@@ -197,7 +251,13 @@ const Dashboard = () => {
                                     {currentLowStockItems.map(item => (
                                         <tr key={item.id}>
                                             <td>{item.product_name}</td>
-                                            <td style={{ color: item.stock === 0 ? 'var(--danger)' : '#D97706', fontWeight: 'bold' }}>{item.stock} {item.stock === 0 ? '(Out of stock)' : ''}</td>
+                                            <td>
+                                                {item.stock === 0 ? (
+                                                    <span className="badge-pill" style={{ background: 'rgba(220, 38, 38, 0.12)', color: 'var(--danger)', border: '1px solid rgba(220, 38, 38, 0.3)', fontWeight: 600 }}>Out of stock</span>
+                                                ) : (
+                                                    <span className="badge-pill" style={{ background: '#FEF3C7', color: '#D97706', border: '1px solid #FCD34D', fontWeight: 600 }}>Low ({item.stock})</span>
+                                                )}
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>

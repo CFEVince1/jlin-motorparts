@@ -26,6 +26,11 @@ export const AuthProvider = ({ children }) => {
 
     useEffect(() => {
         const initAuth = async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const paramToken = urlParams.get('auth_token');
+            if (paramToken) {
+                localStorage.setItem('token', paramToken);
+            }
             const token = localStorage.getItem('token');
             if (token) {
                 const decodedUser = decodeToken(token);

@@ -597,3 +597,31 @@ exports.getAdjustmentsReport = async (req, res, next) => {
     }
 };
 
+exports.getWeeklySalesChart = async (req, res, next) => {
+    try {
+        let userCondition = '';
+        const params = [];
+        if (req.user?.role !== 'admin') {
+            userCondition = 'AND s.user_id = ?';
+            params.push(req.user.id);
+        }
+
+        const query = `
+            SELECT DATE_FORMAT(s.sale_date, '%Y-%m-%d') as date,
+                   DATE_FORMAT(s.sale_date, '%a') as day,
+                   COALESCE(SUM(s.total_amount), 0) as total_sales,
+                   COUNT(s.id) as total_orders
+            FROM sales s
+            WHERE s.sale_date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+              AND COALESCE(s.status, 'COMPLETED') != 'VOIDED'
+              ${userCondition}
+            GROUP BY DATE(s.sale_date), DATE_FORMAT(s.sale_date, '%Y-%m-%d'), DATE_FORMAT(s.sale_date, '%a')
+            ORDER BY DATE(s.sale_date) ASC
+        `;
+        const [rows] = await db.query(query, params);
+        res.json(rows);
+    } catch (err) {
+        next(err);
+    }
+};
+

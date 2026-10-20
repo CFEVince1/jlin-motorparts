@@ -179,21 +179,7 @@ const Login = () => {
                             </button>
                         </div>
 
-                        <div style={{ textAlign: 'right', marginTop: '-6px' }}>
-                            <Link 
-                                to="/forgot-password" 
-                                style={{ 
-                                    color: 'var(--text-muted)', 
-                                    fontSize: '0.85rem', 
-                                    textDecoration: 'none',
-                                    transition: 'color 0.2s'
-                                }}
-                                onMouseEnter={(e) => e.target.style.color = 'var(--primary)'}
-                                onMouseLeave={(e) => e.target.style.color = 'var(--text-muted)'}
-                            >
-                                Forgot password?
-                            </Link>
-                        </div>
+                        
 
                         {errorMessage && (
                             <div style={{
