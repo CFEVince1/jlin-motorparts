@@ -557,6 +557,11 @@ exports.getReceivingHistory = async (req, res, next) => {
             whereParams.push(req.query.endDate);
         }
 
+        // Strictly exclude test batches and test dummy products from receiving history
+        whereClauses.push("NOT EXISTS (SELECT 1 FROM receiving_record_items rri_test JOIN products p_test ON p_test.id = rri_test.product_id WHERE rri_test.receiving_record_id = rr.id AND (LOWER(p_test.name) LIKE '%test%' OR LOWER(p_test.part_number) LIKE '%test%' OR LOWER(p_test.name) LIKE '%pretest%'))");
+        whereClauses.push("LOWER(COALESCE(rr.reference_no, rr.reference_number, '')) NOT LIKE '%test%'");
+        whereClauses.push("LOWER(COALESCE(rr.notes, '')) NOT LIKE '%test%'");
+
         if (req.query.search && req.query.search.trim()) {
             const rawSearch = req.query.search.trim();
             const pattern = `%${rawSearch}%`;

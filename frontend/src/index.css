@@ -840,7 +840,9 @@ tr:hover td {
 #printable-adjustments-report,
 #printable-adjustments-report table,
 #printable-inventory-report,
-#printable-inventory-report table {
+#printable-inventory-report table,
+#printable-receiving-slip,
+#printable-receiving-slip table {
   color: #111827 !important;
 }
 
@@ -848,7 +850,8 @@ tr:hover td {
 #printable-sales-report th,
 #printable-transactions-report th,
 #printable-adjustments-report th,
-#printable-inventory-report th {
+#printable-inventory-report th,
+#printable-receiving-slip th {
   background-color: #f3f4f6 !important;
   color: #111827 !important;
   font-weight: 700 !important;
@@ -859,7 +862,8 @@ tr:hover td {
 #printable-sales-report td,
 #printable-transactions-report td,
 #printable-adjustments-report td,
-#printable-inventory-report td {
+#printable-inventory-report td,
+#printable-receiving-slip td {
   color: #111827 !important;
   border-bottom: 1px solid #e5e7eb !important;
   background-color: transparent !important;
@@ -869,7 +873,8 @@ tr:hover td {
 #printable-sales-report tr:hover td,
 #printable-transactions-report tr:hover td,
 #printable-adjustments-report tr:hover td,
-#printable-inventory-report tr:hover td {
+#printable-inventory-report tr:hover td,
+#printable-receiving-slip tr:hover td {
   background-color: transparent !important;
   color: #111827 !important;
 }
@@ -879,7 +884,8 @@ tr:hover td {
 #printable-sales-report .text-muted,
 #printable-transactions-report .text-muted,
 #printable-adjustments-report .text-muted,
-#printable-inventory-report .text-muted {
+#printable-inventory-report .text-muted,
+#printable-receiving-slip .text-muted {
   color: #4b5563 !important;
 }
 

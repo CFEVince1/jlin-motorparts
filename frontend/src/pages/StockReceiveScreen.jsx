@@ -231,17 +231,18 @@ export const StockReceiveScreen = () => {
             size: A4 portrait;
             margin: 12mm 10mm;
           }
-          body * {
-            visibility: hidden;
+          #root {
+            display: none !important;
+            height: 0 !important;
+            overflow: hidden !important;
           }
           #printable-receiving-slip,
           #printable-receiving-slip * {
             visibility: visible !important;
           }
           #printable-receiving-slip {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
+            display: block !important;
+            position: static !important;
             width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
@@ -250,8 +251,7 @@ export const StockReceiveScreen = () => {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
             font-size: 11px !important;
             display: block !important;
-            z-index: 9999999 !important;
-          }
+            }
           .no-print {
             display: none !important;
           }
@@ -990,12 +990,12 @@ export const StockReceiveScreen = () => {
       )}
 
       {/* =========================================================================
-          PRINTABLE RECEIVING SLIP (Rendered strictly during browser print)
+          PRINTABLE RECEIVING SLIP (Rendered via portal into body to eliminate page height inheritance)
          ========================================================================= */}
-      {selectedBatch && (
-        <div id="printable-receiving-slip">
+      {selectedBatch && typeof document !== 'undefined' && createPortal(
+        <div id="printable-receiving-slip" className="report-paper-sheet" style={{ color: '#000000' }}>
           {/* Slip Header */}
-          <div style={{ borderBottom: '2px solid #000000', paddingBottom: '10px', marginBottom: '14px' }}>
+          <div style={{ borderBottom: '2px solid #000000', paddingBottom: '10px', marginBottom: '14px', color: '#000000' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <img
@@ -1011,10 +1011,10 @@ export const StockReceiveScreen = () => {
                   }}
                 />
                 <div>
-                  <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 2px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 2px 0', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#000000' }}>
                     JLIN MOTO PARTS & ACCESSORIES
                   </h1>
-                  <div style={{ fontSize: '11px', color: '#444444' }}>
+                  <div style={{ fontSize: '11px', color: '#222222', fontWeight: 600 }}>
                     Warehouse Stock Receiving Slip & Purchase Voucher
                   </div>
                 </div>
@@ -1032,7 +1032,7 @@ export const StockReceiveScreen = () => {
           </div>
 
           {/* Slip Line Items Table */}
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
+          <table className="report-paper-sheet" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px', color: '#000000' }}>
             <thead>
               <tr style={{ borderBottom: '1.5px solid #000000', background: '#f2f2f2' }}>
                 <th style={{ padding: '6px 4px', textAlign: 'left', width: '30px' }}>#</th>
@@ -1093,7 +1093,8 @@ export const StockReceiveScreen = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Quick Add Supplier Modal */}
