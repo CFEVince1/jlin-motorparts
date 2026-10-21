@@ -772,7 +772,7 @@ export default function Returns() {
                         borderRadius: '10px',
                         fontSize: '0.72rem'
                     }}>
-                        {returnsPagination.total}
+                        {auditHistory.length}
                     </span>
                 </button>
 
@@ -1335,7 +1335,8 @@ export default function Returns() {
                                                                 textDecoration: 'underline',
                                                                 display: 'inline-flex',
                                                                 alignItems: 'center',
-                                                                gap: '3px'
+                                                                gap: '3px',
+                                                                whiteSpace: 'nowrap'
                                                             }}
                                                             title="Click to view order receipt"
                                                         >
