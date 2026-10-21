@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { ShoppingCart, Printer, Search, Plus, Minus, Trash2, CheckCircle2, X, AlertCircle, Banknote, CreditCard, Smartphone, History, RotateCcw } from 'lucide-react';
+import { ShoppingCart, ChevronDown, Check, Printer, Search, Plus, Minus, Trash2, CheckCircle2, X, AlertCircle, Banknote, CreditCard, Smartphone, History, RotateCcw } from 'lucide-react';
 import { filterProducts, isSerializedProduct, normalizePartNumberSearch } from '../utils/productFilter';
 import useTableFilter from '../hooks/useTableFilter';
 import { calculateCartTotals, calculateItemSubtotal, calculatePaymentDetails } from '../utils/calculations';
@@ -78,6 +78,7 @@ const POS = () => {
     const [lastTransaction, setLastTransaction] = useState(null);
     const [paymentMethod, setPaymentMethod] = useState('Cash');
     const [selectedTableSerials, setSelectedTableSerials] = useState({});
+    const [openSerialDropdownId, setOpenSerialDropdownId] = useState(null);
     const [tenderedAmount, setTenderedAmount] = useState('');
     const [customerName, setCustomerName] = useState('');
     const [customerAddress, setCustomerAddress] = useState('');
@@ -597,6 +598,77 @@ const POS = () => {
         }
     };
 
+
+    useEffect(() => {
+        const handleOutsideClick = (e) => {
+            if (!e.target.closest('.serial-dropdown-container')) {
+                setOpenSerialDropdownId(null);
+            }
+        };
+        window.addEventListener('click', handleOutsideClick);
+        return () => window.removeEventListener('click', handleOutsideClick);
+    }, []);
+
+    const addSerializedToCart = useCallback((product, serialObj) => {
+        if (!product || !serialObj) return;
+        const chosenSerialId = Number(serialObj.id);
+        const chosenSerialNum = serialObj.serial_number;
+
+        setSelectedTableSerials(prev => ({ ...prev, [product.id]: chosenSerialId }));
+
+        setCart(currentCart => {
+            const existing = currentCart.find(item => item.product_id === product.id);
+            if (existing) {
+                if (existing.quantity >= product.stock) {
+                    toast.error(`Cannot exceed available stock (${product.stock})`);
+                    return currentCart;
+                }
+                const newQty = existing.quantity + 1;
+                const updatedSerialIds = !existing.serial_ids.includes(chosenSerialId)
+                    ? [...existing.serial_ids, chosenSerialId]
+                    : (existing.serial_ids.length > 0 ? existing.serial_ids : [chosenSerialId]);
+                const updatedSerialNums = !existing.serial_numbers.includes(chosenSerialNum)
+                    ? [...existing.serial_numbers, chosenSerialNum]
+                    : (existing.serial_numbers.length > 0 ? existing.serial_numbers : [chosenSerialNum]);
+
+                toast.success(`Added ${product.product_name || product.name} (SN: ${chosenSerialNum}) [Qty: ${newQty}]`);
+                return currentCart.map(item => item.product_id === product.id ? {
+                    ...item,
+                    quantity: newQty,
+                    serial_ids: updatedSerialIds,
+                    serial_numbers: updatedSerialNums,
+                    subtotal: calculateItemSubtotal(newQty, product.price)
+                } : item);
+            } else {
+                toast.success(`Added ${product.product_name || product.name} (SN: ${chosenSerialNum})`);
+                return [...currentCart, {
+                    product_id: product.id,
+                    part_number: product.part_number,
+                    name: product.product_name || product.name,
+                    brand: product.brand,
+                    size: product.size,
+                    compatibility_display: product.compatibility_display,
+                    is_serialized: true,
+                    serial_ids: [chosenSerialId],
+                    serial_numbers: [chosenSerialNum],
+                    quantity: 1,
+                    price: Number(product.price),
+                    subtotal: calculateItemSubtotal(1, product.price),
+                    maxStock: product.stock
+                }];
+            }
+        });
+    }, []);
+
+    const handleRowClick = (product) => {
+        if (isSerializedProduct(product)) {
+            // Toggle serial dropdown menu right on this product row
+            setOpenSerialDropdownId(prev => prev === product.id ? null : product.id);
+        } else {
+            addToCart(product);
+        }
+    };
+
     const handleTableAddQuantity = (product) => {
         addToCart(product);
     };
@@ -735,7 +807,7 @@ const POS = () => {
                         </thead>
                         <tbody>
                             {paginatedProducts.length > 0 ? paginatedProducts.map(p => (
-                                <tr key={p.id} onClick={() => addToCart(p)} style={{ cursor: 'pointer' }} title="Click row to add to order">
+                                <tr key={p.id} onClick={() => handleRowClick(p)} style={{ cursor: 'pointer', background: openSerialDropdownId === p.id ? 'rgba(22, 163, 74, 0.05)' : 'transparent' }} title={p.is_serialized ? "Click to open serial dropdown menu" : "Click row to add to order"}>
                                     <td style={{ fontFamily: 'monospace', fontWeight: '600', color: 'var(--text-main)', whiteSpace: 'nowrap' }}>
                                         {p.part_number}
                                     </td>
@@ -754,7 +826,7 @@ const POS = () => {
                                             </div>
                                         )}
                                     </td>
-                                    <td style={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+                                    <td style={{ fontSize: '0.8rem', whiteSpace: 'nowrap', position: 'relative' }} onClick={(e) => e.stopPropagation()}>
                                         {p.is_serialized ? (() => {
                                             const serialOptions = (p.serials && p.serials.length > 0)
                                                 ? p.serials
@@ -765,36 +837,106 @@ const POS = () => {
                                             const cartItem = cart.find(item => item.product_id === p.id);
                                             const currentCartQty = cartItem ? cartItem.quantity : 0;
                                             const selectedId = selectedTableSerials[p.id] || serialOptions[0]?.id;
+                                            const selectedSerialObj = serialOptions.find(s => Number(s.id) === Number(selectedId)) || serialOptions[0];
+                                            const isDropdownOpen = openSerialDropdownId === p.id;
 
                                             return (
-                                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                                    <select
-                                                        className="input-premium"
-                                                        value={selectedId}
-                                                        onChange={(e) => {
-                                                            const chosenId = Number(e.target.value);
-                                                            setSelectedTableSerials(prev => ({ ...prev, [p.id]: chosenId }));
-                                                        }}
-                                                        style={{
-                                                            fontFamily: 'monospace',
-                                                            fontSize: '0.78rem',
-                                                            padding: '3px 6px',
-                                                            borderRadius: '6px',
-                                                            border: '1px solid var(--border)',
-                                                            background: 'var(--surface)',
-                                                            color: 'var(--text-main)',
-                                                            maxWidth: '145px',
-                                                            cursor: 'pointer'
-                                                        }}
-                                                        title="Select specific serial number to add or reduce"
-                                                    >
-                                                        {serialOptions.map(s => (
-                                                            <option key={s.id} value={s.id}>
-                                                                {s.serial_number}
-                                                            </option>
-                                                        ))}
-                                                    </select>
+                                                <div className="serial-dropdown-container" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', position: 'relative' }}>
+                                                    {/* Dropdown Button / Selector */}
+                                                    <div style={{ position: 'relative' }}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setOpenSerialDropdownId(prev => prev === p.id ? null : p.id);
+                                                            }}
+                                                            style={{
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'space-between',
+                                                                gap: '6px',
+                                                                padding: '4px 8px',
+                                                                borderRadius: '6px',
+                                                                border: isDropdownOpen ? '1px solid var(--primary)' : '1px solid var(--border)',
+                                                                background: isDropdownOpen ? 'rgba(22, 163, 74, 0.08)' : 'var(--surface)',
+                                                                color: 'var(--text-main)',
+                                                                fontFamily: 'monospace',
+                                                                fontSize: '0.78rem',
+                                                                fontWeight: 600,
+                                                                cursor: 'pointer',
+                                                                minWidth: '135px'
+                                                            }}
+                                                            title="Click to select specific serial"
+                                                        >
+                                                            <span style={{ color: 'var(--primary)', maxWidth: '105px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                {selectedSerialObj?.serial_number || 'Select Serial'}
+                                                            </span>
+                                                            <ChevronDown size={13} style={{ color: 'var(--text-muted)', transform: isDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
+                                                        </button>
 
+                                                        {/* Interactive Dropdown Menu */}
+                                                        {isDropdownOpen && (
+                                                            <div style={{
+                                                                position: 'absolute',
+                                                                top: 'calc(100% + 4px)',
+                                                                left: 0,
+                                                                zIndex: 100,
+                                                                background: 'var(--surface, #ffffff)',
+                                                                border: '1px solid var(--border)',
+                                                                borderRadius: '8px',
+                                                                boxShadow: '0 10px 20px -3px rgba(0, 0, 0, 0.15), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                                                                minWidth: '175px',
+                                                                maxHeight: '220px',
+                                                                overflowY: 'auto',
+                                                                padding: '4px'
+                                                            }}>
+                                                                <div style={{ padding: '4px 8px', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', marginBottom: '4px' }}>
+                                                                    Choose Serial to Sell ({serialOptions.length}):
+                                                                </div>
+                                                                {serialOptions.map(s => {
+                                                                    const isSelected = Number(s.id) === Number(selectedId);
+                                                                    return (
+                                                                        <button
+                                                                            key={s.id}
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setOpenSerialDropdownId(null);
+                                                                                addSerializedToCart(p, s);
+                                                                            }}
+                                                                            style={{
+                                                                                width: '100%',
+                                                                                textAlign: 'left',
+                                                                                padding: '6px 8px',
+                                                                                borderRadius: '4px',
+                                                                                border: 'none',
+                                                                                background: isSelected ? 'rgba(22, 163, 74, 0.12)' : 'transparent',
+                                                                                color: isSelected ? 'var(--primary)' : 'var(--text-main)',
+                                                                                fontFamily: 'monospace',
+                                                                                fontSize: '0.78rem',
+                                                                                fontWeight: isSelected ? 700 : 500,
+                                                                                cursor: 'pointer',
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                justifyContent: 'space-between'
+                                                                            }}
+                                                                            onMouseEnter={(e) => {
+                                                                                if (!isSelected) e.currentTarget.style.background = 'var(--surface-hover)';
+                                                                            }}
+                                                                            onMouseLeave={(e) => {
+                                                                                if (!isSelected) e.currentTarget.style.background = 'transparent';
+                                                                            }}
+                                                                        >
+                                                                            <span>{s.serial_number}</span>
+                                                                            {isSelected && <Check size={12} color="var(--primary)" />}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Table Quick Add/Reduce Quantity Controls */}
                                                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'var(--surface-hover)', padding: '2px 4px', borderRadius: '6px', border: '1px solid var(--border)' }}>
                                                         <button
                                                             type="button"
@@ -834,7 +976,7 @@ const POS = () => {
                                                             type="button"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                handleTableAddQuantity(p);
+                                                                addSerializedToCart(p, selectedSerialObj);
                                                             }}
                                                             disabled={currentCartQty >= p.stock}
                                                             className="btn-secondary"
