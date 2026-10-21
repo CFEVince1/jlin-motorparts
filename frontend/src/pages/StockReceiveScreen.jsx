@@ -30,7 +30,7 @@ export const StockReceiveScreen = () => {
 
   // Line items matrix
   const [lineItems, setLineItems] = useState([
-    { itemId: '', quantity: '', costPrice: '' }
+    { itemId: '', quantity: '', costPrice: '', serials: [], serialsInput: '' }
   ]);
 
   // Receiving History State
@@ -97,7 +97,7 @@ export const StockReceiveScreen = () => {
   }, [fetchReceivingHistory]);
 
   const addRow = () => {
-    setLineItems(prev => [...prev, { itemId: '', quantity: '', costPrice: '' }]);
+    setLineItems(prev => [...prev, { itemId: '', quantity: '', costPrice: '', serials: [], serialsInput: '' }]);
   };
 
   const removeRow = (index) => {
@@ -106,6 +106,58 @@ export const StockReceiveScreen = () => {
       return;
     }
     setLineItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAutoGenerateSerials = (index, prod, qty) => {
+    if (!qty || qty <= 0) {
+      toast.error('Please enter quantity first');
+      return;
+    }
+    const rawPart = (prod.part_number || prod.sku || 'SN').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const prefix = rawPart.length > 8 ? rawPart.slice(0, 8) : rawPart;
+    const now = new Date();
+    const dateStr = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+    const generated = [];
+    for (let i = 1; i <= qty; i++) {
+      const pad = String(i).padStart(2, '0');
+      generated.push(`${prefix}-${dateStr}-${pad}`);
+    }
+    setLineItems(prev => {
+      const next = [...prev];
+      next[index] = {
+        ...next[index],
+        serials: generated,
+        serialsInput: generated.join(', ')
+      };
+      return next;
+    });
+    toast.success(`Generated ${qty} sequential serials for ${prod.part_number}`);
+  };
+
+  const handleSerialsInputChange = (index, value) => {
+    const rawTokens = value.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+    setLineItems(prev => {
+      const next = [...prev];
+      next[index] = {
+        ...next[index],
+        serialsInput: value,
+        serials: rawTokens
+      };
+      return next;
+    });
+  };
+
+  const handleRemoveSerialChip = (index, serialIdx) => {
+    setLineItems(prev => {
+      const next = [...prev];
+      const newSerials = (next[index].serials || []).filter((_, i) => i !== serialIdx);
+      next[index] = {
+        ...next[index],
+        serials: newSerials,
+        serialsInput: newSerials.join(', ')
+      };
+      return next;
+    });
   };
 
   const updateRow = (index, field, value) => {
@@ -132,6 +184,9 @@ export const StockReceiveScreen = () => {
         if (selectedProd && (!next[index].costPrice || next[index].costPrice === '')) {
           next[index].costPrice = selectedProd.cost_price || '';
         }
+        // If changed product, reset serials
+        next[index].serials = [];
+        next[index].serialsInput = '';
       }
       return next;
     });
@@ -191,10 +246,31 @@ export const StockReceiveScreen = () => {
         return;
       }
 
+      const prod = products.find(p => String(p.id) === String(row.itemId));
+      const isSerialized = Boolean(prod?.is_serialized);
+      const serials = Array.isArray(row.serials) ? row.serials.map(s => String(s).trim()).filter(Boolean) : [];
+
+      if (isSerialized) {
+        if (serials.length !== qty) {
+          toast.error(`Line #${i + 1} (${prod?.part_number || prod?.name}): Exactly ${qty} serial number(s) required, but ${serials.length} provided.`);
+          return;
+        }
+        const seenSerials = new Set();
+        for (const s of serials) {
+          const upper = s.toUpperCase();
+          if (seenSerials.has(upper)) {
+            toast.error(`Line #${i + 1}: Duplicate serial "${s}" detected.`);
+            return;
+          }
+          seenSerials.add(upper);
+        }
+      }
+
       formattedItems.push({
         itemId: Number(row.itemId),
         quantity: qty,
-        costPrice: cost
+        costPrice: cost,
+        serials: isSerialized ? serials : []
       });
     }
 
@@ -213,7 +289,7 @@ export const StockReceiveScreen = () => {
       // Reset form
       setReferenceNo('');
       setDeliveryPersonnel('');
-      setLineItems([{ itemId: '', quantity: '', costPrice: '' }]);
+      setLineItems([{ itemId: '', quantity: '', costPrice: '', serials: [], serialsInput: '' }]);
 
       // Refresh product stock cache & receiving history log
       const updatedProds = await api.get('/products');
@@ -435,115 +511,216 @@ export const StockReceiveScreen = () => {
                     const cost = Math.max(0, parseFloat(row.costPrice) || 0);
                     const rowSubtotal = qty * cost;
                     const selectedProd = products.find(p => String(p.id) === String(row.itemId));
-                    const currentStock = selectedProd ? Number(selectedProd.current_stock ?? selectedProd.stock ?? 0) : null;
+                    const currentStock = selectedProd ? Number(selectedProd.stock ?? selectedProd.current_stock ?? 0) : null;
                     const reorderLevel = selectedProd ? Number(selectedProd.reorder_level || 5) : 5;
                     const newStock = currentStock !== null ? currentStock + qty : null;
+                    const isSerialized = Boolean(selectedProd?.is_serialized);
 
                     return (
-                      <tr key={index}>
-                        <td style={{ padding: '6px 10px' }}>
-                          <select
-                            className="input-premium"
-                            value={row.itemId}
-                            onChange={(e) => updateRow(index, 'itemId', e.target.value)}
-                            required
-                            disabled={submitting}
-                          >
-                            <option value="">-- Select Product --</option>
-                            {products.map(p => {
-                              const pStock = Number(p.current_stock ?? p.stock ?? 0);
-                              return (
-                                <option key={p.id} value={p.id}>
-                                  {p.part_number} - {p.product_name || p.name} ({p.brand || 'No Brand'}) • Stock: {pStock}
-                                </option>
-                              );
-                            })}
-                          </select>
-                        </td>
-                        <td style={{ padding: '6px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                          {selectedProd ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
-                              <span style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                padding: '3px 8px',
-                                borderRadius: '6px',
-                                fontSize: '0.78rem',
-                                fontWeight: 700,
-                                background: currentStock <= 0 
-                                  ? 'rgba(239, 68, 68, 0.12)' 
-                                  : (currentStock <= reorderLevel ? 'rgba(234, 179, 8, 0.15)' : 'rgba(22, 163, 74, 0.12)'),
-                                color: currentStock <= 0 
-                                  ? '#dc2626' 
-                                  : (currentStock <= reorderLevel ? '#ca8a04' : '#16a34a'),
-                                border: `1px solid ${currentStock <= 0 ? 'rgba(239, 68, 68, 0.25)' : (currentStock <= reorderLevel ? 'rgba(234, 179, 8, 0.3)' : 'rgba(22, 163, 74, 0.25)')}`
-                              }}>
-                                {currentStock} in stock
-                              </span>
-                              {qty > 0 && (
-                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                  Will be: <strong style={{ color: 'var(--primary)' }}>{newStock}</strong> (+{qty})
+                      <React.Fragment key={index}>
+                        <tr>
+                          <td style={{ padding: '6px 10px' }}>
+                            <select
+                              className="input-premium"
+                              value={row.itemId}
+                              onChange={(e) => updateRow(index, 'itemId', e.target.value)}
+                              required
+                              disabled={submitting}
+                            >
+                              <option value="">-- Select Product --</option>
+                              {products.map(p => {
+                                const pStock = Number(p.stock ?? p.current_stock ?? 0);
+                                return (
+                                  <option key={p.id} value={p.id}>
+                                    {p.part_number} - {p.product_name || p.name} ({p.brand || 'No Brand'}) • Current Stock: {pStock} {p.is_serialized ? '★ [Serialized]' : ''}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                          </td>
+                          <td style={{ padding: '6px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                            {selectedProd ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '0.78rem',
+                                  fontWeight: 700,
+                                  background: currentStock <= 0 
+                                    ? 'rgba(239, 68, 68, 0.12)' 
+                                    : (currentStock <= reorderLevel ? 'rgba(234, 179, 8, 0.15)' : 'rgba(22, 163, 74, 0.12)'),
+                                  color: currentStock <= 0 
+                                    ? '#dc2626' 
+                                    : (currentStock <= reorderLevel ? '#ca8a04' : '#16a34a'),
+                                  border: `1px solid ${currentStock <= 0 ? 'rgba(239, 68, 68, 0.25)' : (currentStock <= reorderLevel ? 'rgba(234, 179, 8, 0.3)' : 'rgba(22, 163, 74, 0.25)')}`
+                                }}>
+                                  {currentStock} in stock
                                 </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>-</span>
-                          )}
-                        </td>
-                        <td style={{ padding: '6px 10px', textAlign: 'center' }}>
-                          <input
-                            type="number"
-                            min="1"
-                            step="1"
-                            placeholder="Qty"
-                            className="input-premium"
-                            style={{ textAlign: 'center' }}
-                            value={row.quantity}
-                            onKeyDown={(e) => {
-                              if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') {
-                                e.preventDefault();
-                              }
-                            }}
-                            onChange={(e) => updateRow(index, 'quantity', e.target.value)}
-                            required
-                            disabled={submitting}
-                          />
-                        </td>
-                        <td style={{ padding: '6px 10px', textAlign: 'right' }}>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="Cost"
-                            className="input-premium"
-                            style={{ textAlign: 'right' }}
-                            value={row.costPrice}
-                            onKeyDown={(e) => {
-                              if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') {
-                                e.preventDefault();
-                              }
-                            }}
-                            onChange={(e) => updateRow(index, 'costPrice', e.target.value)}
-                            required
-                            disabled={submitting}
-                          />
-                        </td>
-                        <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 'bold', color: 'var(--primary)' }}>
-                          {formatCurrency(rowSubtotal)}
-                        </td>
-                        <td style={{ padding: '6px 10px', textAlign: 'center' }}>
-                          <button
-                            type="button"
-                            onClick={() => removeRow(index)}
-                            style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '4px' }}
-                            disabled={submitting}
-                            title="Remove row"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
+                                {qty > 0 && (
+                                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                    Will be: <strong style={{ color: 'var(--primary)' }}>{newStock}</strong> (+{qty})
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>-</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '6px 10px', textAlign: 'center' }}>
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              placeholder="Qty"
+                              className="input-premium"
+                              style={{ textAlign: 'center' }}
+                              value={row.quantity}
+                              onKeyDown={(e) => {
+                                if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') {
+                                  e.preventDefault();
+                                }
+                              }}
+                              onChange={(e) => updateRow(index, 'quantity', e.target.value)}
+                              required
+                              disabled={submitting}
+                            />
+                          </td>
+                          <td style={{ padding: '6px 10px', textAlign: 'right' }}>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="Cost"
+                              className="input-premium"
+                              style={{ textAlign: 'right' }}
+                              value={row.costPrice}
+                              onKeyDown={(e) => {
+                                if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') {
+                                  e.preventDefault();
+                                }
+                              }}
+                              onChange={(e) => updateRow(index, 'costPrice', e.target.value)}
+                              required
+                              disabled={submitting}
+                            />
+                          </td>
+                          <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 'bold', color: 'var(--primary)' }}>
+                            {formatCurrency(rowSubtotal)}
+                          </td>
+                          <td style={{ padding: '6px 10px', textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => removeRow(index)}
+                              style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '4px' }}
+                              disabled={submitting}
+                              title="Remove row"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+
+                        {/* Serial Numbers input panel for serialized items */}
+                        {isSerialized && (
+                          <tr style={{ background: 'rgba(245, 158, 11, 0.04)', borderBottom: '2px solid rgba(245, 158, 11, 0.2)' }}>
+                            <td colSpan={6} style={{ padding: '10px 14px' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      padding: '2px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 700,
+                                      background: '#fef3c7',
+                                      color: '#d97706',
+                                      border: '1px solid #fcd34d'
+                                    }}>
+                                      ★ SERIALIZED PRODUCT
+                                    </span>
+                                    <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>
+                                      Serial Numbers ({row.serials?.length || 0} / {qty || 0} entered)
+                                    </span>
+                                    {qty > 0 && (row.serials?.length || 0) === qty && (
+                                      <span style={{ fontSize: '0.78rem', color: '#16a34a', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        <CheckCircle size={14} /> Ready to Receive
+                                      </span>
+                                    )}
+                                    {qty > 0 && (row.serials?.length || 0) !== qty && (
+                                      <span style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 500 }}>
+                                        (Needs {qty - (row.serials?.length || 0)} more serial{qty - (row.serials?.length || 0) > 1 ? 's' : ''})
+                                      </span>
+                                    )}
+                                  </div>
+                                  {qty > 0 && (
+                                    <button
+                                      type="button"
+                                      className="btn-secondary"
+                                      style={{ fontSize: '0.75rem', padding: '3px 10px', height: '28px', color: '#d97706', borderColor: '#fcd34d' }}
+                                      onClick={() => handleAutoGenerateSerials(index, selectedProd, qty)}
+                                      title="Auto-generate sequential serial numbers for this delivery batch"
+                                    >
+                                      ⚡ Auto-Generate {qty} Serials
+                                    </button>
+                                  )}
+                                </div>
+
+                                <div>
+                                  <input
+                                    type="text"
+                                    className="input-premium"
+                                    placeholder={`Enter or scan ${qty || 1} serial number(s) separated by commas (e.g. JVT-001, JVT-002)`}
+                                    value={row.serialsInput !== undefined ? row.serialsInput : (row.serials ? row.serials.join(', ') : '')}
+                                    onChange={(e) => handleSerialsInputChange(index, e.target.value)}
+                                    style={{
+                                      fontSize: '0.82rem',
+                                      borderColor: qty > 0 && (row.serials?.length || 0) === qty ? '#16a34a' : 'rgba(245, 158, 11, 0.4)'
+                                    }}
+                                  />
+                                </div>
+
+                                {row.serials && row.serials.length > 0 && (
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Assigned serials:</span>
+                                    {row.serials.map((sn, sIdx) => (
+                                      <span
+                                        key={sIdx}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px',
+                                          background: 'var(--surface-hover)',
+                                          border: '1px solid var(--border)',
+                                          padding: '2px 8px',
+                                          borderRadius: '4px',
+                                          fontSize: '0.75rem',
+                                          fontFamily: 'monospace'
+                                        }}
+                                      >
+                                        {sn}
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveSerialChip(index, sIdx)}
+                                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text-muted)' }}
+                                          title="Remove serial"
+                                        >
+                                          <X size={11} />
+                                        </button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
@@ -993,7 +1170,14 @@ export const StockReceiveScreen = () => {
                     <tr key={it.id || idx} style={{ borderBottom: '1px solid var(--border)' }}>
                       <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>{idx + 1}</td>
                       <td style={{ padding: '8px 10px', fontWeight: 600 }}>{it.part_number}</td>
-                      <td style={{ padding: '8px 10px' }}>{it.product_name}</td>
+                      <td style={{ padding: '8px 10px' }}>
+                        <div>{it.product_name}</div>
+                        {it.serials && (
+                          <div style={{ fontSize: '0.74rem', color: '#d97706', marginTop: '3px', fontFamily: 'monospace' }}>
+                            Serials: {it.serials}
+                          </div>
+                        )}
+                      </td>
                       <td style={{ padding: '8px 10px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                         {it.brand || '-'} {it.size ? `| ${it.size}` : ''}
                       </td>
@@ -1113,7 +1297,14 @@ export const StockReceiveScreen = () => {
                 <tr key={it.id || idx} style={{ borderBottom: '1px solid #dddddd' }}>
                   <td style={{ padding: '5px 4px', color: '#555555' }}>{idx + 1}</td>
                   <td style={{ padding: '5px 4px', fontWeight: 'bold' }}>{it.part_number}</td>
-                  <td style={{ padding: '5px 4px' }}>{it.product_name}</td>
+                  <td style={{ padding: '5px 4px' }}>
+                    <div>{it.product_name}</div>
+                    {it.serials && (
+                      <div style={{ fontSize: '8px', color: '#444444', marginTop: '2px', fontFamily: 'monospace' }}>
+                        SN: {it.serials}
+                      </div>
+                    )}
+                  </td>
                   <td style={{ padding: '5px 4px' }}>{it.brand || '-'} {it.size ? `| ${it.size}` : ''}</td>
                   <td style={{ padding: '5px 4px', textAlign: 'center', fontWeight: 'bold' }}>+{it.quantity}</td>
                   <td style={{ padding: '5px 4px', textAlign: 'right' }}>{formatCurrency(it.cost_price)}</td>

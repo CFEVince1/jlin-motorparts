@@ -306,6 +306,28 @@ async function ensureSchema() {
     } catch (err) {
       console.warn('[Schema] Failed to verify return_refund_history table:', err.message);
     }
+
+    // 9. Ensure receiving_record_items has serials column
+    try {
+      const [rriCols] = await db.query(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'receiving_record_items'
+           AND COLUMN_NAME = 'serials'`
+      );
+      if (rriCols.length === 0) {
+        await db.query('ALTER TABLE receiving_record_items ADD COLUMN serials TEXT NULL AFTER subtotal');
+        console.log('[Schema] Added serials column to receiving_record_items table.');
+      }
+    } catch (err) {
+      console.warn('[Schema] Failed to check/add serials to receiving_record_items:', err.message);
+    }
+
+    // 10. Ensure products current_stock is kept in sync with stock
+    try {
+      await db.query('UPDATE products SET current_stock = stock WHERE current_stock != stock OR current_stock IS NULL');
+    } catch (err) {
+      console.warn('[Schema] Failed to sync products.current_stock:', err.message);
+    }
   } catch (err) {
     console.warn('[Schema] Auto-migration check completed with note:', err.message);
   }

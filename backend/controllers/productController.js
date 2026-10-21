@@ -37,8 +37,8 @@ exports.getAllProducts = async (req, res) => {
             SELECT
                 id, name AS product_name, part_number, brand, category,
                 size, measurement, thread_type, cost_price, selling_price AS price,
-                COALESCE(current_stock, stock, 0) AS stock,
-                COALESCE(current_stock, stock, 0) AS current_stock,
+                COALESCE(stock, current_stock, 0) AS stock,
+                COALESCE(stock, current_stock, 0) AS current_stock,
                 reorder_level, is_serialized
             FROM products
             WHERE is_active = 1

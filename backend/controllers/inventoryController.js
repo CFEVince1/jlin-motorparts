@@ -19,7 +19,7 @@ exports.getInventory = async (req, res, next) => {
                 p.category,
                 p.size,
                 p.is_serialized,
-                COALESCE(p.current_stock, p.stock) AS current_stock,
+                COALESCE(p.stock, p.current_stock, 0) AS current_stock,
                 p.stock,
                 p.reorder_level,
                 p.cost_price,
@@ -133,20 +133,75 @@ exports.receiveStock = async (req, res, next) => {
             return idA - idB;
         });
 
-        // 4. Calculate total cost and validate line items
+        // 4. Calculate total cost, fetch product definitions, and validate line items
+        const productIds = [...new Set(sortedItems.map(it => Number(it.itemId || it.item_id || it.product_id)))];
+        const [productRows] = await connection.query(
+            `SELECT id, name, part_number, is_serialized FROM products WHERE id IN (?)`,
+            [productIds]
+        );
+        const productMap = new Map(productRows.map(p => [p.id, p]));
+
         let totalCost = 0;
+        const validatedItems = [];
+
         for (const item of sortedItems) {
             const resolvedId = Number(item.itemId || item.item_id || item.product_id);
             const qty = Number(item.quantity);
             const costPrice = Number(item.cost_price ?? item.costPrice ?? 0);
+            const prod = productMap.get(resolvedId);
 
-            if (!resolvedId || !Number.isInteger(qty) || qty <= 0) {
-                throw new AppValidationError(`Invalid item ID or quantity for receiving line: ${JSON.stringify(item)}`);
+            if (!resolvedId || !prod) {
+                throw new AppValidationError(`Invalid item or product not found: ID ${resolvedId}`);
+            }
+            if (!Number.isInteger(qty) || qty <= 0) {
+                throw new AppValidationError(`Invalid quantity for "${prod.name}". Must be a positive integer.`);
             }
             if (isNaN(costPrice) || costPrice < 0) {
-                throw new AppValidationError(`Invalid unit cost for receiving line: ${JSON.stringify(item)}. Cost cannot be negative.`);
+                throw new AppValidationError(`Invalid unit cost for "${prod.name}". Cost cannot be negative.`);
             }
+
+            const isSerialized = Boolean(prod.is_serialized);
+            let serials = item.serials || item.serial_numbers || item.serialNumbers || [];
+            if (typeof serials === 'string') {
+                serials = serials.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+            } else if (Array.isArray(serials)) {
+                serials = serials.map(s => String(s || '').trim()).filter(Boolean);
+            }
+
+            if (isSerialized) {
+                if (serials.length !== qty) {
+                    throw new AppValidationError(
+                        `Product "${prod.name}" (${prod.part_number}) is a serialized item. Exactly ${qty} serial number(s) required, but ${serials.length} provided.`
+                    );
+                }
+                const uniqueSerials = new Set(serials);
+                if (uniqueSerials.size !== serials.length) {
+                    throw new AppValidationError(
+                        `Duplicate serial numbers entered for "${prod.name}". Each unit must have a unique serial number.`
+                    );
+                }
+                // Check if any of these serials already exist in product_serials
+                const [existing] = await connection.query(
+                    `SELECT serial_number FROM product_serials WHERE serial_number IN (?)`,
+                    [serials]
+                );
+                if (existing.length > 0) {
+                    const dupes = existing.map(e => e.serial_number).join(', ');
+                    throw new AppValidationError(
+                        `Serial number(s) already exist in the system: ${dupes}. Cannot receive duplicate serials.`
+                    );
+                }
+            }
+
             totalCost += costPrice * qty;
+            validatedItems.push({
+                resolvedId,
+                qty,
+                costPrice,
+                prod,
+                isSerialized,
+                serials
+            });
         }
 
         // 5. Create receiving_records header
@@ -160,18 +215,28 @@ exports.receiveStock = async (req, res, next) => {
 
         // 6. Insert receiving_record_items and call applyMovement (STOCK_IN) atomically
         const processedItems = [];
-        for (const item of sortedItems) {
-            const resolvedId = Number(item.itemId || item.item_id || item.product_id);
-            const qty = Number(item.quantity);
-            const costPrice = Number(item.cost_price ?? item.costPrice ?? 0);
+        for (const item of validatedItems) {
+            const { resolvedId, qty, costPrice, isSerialized, serials } = item;
             const subtotal = costPrice * qty;
+            const serialsStr = isSerialized && serials.length > 0 ? serials.join(', ') : null;
 
             await connection.query(
                 `INSERT INTO receiving_record_items (
-                    receiving_record_id, product_id, item_id, quantity, cost_price, subtotal
-                ) VALUES (?, ?, ?, ?, ?, ?)`,
-                [receivingRecordId, resolvedId, resolvedId, qty, costPrice, subtotal]
+                    receiving_record_id, product_id, item_id, quantity, cost_price, subtotal, serials
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [receivingRecordId, resolvedId, resolvedId, qty, costPrice, subtotal, serialsStr]
             );
+
+            // If item is serialized, insert each serial into product_serials with status 'available'
+            if (isSerialized && serials.length > 0) {
+                for (const sn of serials) {
+                    await connection.query(
+                        `INSERT INTO product_serials (product_id, serial_number, status, created_at)
+                         VALUES (?, ?, 'available', NOW())`,
+                        [resolvedId, sn]
+                    );
+                }
+            }
 
             const movement = await applyMovement(connection, {
                 itemId: resolvedId,
@@ -185,7 +250,10 @@ exports.receiveStock = async (req, res, next) => {
                 createdBy: userId
             });
 
-            processedItems.push(movement);
+            processedItems.push({
+                ...movement,
+                serials: serialsStr
+            });
         }
 
         await connection.commit();
@@ -714,9 +782,11 @@ exports.getReceivingHistory = async (req, res, next) => {
                     p.name AS product_name,
                     p.brand,
                     p.size,
+                    p.is_serialized,
                     rri.quantity,
                     rri.cost_price,
-                    rri.subtotal
+                    rri.subtotal,
+                    rri.serials
                 FROM receiving_record_items rri
                 JOIN products p ON p.id = rri.product_id
                 WHERE rri.receiving_record_id IN (?)
