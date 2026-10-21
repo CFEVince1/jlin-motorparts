@@ -53,7 +53,7 @@ export default function Returns() {
     const [lastProcessedReturn, setLastProcessedReturn] = useState(null);
 
     // ==========================================
-    // 2. RETURNS HISTORY STATE
+    // 2. RETURNS & AUDIT HISTORY STATE
     // ==========================================
     const [returnsList, setReturnsList] = useState([]);
     const [loadingReturns, setLoadingReturns] = useState(false);
@@ -65,6 +65,17 @@ export default function Returns() {
         total: 0,
         totalPages: 1
     });
+
+    // Returns & Stock Adjustment Audit History state
+    const [auditHistory, setAuditHistory] = useState([]);
+    const [loadingAudit, setLoadingAudit] = useState(false);
+    const [auditFilter, setAuditFilter] = useState('ALL');
+    const [auditSearch, setAuditSearch] = useState('');
+    const [auditDate, setAuditDate] = useState('');
+    const [supplierReturnTarget, setSupplierReturnTarget] = useState(null);
+    const [supplierNameInput, setSupplierNameInput] = useState('');
+    const [supplierRemarksInput, setSupplierRemarksInput] = useState('');
+    const [submittingSupplierReturn, setSubmittingSupplierReturn] = useState(false);
 
     // ==========================================
     // 3. DIRECT INVENTORY ADJUSTMENT STATE

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Printer, X, FileText, CheckCircle2, AlertTriangle, Layers } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 
