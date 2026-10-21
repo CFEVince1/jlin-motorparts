@@ -398,6 +398,78 @@ exports.recordAdjustment = async (req, res, next) => {
             createdBy: userId
         });
 
+        // 4. Log into return_refund_history audit trail
+        try {
+            const [pRows] = await connection.query('SELECT stock, damaged_stock, name, part_number FROM products WHERE id = ?', [resolvedId]);
+            const p = pRows[0] || {};
+            const pStock = Number(p.stock || 0);
+            const pDamage = Number(p.damaged_stock || 0);
+
+            let mType = 'LOSS_INVENTORY';
+            let flowPath = 'Loss → Inventory';
+            let targetBucket = 'INVENTORY';
+            let effectBadge = `-${qty} Inventory`;
+            let status = 'COMPLETED';
+            let invBefore = movement.balance_before ?? (pStock + qty);
+            let invAfter = movement.balance_after ?? pStock;
+            let dmgBefore = pDamage;
+            let dmgAfter = pDamage;
+
+            if (resolvedType === 'DAMAGE') {
+                mType = 'SHELF_TO_DAMAGE';
+                flowPath = 'Customer Return → Damage';
+                targetBucket = 'DAMAGE';
+                effectBadge = `+${qty} Damage`;
+                status = 'PENDING_SUPPLIER_RETURN';
+                dmgBefore = pDamage;
+                dmgAfter = pDamage + qty;
+                await connection.query('UPDATE products SET damaged_stock = damaged_stock + ? WHERE id = ?', [qty, resolvedId]);
+            } else if (resolvedType === 'FOUND') {
+                mType = 'FOUND_INVENTORY';
+                flowPath = 'Found → Inventory';
+                targetBucket = 'INVENTORY';
+                effectBadge = `+${qty} Inventory`;
+                invBefore = movement.balance_before ?? (pStock - qty);
+                invAfter = movement.balance_after ?? pStock;
+            } else if (resolvedType === 'RETURN_TO_SUPPLIER') {
+                mType = 'INVENTORY_TO_SUPPLIER';
+                flowPath = 'Return to Supplier → Inventory';
+                targetBucket = 'INVENTORY';
+                effectBadge = `-${qty} Inventory`;
+                invBefore = movement.balance_before ?? (pStock + qty);
+                invAfter = movement.balance_after ?? pStock;
+            }
+
+            await connection.query(`
+                INSERT INTO return_refund_history (
+                    reference_no, product_id, product_name, part_number,
+                    movement_type, flow_path, qty, target_bucket, effect_badge,
+                    inv_before, inv_after, damage_before, damage_after,
+                    status, remarks, processed_by, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [
+                resolvedRef || `ADJ-${movement.id || Date.now()}`,
+                resolvedId,
+                p.name || 'Product',
+                p.part_number || '',
+                mType,
+                flowPath,
+                qty,
+                targetBucket,
+                effectBadge,
+                invBefore,
+                invAfter,
+                dmgBefore,
+                dmgAfter,
+                status,
+                resolvedRemarks || 'Audited direct adjustment',
+                req.user?.username || 'admin',
+                new Date()
+            ]);
+        } catch (auditErr) {
+            console.error('Failed to log return_refund_history for adjustment:', auditErr);
+        }
+
         await connection.commit();
 
         res.status(200).json({

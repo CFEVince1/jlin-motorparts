@@ -1127,6 +1127,72 @@ exports.processSaleRefund = async (req, res, next) => {
                     );
                 }
             }
+
+            // Record into return_refund_history audit table
+            try {
+                const [pRows] = await connection.query('SELECT stock, damaged_stock FROM products WHERE id = ?', [item.productId]);
+                const pStock = Number(pRows[0]?.stock || 0);
+                const pDamage = Number(pRows[0]?.damaged_stock || 0);
+
+                let mType = 'CUSTOMER_RETURN_GOOD';
+                let flowPath = 'Customer Return → Good';
+                let targetBucket = 'INVENTORY';
+                let effectBadge = `+${item.quantity} Inventory`;
+                let status = 'COMPLETED';
+                let invBefore = pStock;
+                let invAfter = pStock;
+                let dmgBefore = pDamage;
+                let dmgAfter = pDamage;
+
+                if (item.disposition === 'FOUND') {
+                    mType = 'CUSTOMER_RETURN_GOOD';
+                    flowPath = 'Customer Return → Good';
+                    targetBucket = 'INVENTORY';
+                    effectBadge = `+${item.quantity} Inventory`;
+                    invBefore = Math.max(0, pStock - item.quantity);
+                    invAfter = pStock;
+                } else if (item.disposition === 'DAMAGE') {
+                    mType = 'CUSTOMER_RETURN_DAMAGE';
+                    flowPath = 'Customer Return → Damage';
+                    targetBucket = 'DAMAGE';
+                    effectBadge = `+${item.quantity} Damage`;
+                    status = 'PENDING_SUPPLIER_RETURN';
+                    dmgBefore = pDamage;
+                    dmgAfter = pDamage + item.quantity;
+                    // Increment damaged_stock in products table
+                    await connection.query('UPDATE products SET damaged_stock = damaged_stock + ? WHERE id = ?', [item.quantity, item.productId]);
+                } else if (item.disposition === 'LOSS') {
+                    mType = 'LOSS_INVENTORY';
+                    flowPath = 'Loss → Inventory';
+                    targetBucket = 'INVENTORY';
+                    effectBadge = `-${item.quantity} Inventory`;
+                    invBefore = pStock + item.quantity;
+                    invAfter = pStock;
+                } else if (item.disposition === 'RETURN_TO_SUPPLIER') {
+                    mType = 'INVENTORY_TO_SUPPLIER';
+                    flowPath = 'Return to Supplier → Inventory';
+                    targetBucket = 'INVENTORY';
+                    effectBadge = `-${item.quantity} Inventory`;
+                    invBefore = pStock + item.quantity;
+                    invAfter = pStock;
+                }
+
+                await connection.query(`
+                    INSERT INTO return_refund_history (
+                        reference_no, order_id, sale_return_id, product_id, product_name, part_number,
+                        movement_type, flow_path, qty, target_bucket, effect_badge,
+                        inv_before, inv_after, damage_before, damage_after, refund_amount,
+                        status, remarks, processed_by, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `, [
+                    returnNumber, saleId, saleReturnId, item.productId, item.productName, item.partNumber,
+                    mType, flowPath, item.quantity, targetBucket, effectBadge,
+                    invBefore, invAfter, dmgBefore, dmgAfter, item.subtotalRefund,
+                    status, itemRemarks, req.user?.username || 'staff', new Date()
+                ]);
+            } catch (histErr) {
+                console.error('Failed to log return_refund_history for refund item:', histErr);
+            }
         }
 
         // 6. Check if all items in this sale are now completely returned
@@ -1265,3 +1331,171 @@ exports.getReturnsHistory = async (req, res, next) => {
     }
 };
 
+
+
+/**
+ * GET /api/sales/returns/audit-history
+ * Returns the complete Return / Refund & Stock Adjustment History Table
+ * showing both Inventory Balance and Damage Balance side-by-side.
+ */
+exports.getReturnRefundAuditHistory = async (req, res, next) => {
+    try {
+        const { filter, search, date } = req.query;
+        let whereClauses = [];
+        let params = [];
+
+        if (filter && filter !== 'ALL') {
+            if (filter === 'CUSTOMER_RETURNS') {
+                whereClauses.push("movement_type IN ('CUSTOMER_RETURN_GOOD', 'CUSTOMER_RETURN_DAMAGE')");
+            } else if (filter === 'DAMAGE') {
+                whereClauses.push("(movement_type IN ('CUSTOMER_RETURN_DAMAGE', 'SHELF_TO_DAMAGE', 'DAMAGE_TO_SUPPLIER') OR target_bucket = 'DAMAGE')");
+            } else if (filter === 'LOSS') {
+                whereClauses.push("movement_type = 'LOSS_INVENTORY'");
+            } else if (filter === 'FOUND') {
+                whereClauses.push("movement_type = 'FOUND_INVENTORY'");
+            } else if (filter === 'RETURN_TO_SUPPLIER') {
+                whereClauses.push("movement_type IN ('DAMAGE_TO_SUPPLIER', 'INVENTORY_TO_SUPPLIER')");
+            }
+        }
+
+        if (search && search.trim()) {
+            whereClauses.push("(reference_no LIKE ? OR product_name LIKE ? OR part_number LIKE ? OR remarks LIKE ?)");
+            const s = `%${search.trim()}%`;
+            params.push(s, s, s, s);
+        }
+
+        if (date && date.trim()) {
+            whereClauses.push("DATE(created_at) = ?");
+            params.push(date.trim());
+        }
+
+        const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+        const [rows] = await db.query(`
+            SELECT 
+                id, reference_no, order_id, sale_return_id,
+                product_id, product_name, part_number,
+                movement_type, flow_path, qty, target_bucket, effect_badge,
+                inv_before, inv_after, damage_before, damage_after,
+                refund_amount, supplier_name, status, remarks,
+                processed_by, created_at
+            FROM return_refund_history
+            ${whereSQL}
+            ORDER BY created_at DESC, id DESC
+        `, params);
+
+        res.json({
+            success: true,
+            data: rows
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+/**
+ * POST /api/sales/returns/damage-to-supplier
+ * Executes Damage -> Return to Supplier:
+ * Deducts -1 Damage from damaged_stock while sellable inventory stays unchanged (inv_before == inv_after).
+ * Marks the original pending damaged item as RETURNED_TO_SUPPLIER and logs an audit row.
+ */
+exports.returnDamageToSupplier = async (req, res, next) => {
+    const { historyId, supplierName, remarks } = req.body;
+    const userId = req.user?.id;
+    const username = req.user?.username || 'admin';
+
+    if (!historyId) {
+        return res.status(400).json({ message: 'historyId is required' });
+    }
+
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 1. Lock history row
+        const [rows] = await connection.query(
+            'SELECT * FROM return_refund_history WHERE id = ? FOR UPDATE',
+            [historyId]
+        );
+
+        if (rows.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ message: 'Return/refund history record not found' });
+        }
+
+        const original = rows[0];
+        if (original.status === 'RETURNED_TO_SUPPLIER') {
+            await connection.rollback();
+            return res.status(400).json({ message: 'This damaged unit has already been returned to the supplier' });
+        }
+
+        // 2. Lock product row
+        const [prodRows] = await connection.query(
+            'SELECT id, name, part_number, stock, damaged_stock, cost_price FROM products WHERE id = ? FOR UPDATE',
+            [original.product_id]
+        );
+
+        if (prodRows.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ message: 'Product record not found' });
+        }
+
+        const product = prodRows[0];
+        const returnQty = original.qty || 1;
+        const currentDamage = Number(product.damaged_stock || 0);
+        const newDamage = Math.max(0, currentDamage - returnQty);
+        const currentStock = Number(product.stock || 0);
+
+        // Deduct from damaged_stock only; sellable shelf inventory does not double-deduct!
+        await connection.query(
+            'UPDATE products SET damaged_stock = ? WHERE id = ?',
+            [newDamage, product.id]
+        );
+
+        // Update original row status
+        await connection.query(
+            "UPDATE return_refund_history SET status = 'RETURNED_TO_SUPPLIER' WHERE id = ?",
+            [historyId]
+        );
+
+        // Generate supplier dispatch reference (e.g. SUP-003 or SUP-YYYY)
+        const supplierRef = `SUP-${String(Date.now()).slice(-4)}`;
+        const supplierRemarks = remarks || `Handed defective unit back to ${supplierName || 'supplier'} delivery rider`;
+
+        // Insert new audit row for Damage -> Return to Supplier
+        await connection.query(`
+            INSERT INTO return_refund_history (
+                reference_no, order_id, sale_return_id, product_id, product_name, part_number,
+                movement_type, flow_path, qty, target_bucket, effect_badge,
+                inv_before, inv_after, damage_before, damage_after,
+                supplier_name, status, remarks, processed_by, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+            supplierRef, original.order_id, original.sale_return_id, product.id, product.name, product.part_number,
+            'DAMAGE_TO_SUPPLIER', 'Damage → Return to Supplier', returnQty, 'DAMAGE', `-${returnQty} Damage`,
+            currentStock, currentStock, currentDamage, newDamage,
+            supplierName || 'Parts Supplier', 'RETURNED_TO_SUPPLIER', supplierRemarks, username, new Date()
+        ]);
+
+// Damage pool movements are tracked in return_refund_history
+
+        await connection.commit();
+
+        res.json({
+            success: true,
+            message: `Successfully returned ${returnQty} defective unit(s) to supplier. -${returnQty} Damage applied. Sellable inventory preserved (${currentStock} → ${currentStock}).`,
+            data: {
+                reference_no: supplierRef,
+                inv_before: currentStock,
+                inv_after: currentStock,
+                damage_before: currentDamage,
+                damage_after: newDamage
+            }
+        });
+    } catch (err) {
+        await connection.rollback();
+        next(err);
+    } finally {
+        connection.release();
+    }
+};

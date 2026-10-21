@@ -14,6 +14,8 @@ router.get('/best-sellers', salesController.getBestSellers);
 
 // Returns & Refunds History (Must be before /:id)
 router.get('/returns/history', salesController.getReturnsHistory);
+router.get('/returns/audit-history', salesController.getReturnRefundAuditHistory);
+router.post('/returns/damage-to-supplier', salesController.returnDamageToSupplier);
 
 // Transaction History & Void & Refund
 router.get('/', salesController.getSales);

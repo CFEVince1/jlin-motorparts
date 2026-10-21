@@ -135,6 +135,56 @@ export default function Returns() {
         }
     }, [historySearch, historyDate, isStaff]);
 
+
+    const fetchAuditHistory = useCallback(async () => {
+        setLoadingAudit(true);
+        try {
+            const res = await api.get('/sales/returns/audit-history', {
+                params: {
+                    filter: auditFilter !== 'ALL' ? auditFilter : undefined,
+                    search: auditSearch || undefined,
+                    date: auditDate || undefined
+                }
+            });
+            setAuditHistory(res.data?.data || []);
+        } catch (err) {
+            console.error('Failed to load return/refund audit history:', err);
+        } finally {
+            setLoadingAudit(false);
+        }
+    }, [auditFilter, auditSearch, auditDate]);
+
+    useEffect(() => {
+        fetchAuditHistory();
+    }, [fetchAuditHistory]);
+
+    const handleExecuteSupplierReturn = async (e) => {
+        e.preventDefault();
+        if (!supplierReturnTarget) return;
+
+        setSubmittingSupplierReturn(true);
+        try {
+            const res = await api.post('/sales/returns/damage-to-supplier', {
+                historyId: supplierReturnTarget.id,
+                supplierName: supplierNameInput.trim() || 'Parts Supplier',
+                remarks: supplierRemarksInput.trim() || undefined
+            });
+
+            toast.success(res.data?.message || 'Returned to supplier successfully');
+            setSupplierReturnTarget(null);
+            setSupplierNameInput('');
+            setSupplierRemarksInput('');
+            fetchAuditHistory();
+            fetchProductsCatalog();
+            notifyInventoryChange({ source: 'damage-to-supplier', id: supplierReturnTarget.id });
+        } catch (err) {
+            console.error('Error executing supplier return:', err);
+            toast.error(err.response?.data?.message || 'Failed to dispatch to supplier');
+        } finally {
+            setSubmittingSupplierReturn(false);
+        }
+    };
+
     // Fetch products catalog for direct return/adjustment
     const fetchProductsCatalog = useCallback(async () => {
         setLoadingProducts(true);
@@ -151,6 +201,7 @@ export default function Returns() {
     useEffect(() => {
         fetchRecentSales();
         fetchReturnsHistory(1);
+            fetchAuditHistory();
         fetchProductsCatalog();
     }, [fetchRecentSales, fetchReturnsHistory, fetchProductsCatalog]);
 
@@ -347,6 +398,7 @@ export default function Returns() {
             setDirectRemarks('');
             setDirectQty(1);
             fetchProductsCatalog();
+            fetchAuditHistory();
         } catch (err) {
             console.error('Direct adjustment failed:', err);
             toast.error(err.response?.data?.message || 'Failed to record direct inventory return');
@@ -372,6 +424,92 @@ export default function Returns() {
     };
 
     // Render Disposition badge helper matching prompt rules
+
+    const renderEffectBadge = (effect) => {
+        const text = String(effect || '');
+        if (text.includes('-') && text.includes('Damage')) {
+            return (
+                <span style={{
+                    display: 'inline-block',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    background: 'rgba(249, 115, 22, 0.15)',
+                    color: '#ea580c',
+                    border: '1px solid rgba(249, 115, 22, 0.35)'
+                }}>
+                    {text}
+                </span>
+            );
+        }
+        if (text.includes('-') && text.includes('Inventory')) {
+            return (
+                <span style={{
+                    display: 'inline-block',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    color: '#dc2626',
+                    border: '1px solid rgba(239, 68, 68, 0.35)'
+                }}>
+                    {text}
+                </span>
+            );
+        }
+        if (text.includes('+') && text.includes('Damage')) {
+            return (
+                <span style={{
+                    display: 'inline-block',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    background: 'rgba(234, 179, 8, 0.18)',
+                    color: '#ca8a04',
+                    border: '1px solid rgba(234, 179, 8, 0.4)'
+                }}>
+                    {text}
+                </span>
+            );
+        }
+        return (
+            <span style={{
+                display: 'inline-block',
+                padding: '3px 8px',
+                borderRadius: '6px',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                background: 'rgba(22, 163, 74, 0.15)',
+                color: '#16a34a',
+                border: '1px solid rgba(22, 163, 74, 0.35)'
+            }}>
+                {text}
+            </span>
+        );
+    };
+
+    const renderFlowPathBadge = (flowPath) => {
+        return (
+            <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '3px 8px',
+                borderRadius: '4px',
+                fontSize: '0.74rem',
+                fontWeight: 600,
+                background: 'var(--surface-hover, #f3f4f6)',
+                color: 'var(--text-main, #111111)',
+                border: '1px solid var(--border, #e5e7eb)'
+            }}>
+                {flowPath}
+            </span>
+        );
+    };
+
     const renderDispositionBadge = (disp) => {
         switch (disp) {
             case 'FOUND':
@@ -580,7 +718,7 @@ export default function Returns() {
                         gap: '6px'
                     }}
                 >
-                    <History size={16} /> Return Slip History
+                    <History size={16} /> Return / Refund & Stock Adjustment History
                     <span style={{
                         background: activeTab === 'history' ? 'var(--primary)' : 'var(--border)',
                         color: activeTab === 'history' ? '#fff' : 'var(--text-muted)',
@@ -1012,16 +1150,18 @@ export default function Returns() {
 
             {/* ==================================================== */}
             {/* TAB 2: RETURN SLIP HISTORY */}
+           {/* ==================================================== */}
+            {/* TAB 2: RETURN / REFUND & STOCK ADJUSTMENT HISTORY */}
             {/* ==================================================== */}
             {activeTab === 'history' && (
                 <div className="glass-panel" style={{ padding: '24px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
                         <div>
-                            <h2 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <History size={18} color="var(--primary)" /> Processed Return & Refund History
+                            <h2 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <History size={20} color="var(--primary)" /> Return / Refund & Stock Adjustment History Table
                             </h2>
-                            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
-                                Complete audit log of customer return slips, inventory movements, and cash refunds.
+                            <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                                Complete trace of customer returns, stock damages, losses, found units, and supplier returns. Proves sellable inventory vs. damage balances side-by-side.
                             </p>
                         </div>
                         <button
@@ -1029,21 +1169,53 @@ export default function Returns() {
                             className="btn-secondary"
                             style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem' }}
                         >
-                            Open in Transaction History
+                            <Receipt size={14} /> Open in Transaction History
                         </button>
                     </div>
 
-                    {/* Filter bar */}
+                    {/* Category Filter Tabs */}
+                    <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                        {[
+                            { key: 'ALL', label: 'All Movements' },
+                            { key: 'CUSTOMER_RETURNS', label: 'Customer Returns' },
+                            { key: 'DAMAGE', label: 'Damage' },
+                            { key: 'LOSS', label: 'Loss' },
+                            { key: 'FOUND', label: 'Found' },
+                            { key: 'RETURN_TO_SUPPLIER', label: 'Returned to Supplier' }
+                        ].map(f => (
+                            <button
+                                key={f.key}
+                                type="button"
+                                onClick={() => setAuditFilter(f.key)}
+                                style={{
+                                    padding: '6px 14px',
+                                    borderRadius: '6px',
+                                    border: '1px solid',
+                                    borderColor: auditFilter === f.key ? 'var(--primary)' : 'var(--border)',
+                                    background: auditFilter === f.key ? 'var(--primary)' : 'var(--surface)',
+                                    color: auditFilter === f.key ? '#fff' : 'var(--text-main)',
+                                    fontWeight: 600,
+                                    fontSize: '0.8rem',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
+                                }}
+                            >
+                                {f.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Search and Date filter bar */}
                     <div style={{ display: 'flex', gap: '10px', marginBottom: '18px', flexWrap: 'wrap' }}>
                         <div style={{ position: 'relative', flex: '1 1 240px' }}>
                             <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                             <input
                                 type="text"
-                                placeholder="Search return #, order #, part #, cashier, remarks..."
+                                placeholder="Search ref #, order #, part #, product, remarks, staff..."
                                 className="input-premium"
                                 style={{ paddingLeft: '36px', width: '100%' }}
-                                value={historySearch}
-                                onChange={(e) => setHistorySearch(e.target.value)}
+                                value={auditSearch}
+                                onChange={(e) => setAuditSearch(e.target.value)}
                             />
                         </div>
                         <div style={{ position: 'relative', flex: '0 0 auto' }}>
@@ -1052,87 +1224,164 @@ export default function Returns() {
                                 type="date"
                                 className="input-premium"
                                 style={{ paddingLeft: '36px' }}
-                                value={historyDate}
-                                onChange={(e) => setHistoryDate(e.target.value)}
+                                value={auditDate}
+                                onChange={(e) => setAuditDate(e.target.value)}
                             />
                         </div>
-                        {historyDate && (
-                            <button className="btn-secondary" onClick={() => setHistoryDate('')}>Clear Date</button>
+                        {auditDate && (
+                            <button className="btn-secondary" onClick={() => setAuditDate('')}>Clear Date</button>
                         )}
+                        <button
+                            className="btn-secondary"
+                            onClick={() => fetchAuditHistory()}
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem' }}
+                            title="Refresh Audit Table"
+                        >
+                            <RefreshCw size={14} /> Refresh
+                        </button>
                     </div>
 
-                    {loadingReturns ? (
-                        <Spinner text="Loading return slips..." />
+                    {loadingAudit ? (
+                        <Spinner text="Loading return & stock adjustment audit trail..." />
                     ) : (
                         <div className="table-container">
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>Return Ref #</th>
-                                        <th>Order No.</th>
                                         <th>Date & Time</th>
-                                        <th>Cashier</th>
-                                        <th>Returned Products</th>
-                                        <th>Inventory Disposition</th>
-                                        <th>Refund Method</th>
-                                        <th className="text-right">Refund Amount</th>
-                                        <th>Remarks</th>
-                                        <th>Actions</th>
+                                        <th>Reference / Order No.</th>
+                                        <th>Part No. & Product Name</th>
+                                        <th>Category / Flow Path</th>
+                                        <th>Effect (+ / - Bucket)</th>
+                                        <th style={{ textAlign: 'center' }}>Sellable Inventory (Before → After)</th>
+                                        <th style={{ textAlign: 'center' }}>Damage Pool (Before → After)</th>
+                                        <th>Processed By & Remarks</th>
+                                        <th className="text-right">Action / Status</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {returnsList.length === 0 ? (
+                                    {auditHistory.length === 0 ? (
                                         <tr>
-                                            <td colSpan="10" className="table-empty-state">
-                                                No return slips recorded matching current filters.
+                                            <td colSpan="9" className="table-empty-state">
+                                                No return or stock adjustment records match your filters.
                                             </td>
                                         </tr>
                                     ) : (
-                                        returnsList.map(ret => (
-                                            <tr key={ret.id}>
-                                                <td style={{ fontWeight: 700, fontFamily: 'monospace', color: 'var(--primary)' }}>
-                                                    {ret.return_number}
+                                        auditHistory.map(row => (
+                                            <tr key={row.id}>
+                                                <td style={{ whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
+                                                    {formatAuditDate(row.created_at)}
                                                 </td>
-                                                <td style={{ fontFamily: 'monospace', color: 'var(--text-muted)' }}>
-                                                    {ret.order_number || `SO-${ret.sale_id}`}
-                                                </td>
-                                                <td>{formatAuditDate(ret.created_at)}</td>
-                                                <td style={{ textTransform: 'capitalize' }}>{ret.cashier}</td>
                                                 <td>
-                                                    <div style={{ fontWeight: 600, fontSize: '0.84rem' }}>
-                                                        {ret.products_returned || '-'}
+                                                    <div style={{ fontWeight: 700, fontFamily: 'monospace', color: 'var(--primary)', fontSize: '0.85rem' }}>
+                                                        {row.reference_no}
                                                     </div>
-                                                    {ret.part_numbers && (
-                                                        <div style={{ fontFamily: 'monospace', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                                                            {ret.part_numbers}
+                                                    {row.order_id && (
+                                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                                                            Order #SO-{row.order_id}
                                                         </div>
                                                     )}
                                                 </td>
                                                 <td>
-                                                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                                                        {(ret.dispositions || '').split(',').map((disp, di) => {
-                                                            const clean = disp.trim();
-                                                            if (!clean) return null;
-                                                            return <span key={di}>{renderDispositionBadge(clean)}</span>;
-                                                        })}
+                                                    <div style={{ fontWeight: 600, fontSize: '0.86rem' }}>
+                                                        {row.product_name}
                                                     </div>
-                                                </td>
-                                                <td>{ret.refund_payment_method || 'Cash'}</td>
-                                                <td className="text-right" style={{ fontWeight: 700, color: '#dc2626' }}>
-                                                    -{formatCurrency(ret.total_refund_amount)}
-                                                </td>
-                                                <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)', maxWidth: '200px' }}>
-                                                    {ret.reason || '-'}
+                                                    {row.part_number && (
+                                                        <span style={{
+                                                            display: 'inline-block',
+                                                            marginTop: '2px',
+                                                            padding: '1px 6px',
+                                                            borderRadius: '4px',
+                                                            background: 'var(--surface-hover)',
+                                                            border: '1px solid var(--border)',
+                                                            fontFamily: 'monospace',
+                                                            fontSize: '0.74rem',
+                                                            color: 'var(--text-main)',
+                                                            fontWeight: 600
+                                                        }}>
+                                                            {row.part_number}
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td>
-                                                    <button
-                                                        onClick={() => handleViewReceipt(ret.sale_id)}
-                                                        className="btn-secondary"
-                                                        style={{ padding: '4px 8px', fontSize: '0.74rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                                        disabled={loadingReceipt}
-                                                    >
-                                                        <Receipt size={13} /> View Receipt
-                                                    </button>
+                                                    {renderFlowPathBadge(row.flow_path || row.movement_type)}
+                                                </td>
+                                                <td>
+                                                    {renderEffectBadge(row.effect_badge)}
+                                                </td>
+                                                <td style={{ textAlign: 'center', whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
+                                                    <span style={{ color: 'var(--text-muted)' }}>{row.inv_before}</span>
+                                                    <span style={{ margin: '0 6px', color: 'var(--text-muted)' }}>→</span>
+                                                    <strong style={{ color: row.inv_after < row.inv_before ? '#dc2626' : (row.inv_after > row.inv_before ? 'var(--primary)' : 'inherit') }}>
+                                                        {row.inv_after}
+                                                    </strong>
+                                                </td>
+                                                <td style={{ textAlign: 'center', whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
+                                                    <span style={{ color: 'var(--text-muted)' }}>{row.damage_before}</span>
+                                                    <span style={{ margin: '0 6px', color: 'var(--text-muted)' }}>→</span>
+                                                    <strong style={{ color: row.damage_after > row.damage_before ? '#ca8a04' : (row.damage_after < row.damage_before ? '#ea580c' : 'inherit') }}>
+                                                        {row.damage_after}
+                                                    </strong>
+                                                </td>
+                                                <td>
+                                                    <div style={{ textTransform: 'capitalize', fontWeight: 600, fontSize: '0.78rem' }}>
+                                                        {row.processed_by || 'staff'}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', maxWidth: '240px', marginTop: '2px' }}>
+                                                        {row.remarks || '-'}
+                                                    </div>
+                                                </td>
+                                                <td className="text-right" style={{ whiteSpace: 'nowrap' }}>
+                                                    {row.status === 'PENDING_SUPPLIER_RETURN' ? (
+                                                        <button
+                                                            onClick={() => {
+                                                                setSupplierReturnTarget(row);
+                                                                setSupplierNameInput(row.supplier_name || 'JVT Parts Supplier');
+                                                                setSupplierRemarksInput('Handed defective unit back to supplier delivery rider');
+                                                            }}
+                                                            className="btn-primary"
+                                                            style={{
+                                                                padding: '4px 10px',
+                                                                fontSize: '0.74rem',
+                                                                background: '#ea580c',
+                                                                borderColor: '#ea580c',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '4px'
+                                                            }}
+                                                            title="Return this damaged item to supplier"
+                                                        >
+                                                            <Truck size={13} /> Return to Supplier
+                                                        </button>
+                                                    ) : row.status === 'RETURNED_TO_SUPPLIER' ? (
+                                                        <span style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px',
+                                                            padding: '3px 8px',
+                                                            borderRadius: '4px',
+                                                            fontSize: '0.72rem',
+                                                            fontWeight: 700,
+                                                            background: 'rgba(22, 163, 74, 0.12)',
+                                                            color: '#16a34a',
+                                                            border: '1px solid rgba(22, 163, 74, 0.3)'
+                                                        }}>
+                                                            <CheckCircle size={12} /> Returned to Supplier
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{
+                                                            display: 'inline-block',
+                                                            padding: '3px 8px',
+                                                            borderRadius: '4px',
+                                                            fontSize: '0.72rem',
+                                                            fontWeight: 600,
+                                                            background: 'rgba(107, 114, 128, 0.1)',
+                                                            color: 'var(--text-muted)',
+                                                            border: '1px solid var(--border)'
+                                                        }}>
+                                                            {row.status || 'Completed'}
+                                                        </span>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))
@@ -1256,6 +1505,113 @@ export default function Returns() {
                             )}
                         </button>
                     </form>
+                </div>
+            )}
+
+
+            {/* Modal: Return Damaged Unit to Supplier */}
+            {supplierReturnTarget && (
+                <div className="receipt-modal" style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(0, 0, 0, 0.75)',
+                    zIndex: 10001,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '20px'
+                }}>
+                    <div className="glass-panel" style={{
+                        background: 'var(--surface, #FFFFFF)',
+                        color: 'var(--text-main, #111111)',
+                        padding: '24px',
+                        width: '100%',
+                        maxWidth: '520px',
+                        borderRadius: '12px',
+                        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
+                            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', color: '#ea580c' }}>
+                                <Truck size={18} /> Return Damaged Unit to Supplier
+                            </h3>
+                            <button
+                                onClick={() => setSupplierReturnTarget(null)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleExecuteSupplierReturn}>
+                            <div style={{ background: 'rgba(249, 115, 22, 0.08)', border: '1px solid rgba(249, 115, 22, 0.25)', borderRadius: '8px', padding: '12px', marginBottom: '16px' }}>
+                                <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '4px' }}>
+                                    {supplierReturnTarget.product_name}
+                                </div>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                    Part Number: <code style={{ fontWeight: 600 }}>{supplierReturnTarget.part_number}</code> • Ref: {supplierReturnTarget.reference_no}
+                                </div>
+                                <div style={{ marginTop: '8px', fontSize: '0.8rem', display: 'flex', gap: '16px' }}>
+                                    <span>Units to Dispatch: <strong>{supplierReturnTarget.qty} pc(s)</strong></span>
+                                    <span>Effect: <strong style={{ color: '#ea580c' }}>-{supplierReturnTarget.qty} Damage</strong></span>
+                                </div>
+                                <div style={{ marginTop: '4px', fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                    * Sellable shelf inventory is preserved ({supplierReturnTarget.inv_before} → {supplierReturnTarget.inv_after}). Only the Damage Pool decrements from {supplierReturnTarget.damage_after} → {Math.max(0, supplierReturnTarget.damage_after - supplierReturnTarget.qty)}.
+                                </div>
+                            </div>
+
+                            <div style={{ marginBottom: '14px' }}>
+                                <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, marginBottom: '6px' }}>
+                                    Supplier / Distributor Name
+                                </label>
+                                <input
+                                    type="text"
+                                    className="input-premium"
+                                    style={{ width: '100%' }}
+                                    placeholder="e.g. JVT Parts Supplier / Yamaha Genuine Supplier"
+                                    value={supplierNameInput}
+                                    onChange={(e) => setSupplierNameInput(e.target.value)}
+                                    required
+                                />
+                            </div>
+
+                            <div style={{ marginBottom: '20px' }}>
+                                <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, marginBottom: '6px' }}>
+                                    Dispatch Remarks / Courier Receipt
+                                </label>
+                                <textarea
+                                    className="input-premium"
+                                    rows="2"
+                                    style={{ width: '100%', resize: 'vertical' }}
+                                    placeholder="Remarks (e.g. Handed defective unit back to supplier delivery rider)..."
+                                    value={supplierRemarksInput}
+                                    onChange={(e) => setSupplierRemarksInput(e.target.value)}
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setSupplierReturnTarget(null)}
+                                    className="btn-secondary"
+                                    disabled={submittingSupplierReturn}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="btn-primary"
+                                    style={{ background: '#ea580c', borderColor: '#ea580c', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                    disabled={submittingSupplierReturn}
+                                >
+                                    {submittingSupplierReturn ? <Spinner text="Dispatching..." /> : (
+                                        <>
+                                            <Truck size={14} /> Confirm & Dispatch to Supplier
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             )}
 

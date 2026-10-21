@@ -56,6 +56,27 @@ export const ItemLedgerDrawer = ({
 
   if (!isOpen || !product) return null;
 
+  const getMovementLabel = (type) => {
+    switch (type) {
+      case 'SALE':
+        return 'Customer Buy (POS)';
+      case 'DAMAGE':
+        return 'Customer Return (Damaged)';
+      case 'RETURN_TO_SUPPLIER':
+        return 'Return to Supplier';
+      case 'LOSS':
+        return 'Loss (- Inventory)';
+      case 'FOUND':
+        return 'Found (+ Inventory)';
+      case 'STOCK_IN':
+        return 'Stock In (+ Inventory)';
+      case 'OPENING_BALANCE':
+        return 'Opening Balance';
+      default:
+        return type;
+    }
+  };
+
   const getMovementColor = (type, qtyChange) => {
     switch (type) {
       case 'OPENING_BALANCE':
@@ -64,8 +85,9 @@ export const ItemLedgerDrawer = ({
       case 'FOUND':
         return { bg: 'rgba(16, 185, 129, 0.15)', text: '#10b981', border: 'rgba(16, 185, 129, 0.4)' };
       case 'SALE':
-        return { bg: 'rgba(59, 130, 246, 0.15)', text: '#3b82f6', border: 'rgba(59, 130, 246, 0.4)' };
+        return { bg: 'rgba(59, 130, 246, 0.15)', text: '#2563eb', border: 'rgba(59, 130, 246, 0.4)' };
       case 'DAMAGE':
+        return { bg: 'rgba(245, 158, 11, 0.15)', text: '#d97706', border: 'rgba(245, 158, 11, 0.4)' };
       case 'LOSS':
       case 'RETURN_TO_SUPPLIER':
         return { bg: 'rgba(239, 68, 68, 0.15)', text: '#ef4444', border: 'rgba(239, 68, 68, 0.4)' };
@@ -177,7 +199,7 @@ export const ItemLedgerDrawer = ({
                           color: styles.text,
                           border: `1px solid ${styles.border}`
                         }}>
-                          {entry.movement_type}
+                          {getMovementLabel(entry.movement_type)}
                         </span>
                         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
                           Ref: {entry.reference_no}
@@ -188,13 +210,13 @@ export const ItemLedgerDrawer = ({
                       <div style={{ textAlign: 'right' }}>
                         <span style={{
                           fontWeight: 'bold',
-                          fontSize: '0.95rem',
+                          fontSize: '0.92rem',
                           color: isZero ? 'var(--text-muted)' : (isPositive ? 'var(--success)' : 'var(--danger)')
                         }}>
-                          {isPositive ? `+${entry.quantity_change}` : entry.quantity_change}
+                          {isPositive ? `+${entry.quantity_change} Inventory` : `${entry.quantity_change} Inventory`}
                         </span>
                         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '8px' }}>
-                          Bal: <strong>{entry.balance_after}</strong>
+                          Inv: <strong>{entry.balance_before !== undefined ? `${entry.balance_before} → ${entry.balance_after}` : entry.balance_after}</strong>
                         </span>
                       </div>
                     </div>

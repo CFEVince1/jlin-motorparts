@@ -303,6 +303,110 @@ const Transactions = () => {
         }
     };
 
+    const renderStatusBadge = (t) => {
+        if (t.status === 'VOIDED') {
+            return (
+                <span style={{
+                    display: 'inline-block',
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    color: '#ef4444',
+                    border: '1px solid rgba(239, 68, 68, 0.3)'
+                }}>
+                    Voided
+                </span>
+            );
+        }
+
+        const disps = (t.return_dispositions || '').toUpperCase();
+        const isDamaged = disps.includes('DAMAGE');
+        const isGood = disps.includes('FOUND') || disps.includes('RESTOCK') || disps.includes('GOOD');
+
+        if (t.status === 'REFUNDED') {
+            if (isDamaged) {
+                return (
+                    <span style={{
+                        display: 'inline-block',
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        background: 'rgba(245, 158, 11, 0.15)',
+                        color: '#d97706',
+                        border: '1px solid rgba(245, 158, 11, 0.3)'
+                    }}>
+                        Returned - Damaged
+                    </span>
+                );
+            }
+            if (isGood) {
+                return (
+                    <span style={{
+                        display: 'inline-block',
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        background: 'rgba(20, 184, 166, 0.15)',
+                        color: '#0f766e',
+                        border: '1px solid rgba(20, 184, 166, 0.3)'
+                    }}>
+                        Returned - Good
+                    </span>
+                );
+            }
+            return (
+                <span style={{
+                    display: 'inline-block',
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    background: 'rgba(220, 38, 38, 0.12)',
+                    color: '#dc2626',
+                    border: '1px solid rgba(220, 38, 38, 0.3)'
+                }}>
+                    Refunded / Returned
+                </span>
+            );
+        }
+
+        if (t.status === 'PARTIALLY_REFUNDED') {
+            return (
+                <span style={{
+                    display: 'inline-block',
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    background: 'rgba(168, 85, 247, 0.15)',
+                    color: '#7e22ce',
+                    border: '1px solid rgba(168, 85, 247, 0.3)'
+                }}>
+                    {isDamaged ? 'Partially Returned (Damaged)' : 'Partially Returned'}
+                </span>
+            );
+        }
+
+        return (
+            <span style={{
+                display: 'inline-block',
+                padding: '2px 8px',
+                borderRadius: '6px',
+                fontSize: '0.74rem',
+                fontWeight: 700,
+                background: 'rgba(22, 163, 74, 0.12)',
+                color: '#16a34a',
+                border: '1px solid rgba(22, 163, 74, 0.3)'
+            }}>
+                Completed
+            </span>
+        );
+    };
+
     return (
         <div className={selectedTransaction ? 'receipt-modal-active' : ''} style={{ position: 'relative', height: '100%' }}>
             {/* Header */}
@@ -472,72 +576,20 @@ const Transactions = () => {
                                             <th>Products</th>
                                             <th>Payment Method</th>
                                             <th className="text-right">Total Amount</th>
+                                            <th>Status</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {filteredTransactions.length === 0 ? (
                                             <tr>
-                                                <td colSpan="8" className="table-empty-state">No transactions match your search.</td>
+                                                <td colSpan="9" className="table-empty-state">No transactions match your search.</td>
                                             </tr>
                                         ) : (
                                             filteredTransactions.map(t => (
                                                 <tr key={t.id}>
                                                     <td style={{ fontWeight: 'bold', color: t.status === 'VOIDED' ? 'var(--text-muted)' : 'var(--primary)', fontFamily: 'monospace' }}>
                                                         <div>{t.order_number || `SO-${t.id}`}</div>
-                                                        <div style={{ marginTop: '3px' }}>
-                                                            {t.status === 'VOIDED' && (
-                                                                <span style={{
-                                                                    display: 'inline-block',
-                                                                    padding: '1px 6px',
-                                                                    borderRadius: '4px',
-                                                                    fontSize: '0.68rem',
-                                                                    fontWeight: 'bold',
-                                                                    background: 'rgba(239, 68, 68, 0.15)',
-                                                                    color: '#ef4444',
-                                                                    border: '1px solid rgba(239, 68, 68, 0.3)'
-                                                                }}>
-                                                                    VOIDED
-                                                                </span>
-                                                            )}
-                                                            {t.status === 'REFUNDED' && (
-                                                                <span style={{
-                                                                    display: 'inline-block',
-                                                                    padding: '1px 6px',
-                                                                    borderRadius: '4px',
-                                                                    fontSize: '0.68rem',
-                                                                    fontWeight: 'bold',
-                                                                    background: 'rgba(220, 38, 38, 0.12)',
-                                                                    color: '#dc2626',
-                                                                    border: '1px solid rgba(220, 38, 38, 0.3)'
-                                                                }}>
-                                                                    REFUNDED
-                                                                </span>
-                                                            )}
-                                                            {t.status === 'PARTIALLY_REFUNDED' && (
-                                                                <span style={{
-                                                                    display: 'inline-block',
-                                                                    padding: '1px 6px',
-                                                                    borderRadius: '4px',
-                                                                    fontSize: '0.68rem',
-                                                                    fontWeight: 'bold',
-                                                                    background: 'rgba(245, 158, 11, 0.15)',
-                                                                    color: '#d97706',
-                                                                    border: '1px solid rgba(245, 158, 11, 0.3)'
-                                                                }}>
-                                                                    PARTIAL REFUND
-                                                                </span>
-                                                            )}
-                                                        {t.return_dispositions && (
-                                                                <div style={{ display: 'flex', gap: '3px', marginTop: '3px', flexWrap: 'wrap' }}>
-                                                                    {t.return_dispositions.split(',').map((disp, di) => {
-                                                                        const clean = disp.trim();
-                                                                        if (!clean) return null;
-                                                                        return <span key={di}>{renderDispositionPill(clean)}</span>;
-                                                                    })}
-                                                                </div>
-                                                            )}
-                                                        </div>
                                                     </td>
                                                     <td>{formatAuditDate(t.sale_date)}</td>
                                                     <td style={{ textTransform: 'capitalize' }}>{t.cashier}</td>
@@ -609,6 +661,9 @@ const Transactions = () => {
                                                         )}
                                                     </td>
                                                     <td style={{ whiteSpace: 'nowrap' }}>
+                                                        {renderStatusBadge(t)}
+                                                    </td>
+                                                    <td style={{ whiteSpace: 'nowrap' }}>
                                                         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                                                             <button
                                                                 onClick={() => handleViewReceipt(t.id)}
@@ -617,7 +672,7 @@ const Transactions = () => {
                                                                 disabled={loadingReceipt}
                                                                 title="View Receipt"
                                                             >
-                                                                <Receipt size={14} /> Receipt
+                                                                <Receipt size={14} /> View Receipt
                                                             </button>
 
                                                             {t.status !== 'VOIDED' && (
@@ -976,6 +1031,20 @@ const Transactions = () => {
                 currentFilterDate={filterDate}
                 searchQuery={searchQuery}
             />
+
+            {refundTarget && (
+                <ReturnRefundModal
+                    isOpen={!!refundTarget}
+                    onClose={() => setRefundTarget(null)}
+                    transaction={refundTarget}
+                    onSuccess={() => {
+                        fetchTransactions(pagination.page);
+                        if (activeTab === 'returns') {
+                            fetchReturnsHistory(returnsPagination.page);
+                        }
+                    }}
+                />
+            )}
         </div>
     );
 };
