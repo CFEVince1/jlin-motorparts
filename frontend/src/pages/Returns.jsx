@@ -169,6 +169,12 @@ export default function Returns() {
         fetchAuditHistory();
     }, [fetchAuditHistory]);
 
+    useEffect(() => {
+        if (activeTab === 'history') {
+            fetchAuditHistory();
+        }
+    }, [activeTab, fetchAuditHistory]);
+
     const handleExecuteSupplierReturn = async (e) => {
         e.preventDefault();
         if (!supplierReturnTarget) return;
@@ -359,6 +365,7 @@ export default function Returns() {
             // Refresh recent sales and returns list
             fetchRecentSales();
             fetchReturnsHistory(1);
+            fetchAuditHistory();
         } catch (err) {
             console.error('Failed to submit refund:', err);
             toast.error(err.response?.data?.message || 'Failed to process return and refund');
@@ -503,6 +510,33 @@ export default function Returns() {
     };
 
     const renderFlowPathBadge = (flowPath) => {
+        const text = String(flowPath || '');
+        let bg = 'var(--surface-hover, #f3f4f6)';
+        let color = 'var(--text-main, #111111)';
+        let border = 'var(--border, #e5e7eb)';
+
+        if (text.includes('Damage → Return to Supplier')) {
+            bg = 'rgba(234, 88, 12, 0.12)';
+            color = '#ea580c';
+            border = 'rgba(234, 88, 12, 0.3)';
+        } else if (text.includes('Damage')) {
+            bg = 'rgba(220, 38, 38, 0.1)';
+            color = '#dc2626';
+            border = 'rgba(220, 38, 38, 0.25)';
+        } else if (text.includes('Good') || text.includes('Found')) {
+            bg = 'rgba(22, 163, 74, 0.1)';
+            color = '#16a34a';
+            border = 'rgba(22, 163, 74, 0.25)';
+        } else if (text.includes('Loss')) {
+            bg = 'rgba(147, 51, 234, 0.1)';
+            color = '#9333ea';
+            border = 'rgba(147, 51, 234, 0.25)';
+        } else if (text.includes('Return to Supplier')) {
+            bg = 'rgba(217, 119, 6, 0.1)';
+            color = '#d97706';
+            border = 'rgba(217, 119, 6, 0.25)';
+        }
+
         return (
             <span style={{
                 display: 'inline-flex',
@@ -512,9 +546,9 @@ export default function Returns() {
                 borderRadius: '4px',
                 fontSize: '0.74rem',
                 fontWeight: 600,
-                background: 'var(--surface-hover, #f3f4f6)',
-                color: 'var(--text-main, #111111)',
-                border: '1px solid var(--border, #e5e7eb)'
+                background: bg,
+                color: color,
+                border: `1px solid ${border}`
             }}>
                 {flowPath}
             </span>
@@ -1287,9 +1321,26 @@ export default function Returns() {
                                                         {row.reference_no}
                                                     </div>
                                                     {row.order_id && (
-                                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                                                            Order #SO-{row.order_id}
-                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleViewReceipt(row.order_id)}
+                                                            style={{
+                                                                background: 'none',
+                                                                border: 'none',
+                                                                padding: '2px 0 0 0',
+                                                                fontSize: '0.73rem',
+                                                                color: 'var(--primary)',
+                                                                fontFamily: 'monospace',
+                                                                cursor: 'pointer',
+                                                                textDecoration: 'underline',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '3px'
+                                                            }}
+                                                            title="Click to view order receipt"
+                                                        >
+                                                            <Receipt size={11} /> Order #SO-{row.order_id}
+                                                        </button>
                                                     )}
                                                 </td>
                                                 <td>

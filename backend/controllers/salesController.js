@@ -1138,7 +1138,7 @@ exports.processSaleRefund = async (req, res, next) => {
                 let dmgBefore = pDamage;
                 let dmgAfter = pDamage;
 
-                if (item.disposition === 'FOUND') {
+                if (item.disposition === 'FOUND' || item.disposition === 'RESTOCK') {
                     mType = 'CUSTOMER_RETURN_GOOD';
                     flowPath = 'Customer Return → Good';
                     targetBucket = 'INVENTORY';
@@ -1177,7 +1177,7 @@ exports.processSaleRefund = async (req, res, next) => {
                         movement_type, flow_path, qty, target_bucket, effect_badge,
                         inv_before, inv_after, damage_before, damage_after, refund_amount,
                         status, remarks, processed_by, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `, [
                     returnNumber, saleId, saleReturnId, item.productId, item.productName, item.partNumber,
                     mType, flowPath, item.quantity, targetBucket, effectBadge,

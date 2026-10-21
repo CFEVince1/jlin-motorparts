@@ -56,7 +56,7 @@ export const ReturnRefundModal = ({
             selected: available > 0,
             quantity: available > 0 ? 1 : 0,
             maxQuantity: Math.max(0, available),
-            disposition: 'FOUND', // Default: Restock (+ into inventory)
+            disposition: 'RESTOCK', // Default: Restock Good Item (+ Inventory)
             refund_price: Number(item.price || 0),
             notes: ''
           };
@@ -260,7 +260,7 @@ export const ReturnRefundModal = ({
                   <tbody>
                     {(saleDetails?.items || []).map(item => {
                       const itemId = item.sale_item_id || item.id;
-                      const returnState = returnItems[itemId] || { selected: false, quantity: 0, maxQuantity: 0, disposition: 'FOUND', refund_price: Number(item.price || 0) };
+                      const returnState = returnItems[itemId] || { selected: false, quantity: 0, maxQuantity: 0, disposition: 'RESTOCK', refund_price: Number(item.price || 0) };
                       const isMaxedOut = returnState.maxQuantity <= 0;
 
                       return (
@@ -339,10 +339,8 @@ export const ReturnRefundModal = ({
                                 cursor: returnState.selected ? 'pointer' : 'not-allowed'
                               }}
                             >
-                              <option value="FOUND">🟢 Found / Restock (+ Inventory)</option>
-                              <option value="DAMAGE">🔴 Damaged - Return to Supplier (- Inventory)</option>
-                              <option value="RETURN_TO_SUPPLIER">🟠 Return to Supplier (- Inventory)</option>
-                              <option value="LOSS">🟣 Loss / Unrecovered (- Inventory)</option>
+                              <option value="RESTOCK">🟢 Good Condition (+ Restock to Inventory)</option>
+                              <option value="DAMAGE">🔴 Defective / Damaged (+ Move to Damage Pool)</option>
                             </select>
                           </td>
                           <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: returnState.selected ? 'var(--primary)' : 'var(--text-muted)' }}>
@@ -366,12 +364,10 @@ export const ReturnRefundModal = ({
               fontSize: '0.78rem',
               color: 'var(--text-muted)'
             }}>
-              <div style={{ fontWeight: 600, color: 'var(--text-main)', marginBottom: '4px' }}>Inventory Impact Rules:</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '8px' }}>
-                <div><span style={{ color: '#16A34A', fontWeight: 'bold' }}>+ FOUND:</span> Restocked to shelves (+ stock)</div>
-                <div><span style={{ color: '#DC2626', fontWeight: 'bold' }}>- DAMAGE:</span> Marked damaged / defective (- stock)</div>
-                <div><span style={{ color: '#D97706', fontWeight: 'bold' }}>- RTS:</span> Returned to supplier (- stock)</div>
-                <div><span style={{ color: '#9333EA', fontWeight: 'bold' }}>- LOSS:</span> Written off as lost (- stock)</div>
+              <div style={{ fontWeight: 600, color: 'var(--text-main)', marginBottom: '4px' }}>Customer Return Rules:</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px' }}>
+                <div><span style={{ color: '#16A34A', fontWeight: 'bold' }}>+ Good Condition:</span> Restocked to shelves (+1 Inventory)</div>
+                <div><span style={{ color: '#DC2626', fontWeight: 'bold' }}>+ Defective / Damaged:</span> Kept in Damage Pool (+1 Damage) for supplier return</div>
               </div>
             </div>
 
