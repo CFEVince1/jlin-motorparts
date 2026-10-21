@@ -421,10 +421,11 @@ export const StockReceiveScreen = () => {
               <table>
                 <thead>
                   <tr>
-                    <th style={{ width: '45%' }}>Item / Product</th>
-                    <th style={{ width: '15%', textAlign: 'center' }}>Quantity</th>
-                    <th style={{ width: '20%', textAlign: 'right' }}>Unit Cost (₱)</th>
-                    <th style={{ width: '15%', textAlign: 'right' }}>Subtotal</th>
+                    <th style={{ width: '36%' }}>Item / Product</th>
+                    <th style={{ width: '16%', textAlign: 'center' }}>Current Stock</th>
+                    <th style={{ width: '14%', textAlign: 'center' }}>Quantity to Receive</th>
+                    <th style={{ width: '16%', textAlign: 'right' }}>Unit Cost (₱)</th>
+                    <th style={{ width: '13%', textAlign: 'right' }}>Subtotal</th>
                     <th style={{ width: '5%', textAlign: 'center' }}></th>
                   </tr>
                 </thead>
@@ -433,6 +434,10 @@ export const StockReceiveScreen = () => {
                     const qty = Math.max(0, parseInt(row.quantity, 10) || 0);
                     const cost = Math.max(0, parseFloat(row.costPrice) || 0);
                     const rowSubtotal = qty * cost;
+                    const selectedProd = products.find(p => String(p.id) === String(row.itemId));
+                    const currentStock = selectedProd ? Number(selectedProd.current_stock ?? selectedProd.stock ?? 0) : null;
+                    const reorderLevel = selectedProd ? Number(selectedProd.reorder_level || 5) : 5;
+                    const newStock = currentStock !== null ? currentStock + qty : null;
 
                     return (
                       <tr key={index}>
@@ -445,12 +450,46 @@ export const StockReceiveScreen = () => {
                             disabled={submitting}
                           >
                             <option value="">-- Select Product --</option>
-                            {products.map(p => (
-                              <option key={p.id} value={p.id}>
-                                {p.part_number} - {p.product_name || p.name} ({p.brand || 'No Brand'})
-                              </option>
-                            ))}
+                            {products.map(p => {
+                              const pStock = Number(p.current_stock ?? p.stock ?? 0);
+                              return (
+                                <option key={p.id} value={p.id}>
+                                  {p.part_number} - {p.product_name || p.name} ({p.brand || 'No Brand'}) • Stock: {pStock}
+                                </option>
+                              );
+                            })}
                           </select>
+                        </td>
+                        <td style={{ padding: '6px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          {selectedProd ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                background: currentStock <= 0 
+                                  ? 'rgba(239, 68, 68, 0.12)' 
+                                  : (currentStock <= reorderLevel ? 'rgba(234, 179, 8, 0.15)' : 'rgba(22, 163, 74, 0.12)'),
+                                color: currentStock <= 0 
+                                  ? '#dc2626' 
+                                  : (currentStock <= reorderLevel ? '#ca8a04' : '#16a34a'),
+                                border: `1px solid ${currentStock <= 0 ? 'rgba(239, 68, 68, 0.25)' : (currentStock <= reorderLevel ? 'rgba(234, 179, 8, 0.3)' : 'rgba(22, 163, 74, 0.25)')}`
+                              }}>
+                                {currentStock} in stock
+                              </span>
+                              {qty > 0 && (
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                  Will be: <strong style={{ color: 'var(--primary)' }}>{newStock}</strong> (+{qty})
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>-</span>
+                          )}
                         </td>
                         <td style={{ padding: '6px 10px', textAlign: 'center' }}>
                           <input
