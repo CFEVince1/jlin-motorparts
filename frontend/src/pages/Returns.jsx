@@ -236,7 +236,7 @@ export default function Returns() {
                     selected: available > 0,
                     quantity: available > 0 ? 1 : 0,
                     maxQuantity: Math.max(0, available),
-                    disposition: 'FOUND', // Default: Found Restock (+ Inventory)
+                    disposition: 'RESTOCK', // Default: Good Condition (+ Restock into Inventory)
                     refund_price: Number(item.price || 0),
                     notes: ''
                 };
@@ -523,6 +523,7 @@ export default function Returns() {
 
     const renderDispositionBadge = (disp) => {
         switch (disp) {
+            case 'RESTOCK':
             case 'FOUND':
                 return (
                     <span style={{
@@ -537,7 +538,7 @@ export default function Returns() {
                         color: '#16a34a',
                         border: '1px solid rgba(22, 163, 74, 0.3)'
                     }}>
-                        <ArrowUpRight size={13} /> + Found (Restock: + Inventory)
+                        <ArrowUpRight size={13} /> {disp === 'RESTOCK' ? '+ Good Condition (Restock: + Inventory)' : '+ Found (+ Inventory)'}
                     </span>
                 );
             case 'DAMAGE':
@@ -623,7 +624,7 @@ export default function Returns() {
             {/* Inventory Rules Summary Banner */}
             <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
                 gap: '12px',
                 marginBottom: '20px'
             }}>
@@ -635,10 +636,10 @@ export default function Returns() {
                     borderLeft: '4px solid #16a34a'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#16a34a', fontSize: '0.85rem' }}>
-                        <ArrowUpRight size={16} /> Found (+ into Inventory)
+                        <ArrowUpRight size={16} /> Customer: Good Condition (+ Restock)
                     </div>
                     <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                        Customer returns sellable item in good condition. Restocked back to shelf stock.
+                        Customer returns sellable item in good condition. Restocked back to shelf stock (+1 Inventory).
                     </div>
                 </div>
 
@@ -650,10 +651,10 @@ export default function Returns() {
                     borderLeft: '4px solid #dc2626'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#dc2626', fontSize: '0.85rem' }}>
-                        <ArrowDownRight size={16} /> Damage (- Return to Supplier)
+                        <ArrowDownRight size={16} /> Customer: Defective / Damaged (+ Damage Pool)
                     </div>
                     <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                        Damaged/defective unit. Sent back to supplier as damaged. Deducted from inventory.
+                        Customer returns broken unit. Kept off sellable shelf and held in Damage Pool for supplier return.
                     </div>
                 </div>
 
@@ -665,10 +666,10 @@ export default function Returns() {
                     borderLeft: '4px solid #9333ea'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#9333ea', fontSize: '0.85rem' }}>
-                        <ArrowDownRight size={16} /> Loss (Negative into Inventory)
+                        <ArrowDownRight size={16} /> Warehouse: Loss (- Inventory) & Found (+ Inv)
                     </div>
                     <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                        Unrecovered or missing item write-off. Negative decrement recorded in ledger.
+                        Internal inventory count discrepancies: Loss deducts missing stock, Found adds discovered surplus.
                     </div>
                 </div>
 
@@ -680,10 +681,10 @@ export default function Returns() {
                     borderLeft: '4px solid #d97706'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#d97706', fontSize: '0.85rem' }}>
-                        <ArrowDownRight size={16} /> Return to Supplier (- Inventory)
+                        <ArrowDownRight size={16} /> Supplier: Return to Supplier (- Stock)
                     </div>
                     <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                        Direct dispatch or RMA return back to supplier. Deducted from store stock.
+                        Direct dispatch or RMA return back to supplier. Deducted from damaged pool or shelf stock.
                     </div>
                 </div>
             </div>
@@ -1048,7 +1049,7 @@ export default function Returns() {
                                                                 </td>
                                                                 <td>
                                                                     <select
-                                                                        value={state.disposition}
+                                                                        value={state.disposition || 'RESTOCK'}
                                                                         disabled={!state.selected}
                                                                         onChange={(e) => handleDispositionChange(itemId, e.target.value)}
                                                                         className="input-premium"
@@ -1059,10 +1060,8 @@ export default function Returns() {
                                                                             opacity: state.selected ? 1 : 0.6
                                                                         }}
                                                                     >
-                                                                        <option value="FOUND">🟢 Found (+ into Inventory: Restock)</option>
-                                                                        <option value="DAMAGE">🔴 Damage (- Return to Supplier - Damage)</option>
-                                                                        <option value="LOSS">🟣 Loss (Negative into Inventory)</option>
-                                                                        <option value="RETURN_TO_SUPPLIER">🟠 Return to Supplier (- Inventory)</option>
+                                                                        <option value="RESTOCK">🟢 Good Condition (+ Restock to Inventory)</option>
+                                                                        <option value="DAMAGE">🔴 Defective / Damaged (+ Move to Damage Pool)</option>
                                                                     </select>
                                                                 </td>
                                                                 <td className="text-right" style={{ fontWeight: 700, color: state.selected ? 'var(--primary)' : 'var(--text-muted)' }}>

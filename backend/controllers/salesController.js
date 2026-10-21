@@ -863,7 +863,7 @@ exports.processSaleRefund = async (req, res, next) => {
         return res.status(400).json({ message: 'At least one item must be selected for return/refund' });
     }
 
-    const ALLOWED_DISPOSITIONS = ['DAMAGE', 'LOSS', 'FOUND', 'RETURN_TO_SUPPLIER'];
+    const ALLOWED_DISPOSITIONS = ['RESTOCK', 'DAMAGE', 'LOSS', 'FOUND', 'RETURN_TO_SUPPLIER'];
 
     const connection = await db.getConnection();
     try {
@@ -1009,7 +1009,7 @@ exports.processSaleRefund = async (req, res, next) => {
             const itemRef = `${returnNumber}-${item.partNumber || item.productId}`;
             const itemRemarks = `Return/Refund (${item.disposition}) from Order ${sale.order_number || ('SO-' + sale.id)}: ${item.quantity}x ${item.productName}`;
 
-            if (item.disposition === 'FOUND') {
+            if (item.disposition === 'RESTOCK' || item.disposition === 'FOUND') {
                 // FOUND: Restock to inventory (+ into inventory)
                 await applyMovement(connection, {
                     itemId: item.productId,
