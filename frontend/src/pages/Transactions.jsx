@@ -242,7 +242,7 @@ const Transactions = () => {
                         color: '#16a34a',
                         border: '1px solid rgba(22, 163, 74, 0.25)'
                     }}>
-                        <ArrowUpRight size={12} /> + Found (Restock)
+                        <ArrowUpRight size={12} /> + Found (+ Inventory)
                     </span>
                 );
             case 'DAMAGE':
@@ -259,7 +259,7 @@ const Transactions = () => {
                         color: '#dc2626',
                         border: '1px solid rgba(220, 38, 38, 0.25)'
                     }}>
-                        <ArrowDownRight size={12} /> - Damaged
+                        <ArrowDownRight size={12} /> - Damage (Return to Supplier - Damage: - Inventory)
                     </span>
                 );
             case 'RETURN_TO_SUPPLIER':
@@ -276,7 +276,7 @@ const Transactions = () => {
                         color: '#d97706',
                         border: '1px solid rgba(217, 119, 6, 0.25)'
                     }}>
-                        <ArrowDownRight size={12} /> - RTS (Supplier)
+                        <ArrowDownRight size={12} /> - Return to Supplier (- Inventory)
                     </span>
                 );
             case 'LOSS':
@@ -293,7 +293,7 @@ const Transactions = () => {
                         color: '#9333ea',
                         border: '1px solid rgba(147, 51, 234, 0.25)'
                     }}>
-                        <ArrowDownRight size={12} /> - Loss
+                        <ArrowDownRight size={12} /> - Loss (Negative into Inventory)
                     </span>
                 );
             default:
@@ -512,6 +512,15 @@ const Transactions = () => {
                                                                 }}>
                                                                     PARTIAL REFUND
                                                                 </span>
+                                                            )}
+                                                        {t.return_dispositions && (
+                                                                <div style={{ display: 'flex', gap: '3px', marginTop: '3px', flexWrap: 'wrap' }}>
+                                                                    {t.return_dispositions.split(',').map((disp, di) => {
+                                                                        const clean = disp.trim();
+                                                                        if (!clean) return null;
+                                                                        return <span key={di}>{renderDispositionPill(clean)}</span>;
+                                                                    })}
+                                                                </div>
                                                             )}
                                                         </div>
                                                     </td>
