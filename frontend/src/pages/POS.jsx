@@ -233,55 +233,59 @@ const POS = () => {
 
     const addSerializedToCart = useCallback((product, serialObj) => {
         if (!product || !serialObj) return;
-        const chosenSerialId = Number(serialObj.id);
-        const chosenSerialNum = serialObj.serial_number;
+        const chosenSerialId = (serialObj.id !== undefined && serialObj.id !== null) ? Number(serialObj.id) : null;
+        const chosenSerialNum = serialObj.serial_number || (product.serial_display || 'SN-DEFAULT');
 
-        setSelectedTableSerials(prev => ({ ...prev, [product.id]: chosenSerialId }));
+        if (chosenSerialId !== null) {
+            setSelectedTableSerials(prev => ({ ...prev, [product.id]: chosenSerialId }));
+        }
 
-        setCart(currentCart => {
-            const targetCartKey = `${product.id}_${chosenSerialId}`;
-            const existing = currentCart.find(item => (item.cart_key || String(item.product_id)) === targetCartKey);
+        const currentCart = cartRef.current;
+        const targetCartKey = chosenSerialId !== null ? `${product.id}_${chosenSerialId}` : `${product.id}_${chosenSerialNum}`;
+        const existing = currentCart.find(item => (item.cart_key || String(item.product_id)) === targetCartKey);
 
-            // Compute total quantity already in cart for this product across all serials
-            const totalInCartForProduct = currentCart
-                .filter(item => item.product_id === product.id)
-                .reduce((sum, item) => sum + item.quantity, 0);
+        const totalInCartForProduct = currentCart
+            .filter(item => Number(item.product_id) === Number(product.id))
+            .reduce((sum, item) => sum + item.quantity, 0);
 
-            if (totalInCartForProduct >= product.stock) {
-                toast.error(`Cannot exceed available stock (${product.stock}) for ${product.product_name || product.name}`);
-                return currentCart;
-            }
+        const maxStock = Number(product.stock ?? product.current_stock ?? 0);
+        if (totalInCartForProduct >= maxStock) {
+            toast.error(`Cannot exceed available stock (${maxStock}) for ${product.product_name || product.name}`);
+            return;
+        }
 
-            if (existing) {
-                const newQty = existing.quantity + 1;
-                toast.success(`Updated ${product.product_name || product.name} (${chosenSerialNum}) [Qty: ${newQty}]`);
-                return currentCart.map(item => (item.cart_key || String(item.product_id)) === targetCartKey ? {
-                    ...item,
-                    quantity: newQty,
-                    subtotal: calculateItemSubtotal(newQty, product.price)
-                } : item);
-            } else {
-                toast.success(`Added ${product.product_name || product.name} (${chosenSerialNum})`);
-                return [...currentCart, {
-                    cart_key: targetCartKey,
-                    product_id: product.id,
-                    part_number: product.part_number,
-                    name: product.product_name || product.name,
-                    brand: product.brand,
-                    size: product.size,
-                    compatibility_display: product.compatibility_display,
-                    is_serialized: true,
-                    selected_serial_id: chosenSerialId,
-                    selected_serial_number: chosenSerialNum,
-                    serial_ids: [chosenSerialId],
-                    serial_numbers: [chosenSerialNum],
-                    quantity: 1,
-                    price: Number(product.price),
-                    subtotal: calculateItemSubtotal(1, product.price),
-                    maxStock: product.stock
-                }];
-            }
-        });
+        const productPrice = Number(product.price ?? product.selling_price ?? product.retail_price ?? 0);
+
+        if (existing) {
+            const newQty = existing.quantity + 1;
+            setCart(prev => prev.map(item => (item.cart_key || String(item.product_id)) === targetCartKey ? {
+                ...item,
+                quantity: newQty,
+                subtotal: calculateItemSubtotal(newQty, item.price)
+            } : item));
+            toast.success(`Updated ${product.product_name || product.name} (${chosenSerialNum}) [Qty: ${newQty}]`);
+        } else {
+            const newItem = {
+                cart_key: targetCartKey,
+                product_id: product.id,
+                part_number: product.part_number,
+                name: product.product_name || product.name,
+                brand: product.brand,
+                size: product.size,
+                compatibility_display: product.compatibility_display,
+                is_serialized: true,
+                selected_serial_id: chosenSerialId,
+                selected_serial_number: chosenSerialNum,
+                serial_ids: chosenSerialId !== null ? [chosenSerialId] : [],
+                serial_numbers: chosenSerialNum ? [chosenSerialNum] : [],
+                quantity: 1,
+                price: productPrice,
+                subtotal: calculateItemSubtotal(1, productPrice),
+                maxStock: maxStock
+            };
+            setCart(prev => [...prev, newItem]);
+            toast.success(`Added ${product.product_name || product.name} (${chosenSerialNum})`);
+        }
     }, []);
 
     const addToCart = useCallback((product) => {
@@ -294,6 +298,8 @@ const POS = () => {
             const chosenSerial = availableSerials.find(s => Number(s.id) === Number(chosenId)) || availableSerials[0];
             if (chosenSerial) {
                 addSerializedToCart(product, chosenSerial);
+            } else if (product.serial_numbers && product.serial_numbers.length > 0) {
+                addSerializedToCart(product, { id: 1, serial_number: product.serial_numbers[0] });
             } else {
                 addSerializedToCart(product, { id: 1, serial_number: product.serial_display || 'SN-DEFAULT' });
             }
@@ -301,40 +307,46 @@ const POS = () => {
         }
 
         // Non-serialized item handling:
-        setCart(currentCart => {
-            const targetCartKey = String(product.id);
-            const existing = currentCart.find(item => (item.cart_key || String(item.product_id)) === targetCartKey);
-            if (existing) {
-                if (existing.quantity >= product.stock) {
-                    toast.error('Cannot exceed available stock');
-                    return currentCart;
-                }
-                const newQty = existing.quantity + 1;
-                return currentCart.map(item =>
-                    (item.cart_key || String(item.product_id)) === targetCartKey
-                        ? { ...item, quantity: newQty, subtotal: calculateItemSubtotal(newQty, item.price) }
-                        : item
-                );
-            } else {
-                return [...currentCart, {
-                    cart_key: targetCartKey,
-                    product_id: product.id,
-                    part_number: product.part_number,
-                    name: product.product_name || product.name,
-                    brand: product.brand,
-                    size: product.size,
-                    compatibility_display: product.compatibility_display,
-                    is_serialized: false,
-                    serial_ids: [],
-                    serial_numbers: [],
-                    price: Number(product.price),
-                    quantity: 1,
-                    subtotal: calculateItemSubtotal(1, product.price),
-                    maxStock: product.stock
-                }];
-            }
-        });
-        toast.success(`Added ${product.product_name || product.name}`);
+        const currentCart = cartRef.current;
+        const targetCartKey = String(product.id);
+        const existing = currentCart.find(item => (item.cart_key || String(item.product_id)) === targetCartKey);
+        const maxStock = Number(product.stock ?? product.current_stock ?? 0);
+
+        if (existing && existing.quantity >= maxStock) {
+            toast.error(`Cannot exceed available stock (${maxStock})`);
+            return;
+        }
+
+        const productPrice = Number(product.price ?? product.selling_price ?? product.retail_price ?? 0);
+
+        if (existing) {
+            const newQty = existing.quantity + 1;
+            setCart(prev => prev.map(item =>
+                (item.cart_key || String(item.product_id)) === targetCartKey
+                    ? { ...item, quantity: newQty, subtotal: calculateItemSubtotal(newQty, item.price) }
+                    : item
+            ));
+            toast.success(`Updated ${product.product_name || product.name} quantity to ${newQty}`);
+        } else {
+            const newItem = {
+                cart_key: targetCartKey,
+                product_id: product.id,
+                part_number: product.part_number,
+                name: product.product_name || product.name,
+                brand: product.brand,
+                size: product.size,
+                compatibility_display: product.compatibility_display,
+                is_serialized: false,
+                serial_ids: [],
+                serial_numbers: [],
+                price: productPrice,
+                quantity: 1,
+                subtotal: calculateItemSubtotal(1, productPrice),
+                maxStock: maxStock
+            };
+            setCart(prev => [...prev, newItem]);
+            toast.success(`Added ${product.product_name || product.name}`);
+        }
     }, [selectedTableSerials, addSerializedToCart]);
 
     const updateQuantity = (cartKey, delta) => {
@@ -667,12 +679,7 @@ const POS = () => {
     }, []);
 
     const handleRowClick = (product) => {
-        if (isSerializedProduct(product)) {
-            // Toggle serial dropdown menu right on this product row
-            setOpenSerialDropdownId(prev => prev === product.id ? null : product.id);
-        } else {
-            addToCart(product);
-        }
+        addToCart(product);
     };
 
     const handleTableAddQuantity = (product) => {
@@ -830,7 +837,7 @@ const POS = () => {
                         </thead>
                         <tbody>
                             {paginatedProducts.length > 0 ? paginatedProducts.map(p => (
-                                <tr key={p.id} onClick={() => handleRowClick(p)} style={{ cursor: 'pointer', background: openSerialDropdownId === p.id ? 'rgba(22, 163, 74, 0.05)' : 'transparent' }} title={p.is_serialized ? "Click to open serial dropdown menu" : "Click row to add to order"}>
+                                <tr key={p.id} onClick={() => handleRowClick(p)} style={{ cursor: 'pointer', background: openSerialDropdownId === p.id ? 'rgba(22, 163, 74, 0.05)' : 'transparent' }} title="Click product to add to order">
                                     <td style={{ fontFamily: 'monospace', fontWeight: '600', color: 'var(--text-main)', whiteSpace: 'nowrap' }}>
                                         {p.part_number}
                                     </td>
