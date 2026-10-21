@@ -13,10 +13,11 @@ const adminOnly = roleMiddleware(['admin']);
 router.get('/daily', reportController.getDailySales);
 router.get('/monthly', adminOnly, reportController.getMonthlySales);
 router.get('/low-stock', reportController.getLowStock);
-router.get('/best-selling', adminOnly, reportController.getBestSelling);
+router.get('/best-selling', reportController.getBestSelling);
 router.get('/sales-by-motorcycle', adminOnly, reportController.getSalesByMotorcycle);
 
 router.get('/by-cashier', adminOnly, reportController.getSalesByCashier);
+router.get('/staff-today', adminOnly, reportController.getStaffTodaySales);
 router.get('/categories', adminOnly, reportController.getCategories);
 router.get('/brands', adminOnly, reportController.getBrands);
 

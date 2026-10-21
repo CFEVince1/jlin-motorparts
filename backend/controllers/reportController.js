@@ -161,7 +161,7 @@ exports.getDailySales = async (req, res) => {
         if (chosenDate && chosenEndDate && chosenDate !== chosenEndDate) {
             selectDate = "CONCAT(?, ' to ', ?) as date";
             params.push(chosenDate, chosenEndDate);
-            dateCondition = "((DATE(CONVERT_TZ(s.sale_date, '+00:00', '+08:00')) >= ? AND DATE(CONVERT_TZ(s.sale_date, '+00:00', '+08:00')) <= ?) OR (DATE(s.sale_date) >= ? AND DATE(s.sale_date) <= ?))";
+            dateCondition = '((DATE(CONVERT_TZ(s.sale_date, \'+00:00\', \'+08:00\')) >= ? AND DATE(CONVERT_TZ(s.sale_date, \'+00:00\', \'+08:00\')) <= ?) OR (DATE(s.sale_date) >= ? AND DATE(s.sale_date) <= ?))';
             params.push(chosenDate, chosenEndDate, chosenDate, chosenEndDate);
         } else if (chosenDate) {
             selectDate = '? as date';
@@ -175,13 +175,18 @@ exports.getDailySales = async (req, res) => {
             params.push(todayPHT, todayPHT);
         }
 
-        // Daily store sales connect all active cashiers (staff and admin) together
+        let userCondition = '';
+        if (req.user?.role !== 'admin') {
+            userCondition = 'AND s.user_id = ?';
+            params.push(req.user.id);
+        }
+
         const query = `
             SELECT ${selectDate}, 
                    COALESCE(SUM(s.total_amount), 0) as total_revenue, 
                    COUNT(s.id) as total_transactions
             FROM sales s 
-            WHERE (${dateCondition})
+            WHERE (${dateCondition}) ${userCondition}
               AND (s.status IS NULL OR s.status != 'voided')
               AND s.voided_at IS NULL
               AND s.user_id NOT IN (SELECT id FROM users WHERE LOWER(username) LIKE '%test%')
@@ -198,6 +203,39 @@ exports.getDailySales = async (req, res) => {
     } catch (err) {
         console.error('Error fetching daily sales:', err);
         res.status(500).json({ message: 'Error fetching daily sales' });
+    }
+};
+
+exports.getStaffTodaySales = async (req, res) => {
+    try {
+        const todayPHT = getPhilippineDate();
+        const [staffStats] = await db.query(`
+            SELECT 
+                u.id, 
+                u.username, 
+                u.role,
+                COUNT(DISTINCT s.id) as today_transactions,
+                COALESCE(SUM(s.total_amount), 0) as today_sales
+            FROM users u
+            LEFT JOIN sales s ON s.user_id = u.id 
+                AND (DATE(CONVERT_TZ(s.sale_date, '+00:00', '+08:00')) = ? OR DATE(s.sale_date) = ?)
+                AND (s.status IS NULL OR s.status != 'voided')
+                AND s.voided_at IS NULL
+            WHERE LOWER(u.username) NOT LIKE '%test%'
+            GROUP BY u.id, u.username, u.role
+            ORDER BY today_sales DESC, today_transactions DESC, u.username ASC
+        `, [todayPHT, todayPHT]);
+
+        res.json(staffStats.map(row => ({
+            id: row.id,
+            username: row.username,
+            role: row.role,
+            today_transactions: Number(row.today_transactions) || 0,
+            today_sales: Number(row.today_sales) || 0
+        })));
+    } catch (err) {
+        console.error('Error fetching staff today sales:', err);
+        res.status(500).json({ message: 'Error fetching staff today sales' });
     }
 };
 

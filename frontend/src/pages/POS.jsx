@@ -680,7 +680,7 @@ const POS = () => {
                             title={user?.role === 'staff' ? 'View My Transactions' : 'View All Transaction History'}
                         >
                             <History size={16} />
-                            <span>{user?.role === 'staff' ? 'Transaction' : 'Recent Sales'}</span>
+                            <span>{user?.role === 'staff' ? 'Transactions' : 'Recent Sales'}</span>
                         </button>
                     </div>
                 </div>
@@ -757,6 +757,33 @@ const POS = () => {
                                             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                                                 {p.category}
                                             </div>
+                                        )}
+                                    </td>
+                                    <td style={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                                        {p.is_serialized ? (
+                                            <span
+                                                style={{
+                                                    fontFamily: 'monospace',
+                                                    fontSize: '0.75rem',
+                                                    color: 'var(--accent)',
+                                                    background: 'rgba(10, 132, 255, 0.1)',
+                                                    padding: '2px 6px',
+                                                    borderRadius: '4px',
+                                                    border: '1px solid rgba(10, 132, 255, 0.25)',
+                                                    display: 'inline-block',
+                                                    maxWidth: '130px',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                                title={p.serial_display || (p.serial_numbers && p.serial_numbers.length > 0 ? p.serial_numbers.join(', ') : 'Serialized')}
+                                            >
+                                                {p.serial_numbers && p.serial_numbers.length > 0
+                                                    ? (p.serial_numbers.length === 1 ? p.serial_numbers[0] : `${p.serial_numbers[0]} (+${p.serial_numbers.length - 1})`)
+                                                    : (p.serial_display && p.serial_display !== '-' ? p.serial_display : 'Serialized')}
+                                            </span>
+                                        ) : (
+                                            <span style={{ color: 'var(--text-muted)' }}>-</span>
                                         )}
                                     </td>
                                     <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{p.brand || '-'}</td>
@@ -959,17 +986,7 @@ const POS = () => {
                                         paddingTop: '6px',
                                         borderTop: '1px solid rgba(255, 255, 255, 0.05)'
                                     }}>
-                                        {item.is_serialized ? (
-                                            <button
-                                                type="button"
-                                                onClick={() => openSerialPicker(products.find(product => product.id === item.product_id) || item)}
-                                                className="btn-secondary"
-                                                style={{ padding: '4px 10px', fontSize: '0.78rem', height: '28px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                            >
-                                                Serials ({item.quantity})
-                                            </button>
-                                        ) : (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                 <button
                                                     type="button"
                                                     onClick={() => updateQuantity(item.product_id, -1)}
@@ -1026,7 +1043,6 @@ const POS = () => {
                                                     <Plus size={14} />
                                                 </button>
                                             </div>
-                                        )}
 
                                         <div style={{ textAlign: 'right' }}>
                                             <span style={{
@@ -1054,60 +1070,7 @@ const POS = () => {
                 </div>
             </div>
 
-            {serialPicker.open && (
-                <div className="receipt-overlay no-print" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div className="glass-panel" style={{ background: 'var(--surface)', padding: '24px', width: '440px', maxWidth: 'calc(100vw - 32px)', borderRadius: '12px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                            <div>
-                                <h3 style={{ margin: 0 }}>Select Serials</h3>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '4px' }}>
-                                    {serialPicker.product?.part_number} | {serialPicker.product?.product_name || serialPicker.product?.name}
-                                </div>
-                            </div>
-                            <button onClick={closeSerialPicker} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                                <X size={22} />
-                            </button>
-                        </div>
-
-                        <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-                            {serialPicker.loading ? (
-                                <div style={{ color: 'var(--text-muted)', padding: '16px', textAlign: 'center' }}>Loading serials...</div>
-                            ) : serialPicker.serials.length > 0 ? (
-                                serialPicker.serials.map(serial => {
-                                    const serialId = Number(serial.id);
-                                    return (
-                                        <label key={serial.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '8px', background: 'var(--surface-hover)', border: '1px solid var(--border)', cursor: 'pointer' }}>
-                                            <input
-                                                type="checkbox"
-                                                checked={serialPicker.selectedIds.includes(serialId)}
-                                                onChange={() => toggleSerialSelection(serialId)}
-                                                style={{ accentColor: 'var(--primary)', width: '18px', height: '18px' }}
-                                            />
-                                            <span style={{ fontWeight: '600' }}>{serial.serial_number}</span>
-                                        </label>
-                                    );
-                                })
-                            ) : (
-                                <div style={{ color: 'var(--danger)', padding: '16px', textAlign: 'center' }}>No available serials</div>
-                            )}
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                                Selected: {serialPicker.selectedIds.length}
-                            </div>
-                            <div style={{ display: 'flex', gap: '10px' }}>
-                                <button className="btn-secondary" onClick={closeSerialPicker}>Cancel</button>
-                                <button className="btn-primary" onClick={confirmSerialSelection} disabled={serialPicker.loading || serialPicker.selectedIds.length === 0}>
-                                    Use Serials
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* CHECKOUT MODAL */}
+                        {/* CHECKOUT MODAL */}
             {showConfirmModal && (
                 <CheckoutModal
                     isOpen={showConfirmModal}
