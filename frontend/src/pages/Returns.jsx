@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import { notifyInventoryChange } from '../utils/syncEvents';
 import {
     RotateCcw,
     Search,
@@ -287,6 +288,7 @@ export default function Returns() {
             });
 
             toast.success(res.data?.message || 'Return & Refund processed successfully!');
+            notifyInventoryChange('return');
             setLastProcessedReturn(res.data);
             setSelectedSale(null);
             setReturnItems({});
@@ -340,6 +342,7 @@ export default function Returns() {
             });
 
             toast.success(res.data?.message || `Inventory adjustment (${directType}) successfully recorded`);
+            notifyInventoryChange('adjustment');
             setDirectRef('');
             setDirectRemarks('');
             setDirectQty(1);

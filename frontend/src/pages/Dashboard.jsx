@@ -4,6 +4,7 @@ import { TrendingUp, AlertTriangle, DollarSign, ShoppingCart, Award, Users, Refr
 import { AuthContext } from '../context/AuthContextValue';
 import { formatCurrency } from '../utils/formatters';
 import BestSellersBar from '../components/BestSellersBar';
+import { subscribeToInventoryChange } from '../utils/syncEvents';
 
 const Dashboard = () => {
     const { user } = useContext(AuthContext);
@@ -64,12 +65,17 @@ const Dashboard = () => {
     useEffect(() => {
         fetchDashboardData(false);
 
-        // Auto-refresh every 6 seconds so staff transactions immediately reflect on Admin Dashboard without restarting
+        // 1. Instant cross-tab sync: The exact millisecond staff completes checkout, Admin Dashboard re-fetches with 0ms delay
+        const unsubscribe = subscribeToInventoryChange(() => {
+            fetchDashboardData(true);
+        });
+
+        // 2. High-frequency background polling (every 3 seconds) for multi-device real-time sync
         const pollInterval = setInterval(() => {
             fetchDashboardData(true);
-        }, 6000);
+        }, 3000);
 
-        // Immediate background re-fetch whenever the user refocuses the browser window/tab
+        // 3. Immediate background re-fetch whenever the user refocuses the browser window/tab
         const handleFocus = () => fetchDashboardData(true);
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
@@ -81,6 +87,7 @@ const Dashboard = () => {
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
+            unsubscribe();
             clearInterval(pollInterval);
             window.removeEventListener('focus', handleFocus);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -254,6 +261,19 @@ const Dashboard = () => {
                                         </tr>
                                     ))}
                                 </tbody>
+                                {stats.staffToday.length > 1 && (
+                                    <tfoot>
+                                        <tr style={{ fontWeight: 'bold', borderTop: '2px solid var(--border)', background: 'rgba(0,0,0,0.02)' }}>
+                                            <td colSpan={2}>All Staff Combined</td>
+                                            <td style={{ textAlign: 'center' }}>
+                                                {stats.staffToday.reduce((sum, st) => sum + (Number(st.today_transactions) || 0), 0)} sales
+                                            </td>
+                                            <td style={{ textAlign: 'right', color: 'var(--primary)' }}>
+                                                {formatCurrency(stats.staffToday.reduce((sum, st) => sum + (Number(st.today_sales) || 0), 0))}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                )}
                             </table>
                         </div>
                     ) : (

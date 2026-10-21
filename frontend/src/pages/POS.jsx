@@ -11,6 +11,7 @@ import { formatCurrency, formatAuditDate } from '../utils/formatters';
 import ThermalReceipt from '../components/ThermalReceipt';
 import ReceiptPrint from '../components/ReceiptPrint';
 import CheckoutModal from '../components/CheckoutModal';
+import { notifyInventoryChange } from '../utils/syncEvents';
 
 const formatSerialNumbers = (serialNumbers) => {
     if (Array.isArray(serialNumbers)) return serialNumbers.join(', ');
@@ -417,6 +418,7 @@ const POS = () => {
             };
 
             const res = await api.post('/sales/checkout', payload);
+            notifyInventoryChange('sale');
             toast.success('Transaction Completed!');
 
             // Save details for the receipt modal
