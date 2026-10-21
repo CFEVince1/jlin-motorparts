@@ -575,10 +575,8 @@ exports.getSaleById = async (req, res, next) => {
         `;
         const queryParams = [id];
 
-        if (role !== 'admin') {
-            query += ` AND s.user_id = ? `;
-            queryParams.push(userId);
-        }
+        // Allow authenticated staff and admin to look up sales for receipt viewing and returns
+        // if (role !== 'admin') { query += ` AND s.user_id = ? `; queryParams.push(userId); }
 
         const [saleRows] = await db.query(query, queryParams);
 
@@ -891,10 +889,10 @@ exports.processSaleRefund = async (req, res, next) => {
         const sale = sales[0];
 
         // Authorization check: Cashier who created sale or any Admin
-        if (userRole !== 'admin' && sale.user_id !== userId) {
+        if (!['admin', 'staff'].includes(userRole)) {
             await connection.rollback();
             return res.status(403).json({
-                message: 'Unauthorized: Only the cashier who made this sale or an administrator can process a return/refund'
+                message: 'Unauthorized: Staff or Administrator authorization required to process a return/refund'
             });
         }
 
@@ -1185,7 +1183,7 @@ exports.getReturnsHistory = async (req, res, next) => {
         const whereClauses = [];
         const whereParams = [];
 
-        if (role !== 'admin') {
+        if (role !== 'admin' && req.query.selfOnly === 'true') {
             whereClauses.push('sr.user_id = ?');
             whereParams.push(userId);
         }

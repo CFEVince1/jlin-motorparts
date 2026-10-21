@@ -249,9 +249,9 @@ exports.recordAdjustment = async (req, res, next) => {
     const userRole = req.user?.role;
 
     // Enforce administrator role check to prevent unauthorized write-offs
-    if (userRole !== 'admin') {
+    if (!['admin', 'staff'].includes(userRole)) {
         return res.status(403).json({
-            message: 'Forbidden: Stock adjustments require administrator authorization'
+            message: 'Forbidden: Stock adjustments require staff or administrator authorization'
         });
     }
 

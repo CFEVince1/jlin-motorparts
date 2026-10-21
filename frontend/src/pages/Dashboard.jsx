@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext } from 'react';
 import api from '../services/api';
-import { TrendingUp, AlertTriangle, DollarSign, ShoppingCart, Award, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+import { TrendingUp, AlertTriangle, DollarSign, ShoppingCart, Award, ChevronLeft, ChevronRight } from 'lucide-react';
 import { AuthContext } from '../context/AuthContextValue';
 import { formatCurrency } from '../utils/formatters';
 import BestSellersBar from '../components/BestSellersBar';
@@ -11,8 +11,7 @@ const Dashboard = () => {
         dailySales: { total_revenue: 0, total_transactions: 0 },
         lowStock: [],
         adminStats: null,
-        bestSelling: [],
-        staffToday: []
+        bestSelling: []
     });
 
     const [lowStockPage, setLowStockPage] = useState(1);
@@ -36,7 +35,6 @@ const Dashboard = () => {
                 // Admin-only API calls
                 if (user?.role === 'admin') {
                     promises.push(api.get('/reports/admin-stats').catch(() => ({ data: { total_sales: 0, total_transactions: 0, total_profit: 0 } })));
-                    promises.push(api.get('/reports/staff-today').catch(() => ({ data: [] })));
                 }
 
                 const results = await Promise.all(promises);
@@ -45,14 +43,8 @@ const Dashboard = () => {
                     dailySales: results[0].data,
                     lowStock: results[1].data,
                     bestSelling: results[2].data || [],
-                    adminStats: null,
-                    staffToday: []
+                    adminStats: user?.role === 'admin' ? results[3]?.data : null
                 };
-
-                if (user?.role === 'admin' && results[3]) {
-                    newStats.adminStats = results[3].data;
-                    newStats.staffToday = results[4]?.data || [];
-                }
 
                 setStats(newStats);
             } catch (err) {
@@ -69,7 +61,7 @@ const Dashboard = () => {
                     <h1 style={{ margin: 0 }}>{user?.role === 'admin' ? 'Admin Dashboard' : 'Staff Dashboard'}</h1>
                     <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                         {user?.role === 'admin' 
-                            ? 'Overview of store-wide sales, staff cashier performance, and inventory health.' 
+                            ? 'Overview of store-wide sales, profit, and inventory health.' 
                             : `Welcome back, ${user?.username || 'Staff'}. Review your shift sales and top-selling items.`}
                     </p>
                 </div>
@@ -167,57 +159,6 @@ const Dashboard = () => {
                     </>
                 )}
             </div>
-
-            {/* Admin View: All Staff Today's Sales & Transactions */}
-            {user?.role === 'admin' && (
-                <div className="glass-panel" style={{ padding: '20px 24px', marginBottom: '24px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-                        <div>
-                            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.05rem' }}>
-                                <Users size={20} style={{ color: 'var(--primary)' }} /> Staff Today's Sales & Transactions
-                            </h3>
-                            <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '4px' }}>
-                                Real-time breakdown of all staff cashiers and shift totals for today.
-                            </div>
-                        </div>
-                    </div>
-
-                    {stats.staffToday && stats.staffToday.length > 0 ? (
-                        <div className="table-container">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Staff / Cashier</th>
-                                        <th>Role</th>
-                                        <th style={{ textAlign: 'center' }}>Today Transactions</th>
-                                        <th style={{ textAlign: 'right' }}>Today Sales</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {stats.staffToday.map((st) => (
-                                        <tr key={st.id}>
-                                            <td style={{ fontWeight: 600 }}>{st.username}</td>
-                                            <td>
-                                                <span className={`badge-pill ${st.role === 'admin' ? 'badge-admin' : 'badge-staff'}`} style={{ textTransform: 'capitalize' }}>
-                                                    {st.role}
-                                                </span>
-                                            </td>
-                                            <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
-                                                {st.today_transactions} {st.today_transactions === 1 ? 'sale' : 'sales'}
-                                            </td>
-                                            <td style={{ textAlign: 'right', color: 'var(--primary)', fontWeight: 'bold' }}>
-                                                {formatCurrency(st.today_sales)}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    ) : (
-                        <p style={{ color: 'var(--text-muted)', margin: '12px 0 0 0' }}>No staff sales recorded today yet.</p>
-                    )}
-                </div>
-            )}
 
             {/* Staff View: Staff Quick Guide - Top Selling Items Widget (Strictly on Staff Dashboard) */}
             {user?.role !== 'admin' && (

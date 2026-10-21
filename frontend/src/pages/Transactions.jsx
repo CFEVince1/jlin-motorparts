@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useContext } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -16,7 +17,8 @@ const Transactions = () => {
     const isStaff = user?.role === 'staff';
 
     // Tabs: 'sales' (Sales Transactions) | 'returns' (Returns & Refunds History)
-    const [activeTab, setActiveTab] = useState('sales');
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') === 'returns' ? 'returns' : 'sales');
 
     const [transactions, setTransactions] = useState([]);
     const [loading, setLoading] = useState(true);

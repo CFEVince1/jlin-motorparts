@@ -16,7 +16,8 @@ import {
     AlertOctagon,
     UserCircle2,
     Building2,
-    ChevronDown
+    ChevronDown,
+    RotateCcw
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -70,6 +71,7 @@ const Sidebar = () => {
     const primaryLinks = [
         { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={20} />, roles: ['admin', 'staff'] },
         { name: 'Sales (POS)', path: '/pos', icon: <ShoppingCart size={20} />, roles: ['admin', 'staff'] },
+        { name: 'Return / Refund', path: '/returns', icon: <RotateCcw size={20} />, roles: ['admin', 'staff'] },
     ];
 
     const inventorySubLinks = [

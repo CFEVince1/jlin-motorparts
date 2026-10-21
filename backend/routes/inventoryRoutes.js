@@ -13,7 +13,7 @@ router.get('/', inventoryController.getInventory);
 
 // Stock receiving & adjustments (Restricted to Administrators to prevent unauthorized write-offs)
 router.post('/receive', adminOnly, inventoryController.receiveStock);
-router.post('/adjustments', adminOnly, inventoryController.recordAdjustment);
+router.post('/adjustments', roleMiddleware(['admin', 'staff']), inventoryController.recordAdjustment);
 
 // Stock receiving audit log & history
 router.get('/receiving-history', inventoryController.getReceivingHistory);

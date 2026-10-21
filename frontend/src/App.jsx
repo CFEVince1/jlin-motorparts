@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
 import Inventory from './pages/Inventory';
 import POS from './pages/POS';
+import Returns from './pages/Returns';
 import Reports from './pages/Reports';
 import Users from './pages/Users';
 import Transactions from './pages/Transactions';
@@ -42,6 +43,7 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/pos" element={<POS />} />
               <Route path="/transactions" element={<Transactions />} />
+              <Route path="/returns" element={<Returns />} />
               <Route path="/fitment" element={<Navigate to="/profile?tab=fitment" replace />} />
               <Route path="/compatibility-search" element={<Navigate to="/profile?tab=fitment" replace />} />
               <Route path="/profile" element={<StaffProfileScreen />} />
