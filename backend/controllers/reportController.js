@@ -51,9 +51,6 @@ const buildDateAndUserFilters = (req, tableAlias = 's') => {
         params.push(req.user.id);
     }
 
-    // Exclude test users from reports
-    where.push(`NOT EXISTS (SELECT 1 FROM users u_test WHERE u_test.id = ${tableAlias}.user_id AND LOWER(u_test.username) LIKE '%test%')`);
-
     return { where, params };
 };
 
@@ -61,12 +58,6 @@ const buildProductFilters = (query, productAlias = 'p', saleItemAlias = 'si') =>
     const { category, brand, partNumber, motorcycleUnitId, motorcycleModel } = query;
     const where = [];
     const params = [];
-
-    // Exclude test products and legacy dummy parts from reports
-    where.push(`LOWER(${saleItemAlias}.product_name) NOT LIKE '%pretest%'`);
-    where.push(`LOWER(${saleItemAlias}.product_name) != 'test'`);
-    where.push(`LOWER(${saleItemAlias}.part_number) NOT LIKE '%test%'`);
-    where.push(`LOWER(${saleItemAlias}.part_number) NOT LIKE '%profit-test%'`);
 
     if (category && category !== 'All') {
         where.push(`${productAlias}.category = ?`);
@@ -189,8 +180,6 @@ exports.getDailySales = async (req, res) => {
             WHERE (${dateCondition}) ${userCondition}
               AND (s.status IS NULL OR s.status != 'voided')
               AND s.voided_at IS NULL
-              AND s.user_id NOT IN (SELECT id FROM users WHERE LOWER(username) LIKE '%test%')
-              AND NOT EXISTS (SELECT 1 FROM sale_items si_test WHERE si_test.sale_id = s.id AND (LOWER(si_test.product_name) LIKE '%pretest%' OR LOWER(si_test.product_name) = 'test'))
         `;
 
         const [sales] = await db.query(query, params);
@@ -221,7 +210,6 @@ exports.getStaffTodaySales = async (req, res) => {
                 AND (DATE(CONVERT_TZ(s.sale_date, '+00:00', '+08:00')) = ? OR DATE(s.sale_date) = ?)
                 AND (s.status IS NULL OR s.status != 'voided')
                 AND s.voided_at IS NULL
-            WHERE LOWER(u.username) NOT LIKE '%test%'
             GROUP BY u.id, u.username, u.role
             ORDER BY today_sales DESC, today_transactions DESC, u.username ASC
         `, [todayPHT, todayPHT]);
@@ -298,8 +286,6 @@ exports.getMonthlySales = async (req, res) => {
                    COUNT(s.id) as total_transactions
             FROM sales s 
             WHERE ${dateCondition} ${userCondition}
-              AND s.user_id NOT IN (SELECT id FROM users WHERE LOWER(username) LIKE '%test%')
-              AND NOT EXISTS (SELECT 1 FROM sale_items si_test WHERE si_test.sale_id = s.id AND (LOWER(si_test.product_name) LIKE '%pretest%' OR LOWER(si_test.product_name) = 'test'))
         `;
 
         const [sales] = await db.query(query, params);

@@ -48,6 +48,7 @@ const Transactions = () => {
 
     // Status Filter State
     const [statusFilter, setStatusFilter] = useState('ALL');
+    const [staffScope, setStaffScope] = useState('all');
 
     const filterTransactionsFn = useCallback((items, debouncedQuery, filters) => {
         const normalizedQuery = normalizeSearchText(debouncedQuery);
@@ -97,7 +98,7 @@ const Transactions = () => {
             }
             return a.index - b.index;
         }).map(({ transaction }) => transaction);
-    }, [statusFilter]);
+    }, [statusFilter, staffScope]);
 
     const {
         searchQuery,
@@ -127,7 +128,8 @@ const Transactions = () => {
                 params: {
                     page,
                     limit: 20,
-                    status: statusFilter !== 'ALL' ? statusFilter : undefined
+                    status: statusFilter !== 'ALL' ? statusFilter : undefined,
+                    selfOnly: (isStaff && staffScope === 'mine') ? 'true' : undefined
                 }
             });
             const rawData = res.data;
@@ -196,7 +198,7 @@ const Transactions = () => {
     useEffect(() => {
         fetchTransactions();
         fetchReturnsHistory();
-    }, [statusFilter]);
+    }, [statusFilter, staffScope]);
 
     useEffect(() => {
         if (activeTab === 'returns') {
@@ -409,12 +411,24 @@ const Transactions = () => {
                     <input type="date" className="input-premium" style={{ paddingLeft: '36px', paddingRight: '12px' }} value={filterDate} onChange={(e) => setFilter('date', e.target.value)} />
                 </div>
 
+
                 {activeTab === 'sales' && (
                     <div style={{ flex: '0 0 auto' }}>
+                        {isStaff && (
                         <select
                             className="input-premium"
-                            style={{ width: '170px' }}
-                            value={statusFilter}
+                            style={{ width: '160px', marginRight: '10px' }}
+                            value={staffScope}
+                            onChange={(e) => setStaffScope(e.target.value)}
+                        >
+                            <option value="all">All Store Sales</option>
+                            <option value="mine">My Sales Only</option>
+                        </select>
+                    )}
+                    <select
+                        className="input-premium"
+                        style={{ width: '170px' }}
+                        value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
                         >
                             <option value="ALL">All Statuses</option>
@@ -424,6 +438,7 @@ const Transactions = () => {
                         </select>
                     </div>
                 )}
+
 
                 {activeTab === 'sales' && (
                     <div style={{ flex: '0 0 auto' }}>
