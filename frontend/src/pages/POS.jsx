@@ -215,11 +215,63 @@ const POS = () => {
 
     const addToCart = useCallback((product) => {
         if (!product) return;
+
+        // If product is serialized: directly assign the next available serial WITHOUT opening any modal form
         if (isSerializedProduct(product)) {
-            openSerialPicker(product);
+            const currentCart = cartRef.current;
+            const existing = currentCart.find(item => item.product_id === product.id);
+            const currentlySelectedSerialIds = existing ? (existing.serial_ids || []).map(Number) : [];
+
+            // Find next available unselected serial
+            const availableSerials = product.serials || [];
+            const nextSerial = availableSerials.find(s => !currentlySelectedSerialIds.includes(Number(s.id)));
+
+            if (!nextSerial && currentlySelectedSerialIds.length >= (product.stock || 0)) {
+                toast.error(`All available serials for ${product.product_name || product.name} are already in the cart`);
+                return;
+            }
+
+            const updatedSerialIds = nextSerial 
+                ? [...currentlySelectedSerialIds, Number(nextSerial.id)]
+                : currentlySelectedSerialIds;
+            const updatedSerialNumbers = nextSerial
+                ? [...(existing?.serial_numbers || []), nextSerial.serial_number]
+                : (existing?.serial_numbers || []);
+            const newQty = (existing ? existing.quantity : 0) + 1;
+
+            if (newQty > product.stock) {
+                toast.error(`Cannot exceed available stock (${product.stock})`);
+                return;
+            }
+
+            const cartItem = {
+                product_id: product.id,
+                part_number: product.part_number,
+                name: product.product_name || product.name,
+                brand: product.brand,
+                size: product.size,
+                compatibility_display: product.compatibility_display,
+                is_serialized: true,
+                serial_ids: updatedSerialIds,
+                serial_numbers: updatedSerialNumbers,
+                quantity: newQty,
+                price: Number(product.price),
+                subtotal: calculateItemSubtotal(newQty, product.price),
+                maxStock: product.stock
+            };
+
+            setCart(prev => {
+                const itemExists = prev.some(item => item.product_id === product.id);
+                return itemExists
+                    ? prev.map(item => item.product_id === product.id ? cartItem : item)
+                    : [...prev, cartItem];
+            });
+
+            toast.success(`Added ${product.product_name || product.name}${nextSerial ? ` (SN: ${nextSerial.serial_number})` : ''}`);
             return;
         }
 
+        // Non-serialized item handling:
         setCart(currentCart => {
             const existing = currentCart.find(item => item.product_id === product.id);
             if (existing) {
@@ -250,22 +302,52 @@ const POS = () => {
                 }];
             }
         });
-    }, [openSerialPicker]);
+        toast.success(`Added ${product.product_name || product.name}`);
+    }, []);
 
     const updateQuantity = (id, delta) => {
         setCart(cart.map(item => {
             if (item.product_id === id) {
                 if (item.is_serialized) {
-                    toast.error('Edit selected serials to change quantity');
+                    if (delta < 0) {
+                        if (item.quantity <= 1) return item;
+                        const newQty = item.quantity - 1;
+                        return {
+                            ...item,
+                            quantity: newQty,
+                            serial_ids: (item.serial_ids || []).slice(0, newQty),
+                            serial_numbers: (item.serial_numbers || []).slice(0, newQty),
+                            subtotal: calculateItemSubtotal(newQty, item.price)
+                        };
+                    } else {
+                        const prod = productsRef.current.find(p => p.id === id);
+                        const available = prod?.serials || [];
+                        const nextSerial = available.find(s => !(item.serial_ids || []).includes(Number(s.id)));
+                        if (item.quantity >= item.maxStock) {
+                            toast.error(`Cannot exceed available stock (${item.maxStock})`);
+                            return item;
+                        }
+                        const newQty = item.quantity + 1;
+                        return {
+                            ...item,
+                            quantity: newQty,
+                            serial_ids: nextSerial ? [...(item.serial_ids || []), Number(nextSerial.id)] : item.serial_ids,
+                            serial_numbers: nextSerial ? [...(item.serial_numbers || []), nextSerial.serial_number] : item.serial_numbers,
+                            subtotal: calculateItemSubtotal(newQty, item.price)
+                        };
+                    }
+                }
+                const newQty = item.quantity + delta;
+                if (newQty < 1) return item;
+                if (newQty > item.maxStock) {
+                    toast.error(`Cannot exceed available stock (${item.maxStock})`);
                     return item;
                 }
-                const newQuantity = item.quantity + delta;
-                if (newQuantity <= 0) return item;
-                if (newQuantity > item.maxStock) {
-                    toast.error('Cannot exceed available stock');
-                    return item;
-                }
-                return { ...item, quantity: newQuantity, subtotal: calculateItemSubtotal(newQuantity, item.price) };
+                return {
+                    ...item,
+                    quantity: newQty,
+                    subtotal: calculateItemSubtotal(newQty, item.price)
+                };
             }
             return item;
         }));
@@ -466,13 +548,8 @@ const POS = () => {
         const targetProduct = exactMatch || filterProducts(currentProducts, trimmed)[0];
 
         if (targetProduct) {
-            if (isSerializedProduct(targetProduct)) {
-                openSerialPicker(targetProduct);
-                toast.success(`Scanned: ${targetProduct.product_name} - Select Serial`);
-            } else {
-                addToCart(targetProduct);
-                toast.success(`Scanned: ${targetProduct.product_name} (${targetProduct.part_number})`);
-            }
+            addToCart(targetProduct);
+            toast.success(`Scanned: ${targetProduct.product_name} (${targetProduct.part_number})`);
             setSearchQuery('');
         } else {
             toast.error(`No product matches barcode: ${trimmed}`);
@@ -651,13 +728,14 @@ const POS = () => {
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                             <tr>
-                                <th style={{ width: '140px', whiteSpace: 'nowrap' }}>Part Number</th>
+                                <th style={{ width: '130px', whiteSpace: 'nowrap' }}>Part Number</th>
                                 <th>Product Name</th>
-                                <th style={{ width: '100px', whiteSpace: 'nowrap' }}>Brand</th>
-                                <th style={{ width: '90px', whiteSpace: 'nowrap' }}>Size</th>
-                                <th style={{ width: '80px', textAlign: 'right', whiteSpace: 'nowrap' }}>Stock</th>
-                                <th style={{ width: '100px', textAlign: 'right', whiteSpace: 'nowrap' }}>Price</th>
-                                <th style={{ width: '190px', whiteSpace: 'nowrap' }}>Compatibility</th>
+                                <th style={{ width: '120px', whiteSpace: 'nowrap' }}>Serial</th>
+                                <th style={{ width: '90px', whiteSpace: 'nowrap' }}>Brand</th>
+                                <th style={{ width: '80px', whiteSpace: 'nowrap' }}>Size</th>
+                                <th style={{ width: '70px', textAlign: 'right', whiteSpace: 'nowrap' }}>Stock</th>
+                                <th style={{ width: '90px', textAlign: 'right', whiteSpace: 'nowrap' }}>Price</th>
+                                <th style={{ width: '170px', whiteSpace: 'nowrap' }}>Compatibility</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -707,7 +785,7 @@ const POS = () => {
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan={7} className="table-empty-state">
+                                    <td colSpan={8} className="table-empty-state">
                                         No matching products found. Try scanning another part number or clearing filters.
                                     </td>
                                 </tr>

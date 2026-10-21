@@ -153,6 +153,7 @@ exports.getDailySales = async (req, res) => {
     try {
         const chosenDate = (req.query.date || req.query.startDate || '').trim();
         const chosenEndDate = (req.query.endDate || '').trim();
+        const todayPHT = getPhilippineDate();
         const params = [];
         let dateCondition = '';
         let selectDate = '';
@@ -160,30 +161,29 @@ exports.getDailySales = async (req, res) => {
         if (chosenDate && chosenEndDate && chosenDate !== chosenEndDate) {
             selectDate = "CONCAT(?, ' to ', ?) as date";
             params.push(chosenDate, chosenEndDate);
-            dateCondition = 'DATE(s.sale_date) >= ? AND DATE(s.sale_date) <= ?';
-            params.push(chosenDate, chosenEndDate);
+            dateCondition = "((DATE(CONVERT_TZ(s.sale_date, '+00:00', '+08:00')) >= ? AND DATE(CONVERT_TZ(s.sale_date, '+00:00', '+08:00')) <= ?) OR (DATE(s.sale_date) >= ? AND DATE(s.sale_date) <= ?))";
+            params.push(chosenDate, chosenEndDate, chosenDate, chosenEndDate);
         } else if (chosenDate) {
             selectDate = '? as date';
             params.push(chosenDate);
-            dateCondition = 'DATE(s.sale_date) = ?';
-            params.push(chosenDate);
+            dateCondition = "(DATE(CONVERT_TZ(s.sale_date, '+00:00', '+08:00')) = ? OR DATE(s.sale_date) = ?)";
+            params.push(chosenDate, chosenDate);
         } else {
-            selectDate = "DATE_FORMAT(CURDATE(), '%Y-%m-%d') as date";
-            dateCondition = 'DATE(s.sale_date) = CURDATE()';
+            selectDate = '? as date';
+            params.push(todayPHT);
+            dateCondition = "(DATE(CONVERT_TZ(s.sale_date, '+00:00', '+08:00')) = ? OR DATE(s.sale_date) = ?)";
+            params.push(todayPHT, todayPHT);
         }
 
-        let userCondition = '';
-        if (req.user?.role !== 'admin') {
-            userCondition = 'AND s.user_id = ?';
-            params.push(req.user.id);
-        }
-
+        // Daily store sales connect all active cashiers (staff and admin) together
         const query = `
             SELECT ${selectDate}, 
                    COALESCE(SUM(s.total_amount), 0) as total_revenue, 
                    COUNT(s.id) as total_transactions
             FROM sales s 
-            WHERE ${dateCondition} ${userCondition}
+            WHERE (${dateCondition})
+              AND (s.status IS NULL OR s.status != 'voided')
+              AND s.voided_at IS NULL
               AND s.user_id NOT IN (SELECT id FROM users WHERE LOWER(username) LIKE '%test%')
               AND NOT EXISTS (SELECT 1 FROM sale_items si_test WHERE si_test.sale_id = s.id AND (LOWER(si_test.product_name) LIKE '%pretest%' OR LOWER(si_test.product_name) = 'test'))
         `;
@@ -191,7 +191,7 @@ exports.getDailySales = async (req, res) => {
         const [sales] = await db.query(query, params);
         const result = sales[0] || {};
         res.json({
-            date: result.date || chosenDate || getPhilippineDate(),
+            date: result.date || chosenDate || todayPHT,
             total_revenue: Number(result.total_revenue) || 0,
             total_transactions: Number(result.total_transactions) || 0
         });

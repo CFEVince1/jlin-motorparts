@@ -76,9 +76,25 @@ exports.getAllProducts = async (req, res) => {
             groupUnits = [];
         }
 
+        let availableSerials = [];
+        try {
+            const [serialsRows] = await db.query(`
+                SELECT id, product_id, serial_number
+                FROM product_serials
+                WHERE product_id IN (?) AND (status = 'available' OR status IS NULL)
+                ORDER BY id ASC
+            `, [productIds]);
+            availableSerials = serialsRows;
+        } catch (serialErr) {
+            availableSerials = [];
+        }
+
         const result = products.map(p => {
             const dUnits = directUnits.filter(du => du.product_id === p.id);
             const gUnits = groupUnits.filter(gu => gu.product_id === p.id);
+            const prodSerials = availableSerials.filter(s => s.product_id === p.id);
+            const serialNumbers = prodSerials.map(s => s.serial_number);
+            const isSerialized = Boolean(p.is_serialized);
 
             const compatibility_group_ids = [...new Set(gUnits.map(g => g.group_id))];
             const compatibility_groups = [...new Set(gUnits.map(g => g.group_name))];
@@ -95,6 +111,12 @@ exports.getAllProducts = async (req, res) => {
 
             return {
                 ...p,
+                is_serialized: isSerialized,
+                serials: prodSerials,
+                serial_numbers: serialNumbers,
+                serial_display: isSerialized
+                    ? (serialNumbers.length > 0 ? serialNumbers.join(', ') : 'No serials')
+                    : '-',
                 motorcycle_unit_ids: directUnitIds,
                 compatibility_group_ids,
                 compatibility_groups,

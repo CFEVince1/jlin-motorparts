@@ -65,6 +65,28 @@ const Dashboard = () => {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '24px' }}>
 
+                {/* Today's Sales (Connected across Staff & Admin) */}
+                <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ background: 'rgba(5, 150, 105, 0.15)', padding: '10px', borderRadius: '8px', color: 'var(--primary)' }}>
+                        <TrendingUp size={22} />
+                    </div>
+                    <div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Today's Sales</div>
+                        <div style={{ fontSize: '1.5rem', fontWeight: '700', lineHeight: 1.2 }}>{formatCurrency(stats.dailySales?.total_revenue || 0)}</div>
+                    </div>
+                </div>
+
+                {/* Today's Transactions (Connected across Staff & Admin) */}
+                <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ background: 'rgba(10, 132, 255, 0.15)', padding: '10px', borderRadius: '8px', color: 'var(--accent)' }}>
+                        <ShoppingCart size={22} />
+                    </div>
+                    <div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Today's Transactions</div>
+                        <div style={{ fontSize: '1.5rem', fontWeight: '700', lineHeight: 1.2 }}>{stats.dailySales?.total_transactions || 0}</div>
+                    </div>
+                </div>
+
                 {user?.role === 'admin' ? (
                     <>
                         <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -72,7 +94,7 @@ const Dashboard = () => {
                                 <TrendingUp size={22} />
                             </div>
                             <div>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Total Sales</div>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Total Sales (All Time)</div>
                                 <div style={{ fontSize: '1.5rem', fontWeight: '700', lineHeight: 1.2 }}>{formatCurrency(stats.adminStats?.total_sales || 0)}</div>
                             </div>
                         </div>
@@ -110,39 +132,17 @@ const Dashboard = () => {
                         </div>
                     </>
                 ) : (
-                    <>
-                        <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ background: 'rgba(5, 150, 105, 0.15)', padding: '10px', borderRadius: '8px', color: 'var(--primary)' }}>
-                                <TrendingUp size={22} />
-                            </div>
-                            <div>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Today's Sales</div>
-                                <div style={{ fontSize: '1.5rem', fontWeight: '700', lineHeight: 1.2 }}>{formatCurrency(stats.dailySales.total_revenue || 0)}</div>
+                    <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ background: 'rgba(239, 68, 68, 0.15)', padding: '10px', borderRadius: '8px', color: 'var(--danger)' }}>
+                            <AlertTriangle size={22} />
+                        </div>
+                        <div>
+                            <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Low Stock Items</div>
+                            <div style={{ fontSize: '1.5rem', fontWeight: '700', lineHeight: 1.2, color: stats.lowStock.length > 0 ? 'var(--danger)' : 'var(--success)' }}>
+                                {stats.lowStock.length}
                             </div>
                         </div>
-
-                        <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ background: 'rgba(10, 132, 255, 0.15)', padding: '10px', borderRadius: '8px', color: 'var(--accent)' }}>
-                                <ShoppingCart size={22} />
-                            </div>
-                            <div>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Today's Transactions</div>
-                                <div style={{ fontSize: '1.5rem', fontWeight: '700', lineHeight: 1.2 }}>{stats.dailySales.total_transactions || 0}</div>
-                            </div>
-                        </div>
-
-                        <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ background: 'rgba(239, 68, 68, 0.15)', padding: '10px', borderRadius: '8px', color: 'var(--danger)' }}>
-                                <AlertTriangle size={22} />
-                            </div>
-                            <div>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '2px' }}>Low Stock Items</div>
-                                <div style={{ fontSize: '1.5rem', fontWeight: '700', lineHeight: 1.2, color: stats.lowStock.length > 0 ? 'var(--danger)' : 'var(--success)' }}>
-                                    {stats.lowStock.length}
-                                </div>
-                            </div>
-                        </div>
-                    </>
+                    </div>
                 )}
             </div>
 
