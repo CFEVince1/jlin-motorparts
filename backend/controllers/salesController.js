@@ -57,8 +57,12 @@ exports.checkout = async (req, res, next) => {
     try {
         await connection.beginTransaction();
 
-        // 1. Merge cart lines by product ID first (prevents duplicate key errors on transaction_number and race conditions)
+        // 1. Group cart lines:
+        // - Non-serialized lines with identical product_id are merged.
+        // - Serialized lines are grouped by product_id AND unique serial_id(s) so distinct serial choices remain separate line items.
         const mergedMap = new Map();
+        const totalRequestedByProduct = new Map();
+
         for (const item of cartItems) {
             const productId = Number(item.product_id || item.productId || item.itemId || item.item_id);
             if (!productId || !Number.isInteger(productId) || productId <= 0) {
@@ -70,24 +74,64 @@ exports.checkout = async (req, res, next) => {
             }
             const serialIds = normalizeSerialIds(item.serial_ids || item.serialIds);
 
-            if (mergedMap.has(productId)) {
-                const existing = mergedMap.get(productId);
+            const groupKey = serialIds.length > 0
+                ? `${productId}_${[...serialIds].sort((a, b) => a - b).join('_')}`
+                : `${productId}`;
+
+            if (mergedMap.has(groupKey)) {
+                const existing = mergedMap.get(groupKey);
                 existing.quantity += qty;
-                existing.serial_ids = [...existing.serial_ids, ...serialIds];
             } else {
-                mergedMap.set(productId, {
+                mergedMap.set(groupKey, {
                     ...item,
                     product_id: productId,
                     quantity: qty,
                     serial_ids: serialIds
                 });
             }
+
+            totalRequestedByProduct.set(
+                productId,
+                (totalRequestedByProduct.get(productId) || 0) + qty
+            );
         }
 
-        // Sort merged cart lines by product_id to prevent lock-order deadlocks
+        // Sort cart lines by product_id to prevent lock-order deadlocks
         const sortedLines = Array.from(mergedMap.values()).sort((a, b) => a.product_id - b.product_id);
 
-        // 2. Validate line items and tally totals in integer centavos to eliminate floating-point drift
+        // 2. Lock each product uniquely and validate total stock requested across all lines
+        const uniqueProductIds = Array.from(totalRequestedByProduct.keys()).sort((a, b) => a - b);
+        const lockedProductMap = new Map();
+
+        for (const prodId of uniqueProductIds) {
+            const [productRows] = await connection.query(
+                `SELECT id, part_number, sku, name, brand, size, stock, current_stock, selling_price, retail_price, cost_price, is_serialized
+                 FROM products
+                 WHERE id = ? AND is_active = true
+                 FOR UPDATE`,
+                [prodId]
+            );
+
+            if (productRows.length === 0) {
+                throw new AppValidationError(`Item ID ${prodId} not found or is currently inactive`);
+            }
+
+            const product = productRows[0];
+            const currentStock = Number(
+                product.current_stock !== null && product.current_stock !== undefined && (product.current_stock > 0 || (product.stock ?? 0) <= 0)
+                    ? product.current_stock
+                    : (product.stock ?? 0)
+            );
+            const totalRequested = totalRequestedByProduct.get(prodId);
+
+            if (currentStock < totalRequested) {
+                throw new AppValidationError(`Insufficient stock for ${product.name} (SKU: ${product.sku || product.part_number}). On hand: ${currentStock}, Requested: ${totalRequested}`);
+            }
+
+            lockedProductMap.set(prodId, product);
+        }
+
+        // 3. Validate line items and tally totals in integer centavos to eliminate floating-point drift
         let totalAmountCentavos = 0;
         const validatedItems = [];
 
@@ -95,21 +139,7 @@ exports.checkout = async (req, res, next) => {
             const productId = item.product_id;
             const qty = item.quantity;
             const serialIds = item.serial_ids;
-
-            // Acquire pessimistic row lock (FOR UPDATE)
-            const [productRows] = await connection.query(
-                `SELECT id, part_number, sku, name, brand, size, stock, current_stock, selling_price, retail_price, cost_price, is_serialized
-                 FROM products
-                 WHERE id = ? AND is_active = true
-                 FOR UPDATE`,
-                [productId]
-            );
-
-            if (productRows.length === 0) {
-                throw new AppValidationError(`Item ID ${productId} not found or is currently inactive`);
-            }
-
-            const product = productRows[0];
+            const product = lockedProductMap.get(productId);
             const serialized = normalizeBoolean(product.is_serialized);
 
             // Serial validation (supports single serial, batch serial, or multi-qty purchases)
@@ -132,15 +162,6 @@ exports.checkout = async (req, res, next) => {
                 }
             } else if (serialIds.length > 0) {
                 throw new AppValidationError(`Serial numbers cannot be assigned to non-serialized product ${product.name}`);
-            }
-
-            const currentStock = Number(
-                product.current_stock !== null && product.current_stock !== undefined && (product.current_stock > 0 || (product.stock ?? 0) <= 0)
-                    ? product.current_stock
-                    : (product.stock ?? 0)
-            );
-            if (currentStock < qty) {
-                throw new AppValidationError(`Insufficient stock for ${product.name} (SKU: ${product.sku || product.part_number}). On hand: ${currentStock}, Requested: ${qty}`);
             }
 
             const unitPrice = Number(product.selling_price || product.retail_price || item.price || item.unit_price || 0.00);

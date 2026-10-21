@@ -197,108 +197,127 @@ const POS = () => {
             serialPicker.selectedIds.includes(Number(serial.id))
         );
 
-        const cartItem = {
-            product_id: product.id || product.product_id,
-            part_number: product.part_number,
-            name: product.product_name || product.name,
-            brand: product.brand,
-            size: product.size,
-            compatibility_display: product.compatibility_display,
-            is_serialized: true,
-            serial_ids: selectedSerials.map(serial => Number(serial.id)),
-            serial_numbers: selectedSerials.map(serial => serial.serial_number),
-            price: Number(product.price),
-            quantity: selectedSerials.length,
-            subtotal: calculateItemSubtotal(selectedSerials.length, product.price),
-            maxStock: product.stock
-        };
-
         setCart(currentCart => {
-            const exists = currentCart.some(item => item.product_id === product.id);
-            return exists
-                ? currentCart.map(item => item.product_id === product.id ? cartItem : item)
-                : [...currentCart, cartItem];
+            let nextCart = [...currentCart];
+            selectedSerials.forEach(serial => {
+                const targetKey = `${product.id}_${serial.id}`;
+                const existingIdx = nextCart.findIndex(it => (it.cart_key || String(it.product_id)) === targetKey);
+                if (existingIdx >= 0) {
+                    // Already in cart
+                } else {
+                    nextCart.push({
+                        cart_key: targetKey,
+                        product_id: product.id || product.product_id,
+                        part_number: product.part_number,
+                        name: product.product_name || product.name,
+                        brand: product.brand,
+                        size: product.size,
+                        compatibility_display: product.compatibility_display,
+                        is_serialized: true,
+                        selected_serial_id: Number(serial.id),
+                        selected_serial_number: serial.serial_number,
+                        serial_ids: [Number(serial.id)],
+                        serial_numbers: [serial.serial_number],
+                        price: Number(product.price),
+                        quantity: 1,
+                        subtotal: calculateItemSubtotal(1, product.price),
+                        maxStock: product.stock
+                    });
+                }
+            });
+            return nextCart;
         });
 
         closeSerialPicker();
     };
 
+    const addSerializedToCart = useCallback((product, serialObj) => {
+        if (!product || !serialObj) return;
+        const chosenSerialId = Number(serialObj.id);
+        const chosenSerialNum = serialObj.serial_number;
+
+        setSelectedTableSerials(prev => ({ ...prev, [product.id]: chosenSerialId }));
+
+        setCart(currentCart => {
+            const targetCartKey = `${product.id}_${chosenSerialId}`;
+            const existing = currentCart.find(item => (item.cart_key || String(item.product_id)) === targetCartKey);
+
+            // Compute total quantity already in cart for this product across all serials
+            const totalInCartForProduct = currentCart
+                .filter(item => item.product_id === product.id)
+                .reduce((sum, item) => sum + item.quantity, 0);
+
+            if (totalInCartForProduct >= product.stock) {
+                toast.error(`Cannot exceed available stock (${product.stock}) for ${product.product_name || product.name}`);
+                return currentCart;
+            }
+
+            if (existing) {
+                const newQty = existing.quantity + 1;
+                toast.success(`Updated ${product.product_name || product.name} (${chosenSerialNum}) [Qty: ${newQty}]`);
+                return currentCart.map(item => (item.cart_key || String(item.product_id)) === targetCartKey ? {
+                    ...item,
+                    quantity: newQty,
+                    subtotal: calculateItemSubtotal(newQty, product.price)
+                } : item);
+            } else {
+                toast.success(`Added ${product.product_name || product.name} (${chosenSerialNum})`);
+                return [...currentCart, {
+                    cart_key: targetCartKey,
+                    product_id: product.id,
+                    part_number: product.part_number,
+                    name: product.product_name || product.name,
+                    brand: product.brand,
+                    size: product.size,
+                    compatibility_display: product.compatibility_display,
+                    is_serialized: true,
+                    selected_serial_id: chosenSerialId,
+                    selected_serial_number: chosenSerialNum,
+                    serial_ids: [chosenSerialId],
+                    serial_numbers: [chosenSerialNum],
+                    quantity: 1,
+                    price: Number(product.price),
+                    subtotal: calculateItemSubtotal(1, product.price),
+                    maxStock: product.stock
+                }];
+            }
+        });
+    }, []);
+
     const addToCart = useCallback((product) => {
         if (!product) return;
 
-        // If product is serialized: directly add or increment using selected serial from table (no form/modal popup)
+        // If product is serialized: directly add or increment using selected serial from table
         if (isSerializedProduct(product)) {
-            const currentCart = cartRef.current;
-            const existing = currentCart.find(item => item.product_id === product.id);
-
             const availableSerials = product.serials || [];
             const chosenId = selectedTableSerials[product.id] || (availableSerials[0]?.id);
             const chosenSerial = availableSerials.find(s => Number(s.id) === Number(chosenId)) || availableSerials[0];
-            const chosenSerialId = chosenSerial ? Number(chosenSerial.id) : null;
-            const chosenSerialNum = chosenSerial ? chosenSerial.serial_number : (product.serial_display || 'SN-DEFAULT');
-
-            if (existing) {
-                if (existing.quantity >= product.stock) {
-                    toast.error(`Cannot exceed available stock (${product.stock})`);
-                    return;
-                }
-                const newQty = existing.quantity + 1;
-                const updatedSerialIds = chosenSerialId && !existing.serial_ids.includes(chosenSerialId)
-                    ? [...existing.serial_ids, chosenSerialId]
-                    : (existing.serial_ids.length > 0 ? existing.serial_ids : (chosenSerialId ? [chosenSerialId] : []));
-                const updatedSerialNums = chosenSerialNum && !existing.serial_numbers.includes(chosenSerialNum)
-                    ? [...existing.serial_numbers, chosenSerialNum]
-                    : (existing.serial_numbers.length > 0 ? existing.serial_numbers : (chosenSerialNum ? [chosenSerialNum] : []));
-
-                const cartItem = {
-                    ...existing,
-                    quantity: newQty,
-                    serial_ids: updatedSerialIds,
-                    serial_numbers: updatedSerialNums,
-                    subtotal: calculateItemSubtotal(newQty, product.price)
-                };
-
-                setCart(prev => prev.map(item => item.product_id === product.id ? cartItem : item));
-                toast.success(`Updated ${product.product_name || product.name} quantity to ${newQty}`);
-                return;
+            if (chosenSerial) {
+                addSerializedToCart(product, chosenSerial);
+            } else {
+                addSerializedToCart(product, { id: 1, serial_number: product.serial_display || 'SN-DEFAULT' });
             }
-
-            const cartItem = {
-                product_id: product.id,
-                part_number: product.part_number,
-                name: product.product_name || product.name,
-                brand: product.brand,
-                size: product.size,
-                compatibility_display: product.compatibility_display,
-                is_serialized: true,
-                serial_ids: chosenSerialId ? [chosenSerialId] : [],
-                serial_numbers: chosenSerialNum ? [chosenSerialNum] : [],
-                quantity: 1,
-                price: Number(product.price),
-                subtotal: calculateItemSubtotal(1, product.price),
-                maxStock: product.stock
-            };
-
-            setCart(prev => [...prev, cartItem]);
-            toast.success(`Added ${product.product_name || product.name} (SN: ${chosenSerialNum})`);
             return;
         }
 
         // Non-serialized item handling:
         setCart(currentCart => {
-            const existing = currentCart.find(item => item.product_id === product.id);
+            const targetCartKey = String(product.id);
+            const existing = currentCart.find(item => (item.cart_key || String(item.product_id)) === targetCartKey);
             if (existing) {
                 if (existing.quantity >= product.stock) {
                     toast.error('Cannot exceed available stock');
                     return currentCart;
                 }
+                const newQty = existing.quantity + 1;
                 return currentCart.map(item =>
-                    item.product_id === product.id
-                        ? { ...item, quantity: item.quantity + 1, subtotal: calculateItemSubtotal(item.quantity + 1, item.price) }
+                    (item.cart_key || String(item.product_id)) === targetCartKey
+                        ? { ...item, quantity: newQty, subtotal: calculateItemSubtotal(newQty, item.price) }
                         : item
                 );
             } else {
                 return [...currentCart, {
+                    cart_key: targetCartKey,
                     product_id: product.id,
                     part_number: product.part_number,
                     name: product.product_name || product.name,
@@ -316,43 +335,69 @@ const POS = () => {
             }
         });
         toast.success(`Added ${product.product_name || product.name}`);
-    }, [selectedTableSerials]);
+    }, [selectedTableSerials, addSerializedToCart]);
 
-    const updateQuantity = (id, delta) => {
-        setCart(cart.map(item => {
-            if (item.product_id === id) {
-                const newQty = item.quantity + delta;
-                if (newQty < 1) return item;
-                if (newQty > item.maxStock) {
-                    toast.error(`Cannot exceed available stock (${item.maxStock})`);
-                    return item;
-                }
-                return {
-                    ...item,
-                    quantity: newQty,
-                    subtotal: calculateItemSubtotal(newQty, item.price)
-                };
+    const updateQuantity = (cartKey, delta) => {
+        setCart(currentCart => {
+            const target = currentCart.find(item => (item.cart_key || String(item.product_id)) === String(cartKey));
+            if (!target) return currentCart;
+
+            const newQty = target.quantity + delta;
+            if (newQty < 1) return currentCart;
+
+            // Compute total stock of this product in other cart lines
+            const otherLinesQty = currentCart
+                .filter(item => item.product_id === target.product_id && (item.cart_key || String(item.product_id)) !== String(cartKey))
+                .reduce((sum, item) => sum + item.quantity, 0);
+
+            if (newQty + otherLinesQty > target.maxStock) {
+                toast.error(`Cannot exceed available stock (${target.maxStock}) for ${target.name}`);
+                return currentCart;
             }
-            return item;
-        }));
+
+            return currentCart.map(item => {
+                if ((item.cart_key || String(item.product_id)) === String(cartKey)) {
+                    return {
+                        ...item,
+                        quantity: newQty,
+                        subtotal: calculateItemSubtotal(newQty, item.price)
+                    };
+                }
+                return item;
+            });
+        });
     };
 
-    const setQuantityDirect = (id, newQuantity) => {
-        setCart(cart.map(item => {
-            if (item.product_id === id) {
-                let qty = parseInt(newQuantity);
-                if (isNaN(qty) || qty < 1) qty = 1;
-                if (qty > item.maxStock) {
-                    toast.error(`Cannot exceed available stock (${item.maxStock})`);
-                    qty = item.maxStock;
-                }
-                return { ...item, quantity: qty, subtotal: calculateItemSubtotal(qty, item.price) };
+    const setQuantityDirect = (cartKey, newQuantity) => {
+        setCart(currentCart => {
+            const target = currentCart.find(item => (item.cart_key || String(item.product_id)) === String(cartKey));
+            if (!target) return currentCart;
+
+            let qty = parseInt(newQuantity);
+            if (isNaN(qty) || qty < 1) qty = 1;
+
+            const otherLinesQty = currentCart
+                .filter(item => item.product_id === target.product_id && (item.cart_key || String(item.product_id)) !== String(cartKey))
+                .reduce((sum, item) => sum + item.quantity, 0);
+
+            const maxAllowed = Math.max(1, target.maxStock - otherLinesQty);
+            if (qty > maxAllowed) {
+                toast.error(`Cannot exceed available stock (${target.maxStock}) for ${target.name}`);
+                qty = maxAllowed;
             }
-            return item;
-        }));
+
+            return currentCart.map(item => {
+                if ((item.cart_key || String(item.product_id)) === String(cartKey)) {
+                    return { ...item, quantity: qty, subtotal: calculateItemSubtotal(qty, item.price) };
+                }
+                return item;
+            });
+        });
     };
 
-    const removeFromCart = (id) => setCart(cart.filter(item => item.product_id !== id));
+    const removeFromCart = (cartKey) => {
+        setCart(currentCart => currentCart.filter(item => (item.cart_key || String(item.product_id)) !== String(cartKey)));
+    };
 
     const { totalAmount } = calculateCartTotals(cart);
     const paymentDetails = calculatePaymentDetails(totalAmount, tenderedAmount, paymentMethod);
@@ -519,6 +564,18 @@ const POS = () => {
             }
         }
 
+        // 1b. Check if the scanned code matches a serial number in any product
+        const serialMatchProduct = currentProducts.find(p =>
+            p.serials && p.serials.some(s => (s.serial_number || '').toLowerCase() === trimmed.toLowerCase())
+        );
+        if (serialMatchProduct) {
+            const matchedSerial = serialMatchProduct.serials.find(s => (s.serial_number || '').toLowerCase() === trimmed.toLowerCase());
+            addSerializedToCart(serialMatchProduct, matchedSerial);
+            toast.success(`Scanned serial: ${matchedSerial.serial_number} for ${serialMatchProduct.product_name || serialMatchProduct.name}`);
+            setSearchQuery('');
+            return;
+        }
+
         // 2. Search against catalog
         const currentProducts = productsRef.current;
         const exactMatch = currentProducts.find(
@@ -535,7 +592,7 @@ const POS = () => {
         } else {
             toast.error(`No product matches barcode: ${trimmed}`);
         }
-    }, [openSerialPicker, addToCart, toggleSerialSelection]);
+    }, [openSerialPicker, addToCart, addSerializedToCart, toggleSerialSelection]);
 
     useEffect(() => {
         const handleGlobalKeyDown = (e) => {
@@ -609,57 +666,6 @@ const POS = () => {
         return () => window.removeEventListener('click', handleOutsideClick);
     }, []);
 
-    const addSerializedToCart = useCallback((product, serialObj) => {
-        if (!product || !serialObj) return;
-        const chosenSerialId = Number(serialObj.id);
-        const chosenSerialNum = serialObj.serial_number;
-
-        setSelectedTableSerials(prev => ({ ...prev, [product.id]: chosenSerialId }));
-
-        setCart(currentCart => {
-            const existing = currentCart.find(item => item.product_id === product.id);
-            if (existing) {
-                if (existing.quantity >= product.stock) {
-                    toast.error(`Cannot exceed available stock (${product.stock})`);
-                    return currentCart;
-                }
-                const newQty = existing.quantity + 1;
-                const updatedSerialIds = !existing.serial_ids.includes(chosenSerialId)
-                    ? [...existing.serial_ids, chosenSerialId]
-                    : (existing.serial_ids.length > 0 ? existing.serial_ids : [chosenSerialId]);
-                const updatedSerialNums = !existing.serial_numbers.includes(chosenSerialNum)
-                    ? [...existing.serial_numbers, chosenSerialNum]
-                    : (existing.serial_numbers.length > 0 ? existing.serial_numbers : [chosenSerialNum]);
-
-                toast.success(`Added ${product.product_name || product.name} (SN: ${chosenSerialNum}) [Qty: ${newQty}]`);
-                return currentCart.map(item => item.product_id === product.id ? {
-                    ...item,
-                    quantity: newQty,
-                    serial_ids: updatedSerialIds,
-                    serial_numbers: updatedSerialNums,
-                    subtotal: calculateItemSubtotal(newQty, product.price)
-                } : item);
-            } else {
-                toast.success(`Added ${product.product_name || product.name} (SN: ${chosenSerialNum})`);
-                return [...currentCart, {
-                    product_id: product.id,
-                    part_number: product.part_number,
-                    name: product.product_name || product.name,
-                    brand: product.brand,
-                    size: product.size,
-                    compatibility_display: product.compatibility_display,
-                    is_serialized: true,
-                    serial_ids: [chosenSerialId],
-                    serial_numbers: [chosenSerialNum],
-                    quantity: 1,
-                    price: Number(product.price),
-                    subtotal: calculateItemSubtotal(1, product.price),
-                    maxStock: product.stock
-                }];
-            }
-        });
-    }, []);
-
     const handleRowClick = (product) => {
         if (isSerializedProduct(product)) {
             // Toggle serial dropdown menu right on this product row
@@ -674,14 +680,31 @@ const POS = () => {
     };
 
     const handleTableReduceQuantity = (product) => {
-        const existing = cart.find(item => item.product_id === product.id);
-        if (!existing) return;
-        if (existing.quantity <= 1) {
-            removeFromCart(product.id);
-            toast.success(`Removed ${product.product_name || product.name} from order`);
-        } else {
-            updateQuantity(product.id, -1);
-        }
+        const availableSerials = product.serials || [];
+        const chosenId = selectedTableSerials[product.id] || (availableSerials[0]?.id);
+        const targetCartKey = isSerializedProduct(product)
+            ? `${product.id}_${chosenId || (product.serial_display || 'SN-DEFAULT')}`
+            : String(product.id);
+
+        setCart(currentCart => {
+            const existing = currentCart.find(item => (item.cart_key || String(item.product_id)) === targetCartKey)
+                || currentCart.find(item => item.product_id === product.id);
+
+            if (!existing) return currentCart;
+            const itemKey = existing.cart_key || String(existing.product_id);
+
+            if (existing.quantity <= 1) {
+                toast.success(`Removed ${product.product_name || product.name} (${existing.selected_serial_number || 'item'}) from order`);
+                return currentCart.filter(item => (item.cart_key || String(item.product_id)) !== itemKey);
+            } else {
+                const newQty = existing.quantity - 1;
+                return currentCart.map(item => (item.cart_key || String(item.product_id)) === itemKey ? {
+                    ...item,
+                    quantity: newQty,
+                    subtotal: calculateItemSubtotal(newQty, item.price)
+                } : item);
+            }
+        });
     };
 
     return (
@@ -834,11 +857,16 @@ const POS = () => {
                                                     ? p.serial_numbers.map((sn, idx) => ({ id: idx + 1, serial_number: sn }))
                                                     : [{ id: 1, serial_number: p.serial_display || 'SN-DEFAULT' }];
 
-                                            const cartItem = cart.find(item => item.product_id === p.id);
-                                            const currentCartQty = cartItem ? cartItem.quantity : 0;
                                             const selectedId = selectedTableSerials[p.id] || serialOptions[0]?.id;
                                             const selectedSerialObj = serialOptions.find(s => Number(s.id) === Number(selectedId)) || serialOptions[0];
                                             const isDropdownOpen = openSerialDropdownId === p.id;
+
+                                            const targetCartKey = `${p.id}_${selectedSerialObj?.id || selectedSerialObj?.serial_number || ''}`;
+                                            const currentCartItemForSerial = cart.find(item => (item.cart_key || String(item.product_id)) === targetCartKey);
+                                            const currentSerialCartQty = currentCartItemForSerial ? currentCartItemForSerial.quantity : 0;
+                                            const totalProductCartQty = cart
+                                                .filter(item => item.product_id === p.id)
+                                                .reduce((sum, item) => sum + item.quantity, 0);
 
                                             return (
                                                 <div className="serial-dropdown-container" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', position: 'relative' }}>
@@ -885,7 +913,7 @@ const POS = () => {
                                                                 border: '1px solid var(--border)',
                                                                 borderRadius: '8px',
                                                                 boxShadow: '0 10px 20px -3px rgba(0, 0, 0, 0.15), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                                                                minWidth: '175px',
+                                                                minWidth: '190px',
                                                                 maxHeight: '220px',
                                                                 overflowY: 'auto',
                                                                 padding: '4px'
@@ -895,12 +923,17 @@ const POS = () => {
                                                                 </div>
                                                                 {serialOptions.map(s => {
                                                                     const isSelected = Number(s.id) === Number(selectedId);
+                                                                    const sCartKey = `${p.id}_${s.id}`;
+                                                                    const cartEntry = cart.find(item => (item.cart_key || String(item.product_id)) === sCartKey);
+                                                                    const inCartCount = cartEntry ? cartEntry.quantity : 0;
+
                                                                     return (
                                                                         <button
                                                                             key={s.id}
                                                                             type="button"
                                                                             onClick={(e) => {
                                                                                 e.stopPropagation();
+                                                                                setSelectedTableSerials(prev => ({ ...prev, [p.id]: Number(s.id) }));
                                                                                 setOpenSerialDropdownId(null);
                                                                                 addSerializedToCart(p, s);
                                                                             }}
@@ -918,7 +951,8 @@ const POS = () => {
                                                                                 cursor: 'pointer',
                                                                                 display: 'flex',
                                                                                 alignItems: 'center',
-                                                                                justifyContent: 'space-between'
+                                                                                justifyContent: 'space-between',
+                                                                                gap: '6px'
                                                                             }}
                                                                             onMouseEnter={(e) => {
                                                                                 if (!isSelected) e.currentTarget.style.background = 'var(--surface-hover)';
@@ -927,7 +961,21 @@ const POS = () => {
                                                                                 if (!isSelected) e.currentTarget.style.background = 'transparent';
                                                                             }}
                                                                         >
-                                                                            <span>{s.serial_number}</span>
+                                                                            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                                <span>{s.serial_number}</span>
+                                                                                {inCartCount > 0 && (
+                                                                                    <span style={{
+                                                                                        fontSize: '0.68rem',
+                                                                                        background: 'rgba(22, 163, 74, 0.2)',
+                                                                                        color: 'var(--primary)',
+                                                                                        padding: '1px 5px',
+                                                                                        borderRadius: '4px',
+                                                                                        fontWeight: 700
+                                                                                    }}>
+                                                                                        {inCartCount} in cart
+                                                                                    </span>
+                                                                                )}
+                                                                            </span>
                                                                             {isSelected && <Check size={12} color="var(--primary)" />}
                                                                         </button>
                                                                     );
@@ -936,7 +984,7 @@ const POS = () => {
                                                         )}
                                                     </div>
 
-                                                    {/* Table Quick Add/Reduce Quantity Controls */}
+                                                    {/* Table Quick Add/Reduce Quantity Controls for Selected Serial */}
                                                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'var(--surface-hover)', padding: '2px 4px', borderRadius: '6px', border: '1px solid var(--border)' }}>
                                                         <button
                                                             type="button"
@@ -944,7 +992,7 @@ const POS = () => {
                                                                 e.stopPropagation();
                                                                 handleTableReduceQuantity(p);
                                                             }}
-                                                            disabled={currentCartQty <= 0}
+                                                            disabled={currentSerialCartQty <= 0}
                                                             className="btn-secondary"
                                                             style={{
                                                                 width: '22px',
@@ -954,10 +1002,10 @@ const POS = () => {
                                                                 display: 'flex',
                                                                 alignItems: 'center',
                                                                 justifyContent: 'center',
-                                                                cursor: currentCartQty > 0 ? 'pointer' : 'not-allowed',
-                                                                opacity: currentCartQty > 0 ? 1 : 0.4
+                                                                cursor: currentSerialCartQty > 0 ? 'pointer' : 'not-allowed',
+                                                                opacity: currentSerialCartQty > 0 ? 1 : 0.4
                                                             }}
-                                                            title="Reduce quantity of this item"
+                                                            title="Reduce quantity of selected serial"
                                                         >
                                                             <Minus size={11} />
                                                         </button>
@@ -967,9 +1015,9 @@ const POS = () => {
                                                             textAlign: 'center',
                                                             fontWeight: 700,
                                                             fontSize: '0.78rem',
-                                                            color: currentCartQty > 0 ? 'var(--primary)' : 'var(--text-muted)'
+                                                            color: currentSerialCartQty > 0 ? 'var(--primary)' : 'var(--text-muted)'
                                                         }}>
-                                                            {currentCartQty}
+                                                            {currentSerialCartQty}
                                                         </span>
 
                                                         <button
@@ -978,7 +1026,7 @@ const POS = () => {
                                                                 e.stopPropagation();
                                                                 addSerializedToCart(p, selectedSerialObj);
                                                             }}
-                                                            disabled={currentCartQty >= p.stock}
+                                                            disabled={totalProductCartQty >= p.stock}
                                                             className="btn-secondary"
                                                             style={{
                                                                 width: '22px',
@@ -988,8 +1036,8 @@ const POS = () => {
                                                                 display: 'flex',
                                                                 alignItems: 'center',
                                                                 justifyContent: 'center',
-                                                                cursor: currentCartQty < p.stock ? 'pointer' : 'not-allowed',
-                                                                opacity: currentCartQty < p.stock ? 1 : 0.4,
+                                                                cursor: totalProductCartQty < p.stock ? 'pointer' : 'not-allowed',
+                                                                opacity: totalProductCartQty < p.stock ? 1 : 0.4,
                                                                 background: 'rgba(22, 163, 74, 0.12)',
                                                                 borderColor: 'rgba(22, 163, 74, 0.3)',
                                                                 color: 'var(--primary)'
@@ -1115,9 +1163,11 @@ const POS = () => {
                         <div style={{ height: '100%', minHeight: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Order is empty</div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {cart.map(item => (
+                            {cart.map(item => {
+                                const itemKey = item.cart_key || String(item.product_id);
+                                return (
                                 <div
-                                    key={item.product_id}
+                                    key={itemKey}
                                     style={{
                                         display: 'flex',
                                         flexDirection: 'column',
@@ -1164,20 +1214,27 @@ const POS = () => {
                                                 <span>{formatCurrency(item.price)} each</span>
                                             </div>
                                             {item.is_serialized && (
-                                                <div style={{ fontSize: '0.75rem', color: 'var(--accent)', marginTop: '4px' }}>
-                                                    Serial: <strong>{item.serial_numbers?.length > 0 ? item.serial_numbers.join(', ') : 'Selected'}</strong>
-                                                    {item.quantity > 1 && (
-                                                        <span style={{ marginLeft: '6px', color: 'var(--text-muted)' }}>
-                                                            (Qty: {item.quantity})
-                                                        </span>
-                                                    )}
+                                                <div style={{ fontSize: '0.75rem', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                    <span style={{ color: 'var(--text-muted)' }}>Serial:</span>
+                                                    <span style={{
+                                                        fontFamily: 'monospace',
+                                                        fontWeight: 700,
+                                                        fontSize: '0.78rem',
+                                                        background: 'rgba(22, 163, 74, 0.12)',
+                                                        color: 'var(--primary)',
+                                                        padding: '2px 6px',
+                                                        borderRadius: '4px',
+                                                        border: '1px solid rgba(22, 163, 74, 0.25)'
+                                                    }}>
+                                                        {item.selected_serial_number || (item.serial_numbers?.length > 0 ? item.serial_numbers.join(', ') : 'Selected')}
+                                                    </span>
                                                 </div>
                                             )}
                                         </div>
 
                                         <button
                                             type="button"
-                                            onClick={() => removeFromCart(item.product_id)}
+                                            onClick={() => removeFromCart(itemKey)}
                                             style={{
                                                 background: 'transparent',
                                                 border: 'none',
@@ -1213,7 +1270,7 @@ const POS = () => {
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                 <button
                                                     type="button"
-                                                    onClick={() => updateQuantity(item.product_id, -1)}
+                                                    onClick={() => updateQuantity(itemKey, -1)}
                                                     className="btn-secondary"
                                                     style={{
                                                         width: '28px',
@@ -1235,7 +1292,7 @@ const POS = () => {
                                                     min="1"
                                                     max={item.maxStock}
                                                     value={item.quantity}
-                                                    onChange={(e) => setQuantityDirect(item.product_id, e.target.value)}
+                                                    onChange={(e) => setQuantityDirect(itemKey, e.target.value)}
                                                     className="input-premium"
                                                     style={{
                                                         width: '42px',
@@ -1249,7 +1306,7 @@ const POS = () => {
                                                 />
                                                 <button
                                                     type="button"
-                                                    onClick={() => updateQuantity(item.product_id, 1)}
+                                                    onClick={() => updateQuantity(itemKey, 1)}
                                                     className="btn-secondary"
                                                     style={{
                                                         width: '28px',
@@ -1279,7 +1336,8 @@ const POS = () => {
                                         </div>
                                     </div>
                                 </div>
-                            ))}
+                            );
+                            })}
                         </div>
                     )}
                 </div>
