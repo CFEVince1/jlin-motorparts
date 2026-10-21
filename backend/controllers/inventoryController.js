@@ -143,6 +143,9 @@ exports.receiveStock = async (req, res, next) => {
             if (!resolvedId || !Number.isInteger(qty) || qty <= 0) {
                 throw new AppValidationError(`Invalid item ID or quantity for receiving line: ${JSON.stringify(item)}`);
             }
+            if (isNaN(costPrice) || costPrice < 0) {
+                throw new AppValidationError(`Invalid unit cost for receiving line: ${JSON.stringify(item)}. Cost cannot be negative.`);
+            }
             totalCost += costPrice * qty;
         }
 

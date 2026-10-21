@@ -110,7 +110,20 @@ export const StockReceiveScreen = () => {
   const updateRow = (index, field, value) => {
     setLineItems(prev => {
       const next = [...prev];
-      next[index] = { ...next[index], [field]: value };
+      let sanitizedValue = value;
+      if (field === 'quantity') {
+        sanitizedValue = String(value).replace(/[^0-9]/g, '');
+        if (sanitizedValue.length > 1 && sanitizedValue.startsWith('0')) {
+          sanitizedValue = sanitizedValue.replace(/^0+/, '');
+        }
+      } else if (field === 'costPrice') {
+        sanitizedValue = String(value).replace(/[^0-9.]/g, '');
+        const parts = sanitizedValue.split('.');
+        if (parts.length > 2) {
+          sanitizedValue = parts[0] + '.' + parts.slice(1).join('');
+        }
+      }
+      next[index] = { ...next[index], [field]: sanitizedValue };
 
       // Auto-populate default cost price when item is selected
       if (field === 'itemId' && value) {
@@ -125,8 +138,8 @@ export const StockReceiveScreen = () => {
 
   const calculateTotalCost = () => {
     return lineItems.reduce((acc, row) => {
-      const qty = Number(row.quantity) || 0;
-      const cost = Number(row.costPrice) || 0;
+      const qty = Math.max(0, parseInt(row.quantity, 10) || 0);
+      const cost = Math.max(0, parseFloat(row.costPrice) || 0);
       return acc + (qty * cost);
     }, 0);
   };
@@ -416,8 +429,8 @@ export const StockReceiveScreen = () => {
                 </thead>
                 <tbody>
                   {lineItems.map((row, index) => {
-                    const qty = Number(row.quantity) || 0;
-                    const cost = Number(row.costPrice) || 0;
+                    const qty = Math.max(0, parseInt(row.quantity, 10) || 0);
+                    const cost = Math.max(0, parseFloat(row.costPrice) || 0);
                     const rowSubtotal = qty * cost;
 
                     return (
@@ -442,10 +455,16 @@ export const StockReceiveScreen = () => {
                           <input
                             type="number"
                             min="1"
+                            step="1"
                             placeholder="Qty"
                             className="input-premium"
                             style={{ textAlign: 'center' }}
                             value={row.quantity}
+                            onKeyDown={(e) => {
+                              if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') {
+                                e.preventDefault();
+                              }
+                            }}
                             onChange={(e) => updateRow(index, 'quantity', e.target.value)}
                             required
                             disabled={submitting}
@@ -460,6 +479,11 @@ export const StockReceiveScreen = () => {
                             className="input-premium"
                             style={{ textAlign: 'right' }}
                             value={row.costPrice}
+                            onKeyDown={(e) => {
+                              if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') {
+                                e.preventDefault();
+                              }
+                            }}
                             onChange={(e) => updateRow(index, 'costPrice', e.target.value)}
                             required
                             disabled={submitting}
