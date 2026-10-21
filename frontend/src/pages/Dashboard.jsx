@@ -1,6 +1,6 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useCallback, useContext } from 'react';
 import api from '../services/api';
-import { TrendingUp, AlertTriangle, DollarSign, ShoppingCart, Award, ChevronLeft, ChevronRight } from 'lucide-react';
+import { TrendingUp, AlertTriangle, DollarSign, ShoppingCart, Award, Users, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { AuthContext } from '../context/AuthContextValue';
 import { formatCurrency } from '../utils/formatters';
 import BestSellersBar from '../components/BestSellersBar';
@@ -11,8 +11,11 @@ const Dashboard = () => {
         dailySales: { total_revenue: 0, total_transactions: 0 },
         lowStock: [],
         adminStats: null,
-        bestSelling: []
+        bestSelling: [],
+        staffToday: []
     });
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [lastUpdated, setLastUpdated] = useState(null);
 
     const [lowStockPage, setLowStockPage] = useState(1);
     const lowStockPerPage = 5;
@@ -22,55 +25,103 @@ const Dashboard = () => {
     const currentLowStockItems = stats.lowStock.slice(indexOfFirstLowStock, indexOfLastLowStock);
     const totalLowStockPages = Math.ceil(stats.lowStock.length / lowStockPerPage);
 
+    const fetchDashboardData = useCallback(async (isSilent = false) => {
+        if (!isSilent) setIsRefreshing(true);
+        try {
+            const t = Date.now();
+            // Common API calls with cache-busting timestamp
+            const promises = [
+                api.get(`/reports/daily?_t=${t}`).catch(() => ({ data: { total_revenue: 0, total_transactions: 0 } })),
+                api.get(`/reports/low-stock?_t=${t}`).catch(() => ({ data: [] })),
+                api.get(`/reports/best-selling?_t=${t}`).catch(() => ({ data: [] }))
+            ];
+
+            // Admin-only API calls (admin stats and staff performance breakdown)
+            if (user?.role === 'admin') {
+                promises.push(api.get(`/reports/admin-stats?_t=${t}`).catch(() => ({ data: { total_sales: 0, total_transactions: 0, total_profit: 0 } })));
+                promises.push(api.get(`/reports/staff-today?_t=${t}`).catch(() => ({ data: [] })));
+            }
+
+            const results = await Promise.all(promises);
+
+            const newStats = {
+                dailySales: results[0].data || { total_revenue: 0, total_transactions: 0 },
+                lowStock: results[1].data || [],
+                bestSelling: results[2].data || [],
+                adminStats: user?.role === 'admin' ? results[3]?.data : null,
+                staffToday: user?.role === 'admin' ? (results[4]?.data || []) : []
+            };
+
+            setStats(newStats);
+            setLastUpdated(new Date());
+        } catch (err) {
+            console.error('Failed to load dashboard data', err);
+        } finally {
+            if (!isSilent) setIsRefreshing(false);
+        }
+    }, [user?.role]);
+
     useEffect(() => {
-        const fetchDashboardData = async () => {
-            try {
-                // Common API calls
-                const promises = [
-                    api.get('/reports/daily').catch(() => ({ data: { total_revenue: 0, total_transactions: 0 } })),
-                    api.get('/reports/low-stock').catch(() => ({ data: [] })),
-                    api.get('/reports/best-selling').catch(() => ({ data: [] }))
-                ];
+        fetchDashboardData(false);
 
-                // Admin-only API calls
-                if (user?.role === 'admin') {
-                    promises.push(api.get('/reports/admin-stats').catch(() => ({ data: { total_sales: 0, total_transactions: 0, total_profit: 0 } })));
-                }
+        // Auto-refresh every 6 seconds so staff transactions immediately reflect on Admin Dashboard without restarting
+        const pollInterval = setInterval(() => {
+            fetchDashboardData(true);
+        }, 6000);
 
-                const results = await Promise.all(promises);
-
-                const newStats = {
-                    dailySales: results[0].data,
-                    lowStock: results[1].data,
-                    bestSelling: results[2].data || [],
-                    adminStats: user?.role === 'admin' ? results[3]?.data : null
-                };
-
-                setStats(newStats);
-            } catch (err) {
-                console.error('Failed to load dashboard data', err);
+        // Immediate background re-fetch whenever the user refocuses the browser window/tab
+        const handleFocus = () => fetchDashboardData(true);
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                fetchDashboardData(true);
             }
         };
-        fetchDashboardData();
-    }, [user]);
+
+        window.addEventListener('focus', handleFocus);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            clearInterval(pollInterval);
+            window.removeEventListener('focus', handleFocus);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [fetchDashboardData]);
 
     return (
         <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
                     <h1 style={{ margin: 0 }}>{user?.role === 'admin' ? 'Admin Dashboard' : 'Staff Dashboard'}</h1>
                     <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                         {user?.role === 'admin' 
-                            ? 'Overview of store-wide sales, profit, and inventory health.' 
+                            ? 'Overview of store-wide sales, live staff transactions, and inventory health.' 
                             : `Welcome back, ${user?.username || 'Staff'}. Review your shift sales and top-selling items.`}
                     </p>
+                </div>
+
+                {/* Real-time live sync indicator and manual Refresh button */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                        <span className="live-pulse-dot" />
+                        <span>Live Sync {lastUpdated ? `• ${lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : ''}</span>
+                    </div>
+                    <button 
+                        onClick={() => fetchDashboardData(false)}
+                        className="btn-secondary"
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', fontSize: '0.85rem' }}
+                        disabled={isRefreshing}
+                        title="Force refresh live dashboard data"
+                    >
+                        <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+                        <span>Refresh</span>
+                    </button>
                 </div>
             </div>
 
             {/* Metric Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: user?.role === 'admin' ? 'repeat(auto-fit, minmax(200px, 1fr))' : 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px', marginBottom: '24px' }}>
 
-                {/* Today's Sales: Staff sees their own today sales; Admin sees all staff today sales */}
+                {/* Today's Sales: Staff sees their own today sales; Admin sees all staff today sales combined */}
                 <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ background: 'rgba(5, 150, 105, 0.15)', padding: '12px', borderRadius: '10px', color: 'var(--primary)' }}>
                         <TrendingUp size={24} />
@@ -88,7 +139,7 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                {/* Today's Transactions: Staff sees their own today count; Admin sees all staff today count */}
+                {/* Today's Transactions: Staff sees their own today count; Admin sees all staff today count combined */}
                 <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ background: 'rgba(10, 132, 255, 0.15)', padding: '12px', borderRadius: '10px', color: 'var(--accent)' }}>
                         <ShoppingCart size={24} />
@@ -159,6 +210,57 @@ const Dashboard = () => {
                     </>
                 )}
             </div>
+
+            {/* Admin View: Staff Today's Sales & Transactions Live Breakdown */}
+            {user?.role === 'admin' && (
+                <div className="glass-panel" style={{ padding: '20px 24px', marginBottom: '24px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                        <div>
+                            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.05rem' }}>
+                                <Users size={20} style={{ color: 'var(--primary)' }} /> Staff Today's Sales & Transactions
+                            </h3>
+                            <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '4px' }}>
+                                Live real-time breakdown of all staff shift totals and cashier transactions for today.
+                            </div>
+                        </div>
+                    </div>
+
+                    {stats.staffToday && stats.staffToday.length > 0 ? (
+                        <div className="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Staff / Cashier</th>
+                                        <th>Role</th>
+                                        <th style={{ textAlign: 'center' }}>Today Transactions</th>
+                                        <th style={{ textAlign: 'right' }}>Today Sales</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {stats.staffToday.map((st) => (
+                                        <tr key={st.id}>
+                                            <td style={{ fontWeight: 600 }}>{st.username}</td>
+                                            <td>
+                                                <span className={`badge-pill ${st.role === 'admin' ? 'badge-admin' : 'badge-staff'}`} style={{ textTransform: 'capitalize' }}>
+                                                    {st.role}
+                                                </span>
+                                            </td>
+                                            <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                                                {st.today_transactions} {st.today_transactions === 1 ? 'sale' : 'sales'}
+                                            </td>
+                                            <td style={{ textAlign: 'right', color: 'var(--primary)', fontWeight: 'bold' }}>
+                                                {formatCurrency(st.today_sales)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <p style={{ color: 'var(--text-muted)', margin: '12px 0 0 0' }}>No staff sales recorded today yet.</p>
+                    )}
+                </div>
+            )}
 
             {/* Staff View: Staff Quick Guide - Top Selling Items Widget (Strictly on Staff Dashboard) */}
             {user?.role !== 'admin' && (

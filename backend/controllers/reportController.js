@@ -1,5 +1,13 @@
 const db = require('../config/db');
 
+// Disable HTTP caching on reports to guarantee real-time synchronization between Admin and Staff
+const setNoCacheHeaders = (res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+};
+
 // Helpers to format dates strictly in Philippine Standard Time (PST / UTC+8)
 const getPhilippineDate = () => {
     return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
@@ -142,6 +150,7 @@ const combineWhere = (...groups) => {
 
 exports.getDailySales = async (req, res) => {
     try {
+        setNoCacheHeaders(res);
         const chosenDate = (req.query.date || req.query.startDate || '').trim();
         const chosenEndDate = (req.query.endDate || '').trim();
         const todayPHT = getPhilippineDate();
@@ -162,7 +171,7 @@ exports.getDailySales = async (req, res) => {
         } else {
             selectDate = '? as date';
             params.push(todayPHT);
-            dateCondition = "(DATE(CONVERT_TZ(s.sale_date, '+00:00', '+08:00')) = ? OR DATE(s.sale_date) = ?)";
+            dateCondition = "(DATE(CONVERT_TZ(s.sale_date, '+00:00', '+08:00')) = ? OR DATE(s.sale_date) = ? OR DATE(s.sale_date) = CURDATE())";
             params.push(todayPHT, todayPHT);
         }
 
@@ -197,6 +206,7 @@ exports.getDailySales = async (req, res) => {
 
 exports.getStaffTodaySales = async (req, res) => {
     try {
+        setNoCacheHeaders(res);
         const todayPHT = getPhilippineDate();
         const [staffStats] = await db.query(`
             SELECT 
@@ -207,7 +217,7 @@ exports.getStaffTodaySales = async (req, res) => {
                 COALESCE(SUM(s.total_amount), 0) as today_sales
             FROM users u
             LEFT JOIN sales s ON s.user_id = u.id 
-                AND (DATE(CONVERT_TZ(s.sale_date, '+00:00', '+08:00')) = ? OR DATE(s.sale_date) = ?)
+                AND (DATE(CONVERT_TZ(s.sale_date, '+00:00', '+08:00')) = ? OR DATE(s.sale_date) = ? OR DATE(s.sale_date) = CURDATE())
                 AND (s.status IS NULL OR s.status != 'voided')
                 AND s.voided_at IS NULL
             GROUP BY u.id, u.username, u.role
@@ -229,6 +239,7 @@ exports.getStaffTodaySales = async (req, res) => {
 
 exports.getMonthlySales = async (req, res) => {
     try {
+        setNoCacheHeaders(res);
         const rawMonth = (req.query.month || '').trim();
         const rawYear = (req.query.year || '').trim();
         const rawDate = (req.query.date || req.query.startDate || '').trim();
@@ -303,6 +314,7 @@ exports.getMonthlySales = async (req, res) => {
 
 exports.getLowStock = async (req, res) => {
     try {
+        setNoCacheHeaders(res);
         const { category, brand, partNumber, motorcycleUnitId, motorcycleModel } = req.query;
         const filters = [];
         const params = [];
@@ -377,6 +389,7 @@ exports.getLowStock = async (req, res) => {
 
 exports.getBestSelling = async (req, res) => {
     try {
+        setNoCacheHeaders(res);
         const dateFilters = buildDateAndUserFilters(req);
         const productFilters = buildProductFilters(req.query);
         const { sql, params } = combineWhere(dateFilters, productFilters);
@@ -420,6 +433,7 @@ exports.getBestSelling = async (req, res) => {
 
 exports.getSalesByMotorcycle = async (req, res) => {
     try {
+        setNoCacheHeaders(res);
         const dateFilters = buildDateAndUserFilters(req);
         const productFilters = buildProductFilters(req.query);
         const { sql, params } = combineWhere(dateFilters, productFilters);
@@ -456,6 +470,7 @@ exports.getSalesByMotorcycle = async (req, res) => {
 
 exports.getCategories = async (req, res) => {
     try {
+        setNoCacheHeaders(res);
         const [categories] = await db.query('SELECT DISTINCT category FROM products WHERE is_active = true');
         res.json(categories.map(c => c.category).filter(Boolean));
     } catch (err) {
@@ -466,6 +481,7 @@ exports.getCategories = async (req, res) => {
 
 exports.getBrands = async (req, res) => {
     try {
+        setNoCacheHeaders(res);
         const [brands] = await db.query('SELECT DISTINCT brand FROM products WHERE is_active = true ORDER BY brand');
         res.json(brands.map(b => b.brand).filter(Boolean));
     } catch (err) {
@@ -476,13 +492,14 @@ exports.getBrands = async (req, res) => {
 
 exports.getSalesByCashier = async (req, res) => {
     try {
+        setNoCacheHeaders(res);
         const { where, params } = buildDateAndUserFilters(req, 's');
         const dateFilter = where.length ? `WHERE ${where.join(' AND ')}` : '';
         const [sales] = await db.query(`
             SELECT u.username as cashier, COUNT(s.id) as total_transactions, COALESCE(SUM(s.total_amount), 0) as total_revenue
             FROM sales s
             JOIN users u ON s.user_id = u.id
-            ${dateFilter ? dateFilter + " AND LOWER(u.username) NOT LIKE '%test%'" : "WHERE LOWER(u.username) NOT LIKE '%test%'"}
+            ${dateFilter}
             GROUP BY u.id, u.username
             ORDER BY total_revenue DESC
         `, params);
@@ -495,9 +512,14 @@ exports.getSalesByCashier = async (req, res) => {
 
 exports.getAdminStats = async (req, res) => {
     try {
+        setNoCacheHeaders(res);
         const dateFilters = buildDateAndUserFilters(req);
         const productFilters = buildProductFilters(req.query);
         const { sql, params } = combineWhere(dateFilters, productFilters);
+
+        // Exclude voided transactions
+        const voidFilter = "(s.status IS NULL OR s.status != 'voided') AND s.voided_at IS NULL";
+        const finalSql = sql ? `${sql} AND ${voidFilter}` : `WHERE ${voidFilter}`;
 
         // Total Sales & Transactions (All Time)
         const [statsData] = await db.query(`
@@ -508,7 +530,7 @@ exports.getAdminStats = async (req, res) => {
             FROM sale_items si
             JOIN sales s ON s.id = si.sale_id
             LEFT JOIN products p ON si.product_id = p.id
-            ${sql}
+            ${finalSql}
         `, params);
 
         res.json({
@@ -529,6 +551,7 @@ exports.getAdminStats = async (req, res) => {
  */
 exports.getAdjustmentsReport = async (req, res, next) => {
     try {
+        setNoCacheHeaders(res);
         const { from, to, startDate, endDate, type, transaction_type, movementType } = req.query;
         const fromDate = from || startDate;
         const toDate = to || endDate;
