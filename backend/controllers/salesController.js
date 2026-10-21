@@ -430,6 +430,15 @@ exports.getSales = async (req, res, next) => {
             whereParams.push(req.query.endDate);
         }
 
+        if (req.query.status && req.query.status !== 'ALL') {
+            if (req.query.status === 'REFUNDED') {
+                whereClauses.push("s.status IN ('REFUNDED', 'PARTIALLY_REFUNDED')");
+            } else {
+                whereClauses.push("s.status = ?");
+                whereParams.push(req.query.status);
+            }
+        }
+
         if (req.query.search && req.query.search.trim()) {
             const rawSearch = req.query.search.trim();
             const searchPattern = `%${rawSearch}%`;
@@ -506,6 +515,9 @@ exports.getSales = async (req, res, next) => {
             SELECT s.id, COALESCE(s.order_number, CONCAT('SO-', s.id)) AS order_number,
                    s.total_amount, s.tendered_amount, s.change_due, s.payment_method,
                    s.payment_reference, s.cash_amount, s.gcash_amount, COALESCE(s.status, 'COMPLETED') AS status, s.sale_date, u.username as cashier,
+                   COALESCE(s.refund_amount, 0.00) AS refund_amount,
+                   (SELECT COUNT(*) FROM sale_returns sr WHERE sr.sale_id = s.id) AS return_count,
+                   (SELECT GROUP_CONCAT(DISTINCT sri.disposition SEPARATOR ', ') FROM sale_return_items sri JOIN sale_returns sr2 ON sr2.id = sri.sale_return_id WHERE sr2.sale_id = s.id) AS return_dispositions,
                    GROUP_CONCAT(DISTINCT si.product_name ORDER BY si.product_name SEPARATOR ', ') as products_included,
                    GROUP_CONCAT(DISTINCT COALESCE(NULLIF(si.part_number, ''), p.part_number, p.sku) ORDER BY si.part_number SEPARATOR ', ') as part_numbers,
                    GROUP_CONCAT(DISTINCT COALESCE(NULLIF(si.part_number, ''), p.part_number, p.sku) ORDER BY si.part_number SEPARATOR ', ') as part_number,
@@ -513,7 +525,7 @@ exports.getSales = async (req, res, next) => {
                    GROUP_CONCAT(DISTINCT si.size ORDER BY si.size SEPARATOR ', ') as sizes
             FROM (
                 SELECT s.id, s.user_id, s.order_number, s.total_amount, s.tendered_amount,
-                       s.change_due, s.payment_method, s.payment_reference, s.cash_amount, s.gcash_amount, s.status, s.sale_date
+                       s.change_due, s.payment_method, s.payment_reference, s.cash_amount, s.gcash_amount, s.status, COALESCE(s.refund_amount, 0.00) as refund_amount, s.sale_date
                 FROM sales s
                 ${whereSQL}
                 ORDER BY s.sale_date DESC, s.id DESC
@@ -522,7 +534,7 @@ exports.getSales = async (req, res, next) => {
             JOIN users u ON s.user_id = u.id
             LEFT JOIN sale_items si ON s.id = si.sale_id
             LEFT JOIN products p ON p.id = si.product_id
-            GROUP BY s.id, s.order_number, s.total_amount, s.tendered_amount, s.change_due, s.payment_method, s.payment_reference, s.status, s.sale_date, u.username
+            GROUP BY s.id, s.order_number, s.total_amount, s.tendered_amount, s.change_due, s.payment_method, s.payment_reference, s.status, s.refund_amount, s.sale_date, u.username
             ORDER BY s.sale_date DESC, s.id DESC
         `;
 
@@ -576,7 +588,12 @@ exports.getSaleById = async (req, res, next) => {
 
         const [items] = await db.query(`
             SELECT
+                si.id,
+                si.id AS sale_item_id,
+                si.product_id,
                 si.quantity,
+                COALESCE(si.returned_quantity, 0) AS returned_quantity,
+                GREATEST(0, si.quantity - COALESCE(si.returned_quantity, 0)) AS available_to_return,
                 si.price,
                 si.subtotal,
                 si.part_number,
@@ -586,14 +603,20 @@ exports.getSaleById = async (req, res, next) => {
                 COALESCE(
                     GROUP_CONCAT(DISTINCT ps.serial_number ORDER BY ps.serial_number SEPARATOR ', '),
                     ''
-                ) AS serial_numbers
+                ) AS serial_numbers,
+                COALESCE(
+                    GROUP_CONCAT(DISTINCT ps.id ORDER BY ps.id SEPARATOR ','),
+                    ''
+                ) AS serial_ids
             FROM sale_items si
             LEFT JOIN sale_item_serials sis ON sis.sale_item_id = si.id
             LEFT JOIN product_serials ps ON ps.id = sis.serial_id
             WHERE si.sale_id = ?
             GROUP BY
                 si.id,
+                si.product_id,
                 si.quantity,
+                si.returned_quantity,
                 si.price,
                 si.subtotal,
                 si.part_number,
@@ -602,7 +625,26 @@ exports.getSaleById = async (req, res, next) => {
                 si.size
         `, [id]);
 
-        res.json({ ...saleRows[0], items });
+        // Fetch any existing return records for this sale
+        const [returns] = await db.query(`
+            SELECT sr.id, sr.return_number, sr.total_refund_amount, sr.refund_payment_method, sr.reason, sr.created_at, u.username as cashier
+            FROM sale_returns sr
+            JOIN users u ON sr.user_id = u.id
+            WHERE sr.sale_id = ?
+            ORDER BY sr.created_at DESC
+        `, [id]);
+
+        for (const ret of returns) {
+            const [retItems] = await db.query(`
+                SELECT sri.*, p.name as product_name, p.part_number, p.brand, p.size
+                FROM sale_return_items sri
+                JOIN products p ON sri.product_id = p.id
+                WHERE sri.sale_return_id = ?
+            `, [ret.id]);
+            ret.items = retItems;
+        }
+
+        res.json({ ...saleRows[0], items, returns });
     } catch (err) {
         next(err);
     }
@@ -808,6 +850,420 @@ exports.voidAndReopen = async (req, res, next) => {
         next(err);
     } finally {
         connection.release();
+    }
+};
+
+// ==========================================
+// PROCESS SALE RETURN & REFUND
+// POST /api/sales/:id/refund
+// ==========================================
+exports.processSaleRefund = async (req, res, next) => {
+    const saleId = Number(req.params.id);
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+    const { items, refundPaymentMethod, reason } = req.body;
+
+    if (!saleId || !Number.isInteger(saleId) || saleId <= 0) {
+        return res.status(400).json({ message: 'Valid sale ID is required' });
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ message: 'At least one item must be selected for return/refund' });
+    }
+
+    const ALLOWED_DISPOSITIONS = ['DAMAGE', 'LOSS', 'FOUND', 'RETURN_TO_SUPPLIER'];
+
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 1. Lock sale row
+        const [sales] = await connection.query(
+            'SELECT * FROM sales WHERE id = ? FOR UPDATE',
+            [saleId]
+        );
+
+        if (sales.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ message: 'Sale record not found' });
+        }
+
+        const sale = sales[0];
+
+        // Authorization check: Cashier who created sale or any Admin
+        if (userRole !== 'admin' && sale.user_id !== userId) {
+            await connection.rollback();
+            return res.status(403).json({
+                message: 'Unauthorized: Only the cashier who made this sale or an administrator can process a return/refund'
+            });
+        }
+
+        if (sale.status === 'VOIDED') {
+            await connection.rollback();
+            return res.status(422).json({ message: 'Cannot process a return/refund on a VOIDED transaction' });
+        }
+
+        // 2. Lock sale items
+        const [saleItems] = await connection.query(
+            'SELECT * FROM sale_items WHERE sale_id = ? FOR UPDATE',
+            [saleId]
+        );
+        const saleItemsMap = new Map(saleItems.map(si => [si.id, si]));
+
+        let totalRefundAmount = 0;
+        const validatedItems = [];
+
+        for (const it of items) {
+            const saleItemId = Number(it.sale_item_id || it.id);
+            const originalItem = saleItemsMap.get(saleItemId);
+
+            if (!originalItem) {
+                await connection.rollback();
+                return res.status(422).json({ message: `Item ID ${saleItemId} does not belong to sale #${saleId}` });
+            }
+
+            const returnQty = parseInt(it.quantity, 10);
+            if (!Number.isInteger(returnQty) || returnQty <= 0) {
+                await connection.rollback();
+                return res.status(422).json({ message: `Invalid return quantity for item "${originalItem.product_name}"` });
+            }
+
+            const alreadyReturned = Number(originalItem.returned_quantity || 0);
+            const maxReturnable = originalItem.quantity - alreadyReturned;
+
+            if (returnQty > maxReturnable) {
+                await connection.rollback();
+                return res.status(422).json({
+                    message: `Requested return quantity (${returnQty}) exceeds available returnable quantity (${maxReturnable}) for "${originalItem.product_name}"`
+                });
+            }
+
+            const rawDisp = (it.disposition || 'FOUND').trim().toUpperCase();
+            if (!ALLOWED_DISPOSITIONS.includes(rawDisp)) {
+                await connection.rollback();
+                return res.status(422).json({
+                    message: `Invalid return disposition "${rawDisp}". Must be one of: ${ALLOWED_DISPOSITIONS.join(', ')}`
+                });
+            }
+
+            const unitRefundPrice = it.refund_price !== undefined ? Number(it.refund_price) : Number(originalItem.price);
+            const subtotalRefund = unitRefundPrice * returnQty;
+            totalRefundAmount += subtotalRefund;
+
+            validatedItems.push({
+                saleItemId,
+                productId: originalItem.product_id,
+                productName: originalItem.product_name,
+                partNumber: originalItem.part_number,
+                brand: originalItem.brand,
+                size: originalItem.size,
+                quantity: returnQty,
+                unitRefundPrice,
+                subtotalRefund,
+                costPrice: Number(originalItem.cost_price || 0),
+                disposition: rawDisp,
+                notes: it.notes || '',
+                serialIds: Array.isArray(it.serial_ids) ? it.serial_ids : []
+            });
+        }
+
+        // 3. Generate unique return reference number
+        const [returnCountRows] = await connection.query(
+            'SELECT COUNT(*) as count FROM sale_returns WHERE sale_id = ?',
+            [saleId]
+        );
+        const retIndex = (returnCountRows[0]?.count || 0) + 1;
+        const returnNumber = `RET-${sale.order_number || ('SO-' + sale.id)}-${String(retIndex).padStart(2, '0')}`;
+
+        // 4. Insert into sale_returns
+        const [retResult] = await connection.query(
+            `INSERT INTO sale_returns (sale_id, return_number, user_id, total_refund_amount, refund_payment_method, reason, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+            [
+                saleId,
+                returnNumber,
+                userId,
+                totalRefundAmount,
+                refundPaymentMethod || sale.payment_method || 'Cash',
+                reason || 'Customer Return/Refund'
+            ]
+        );
+        const saleReturnId = retResult.insertId;
+
+        // 5. Process each item: insert into sale_return_items, update sale_items, and execute inventory ledger movements
+        for (const item of validatedItems) {
+            await connection.query(
+                `INSERT INTO sale_return_items (sale_return_id, sale_item_id, product_id, quantity, refund_price, refund_subtotal, disposition, notes)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    saleReturnId,
+                    item.saleItemId,
+                    item.productId,
+                    item.quantity,
+                    item.unitRefundPrice,
+                    item.subtotalRefund,
+                    item.disposition,
+                    item.notes
+                ]
+            );
+
+            // Update returned_quantity on sale_items
+            await connection.query(
+                'UPDATE sale_items SET returned_quantity = returned_quantity + ? WHERE id = ?',
+                [item.quantity, item.saleItemId]
+            );
+
+            // Inventory Movement execution based on disposition
+            const itemRef = `${returnNumber}-${item.partNumber || item.productId}`;
+            const itemRemarks = `Return/Refund (${item.disposition}) from Order ${sale.order_number || ('SO-' + sale.id)}: ${item.quantity}x ${item.productName}`;
+
+            if (item.disposition === 'FOUND') {
+                // FOUND: Restock to inventory (+ into inventory)
+                await applyMovement(connection, {
+                    itemId: item.productId,
+                    transactionType: 'FOUND',
+                    quantityChange: item.quantity,
+                    referenceNo: itemRef,
+                    referenceType: 'SALE_RETURN',
+                    referenceId: saleReturnId,
+                    unitCost: item.costPrice,
+                    remarks: itemRemarks,
+                    createdBy: userId
+                });
+
+                // If serials returned, mark them back as available
+                if (item.serialIds.length > 0) {
+                    const placeholders = item.serialIds.map(() => '?').join(', ');
+                    await connection.query(
+                        `UPDATE product_serials SET status = 'available' WHERE id IN (${placeholders})`,
+                        item.serialIds
+                    );
+                }
+            } else if (item.disposition === 'RETURN_TO_SUPPLIER') {
+                // RETURN_TO_SUPPLIER: (- into inventory / return to supplier)
+                // First return the unit into store custody from customer:
+                await applyMovement(connection, {
+                    itemId: item.productId,
+                    transactionType: 'RETURN',
+                    quantityChange: item.quantity,
+                    referenceNo: `${itemRef}-IN`,
+                    referenceType: 'SALE_RETURN',
+                    referenceId: saleReturnId,
+                    unitCost: item.costPrice,
+                    remarks: `Customer return received: ${itemRemarks}`,
+                    createdBy: userId
+                });
+                // Then dispatch out to supplier (- inventory):
+                await applyMovement(connection, {
+                    itemId: item.productId,
+                    transactionType: 'RETURN_TO_SUPPLIER',
+                    quantityChange: -item.quantity,
+                    referenceNo: `${itemRef}-OUT`,
+                    referenceType: 'SALE_RETURN',
+                    referenceId: saleReturnId,
+                    unitCost: item.costPrice,
+                    remarks: `Supplier return dispatched: ${itemRemarks}`,
+                    createdBy: userId
+                });
+
+                if (item.serialIds.length > 0) {
+                    const placeholders = item.serialIds.map(() => '?').join(', ');
+                    await connection.query(
+                        `UPDATE product_serials SET status = 'returned_to_supplier' WHERE id IN (${placeholders})`,
+                        item.serialIds
+                    );
+                }
+            } else if (item.disposition === 'DAMAGE') {
+                // DAMAGE: Damaged item, return to supplier / damage (- into inventory / damage)
+                // First return the unit into store custody from customer:
+                await applyMovement(connection, {
+                    itemId: item.productId,
+                    transactionType: 'RETURN',
+                    quantityChange: item.quantity,
+                    referenceNo: `${itemRef}-IN`,
+                    referenceType: 'SALE_RETURN',
+                    referenceId: saleReturnId,
+                    unitCost: item.costPrice,
+                    remarks: `Customer damaged return received: ${itemRemarks}`,
+                    createdBy: userId
+                });
+                // Then write-off as damage (- inventory):
+                await applyMovement(connection, {
+                    itemId: item.productId,
+                    transactionType: 'DAMAGE',
+                    quantityChange: -item.quantity,
+                    referenceNo: `${itemRef}-DMG`,
+                    referenceType: 'SALE_RETURN',
+                    referenceId: saleReturnId,
+                    unitCost: item.costPrice,
+                    remarks: `Damaged item write-off: ${itemRemarks}`,
+                    createdBy: userId
+                });
+
+                if (item.serialIds.length > 0) {
+                    const placeholders = item.serialIds.map(() => '?').join(', ');
+                    await connection.query(
+                        `UPDATE product_serials SET status = 'damaged' WHERE id IN (${placeholders})`,
+                        item.serialIds
+                    );
+                }
+            } else if (item.disposition === 'LOSS') {
+                // LOSS: Unrecovered / Loss write-off (- negative into inventory)
+                await applyMovement(connection, {
+                    itemId: item.productId,
+                    transactionType: 'LOSS',
+                    quantityChange: -item.quantity,
+                    referenceNo: `${itemRef}-LOSS`,
+                    referenceType: 'SALE_RETURN',
+                    referenceId: saleReturnId,
+                    unitCost: item.costPrice,
+                    remarks: `Loss write-off on refund: ${itemRemarks}`,
+                    createdBy: userId
+                });
+
+                if (item.serialIds.length > 0) {
+                    const placeholders = item.serialIds.map(() => '?').join(', ');
+                    await connection.query(
+                        `UPDATE product_serials SET status = 'lost' WHERE id IN (${placeholders})`,
+                        item.serialIds
+                    );
+                }
+            }
+        }
+
+        // 6. Check if all items in this sale are now completely returned
+        const [updatedItems] = await connection.query(
+            'SELECT SUM(quantity) as total_sold, SUM(returned_quantity) as total_returned FROM sale_items WHERE sale_id = ?',
+            [saleId]
+        );
+        const totalSold = Number(updatedItems[0]?.total_sold || 0);
+        const totalReturned = Number(updatedItems[0]?.total_returned || 0);
+
+        const newStatus = (totalReturned >= totalSold && totalSold > 0) ? 'REFUNDED' : 'PARTIALLY_REFUNDED';
+
+        await connection.query(
+            `UPDATE sales 
+             SET status = ?, 
+                 refund_amount = COALESCE(refund_amount, 0) + ?, 
+                 refunded_at = NOW() 
+             WHERE id = ?`,
+            [newStatus, totalRefundAmount, saleId]
+        );
+
+        await connection.commit();
+
+        res.status(200).json({
+            success: true,
+            message: `Return & Refund (${returnNumber}) processed successfully.`,
+            returnNumber,
+            totalRefundAmount,
+            status: newStatus,
+            saleId
+        });
+
+    } catch (err) {
+        await connection.rollback();
+        next(err);
+    } finally {
+        connection.release();
+    }
+};
+
+// ==========================================
+// GET ALL RETURNS & REFUNDS HISTORY
+// GET /api/sales/returns/history
+// ==========================================
+exports.getReturnsHistory = async (req, res, next) => {
+    const userId = req.user?.id;
+    const role = req.user?.role;
+
+    try {
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.max(1, Math.min(500, parseInt(req.query.limit, 10) || 20));
+        const offset = (page - 1) * limit;
+
+        const whereClauses = [];
+        const whereParams = [];
+
+        if (role !== 'admin') {
+            whereClauses.push('sr.user_id = ?');
+            whereParams.push(userId);
+        }
+
+        if (req.query.date) {
+            whereClauses.push('DATE(sr.created_at) = ?');
+            whereParams.push(req.query.date);
+        }
+
+        if (req.query.search && req.query.search.trim()) {
+            const pattern = `%${req.query.search.trim()}%`;
+            whereClauses.push(`(
+                sr.return_number LIKE ?
+                OR s.order_number LIKE ?
+                OR u.username LIKE ?
+                OR sr.reason LIKE ?
+                OR EXISTS (
+                    SELECT 1 FROM sale_return_items sri
+                    JOIN products p ON sri.product_id = p.id
+                    WHERE sri.sale_return_id = sr.id
+                    AND (p.name LIKE ? OR p.part_number LIKE ?)
+                )
+            )`);
+            whereParams.push(pattern, pattern, pattern, pattern, pattern, pattern);
+        }
+
+        const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+        const countQuery = `
+            SELECT COUNT(*) AS total 
+            FROM sale_returns sr
+            JOIN sales s ON sr.sale_id = s.id
+            JOIN users u ON sr.user_id = u.id
+            ${whereSQL}
+        `;
+        const [countRows] = await db.query(countQuery, whereParams);
+        const total = countRows[0]?.total || 0;
+
+        const dataQuery = `
+            SELECT 
+                sr.id,
+                sr.sale_id,
+                sr.return_number,
+                sr.total_refund_amount,
+                sr.refund_payment_method,
+                sr.reason,
+                sr.created_at,
+                s.order_number,
+                s.sale_date,
+                u.username AS cashier,
+                GROUP_CONCAT(DISTINCT CONCAT(sri.quantity, 'x ', p.name) SEPARATOR ', ') AS products_returned,
+                GROUP_CONCAT(DISTINCT p.part_number SEPARATOR ', ') AS part_numbers,
+                GROUP_CONCAT(DISTINCT sri.disposition SEPARATOR ', ') AS dispositions
+            FROM sale_returns sr
+            JOIN sales s ON sr.sale_id = s.id
+            JOIN users u ON sr.user_id = u.id
+            LEFT JOIN sale_return_items sri ON sri.sale_return_id = sr.id
+            LEFT JOIN products p ON sri.product_id = p.id
+            ${whereSQL}
+            GROUP BY sr.id, sr.sale_id, sr.return_number, sr.total_refund_amount, sr.refund_payment_method, sr.reason, sr.created_at, s.order_number, s.sale_date, u.username
+            ORDER BY sr.created_at DESC, sr.id DESC
+            LIMIT ? OFFSET ?
+        `;
+
+        const [returns] = await db.query(dataQuery, [...whereParams, limit, offset]);
+
+        res.json({
+            success: true,
+            data: returns,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
+        });
+    } catch (err) {
+        next(err);
     }
 };
 

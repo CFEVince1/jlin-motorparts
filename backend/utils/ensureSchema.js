@@ -19,11 +19,11 @@ async function ensureSchema() {
       console.log('[Schema] Added email_verified_at column to users table.');
     }
 
-    // 1b. Check sales table for split payment and void columns
+    // 1b. Check sales table for split payment, void, and refund columns
     const [salesCols] = await db.query(
       `SELECT COLUMN_NAME, DATA_TYPE FROM information_schema.COLUMNS
        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sales'
-         AND COLUMN_NAME IN ('cash_amount', 'gcash_amount', 'payment_method', 'status', 'voided_at', 'void_reason')`
+         AND COLUMN_NAME IN ('cash_amount', 'gcash_amount', 'payment_method', 'status', 'voided_at', 'void_reason', 'refund_amount', 'refunded_at')`
     );
     const salesColNames = salesCols.map((c) => c.COLUMN_NAME);
     const paymentMethodCol = salesCols.find((c) => c.COLUMN_NAME === 'payment_method');
@@ -81,6 +81,76 @@ async function ensureSchema() {
         console.warn('[Schema] Failed to add void_reason to sales:', err.message);
       }
     }
+
+    if (!salesColNames.includes('refund_amount')) {
+      try {
+        await db.query('ALTER TABLE sales ADD COLUMN refund_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00');
+        console.log('[Schema] Added refund_amount column to sales table.');
+      } catch (err) {
+        console.warn('[Schema] Failed to add refund_amount to sales:', err.message);
+      }
+    }
+
+    if (!salesColNames.includes('refunded_at')) {
+      try {
+        await db.query('ALTER TABLE sales ADD COLUMN refunded_at DATETIME NULL');
+        console.log('[Schema] Added refunded_at column to sales table.');
+      } catch (err) {
+        console.warn('[Schema] Failed to add refunded_at to sales:', err.message);
+      }
+    }
+
+    // 1c. Check sale_items for returned_quantity
+    const [saleItemCols] = await db.query(
+      `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sale_items'
+         AND COLUMN_NAME = 'returned_quantity'`
+    );
+    if (saleItemCols.length === 0) {
+      try {
+        await db.query('ALTER TABLE sale_items ADD COLUMN returned_quantity INT NOT NULL DEFAULT 0');
+        console.log('[Schema] Added returned_quantity column to sale_items table.');
+      } catch (err) {
+        console.warn('[Schema] Failed to add returned_quantity to sale_items:', err.message);
+      }
+    }
+
+    // 1d. Ensure sale_returns and sale_return_items tables
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS sale_returns (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        sale_id INT NOT NULL,
+        return_number VARCHAR(100) UNIQUE NOT NULL,
+        user_id INT NOT NULL,
+        total_refund_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        refund_payment_method VARCHAR(50) NOT NULL DEFAULT 'Cash',
+        reason TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_sr_sale (sale_id),
+        INDEX idx_sr_user (user_id),
+        FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )
+    `);
+
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS sale_return_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        sale_return_id INT NOT NULL,
+        sale_item_id INT NOT NULL,
+        product_id INT NOT NULL,
+        quantity INT NOT NULL,
+        refund_price DECIMAL(10,2) NOT NULL,
+        refund_subtotal DECIMAL(10,2) NOT NULL,
+        disposition VARCHAR(50) NOT NULL,
+        notes TEXT NULL,
+        INDEX idx_sri_return (sale_return_id),
+        INDEX idx_sri_product (product_id),
+        FOREIGN KEY (sale_return_id) REFERENCES sale_returns(id) ON DELETE CASCADE,
+        FOREIGN KEY (sale_item_id) REFERENCES sale_items(id) ON DELETE CASCADE,
+        FOREIGN KEY (product_id) REFERENCES products(id)
+      )
+    `);
 
     // 2. Ensure password_otps table
     await db.query(`

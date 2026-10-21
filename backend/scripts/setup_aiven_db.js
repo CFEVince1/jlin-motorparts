@@ -227,6 +227,43 @@ async function setupDatabase() {
             ) ENGINE=InnoDB;
         `);
 
+        // 8d. Sale Returns & Return Items
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS sale_returns (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                sale_id INT NOT NULL,
+                return_number VARCHAR(100) UNIQUE NOT NULL,
+                user_id INT NOT NULL,
+                total_refund_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                refund_payment_method VARCHAR(50) NOT NULL DEFAULT 'Cash',
+                reason TEXT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_sr_sale (sale_id),
+                INDEX idx_sr_user (user_id),
+                FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            ) ENGINE=InnoDB;
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS sale_return_items (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                sale_return_id INT NOT NULL,
+                sale_item_id INT NOT NULL,
+                product_id INT NOT NULL,
+                quantity INT NOT NULL,
+                refund_price DECIMAL(10,2) NOT NULL,
+                refund_subtotal DECIMAL(10,2) NOT NULL,
+                disposition VARCHAR(50) NOT NULL,
+                notes TEXT NULL,
+                INDEX idx_sri_return (sale_return_id),
+                INDEX idx_sri_product (product_id),
+                FOREIGN KEY (sale_return_id) REFERENCES sale_returns(id) ON DELETE CASCADE,
+                FOREIGN KEY (sale_item_id) REFERENCES sale_items(id) ON DELETE CASCADE,
+                FOREIGN KEY (product_id) REFERENCES products(id)
+            ) ENGINE=InnoDB;
+        `);
+
         // 9. Inventory Transactions (Append-Only Ledger)
         await db.query(`
             CREATE TABLE IF NOT EXISTS inventory_transactions (
