@@ -597,6 +597,21 @@ const POS = () => {
         }
     };
 
+    const handleTableAddQuantity = (product) => {
+        addToCart(product);
+    };
+
+    const handleTableReduceQuantity = (product) => {
+        const existing = cart.find(item => item.product_id === product.id);
+        if (!existing) return;
+        if (existing.quantity <= 1) {
+            removeFromCart(product.id);
+            toast.success(`Removed ${product.product_name || product.name} from order`);
+        } else {
+            updateQuantity(product.id, -1);
+        }
+    };
+
     return (
         <div className="main-layout" style={{ display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', height: '100%', gap: '16px', position: 'relative' }}>
 
@@ -710,7 +725,7 @@ const POS = () => {
                             <tr>
                                 <th style={{ width: '130px', whiteSpace: 'nowrap' }}>Part Number</th>
                                 <th>Product Name</th>
-                                <th style={{ width: '120px', whiteSpace: 'nowrap' }}>Serial</th>
+                                <th style={{ minWidth: '230px', whiteSpace: 'nowrap' }}>Serial</th>
                                 <th style={{ width: '90px', whiteSpace: 'nowrap' }}>Brand</th>
                                 <th style={{ width: '80px', whiteSpace: 'nowrap' }}>Size</th>
                                 <th style={{ width: '70px', textAlign: 'right', whiteSpace: 'nowrap' }}>Stock</th>
@@ -740,51 +755,111 @@ const POS = () => {
                                         )}
                                     </td>
                                     <td style={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
-                                        {p.is_serialized ? (
-                                            (p.serials && p.serials.length > 0) ? (
-                                                <select
-                                                    className="input-premium"
-                                                    value={selectedTableSerials[p.id] || p.serials[0].id}
-                                                    onChange={(e) => {
-                                                        const chosenId = Number(e.target.value);
-                                                        setSelectedTableSerials(prev => ({ ...prev, [p.id]: chosenId }));
-                                                    }}
-                                                    style={{
-                                                        fontFamily: 'monospace',
-                                                        fontSize: '0.78rem',
-                                                        padding: '3px 8px',
-                                                        borderRadius: '6px',
-                                                        border: '1px solid var(--border)',
-                                                        background: 'var(--surface)',
-                                                        color: 'var(--text-main)',
-                                                        maxWidth: '155px',
-                                                        cursor: 'pointer'
-                                                    }}
-                                                    title="Select specific serial"
-                                                >
-                                                    {p.serials.map(s => (
-                                                        <option key={s.id} value={s.id}>
-                                                            {s.serial_number}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            ) : (
-                                                <span
-                                                    style={{
-                                                        fontFamily: 'monospace',
-                                                        fontSize: '0.75rem',
-                                                        color: 'var(--accent)',
-                                                        background: 'rgba(10, 132, 255, 0.1)',
-                                                        padding: '2px 6px',
-                                                        borderRadius: '4px',
-                                                        border: '1px solid rgba(10, 132, 255, 0.25)',
-                                                        display: 'inline-block'
-                                                    }}
-                                                >
-                                                    {p.serial_display && p.serial_display !== '-' ? p.serial_display : 'Serialized'}
-                                                </span>
-                                            )
-                                        ) : (
+                                        {p.is_serialized ? (() => {
+                                            const serialOptions = (p.serials && p.serials.length > 0)
+                                                ? p.serials
+                                                : (p.serial_numbers && p.serial_numbers.length > 0)
+                                                    ? p.serial_numbers.map((sn, idx) => ({ id: idx + 1, serial_number: sn }))
+                                                    : [{ id: 1, serial_number: p.serial_display || 'SN-DEFAULT' }];
+
+                                            const cartItem = cart.find(item => item.product_id === p.id);
+                                            const currentCartQty = cartItem ? cartItem.quantity : 0;
+                                            const selectedId = selectedTableSerials[p.id] || serialOptions[0]?.id;
+
+                                            return (
+                                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                                    <select
+                                                        className="input-premium"
+                                                        value={selectedId}
+                                                        onChange={(e) => {
+                                                            const chosenId = Number(e.target.value);
+                                                            setSelectedTableSerials(prev => ({ ...prev, [p.id]: chosenId }));
+                                                        }}
+                                                        style={{
+                                                            fontFamily: 'monospace',
+                                                            fontSize: '0.78rem',
+                                                            padding: '3px 6px',
+                                                            borderRadius: '6px',
+                                                            border: '1px solid var(--border)',
+                                                            background: 'var(--surface)',
+                                                            color: 'var(--text-main)',
+                                                            maxWidth: '145px',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                        title="Select specific serial number to add or reduce"
+                                                    >
+                                                        {serialOptions.map(s => (
+                                                            <option key={s.id} value={s.id}>
+                                                                {s.serial_number}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+
+                                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'var(--surface-hover)', padding: '2px 4px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleTableReduceQuantity(p);
+                                                            }}
+                                                            disabled={currentCartQty <= 0}
+                                                            className="btn-secondary"
+                                                            style={{
+                                                                width: '22px',
+                                                                height: '22px',
+                                                                padding: 0,
+                                                                borderRadius: '4px',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                cursor: currentCartQty > 0 ? 'pointer' : 'not-allowed',
+                                                                opacity: currentCartQty > 0 ? 1 : 0.4
+                                                            }}
+                                                            title="Reduce quantity of this item"
+                                                        >
+                                                            <Minus size={11} />
+                                                        </button>
+
+                                                        <span style={{
+                                                            minWidth: '18px',
+                                                            textAlign: 'center',
+                                                            fontWeight: 700,
+                                                            fontSize: '0.78rem',
+                                                            color: currentCartQty > 0 ? 'var(--primary)' : 'var(--text-muted)'
+                                                        }}>
+                                                            {currentCartQty}
+                                                        </span>
+
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleTableAddQuantity(p);
+                                                            }}
+                                                            disabled={currentCartQty >= p.stock}
+                                                            className="btn-secondary"
+                                                            style={{
+                                                                width: '22px',
+                                                                height: '22px',
+                                                                padding: 0,
+                                                                borderRadius: '4px',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                cursor: currentCartQty < p.stock ? 'pointer' : 'not-allowed',
+                                                                opacity: currentCartQty < p.stock ? 1 : 0.4,
+                                                                background: 'rgba(22, 163, 74, 0.12)',
+                                                                borderColor: 'rgba(22, 163, 74, 0.3)',
+                                                                color: 'var(--primary)'
+                                                            }}
+                                                            title="Add more quantity with selected serial"
+                                                        >
+                                                            <Plus size={11} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })() : (
                                             <span style={{ color: 'var(--text-muted)' }}>-</span>
                                         )}
                                     </td>
