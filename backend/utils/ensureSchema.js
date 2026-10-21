@@ -245,7 +245,66 @@ async function ensureSchema() {
           `, [groupId]);
         }
       }
-      console.log('[Schema] Seeded default platform groups.');
+            console.log('[Schema] Seeded default platform groups.');
+    }
+
+    // 7. Ensure damaged_stock column on products
+    try {
+      const [dmgCols] = await db.query(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products'
+           AND COLUMN_NAME = 'damaged_stock'`
+      );
+      if (dmgCols.length === 0) {
+        await db.query('ALTER TABLE products ADD COLUMN damaged_stock INT NOT NULL DEFAULT 0 AFTER stock');
+        console.log('[Schema] Added damaged_stock column to products table.');
+      }
+    } catch (err) {
+      console.warn('[Schema] Failed to check/add damaged_stock to products:', err.message);
+    }
+
+    // 8. Ensure return_refund_history table
+    try {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS return_refund_history (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            reference_no VARCHAR(50) NOT NULL,
+            order_id INT NULL,
+            sale_return_id INT NULL,
+            product_id INT NOT NULL,
+            product_name VARCHAR(255) NOT NULL,
+            part_number VARCHAR(100) NULL,
+            movement_type ENUM(
+                'CUSTOMER_RETURN_GOOD',
+                'CUSTOMER_RETURN_DAMAGE',
+                'SHELF_TO_DAMAGE',
+                'DAMAGE_TO_SUPPLIER',
+                'LOSS_INVENTORY',
+                'FOUND_INVENTORY',
+                'INVENTORY_TO_SUPPLIER'
+            ) NOT NULL,
+            flow_path VARCHAR(100) NOT NULL,
+            qty INT NOT NULL,
+            target_bucket ENUM('INVENTORY', 'DAMAGE', 'BOTH') NOT NULL,
+            effect_badge VARCHAR(30) NOT NULL,
+            inv_before INT NOT NULL,
+            inv_after INT NOT NULL,
+            damage_before INT NOT NULL,
+            damage_after INT NOT NULL,
+            refund_amount DECIMAL(10,2) DEFAULT 0.00,
+            supplier_name VARCHAR(100) NULL,
+            status ENUM('COMPLETED', 'PENDING_SUPPLIER_RETURN', 'RETURNED_TO_SUPPLIER') DEFAULT 'COMPLETED',
+            remarks TEXT,
+            processed_by VARCHAR(50) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_product (product_id),
+            INDEX idx_ref (reference_no),
+            INDEX idx_movement (movement_type)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+      console.log('[Schema] Verified return_refund_history table.');
+    } catch (err) {
+      console.warn('[Schema] Failed to verify return_refund_history table:', err.message);
     }
   } catch (err) {
     console.warn('[Schema] Auto-migration check completed with note:', err.message);

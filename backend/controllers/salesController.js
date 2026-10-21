@@ -1378,11 +1378,19 @@ exports.getReturnRefundAuditHistory = async (req, res, next) => {
             ORDER BY created_at DESC, id DESC
         `, params);
 
-        res.json({
+                res.json({
             success: true,
             data: rows
         });
     } catch (err) {
+        console.error('getReturnRefundAuditHistory error:', err);
+        if (err.code === 'ER_NO_SUCH_TABLE') {
+            try {
+                const ensureSchema = require('../utils/ensureSchema');
+                await ensureSchema();
+            } catch (sErr) {}
+            return res.json({ success: true, data: [] });
+        }
         next(err);
     }
 };
