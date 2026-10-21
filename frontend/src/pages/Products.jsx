@@ -39,6 +39,7 @@ const initialFormState = {
     measurement: '',
     thread_type: '',
     cost_price: '',
+    markup_percentage: '',
     selling_price: '',
     reorder_level: '',
     stock: '',
@@ -62,6 +63,11 @@ const Products = () => {
         setFieldValue,
         resetForm
     } = useForm(initialFormState);
+
+    const topCostNum = parseFloat(formData.cost_price) || 0;
+    const topMarkupNum = parseFloat(formData.markup_percentage) || 0;
+    // Formula: selling price = cost + (cost * percentage / 100)
+    const topSellingPrice = Math.round(topCostNum * (1 + topMarkupNum / 100) * 100) / 100;
 
     const [editingId, setEditingId] = useState(null);
     const [editingProductModal, setEditingProductModal] = useState(null);
@@ -235,8 +241,9 @@ const Products = () => {
                 size: formData.size,
                 measurement: formData.measurement,
                 thread_type: formData.thread_type,
-                cost_price: Number(formData.cost_price),
-                selling_price: Number(formData.selling_price),
+                cost_price: topCostNum,
+                markup_percentage: topMarkupNum,
+                selling_price: topSellingPrice,
                 reorder_level: Number(formData.reorder_level),
                 is_serialized: formData.is_serialized,
                 motorcycle_unit_ids: formData.motorcycle_unit_ids.map(Number),
@@ -275,6 +282,14 @@ const Products = () => {
     };
 
     const handleEdit = (product) => {
+        const c = product.cost_price || '';
+        const p = product.price || product.selling_price || '';
+        let m = product.markup_percentage;
+        if (m === undefined || m === null || m === '') {
+            const cNum = parseFloat(c) || 0;
+            const pNum = parseFloat(p) || 0;
+            m = cNum > 0 && pNum >= cNum ? Math.round(((pNum - cNum) / cNum) * 10000) / 100 : 0;
+        }
         setFormData({
             part_number: product.part_number || '',
             name: product.product_name,
@@ -283,8 +298,9 @@ const Products = () => {
             size: product.size || '',
             measurement: product.measurement || '',
             thread_type: product.thread_type || '',
-            cost_price: product.cost_price || '',
-            selling_price: product.price,
+            cost_price: c,
+            markup_percentage: m,
+            selling_price: p,
             reorder_level: product.reorder_level || '',
             stock: product.stock,
             is_serialized: product.is_serialized === 1,
@@ -334,11 +350,16 @@ const Products = () => {
                             <input type="text" name="thread_type" placeholder="Thread Type" className="input-premium"
                                 value={formData.thread_type} onChange={handleChange} />
 
-                            <input type="number" name="cost_price" placeholder="Cost Price" className="input-premium" required min="0" step="0.01"
-                                value={formData.cost_price} onChange={handleChange} />
+                            <input type="number" name="cost_price" placeholder="Supplier Cost (₱)" className="input-premium" required min="0" step="0.01"
+                                value={formData.cost_price} onChange={handleChange} title="Supplier Cost (₱)" />
 
-                            <input type="number" name="selling_price" placeholder="Selling Price (₱)" className="input-premium" required min="0" step="0.01"
-                                value={formData.selling_price} onChange={handleChange} />
+                            <input type="number" name="markup_percentage" placeholder="Markup % (e.g. 30)" className="input-premium" required min="0" step="0.01"
+                                value={formData.markup_percentage} onChange={handleChange} title="Markup percentage on cost" />
+
+                            <input type="number" name="selling_price" placeholder="Selling Price (₱)" className="input-premium" readOnly disabled
+                                value={topSellingPrice > 0 ? topSellingPrice.toFixed(2) : ''}
+                                style={{ fontWeight: 'bold', color: 'var(--primary)', background: 'var(--surface-hover)', cursor: 'not-allowed' }}
+                                title="Selling Price = Cost + (Cost × Markup %)" />
 
                             <input type="number" name="reorder_level" placeholder="Reorder Level" className="input-premium" required min="0"
                                 value={formData.reorder_level} onChange={handleChange} />
@@ -742,7 +763,9 @@ const Products = () => {
                                     <th>Brand</th>
                                     <th>Size</th>
                                     <th style={{ textAlign: 'right' }}>Stock</th>
-                                    <th style={{ textAlign: 'right' }}>Price</th>
+                                    <th style={{ textAlign: 'right' }}>Cost</th>
+                                    <th style={{ textAlign: 'center' }}>Markup %</th>
+                                    <th style={{ textAlign: 'right' }}>Selling Price</th>
                                     <th>Type</th>
                                     <th>Compatibility</th>
                                     {isAdmin && <th style={{ textAlign: 'center' }}>Actions</th>}
@@ -758,7 +781,15 @@ const Products = () => {
                                         <td style={{ textAlign: 'right', color: p.stock <= p.reorder_level ? 'var(--danger)' : 'var(--success)', fontWeight: 'bold' }}>
                                             {p.stock}
                                         </td>
-                                        <td style={{ textAlign: 'right', color: 'var(--primary)', fontWeight: 'bold' }}>{formatCurrency(p.price)}</td>
+                                        <td style={{ textAlign: 'right', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                            {formatCurrency(p.cost_price || 0)}
+                                        </td>
+                                        <td style={{ textAlign: 'center' }}>
+                                            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#d97706', background: 'rgba(245, 158, 11, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
+                                                +{Number(p.markup_percentage || 0)}%
+                                            </span>
+                                        </td>
+                                        <td style={{ textAlign: 'right', color: 'var(--primary)', fontWeight: 'bold' }}>{formatCurrency(p.price || p.selling_price)}</td>
                                         <td>
                                             <span className={`badge-pill ${p.is_serialized ? 'badge-serialized' : 'badge-non-serialized'}`}>
                                                 {p.is_serialized ? 'Serialized' : 'Non-Serialized'}
@@ -769,7 +800,7 @@ const Products = () => {
                                             <td style={{ textAlign: 'center' }}>
                                                 <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
                                                     <button onClick={() => setLedgerTarget(p)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }} title="View Stock Movement History"><History size={16} /></button>
-                                                    <button onClick={() => handleEdit(p)} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer' }} title="Edit Product & Compatibility"><Edit2 size={16} /></button>
+                                                    <button onClick={() => setEditingProductModal(p)} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer' }} title="Edit Product Metadata & Pricing"><Edit2 size={16} /></button>
                                                     <button onClick={() => handleDelete(p.id, p.product_name)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer' }} title="Delete Product"><Trash2 size={16} /></button>
                                                 </div>
                                             </td>
@@ -777,7 +808,7 @@ const Products = () => {
                                     </tr>
                                 )) : (
                                     <tr>
-                                        <td colSpan={isAdmin ? 9 : 8} className="table-empty-state">
+                                        <td colSpan={isAdmin ? 11 : 10} className="table-empty-state">
                                             No products match your search or filter criteria.
                                         </td>
                                     </tr>

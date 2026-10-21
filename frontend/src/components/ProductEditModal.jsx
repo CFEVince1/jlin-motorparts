@@ -27,13 +27,21 @@ export const ProductEditModal = ({
     measurement: '',
     thread_type: '',
     cost_price: '',
-    selling_price: '',
+    markup_percentage: '',
     reorder_level: '',
   });
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (product) {
+      const c = product.cost_price ?? '';
+      const p = product.selling_price ?? product.price ?? '';
+      let m = product.markup_percentage;
+      if (m === undefined || m === null || m === '') {
+        const cNum = parseFloat(c) || 0;
+        const pNum = parseFloat(p) || 0;
+        m = cNum > 0 && pNum >= cNum ? Math.round(((pNum - cNum) / cNum) * 10000) / 100 : 0;
+      }
       setFormData({
         part_number: product.part_number || '',
         name: product.product_name || product.name || '',
@@ -42,8 +50,8 @@ export const ProductEditModal = ({
         size: product.size || '',
         measurement: product.measurement || '',
         thread_type: product.thread_type || '',
-        cost_price: product.cost_price ?? '',
-        selling_price: product.selling_price ?? product.price ?? '',
+        cost_price: c,
+        markup_percentage: m,
         reorder_level: product.reorder_level ?? '',
       });
     }
@@ -53,6 +61,12 @@ export const ProductEditModal = ({
 
   const currentStock = product.current_stock ?? product.stock ?? 0;
   const productId = product.id || product.product_id;
+
+  const costNum = parseFloat(formData.cost_price) || 0;
+  const markupNum = parseFloat(formData.markup_percentage) || 0;
+  // Formula: selling price = cost + (cost * percentage / 100)
+  const sellingPrice = Math.round(costNum * (1 + markupNum / 100) * 100) / 100;
+  const markupProfit = Math.round((sellingPrice - costNum) * 100) / 100;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -77,12 +91,13 @@ export const ProductEditModal = ({
         size: formData.size.trim() || null,
         measurement: formData.measurement.trim() || null,
         thread_type: formData.thread_type.trim() || null,
-        cost_price: formData.cost_price !== '' ? Number(formData.cost_price) : 0,
-        selling_price: formData.selling_price !== '' ? Number(formData.selling_price) : 0,
+        cost_price: costNum,
+        markup_percentage: markupNum,
+        selling_price: sellingPrice,
         reorder_level: formData.reorder_level !== '' ? Number(formData.reorder_level) : 0,
       });
 
-      toast.success('Product metadata updated successfully');
+      toast.success('Product metadata and pricing updated successfully');
       if (onSuccess) onSuccess();
       onClose();
     } catch (err) {
@@ -250,49 +265,102 @@ export const ProductEditModal = ({
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                Cost Price (₱)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                name="cost_price"
-                className="input-premium"
-                value={formData.cost_price}
-                onChange={handleChange}
-              />
+          {/* Pricing Architecture: Supplier Cost, Markup %, Auto-Computed Read-Only Selling Price */}
+          <div style={{
+            padding: '12px 14px',
+            background: 'rgba(245, 158, 11, 0.05)',
+            borderRadius: '8px',
+            border: '1px solid rgba(245, 158, 11, 0.25)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Pricing & Markup Architecture
+              </span>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                Formula: Selling Price = Cost + (Cost × Markup %)
+              </span>
             </div>
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                Selling Price (₱) *
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                name="selling_price"
-                className="input-premium"
-                value={formData.selling_price}
-                onChange={handleChange}
-                required
-              />
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: '10px' }}>
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-main)', display: 'block', marginBottom: '4px' }}>
+                  Supplier Cost (₱) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  name="cost_price"
+                  placeholder="0.00"
+                  className="input-premium"
+                  value={formData.cost_price}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-main)', display: 'block', marginBottom: '4px' }}>
+                  Markup (%) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  name="markup_percentage"
+                  placeholder="e.g. 30"
+                  className="input-premium"
+                  value={formData.markup_percentage}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--primary)', display: 'block', marginBottom: '4px' }}>
+                  Selling Price (₱) [Auto]
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={sellingPrice.toFixed(2)}
+                  readOnly
+                  disabled
+                  className="input-premium"
+                  style={{
+                    fontWeight: 'bold',
+                    color: 'var(--primary)',
+                    background: 'var(--surface-hover)',
+                    cursor: 'not-allowed',
+                    borderColor: 'rgba(5, 150, 105, 0.4)'
+                  }}
+                />
+              </div>
             </div>
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                Reorder Level
-              </label>
-              <input
-                type="number"
-                min="0"
-                name="reorder_level"
-                className="input-premium"
-                value={formData.reorder_level}
-                onChange={handleChange}
-              />
-            </div>
+
+            {costNum > 0 && (
+              <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', padding: '4px 8px', background: 'var(--surface)', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                <span>Unit Profit: <strong style={{ color: '#10b981' }}>+₱{markupProfit.toFixed(2)}</strong> ({markupNum}% markup)</span>
+                <span>Margin on Selling: <strong>{sellingPrice > 0 ? ((markupProfit / sellingPrice) * 100).toFixed(1) : 0}%</strong></span>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+              Reorder Level (Low Stock Threshold)
+            </label>
+            <input
+              type="number"
+              min="0"
+              name="reorder_level"
+              className="input-premium"
+              value={formData.reorder_level}
+              onChange={handleChange}
+            />
           </div>
 
           <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>

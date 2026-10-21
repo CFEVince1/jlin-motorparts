@@ -21,9 +21,10 @@ exports.getAllItems = async (req, res, next) => {
                 p.measurement,
                 p.thread_type,
                 p.cost_price,
+                p.markup_percentage,
                 COALESCE(p.retail_price, p.selling_price) AS retail_price,
                 p.selling_price,
-                COALESCE(p.current_stock, p.stock) AS current_stock,
+                COALESCE(p.stock, p.current_stock, 0) AS current_stock,
                 p.stock,
                 p.reorder_level,
                 p.is_serialized,
@@ -59,9 +60,10 @@ exports.getItemById = async (req, res, next) => {
                 p.measurement,
                 p.thread_type,
                 p.cost_price,
+                p.markup_percentage,
                 COALESCE(p.retail_price, p.selling_price) AS retail_price,
                 p.selling_price,
-                COALESCE(p.current_stock, p.stock) AS current_stock,
+                COALESCE(p.stock, p.current_stock, 0) AS current_stock,
                 p.stock,
                 p.reorder_level,
                 p.is_serialized,
@@ -97,6 +99,7 @@ exports.createItem = async (req, res, next) => {
         measurement,
         thread_type,
         cost_price,
+        markup_percentage,
         retail_price,
         selling_price,
         reorder_level,
@@ -122,13 +125,16 @@ exports.createItem = async (req, res, next) => {
     const resolvedCost = Number(cost_price || 0.00);
 
     const priceInput = retail_price ?? selling_price;
-    if (priceInput !== undefined && priceInput !== null && priceInput !== '') {
-        const priceNum = Number(priceInput);
-        if (!Number.isFinite(priceNum) || priceNum < 0) {
-            throw new AppValidationError('Selling/Retail price must be a valid non-negative number');
-        }
+    const resolvedMarkup = markup_percentage !== undefined && markup_percentage !== null && markup_percentage !== ''
+        ? Number(markup_percentage)
+        : (resolvedCost > 0 && Number(priceInput) > resolvedCost ? Math.round(((Number(priceInput) - resolvedCost) / resolvedCost) * 10000) / 100 : 0);
+
+    if (!Number.isFinite(resolvedMarkup) || resolvedMarkup < 0) {
+        throw new AppValidationError('Markup percentage must be a valid non-negative number');
     }
-    const resolvedPrice = Number(priceInput || 0.00);
+
+    // Server recomputes selling price: selling price = cost + (cost * percentage / 100)
+    const resolvedPrice = Math.round(resolvedCost * (1 + resolvedMarkup / 100) * 100) / 100;
     const userId = req.user?.id || null;
 
     const connection = await db.getConnection();
@@ -148,9 +154,9 @@ exports.createItem = async (req, res, next) => {
         const [insertResult] = await connection.query(
             `INSERT INTO products (
                 part_number, sku, name, brand, category, size, measurement, thread_type,
-                cost_price, selling_price, retail_price, stock, current_stock,
+                cost_price, markup_percentage, selling_price, retail_price, stock, current_stock,
                 reorder_level, is_serialized, is_active, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, TRUE, NOW())`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, TRUE, NOW())`,
             [
                 resolvedSku,
                 resolvedSku,
@@ -161,6 +167,7 @@ exports.createItem = async (req, res, next) => {
                 measurement || null,
                 thread_type || null,
                 resolvedCost,
+                resolvedMarkup,
                 resolvedPrice,
                 resolvedPrice,
                 reorder_level || 5,
@@ -231,6 +238,7 @@ exports.updateItem = async (req, res, next) => {
         retail_price,
         selling_price,
         cost_price,
+        markup_percentage,
         size,
         measurement,
         thread_type,
@@ -242,7 +250,7 @@ exports.updateItem = async (req, res, next) => {
         await connection.beginTransaction();
 
         const [existing] = await connection.query(
-            'SELECT id, name, sku, part_number, brand FROM products WHERE id = ? AND is_active = true FOR UPDATE',
+            'SELECT id, name, sku, part_number, brand, cost_price, markup_percentage, selling_price FROM products WHERE id = ? AND is_active = true FOR UPDATE',
             [itemId]
         );
         if (existing.length === 0) {
@@ -295,7 +303,25 @@ exports.updateItem = async (req, res, next) => {
             updates.push('category = ?');
             values.push(trimmedCat);
         }
-        if (retail_price !== undefined || selling_price !== undefined) {
+        if (cost_price !== undefined || markup_percentage !== undefined) {
+            const currentCost = cost_price !== undefined ? Number(cost_price) : Number(currentItem.cost_price || 0);
+            const currentMarkup = markup_percentage !== undefined 
+                ? Number(markup_percentage) 
+                : (Number(currentItem.markup_percentage) || 0);
+            
+            if (!Number.isFinite(currentCost) || currentCost < 0) {
+                throw new AppValidationError('Cost price must be a valid non-negative number');
+            }
+            if (!Number.isFinite(currentMarkup) || currentMarkup < 0) {
+                throw new AppValidationError('Markup percentage must be a valid non-negative number');
+            }
+            
+            // Server recomputes selling price: selling price = cost + (cost * percentage / 100)
+            const computedSelling = Math.round(currentCost * (1 + currentMarkup / 100) * 100) / 100;
+            
+            updates.push('cost_price = ?', 'markup_percentage = ?', 'retail_price = ?', 'selling_price = ?');
+            values.push(currentCost, currentMarkup, computedSelling, computedSelling);
+        } else if (retail_price !== undefined || selling_price !== undefined) {
             const rawPrice = retail_price ?? selling_price;
             const price = Number(rawPrice);
             if (!Number.isFinite(price) || price < 0) {
@@ -303,14 +329,6 @@ exports.updateItem = async (req, res, next) => {
             }
             updates.push('retail_price = ?', 'selling_price = ?');
             values.push(price, price);
-        }
-        if (cost_price !== undefined) {
-            const cost = Number(cost_price);
-            if (!Number.isFinite(cost) || cost < 0) {
-                throw new AppValidationError('Cost price must be a valid non-negative number');
-            }
-            updates.push('cost_price = ?');
-            values.push(cost);
         }
         if (size !== undefined) {
             updates.push('size = ?');

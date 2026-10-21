@@ -23,6 +23,7 @@ exports.getInventory = async (req, res, next) => {
                 p.stock,
                 p.reorder_level,
                 p.cost_price,
+                p.markup_percentage,
                 COALESCE(p.retail_price, p.selling_price) AS retail_price,
                 p.selling_price AS price,
                 COALESCE(
@@ -50,6 +51,7 @@ exports.getInventory = async (req, res, next) => {
                 p.current_stock,
                 p.reorder_level,
                 p.cost_price,
+                p.markup_percentage,
                 p.selling_price,
                 p.retail_price
             ORDER BY p.name ASC

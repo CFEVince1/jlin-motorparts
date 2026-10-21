@@ -328,6 +328,22 @@ async function ensureSchema() {
     } catch (err) {
       console.warn('[Schema] Failed to sync products.current_stock:', err.message);
     }
+
+    // 11. Ensure products markup_percentage column exists and is populated
+    try {
+      const [markupCols] = await db.query(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products'
+           AND COLUMN_NAME = 'markup_percentage'`
+      );
+      if (markupCols.length === 0) {
+        await db.query('ALTER TABLE products ADD COLUMN markup_percentage DECIMAL(5,2) NOT NULL DEFAULT 0.00 AFTER cost_price');
+        console.log('[Schema] Added markup_percentage column to products table.');
+      }
+      await db.query('UPDATE products SET markup_percentage = ROUND(((selling_price - cost_price) / cost_price) * 100, 2) WHERE cost_price > 0 AND (markup_percentage = 0.00 OR markup_percentage IS NULL)');
+    } catch (err) {
+      console.warn('[Schema] Failed to check/add markup_percentage to products:', err.message);
+    }
   } catch (err) {
     console.warn('[Schema] Auto-migration check completed with note:', err.message);
   }

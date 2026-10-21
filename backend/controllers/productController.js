@@ -36,7 +36,7 @@ exports.getAllProducts = async (req, res) => {
         const [products] = await db.query(`
             SELECT
                 id, name AS product_name, part_number, brand, category,
-                size, measurement, thread_type, cost_price, selling_price AS price,
+                size, measurement, thread_type, cost_price, markup_percentage, selling_price, selling_price AS price,
                 COALESCE(stock, current_stock, 0) AS stock,
                 COALESCE(stock, current_stock, 0) AS current_stock,
                 reorder_level, is_serialized
@@ -222,6 +222,7 @@ exports.createProduct = async (req, res) => {
         measurement,
         thread_type,
         cost_price,
+        markup_percentage,
         selling_price,
         retail_price,
         reorder_level,
@@ -244,7 +245,7 @@ exports.createProduct = async (req, res) => {
         const rawPrice = selling_price !== undefined && selling_price !== null && selling_price !== ''
             ? selling_price
             : retail_price;
-        if (isMissing(rawPrice)) throw new Error('Selling price is required');
+        if (isMissing(rawPrice) && isMissing(markup_percentage)) throw new Error('Selling price or markup percentage is required');
         if (isMissing(reorder_level)) throw new Error('Reorder level is required');
         if (is_serialized === undefined || is_serialized === null) throw new Error('Product type is required');
 
@@ -252,10 +253,15 @@ exports.createProduct = async (req, res) => {
         if (!Number.isFinite(parsedCost) || parsedCost < 0) {
             throw new Error('Cost price must be a valid non-negative number');
         }
-        const parsedSelling = Number(rawPrice);
-        if (!Number.isFinite(parsedSelling) || parsedSelling < 0) {
-            throw new Error('Selling price must be a valid non-negative number');
+        const parsedMarkup = markup_percentage !== undefined && markup_percentage !== null && markup_percentage !== ''
+            ? Number(markup_percentage)
+            : (parsedCost > 0 && Number(rawPrice) > parsedCost ? Math.round(((Number(rawPrice) - parsedCost) / parsedCost) * 10000) / 100 : 0);
+        if (!Number.isFinite(parsedMarkup) || parsedMarkup < 0) {
+            throw new Error('Markup percentage must be a valid non-negative number');
         }
+
+        // Server recomputes selling price using formula: selling price = cost + (cost * percentage / 100)
+        const computedSelling = Math.round(parsedCost * (1 + parsedMarkup / 100) * 100) / 100;
         const parsedReorder = Number(reorder_level);
         if (!Number.isFinite(parsedReorder) || parsedReorder < 0) {
             throw new Error('Reorder level must be a valid non-negative number');
@@ -297,13 +303,14 @@ exports.createProduct = async (req, res) => {
                 measurement,
                 thread_type,
                 cost_price,
+                markup_percentage,
                 selling_price,
                 retail_price,
                 stock,
                 current_stock,
                 reorder_level,
                 is_serialized
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
             [
                 String(part_number).trim(),
                 String(part_number).trim(),
@@ -313,9 +320,10 @@ exports.createProduct = async (req, res) => {
                 String(size).trim(),
                 isMissing(measurement) ? null : String(measurement).trim(),
                 isMissing(thread_type) ? null : String(thread_type).trim(),
-                Number(cost_price),
-                Number(selling_price),
-                Number(selling_price),
+                parsedCost,
+                parsedMarkup,
+                computedSelling,
+                computedSelling,
                 Number(reorder_level),
                 serialized
             ]
@@ -410,6 +418,7 @@ exports.updateProduct = async (req, res) => {
         measurement,
         thread_type,
         cost_price,
+        markup_percentage,
         selling_price,
         retail_price,
         reorder_level,
@@ -430,17 +439,22 @@ exports.updateProduct = async (req, res) => {
         const rawPrice = selling_price !== undefined && selling_price !== null && selling_price !== ''
             ? selling_price
             : retail_price;
-        if (isMissing(rawPrice)) throw new Error('Selling price is required');
+        if (isMissing(rawPrice) && isMissing(markup_percentage)) throw new Error('Selling price or markup percentage is required');
         if (isMissing(reorder_level)) throw new Error('Reorder level is required');
 
         const parsedCost = Number(cost_price);
         if (!Number.isFinite(parsedCost) || parsedCost < 0) {
             throw new Error('Cost price must be a valid non-negative number');
         }
-        const parsedSelling = Number(rawPrice);
-        if (!Number.isFinite(parsedSelling) || parsedSelling < 0) {
-            throw new Error('Selling price must be a valid non-negative number');
+        const parsedMarkup = markup_percentage !== undefined && markup_percentage !== null && markup_percentage !== ''
+            ? Number(markup_percentage)
+            : (parsedCost > 0 && Number(rawPrice) > parsedCost ? Math.round(((Number(rawPrice) - parsedCost) / parsedCost) * 10000) / 100 : 0);
+        if (!Number.isFinite(parsedMarkup) || parsedMarkup < 0) {
+            throw new Error('Markup percentage must be a valid non-negative number');
         }
+
+        // Server recomputes selling price using formula: selling price = cost + (cost * percentage / 100)
+        const computedSelling = Math.round(parsedCost * (1 + parsedMarkup / 100) * 100) / 100;
         const parsedReorder = Number(reorder_level);
         if (!Number.isFinite(parsedReorder) || parsedReorder < 0) {
             throw new Error('Reorder level must be a valid non-negative number');
@@ -489,6 +503,7 @@ exports.updateProduct = async (req, res) => {
                 measurement = ?,
                 thread_type = ?,
                 cost_price = ?,
+                markup_percentage = ?,
                 selling_price = ?,
                 retail_price = ?,
                 reorder_level = ?
@@ -502,9 +517,10 @@ exports.updateProduct = async (req, res) => {
                 String(size).trim(),
                 isMissing(measurement) ? null : String(measurement).trim(),
                 isMissing(thread_type) ? null : String(thread_type).trim(),
-                Number(cost_price),
-                Number(selling_price),
-                Number(selling_price),
+                parsedCost,
+                parsedMarkup,
+                computedSelling,
+                computedSelling,
                 Number(reorder_level),
                 id
             ]
