@@ -11,7 +11,24 @@ import { formatCurrency } from '../utils/formatters';
 import ProductEditModal from '../components/ProductEditModal';
 import ItemLedgerDrawer from '../components/ItemLedgerDrawer';
 
-const formatMotorcycleUnit = (unit) => `${unit.brand} ${unit.model} ${unit.year_model || ''}`.trim();
+const formatMotorcycleUnit = (unit) => {
+    if (!unit) return '';
+    const brand = (unit.brand || '').trim();
+    const model = (unit.model || '').trim();
+    const year = (unit.year_model || '').trim();
+    const formattedBrand = brand ? brand.charAt(0).toUpperCase() + brand.slice(1) : '';
+    if (!year) return `${formattedBrand} ${model}`.trim();
+    if (model.toLowerCase().includes(year.toLowerCase())) {
+        return `${formattedBrand} ${model}`.trim();
+    }
+    return `${formattedBrand} ${model} ${year}`.trim();
+};
+
+const isJunkText = (str) => {
+    if (!str) return false;
+    const s = String(str).toLowerCase();
+    return s.includes('test') || s.includes('werewe') || s.includes('wampipti') || s.includes('susuki') || s.includes('naglulu') || s.includes('inanak') || s.includes('sila');
+};
 
 const initialFormState = {
     part_number: '',
@@ -84,7 +101,10 @@ const Products = () => {
     const fetchMotorcycleUnits = async () => {
         try {
             const res = await api.get('/products/motorcycle-units');
-            setMotorcycleUnits(res.data);
+            const clean = Array.isArray(res.data)
+                ? res.data.filter(u => !isJunkText(u.brand) && !isJunkText(u.model) && !isJunkText(u.year_model))
+                : [];
+            setMotorcycleUnits(clean);
         } catch {
             toast.error('Failed to load motorcycle units');
         }
@@ -93,7 +113,15 @@ const Products = () => {
     const fetchCompatibilityGroups = async () => {
         try {
             const res = await api.get('/products/compatibility-groups');
-            setCompatibilityGroups(res.data);
+            const clean = Array.isArray(res.data)
+                ? res.data
+                    .filter(g => !isJunkText(g.group_name) && !isJunkText(g.description))
+                    .map(g => ({
+                        ...g,
+                        member_units: (g.member_units || []).filter(u => !isJunkText(u.brand) && !isJunkText(u.model) && !isJunkText(u.year_model))
+                    }))
+                : [];
+            setCompatibilityGroups(clean);
         } catch {
             toast.error('Failed to load compatibility groups');
         }

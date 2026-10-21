@@ -170,6 +170,13 @@ exports.getMotorcycleUnits = async (req, res) => {
         const [units] = await db.query(`
             SELECT id, brand, model, year_model
             FROM motorcycle_units
+            WHERE LOWER(brand) NOT LIKE '%test%'
+              AND LOWER(model) NOT LIKE '%test%'
+              AND LOWER(COALESCE(year_model, '')) NOT LIKE '%test%'
+              AND LOWER(model) NOT LIKE '%werewe%'
+              AND LOWER(COALESCE(year_model, '')) NOT LIKE '%werewe%'
+              AND LOWER(model) NOT LIKE '%wampipti%'
+              AND LOWER(brand) NOT LIKE '%susuki%'
             ORDER BY brand ASC, model ASC, year_model ASC
         `);
         res.json(units);

@@ -5,7 +5,24 @@ import { Settings2, Trash2, Edit2, Plus, Bike } from 'lucide-react';
 import Spinner from '../components/Spinner';
 import useForm from '../hooks/useForm';
 
-const formatMotorcycleUnit = (unit) => `${unit.brand} ${unit.model} ${unit.year_model || ''}`.trim();
+const formatMotorcycleUnit = (unit) => {
+    if (!unit) return '';
+    const brand = (unit.brand || '').trim();
+    const model = (unit.model || '').trim();
+    const year = (unit.year_model || '').trim();
+    const formattedBrand = brand ? brand.charAt(0).toUpperCase() + brand.slice(1) : '';
+    if (!year) return `${formattedBrand} ${model}`.trim();
+    if (model.toLowerCase().includes(year.toLowerCase())) {
+        return `${formattedBrand} ${model}`.trim();
+    }
+    return `${formattedBrand} ${model} ${year}`.trim();
+};
+
+const isJunkText = (str) => {
+    if (!str) return false;
+    const s = String(str).toLowerCase();
+    return s.includes('test') || s.includes('werewe') || s.includes('wampipti') || s.includes('susuki') || s.includes('naglulu') || s.includes('inanak') || s.includes('sila');
+};
 
 const initialUnitForm = { brand: '', model: '', year_model: '' };
 const initialGroupForm = { group_name: '', description: '', motorcycle_unit_ids: [] };
@@ -39,8 +56,19 @@ const ManageCompatibility = () => {
                 api.get('/compatibility/motorcycle-units'),
                 api.get('/compatibility/groups')
             ]);
-            setMotorcycleUnits(unitsRes.data);
-            setCompatibilityGroups(groupsRes.data);
+            const cleanUnits = Array.isArray(unitsRes.data)
+                ? unitsRes.data.filter(u => !isJunkText(u.brand) && !isJunkText(u.model) && !isJunkText(u.year_model))
+                : [];
+            const cleanGroups = Array.isArray(groupsRes.data)
+                ? groupsRes.data
+                    .filter(g => !isJunkText(g.group_name) && !isJunkText(g.description))
+                    .map(g => ({
+                        ...g,
+                        member_units: (g.member_units || []).filter(u => !isJunkText(u.brand) && !isJunkText(u.model) && !isJunkText(u.year_model))
+                    }))
+                : [];
+            setMotorcycleUnits(cleanUnits);
+            setCompatibilityGroups(cleanGroups);
         } catch {
             toast.error('Failed to load compatibility data');
         } finally {

@@ -17,6 +17,13 @@ exports.getMotorcycleUnits = async (req, res) => {
         const [units] = await db.query(`
             SELECT id, brand, model, year_model
             FROM motorcycle_units
+            WHERE LOWER(brand) NOT LIKE '%test%'
+              AND LOWER(model) NOT LIKE '%test%'
+              AND LOWER(COALESCE(year_model, '')) NOT LIKE '%test%'
+              AND LOWER(model) NOT LIKE '%werewe%'
+              AND LOWER(COALESCE(year_model, '')) NOT LIKE '%werewe%'
+              AND LOWER(model) NOT LIKE '%wampipti%'
+              AND LOWER(brand) NOT LIKE '%susuki%'
             ORDER BY brand ASC, model ASC, year_model ASC
         `);
         res.json(units);
@@ -148,6 +155,18 @@ exports.getCompatibilityGroups = async (req, res) => {
             FROM compatibility_groups cg
             LEFT JOIN compatibility_group_units cgu ON cg.id = cgu.compatibility_group_id
             LEFT JOIN motorcycle_units mu ON mu.id = cgu.motorcycle_unit_id
+                AND LOWER(mu.brand) NOT LIKE '%test%'
+                AND LOWER(mu.model) NOT LIKE '%test%'
+                AND LOWER(COALESCE(mu.year_model, '')) NOT LIKE '%test%'
+                AND LOWER(mu.model) NOT LIKE '%werewe%'
+                AND LOWER(COALESCE(mu.year_model, '')) NOT LIKE '%werewe%'
+                AND LOWER(mu.model) NOT LIKE '%wampipti%'
+                AND LOWER(mu.brand) NOT LIKE '%susuki%'
+            WHERE LOWER(cg.group_name) NOT LIKE '%test%'
+              AND LOWER(cg.group_name) NOT LIKE '%naglulu%'
+              AND LOWER(COALESCE(cg.description, '')) NOT LIKE '%inanak%'
+              AND LOWER(COALESCE(cg.description, '')) NOT LIKE '%test%'
+              AND LOWER(COALESCE(cg.description, '')) NOT LIKE '%sila%'
             ORDER BY cg.group_name ASC, mu.brand ASC, mu.model ASC, mu.year_model ASC
         `);
 
