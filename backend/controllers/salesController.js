@@ -1335,6 +1335,10 @@ exports.getReturnsHistory = async (req, res, next) => {
 exports.getReturnRefundAuditHistory = async (req, res, next) => {
     try {
         const { filter, search, date } = req.query;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.max(1, Math.min(200, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+
         let whereClauses = [];
         let params = [];
 
@@ -1363,7 +1367,14 @@ exports.getReturnRefundAuditHistory = async (req, res, next) => {
             params.push(date.trim());
         }
 
-        const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+                const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+        // Total count for pagination
+        const [countRows] = await db.query(
+            `SELECT COUNT(*) AS total FROM return_refund_history ${whereSQL}`,
+            params
+        );
+        const total = countRows[0]?.total || 0;
 
         const [rows] = await db.query(`
             SELECT 
@@ -1376,11 +1387,18 @@ exports.getReturnRefundAuditHistory = async (req, res, next) => {
             FROM return_refund_history
             ${whereSQL}
             ORDER BY created_at DESC, id DESC
-        `, params);
+            LIMIT ? OFFSET ?
+        `, [...params, limit, offset]);
 
-                res.json({
+        res.json({
             success: true,
-            data: rows
+            data: rows,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit) || 1
+            }
         });
     } catch (err) {
         console.error('getReturnRefundAuditHistory error:', err);

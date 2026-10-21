@@ -72,6 +72,12 @@ export default function Returns() {
     const [auditFilter, setAuditFilter] = useState('ALL');
     const [auditSearch, setAuditSearch] = useState('');
     const [auditDate, setAuditDate] = useState('');
+    const [auditPagination, setAuditPagination] = useState({
+        page: 1,
+        limit: 10,
+        total: 0,
+        totalPages: 1
+    });
     const [supplierReturnTarget, setSupplierReturnTarget] = useState(null);
     const [supplierNameInput, setSupplierNameInput] = useState('');
     const [supplierRemarksInput, setSupplierRemarksInput] = useState('');
@@ -147,23 +153,30 @@ export default function Returns() {
     }, [historySearch, historyDate, isStaff]);
 
 
-    const fetchAuditHistory = useCallback(async () => {
+    const fetchAuditHistory = useCallback(async (targetPage = 1, customLimit) => {
         setLoadingAudit(true);
         try {
+            const activeLimit = customLimit || auditPagination.limit || 10;
             const res = await api.get('/sales/returns/audit-history', {
                 params: {
+                    page: targetPage,
+                    limit: activeLimit,
                     filter: auditFilter !== 'ALL' ? auditFilter : undefined,
                     search: auditSearch || undefined,
                     date: auditDate || undefined
                 }
             });
-            setAuditHistory(res.data?.data || []);
+            const data = res.data;
+            setAuditHistory(data?.data || []);
+            if (data?.pagination) {
+                setAuditPagination(data.pagination);
+            }
         } catch (err) {
             console.error('Failed to load return/refund audit history:', err);
         } finally {
             setLoadingAudit(false);
         }
-    }, [auditFilter, auditSearch, auditDate]);
+    }, [auditFilter, auditSearch, auditDate, auditPagination.limit]);
 
     useEffect(() => {
         fetchAuditHistory();
@@ -772,7 +785,7 @@ export default function Returns() {
                         borderRadius: '10px',
                         fontSize: '0.72rem'
                     }}>
-                        {auditHistory.length}
+                        {auditPagination.total || auditHistory.length}
                     </span>
                 </button>
 
@@ -1230,7 +1243,7 @@ export default function Returns() {
                             <button
                                 key={f.key}
                                 type="button"
-                                onClick={() => setAuditFilter(f.key)}
+                                onClick={() => { setAuditFilter(f.key); fetchAuditHistory(1); }}
                                 style={{
                                     padding: '6px 14px',
                                     borderRadius: '6px',
@@ -1335,8 +1348,7 @@ export default function Returns() {
                                                                 textDecoration: 'underline',
                                                                 display: 'inline-flex',
                                                                 alignItems: 'center',
-                                                                gap: '3px',
-                                                                whiteSpace: 'nowrap'
+                                                                gap: '3px'
                                                             }}
                                                             title="Click to view order receipt"
                                                         >
@@ -1450,6 +1462,111 @@ export default function Returns() {
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+                    )}
+
+                    {/* Pagination Footer */}
+                    {!loadingAudit && auditPagination.total > 0 && (
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginTop: '20px',
+                            flexWrap: 'wrap',
+                            gap: '12px',
+                            paddingTop: '16px',
+                            borderTop: '1px solid var(--border)'
+                        }}>
+                            {/* Summary & Rows Selector */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                <span>
+                                    Showing <strong style={{ color: 'var(--text-main)' }}>{(auditPagination.page - 1) * auditPagination.limit + 1}</strong> to <strong style={{ color: 'var(--text-main)' }}>{Math.min(auditPagination.page * auditPagination.limit, auditPagination.total)}</strong> of <strong style={{ color: 'var(--text-main)' }}>{auditPagination.total}</strong> records
+                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span>Rows:</span>
+                                    <select
+                                        className="input-premium"
+                                        value={auditPagination.limit}
+                                        onChange={(e) => {
+                                            const newLimit = Number(e.target.value);
+                                            fetchAuditHistory(1, newLimit);
+                                        }}
+                                        style={{ padding: '3px 8px', fontSize: '0.82rem' }}
+                                    >
+                                        <option value={10}>10</option>
+                                        <option value={25}>25</option>
+                                        <option value={50}>50</option>
+                                        <option value={100}>100</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Page Navigation Buttons */}
+                            {auditPagination.totalPages > 1 && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <button
+                                        type="button"
+                                        disabled={auditPagination.page <= 1}
+                                        onClick={() => fetchAuditHistory(auditPagination.page - 1)}
+                                        className="btn-secondary"
+                                        style={{
+                                            padding: '4px 12px',
+                                            fontSize: '0.82rem',
+                                            opacity: auditPagination.page <= 1 ? 0.45 : 1,
+                                            cursor: auditPagination.page <= 1 ? 'not-allowed' : 'pointer'
+                                        }}
+                                    >
+                                        Previous
+                                    </button>
+
+                                    {Array.from({ length: auditPagination.totalPages }, (_, i) => i + 1)
+                                        .filter(p => {
+                                            if (p === 1 || p === auditPagination.totalPages) return true;
+                                            return Math.abs(p - auditPagination.page) <= 1;
+                                        })
+                                        .map((p, idx, arr) => {
+                                            const prevP = arr[idx - 1];
+                                            const hasGap = prevP && p - prevP > 1;
+                                            return (
+                                                <React.Fragment key={p}>
+                                                    {hasGap && <span style={{ padding: '0 4px', color: 'var(--text-muted)' }}>...</span>}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => fetchAuditHistory(p)}
+                                                        style={{
+                                                            padding: '4px 10px',
+                                                            borderRadius: '6px',
+                                                            border: '1px solid',
+                                                            borderColor: auditPagination.page === p ? 'var(--primary)' : 'var(--border)',
+                                                            background: auditPagination.page === p ? 'var(--primary)' : 'var(--surface)',
+                                                            color: auditPagination.page === p ? '#fff' : 'var(--text-main)',
+                                                            fontWeight: 600,
+                                                            fontSize: '0.82rem',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        {p}
+                                                    </button>
+                                                </React.Fragment>
+                                            );
+                                        })}
+
+                                    <button
+                                        type="button"
+                                        disabled={auditPagination.page >= auditPagination.totalPages}
+                                        onClick={() => fetchAuditHistory(auditPagination.page + 1)}
+                                        className="btn-secondary"
+                                        style={{
+                                            padding: '4px 12px',
+                                            fontSize: '0.82rem',
+                                            opacity: auditPagination.page >= auditPagination.totalPages ? 0.45 : 1,
+                                            cursor: auditPagination.page >= auditPagination.totalPages ? 'not-allowed' : 'pointer'
+                                        }}
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
