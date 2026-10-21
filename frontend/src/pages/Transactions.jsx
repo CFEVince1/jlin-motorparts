@@ -161,7 +161,7 @@ const Transactions = () => {
             <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
                     <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 0 }}>
-                        <History size={32} color="var(--primary)" /> {isStaff ? 'Self History' : 'Transaction History'}
+                        <History size={32} color="var(--primary)" /> {isStaff ? 'Transaction' : 'Transaction History'}
                     </h1>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0 44px' }}>
                         {isStaff
@@ -177,7 +177,7 @@ const Transactions = () => {
                         <option value="Yearly">Yearly Report</option>
                     </select>
                     <button onClick={() => setShowPrintModal(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Printer size={16} /> Print {timeframe} {isStaff ? 'Self Records' : 'Transactions'}
+                        <Printer size={16} /> Print {timeframe} {isStaff ? 'Transaction Records' : 'Transactions'}
                     </button>
                 </div>
             </div>

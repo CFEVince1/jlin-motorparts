@@ -74,7 +74,7 @@ const Sidebar = () => {
 
     const inventorySubLinks = [
         { name: 'Current Stock', path: '/inventory', icon: <Archive size={16} />, roles: ['admin', 'staff'] },
-        { name: 'Self History', path: '/transactions', icon: <History size={16} />, roles: ['staff'] },
+        { name: 'Transaction', path: '/transactions', icon: <History size={16} />, roles: ['staff'] },
         { name: 'Product Directory', path: '/products', icon: <Package size={16} />, roles: ['admin'] },
         { name: 'Suppliers', path: '/suppliers', icon: <Building2 size={16} />, roles: ['admin'] },
         { name: 'Stock Receive', path: '/stock-receive', icon: <Truck size={16} />, roles: ['admin'] },

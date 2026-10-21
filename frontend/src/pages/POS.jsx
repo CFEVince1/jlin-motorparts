@@ -677,10 +677,10 @@ const POS = () => {
                             onClick={() => navigate('/transactions')}
                             className="btn-secondary"
                             style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', padding: '6px 14px' }}
-                            title={user?.role === 'staff' ? 'View My Sales History' : 'View All Transaction History'}
+                            title={user?.role === 'staff' ? 'View My Transactions' : 'View All Transaction History'}
                         >
                             <History size={16} />
-                            <span>{user?.role === 'staff' ? 'Self History' : 'Recent Sales'}</span>
+                            <span>{user?.role === 'staff' ? 'Transaction' : 'Recent Sales'}</span>
                         </button>
                     </div>
                 </div>
