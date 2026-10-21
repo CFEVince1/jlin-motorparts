@@ -411,6 +411,10 @@ exports.getSales = async (req, res, next) => {
             whereParams.push(userId);
         }
 
+        // Exclude test users and test/pretest dummy products from sales history
+        whereClauses.push("NOT EXISTS (SELECT 1 FROM users u_test WHERE u_test.id = s.user_id AND LOWER(u_test.username) LIKE '%test%')");
+        whereClauses.push("NOT EXISTS (SELECT 1 FROM sale_items si_test WHERE si_test.sale_id = s.id AND (LOWER(si_test.product_name) LIKE '%pretest%' OR LOWER(si_test.product_name) = 'test' OR LOWER(si_test.part_number) LIKE '%profit-test%'))");
+
         if (req.query.date) {
             whereClauses.push('DATE(s.sale_date) = ?');
             whereParams.push(req.query.date);

@@ -51,6 +51,9 @@ const buildDateAndUserFilters = (req, tableAlias = 's') => {
         params.push(req.user.id);
     }
 
+    // Exclude test users from reports
+    where.push(`NOT EXISTS (SELECT 1 FROM users u_test WHERE u_test.id = ${tableAlias}.user_id AND LOWER(u_test.username) LIKE '%test%')`);
+
     return { where, params };
 };
 
@@ -58,6 +61,12 @@ const buildProductFilters = (query, productAlias = 'p', saleItemAlias = 'si') =>
     const { category, brand, partNumber, motorcycleUnitId, motorcycleModel } = query;
     const where = [];
     const params = [];
+
+    // Exclude test products and legacy dummy parts from reports
+    where.push(`LOWER(${saleItemAlias}.product_name) NOT LIKE '%pretest%'`);
+    where.push(`LOWER(${saleItemAlias}.product_name) != 'test'`);
+    where.push(`LOWER(${saleItemAlias}.part_number) NOT LIKE '%test%'`);
+    where.push(`LOWER(${saleItemAlias}.part_number) NOT LIKE '%profit-test%'`);
 
     if (category && category !== 'All') {
         where.push(`${productAlias}.category = ?`);
@@ -175,6 +184,8 @@ exports.getDailySales = async (req, res) => {
                    COUNT(s.id) as total_transactions
             FROM sales s 
             WHERE ${dateCondition} ${userCondition}
+              AND s.user_id NOT IN (SELECT id FROM users WHERE LOWER(username) LIKE '%test%')
+              AND NOT EXISTS (SELECT 1 FROM sale_items si_test WHERE si_test.sale_id = s.id AND (LOWER(si_test.product_name) LIKE '%pretest%' OR LOWER(si_test.product_name) = 'test'))
         `;
 
         const [sales] = await db.query(query, params);
@@ -249,6 +260,8 @@ exports.getMonthlySales = async (req, res) => {
                    COUNT(s.id) as total_transactions
             FROM sales s 
             WHERE ${dateCondition} ${userCondition}
+              AND s.user_id NOT IN (SELECT id FROM users WHERE LOWER(username) LIKE '%test%')
+              AND NOT EXISTS (SELECT 1 FROM sale_items si_test WHERE si_test.sale_id = s.id AND (LOWER(si_test.product_name) LIKE '%pretest%' OR LOWER(si_test.product_name) = 'test'))
         `;
 
         const [sales] = await db.query(query, params);
@@ -327,7 +340,7 @@ exports.getLowStock = async (req, res) => {
                 COALESCE(cd.compatibility_display, '') AS compatibility_display
             FROM products p
             LEFT JOIN (${compatibilityDisplaySubquery}) cd ON cd.product_id = p.id
-            WHERE COALESCE(p.current_stock, p.stock) <= p.reorder_level AND p.is_active = true
+            WHERE COALESCE(p.current_stock, p.stock) <= p.reorder_level AND p.is_active = true AND LOWER(p.name) NOT LIKE '%test%' AND LOWER(p.name) NOT LIKE '%pretest%' AND LOWER(p.part_number) NOT LIKE '%test%'
             ${filterSql}
             ORDER BY COALESCE(p.current_stock, p.stock) ASC
         `, params);
@@ -445,7 +458,7 @@ exports.getSalesByCashier = async (req, res) => {
             SELECT u.username as cashier, COUNT(s.id) as total_transactions, COALESCE(SUM(s.total_amount), 0) as total_revenue
             FROM sales s
             JOIN users u ON s.user_id = u.id
-            ${dateFilter}
+            ${dateFilter ? dateFilter + " AND LOWER(u.username) NOT LIKE '%test%'" : "WHERE LOWER(u.username) NOT LIKE '%test%'"}
             GROUP BY u.id, u.username
             ORDER BY total_revenue DESC
         `, params);
@@ -499,7 +512,16 @@ exports.getAdjustmentsReport = async (req, res, next) => {
 
         // Discrepancy adjustments only: Damage, Loss, Return to supplier, Found, Add/Sub manual adjustments.
         // Strictly exclude standard inventory operations: SALE, STOCK_IN, PURCHASE_RECEIPT, and OPENING_BALANCE.
-        const where = ["it.transaction_type IN ('DAMAGE', 'LOSS', 'RETURN_TO_SUPPLIER', 'FOUND', 'ADJUSTMENT_ADD', 'ADJUSTMENT_SUB')"];
+        const where = [
+            "it.transaction_type IN ('DAMAGE', 'LOSS', 'RETURN_TO_SUPPLIER', 'FOUND', 'ADJUSTMENT_ADD', 'ADJUSTMENT_SUB')",
+            "COALESCE(it.remarks, '') NOT LIKE '%pinagluluan%'",
+            "COALESCE(it.notes, '') NOT LIKE '%pinagluluan%'",
+            "COALESCE(it.remarks, '') NOT LIKE '%damage control%'",
+            "COALESCE(it.notes, '') NOT LIKE '%damage control%'",
+            "LOWER(p.name) NOT LIKE '%test%'",
+            "LOWER(p.name) NOT LIKE '%pretest%'",
+            "LOWER(p.part_number) NOT LIKE '%test%'"
+        ];
         const params = [];
 
         if (fromDate) {
@@ -564,6 +586,7 @@ exports.getAdjustmentsReport = async (req, res, next) => {
                 COALESCE(SUM(it.quantity), 0) AS total_quantity,
                 COALESCE(SUM(it.quantity * COALESCE(it.unit_cost, 0)), 0) AS total_cost_value
             FROM inventory_transactions it
+            JOIN products p ON p.id = it.product_id
             ${whereSql}
             GROUP BY it.transaction_type
             ORDER BY it.transaction_type ASC

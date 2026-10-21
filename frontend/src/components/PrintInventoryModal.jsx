@@ -64,17 +64,18 @@ export default function PrintInventoryModal({
             size: A4 portrait;
             margin: 12mm 10mm;
           }
-          body * {
-            visibility: hidden;
+          #root {
+            display: none !important;
+            height: 0 !important;
+            overflow: hidden !important;
           }
           #printable-inventory-report,
           #printable-inventory-report * {
             visibility: visible !important;
           }
           #printable-inventory-report {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
+            display: block !important;
+            position: static !important;
             width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
@@ -82,8 +83,6 @@ export default function PrintInventoryModal({
             color: #000000 !important;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
             font-size: 11px !important;
-            display: block !important;
-            z-index: 9999999 !important;
           }
           .no-print {
             display: none !important;
@@ -356,9 +355,10 @@ export default function PrintInventoryModal({
       </div>
 
       {/* =========================================================================
-          PRINTABLE SHEET CONTAINER (Strictly visible during browser print)
+          PRINTABLE SHEET CONTAINER (Rendered via portal into body)
          ========================================================================= */}
-      <div id="printable-inventory-report">
+      {typeof document !== 'undefined' && createPortal(
+        <div id="printable-inventory-report" className="report-paper-sheet">
         {/* Printable Header */}
         <div style={{ borderBottom: '2px solid #000000', paddingBottom: '10px', marginBottom: '14px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -463,7 +463,9 @@ export default function PrintInventoryModal({
             </div>
           </div>
         </div>
-      </div>
+      </div>,
+        document.body
+      )}
     </>
   );
 }

@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Printer, X, FileText, Calendar, TrendingUp, Users, DollarSign, BarChart3 } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 
@@ -70,7 +71,7 @@ export default function PrintSalesReportModal({
 
   return (
     <>
-      {/* Dynamic Print CSS: ensures only the report sheet is printed */}
+      {/* Dynamic Print CSS: ensures only the report sheet is printed and collapses #root to avoid extra blank pages */}
       <style>{`
         #printable-sales-report {
           display: none;
@@ -80,17 +81,18 @@ export default function PrintSalesReportModal({
             size: A4 portrait;
             margin: 10mm 8mm;
           }
-          body * {
-            visibility: hidden;
+          #root {
+            display: none !important;
+            height: 0 !important;
+            overflow: hidden !important;
           }
           #printable-sales-report,
           #printable-sales-report * {
             visibility: visible !important;
           }
           #printable-sales-report {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
+            display: block !important;
+            position: static !important;
             width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
@@ -98,8 +100,6 @@ export default function PrintSalesReportModal({
             color: #000000 !important;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
             font-size: 10px !important;
-            display: block !important;
-            z-index: 9999999 !important;
           }
           .no-print {
             display: none !important;
@@ -216,6 +216,7 @@ export default function PrintSalesReportModal({
           >
             {/* Visual Paper Preview Container */}
             <div
+              className="report-paper-sheet"
               style={{
                 background: '#ffffff',
                 color: '#111827',
@@ -451,9 +452,10 @@ export default function PrintSalesReportModal({
       </div>
 
       {/* =========================================================================
-          PRINTABLE SHEET CONTAINER (Strictly visible during browser print)
+          PRINTABLE SHEET CONTAINER (Rendered via portal into body to eliminate page height inheritance)
          ========================================================================= */}
-      <div id="printable-sales-report">
+      {typeof document !== 'undefined' && createPortal(
+        <div id="printable-sales-report" className="report-paper-sheet">
         {/* Printable Header */}
         <div style={{ borderBottom: '2px solid #000000', paddingBottom: '8px', marginBottom: '12px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -636,7 +638,9 @@ export default function PrintSalesReportModal({
             <div style={{ fontSize: '8px', color: '#555555' }}>Manager / Owner Signature</div>
           </div>
         </div>
-      </div>
+      </div>,
+        document.body
+      )}
     </>
   );
 }

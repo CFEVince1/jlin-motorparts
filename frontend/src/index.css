@@ -821,3 +821,75 @@ tr:hover td {
     color: #000000 !important;
   }
 }
+
+/* =========================================================================
+   REPORT MODAL PAPER PREVIEWS & PRINTABLE REPORTS
+   Guarantees crisp, high-contrast dark text (#111827 / #000000) on white paper
+   both on-screen in the preview modal AND during document printing.
+   ========================================================================= */
+.report-paper-sheet,
+.report-paper-sheet table,
+.report-paper-sheet tbody,
+.report-paper-sheet thead,
+.report-paper-sheet tfoot,
+.report-paper-sheet tr,
+#printable-sales-report,
+#printable-sales-report table,
+#printable-transactions-report,
+#printable-transactions-report table,
+#printable-adjustments-report,
+#printable-adjustments-report table,
+#printable-inventory-report,
+#printable-inventory-report table {
+  color: #111827 !important;
+}
+
+.report-paper-sheet th,
+#printable-sales-report th,
+#printable-transactions-report th,
+#printable-adjustments-report th,
+#printable-inventory-report th {
+  background-color: #f3f4f6 !important;
+  color: #111827 !important;
+  font-weight: 700 !important;
+  border-bottom: 1.5px solid #d1d5db !important;
+}
+
+.report-paper-sheet td,
+#printable-sales-report td,
+#printable-transactions-report td,
+#printable-adjustments-report td,
+#printable-inventory-report td {
+  color: #111827 !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  background-color: transparent !important;
+}
+
+.report-paper-sheet tr:hover td,
+#printable-sales-report tr:hover td,
+#printable-transactions-report tr:hover td,
+#printable-adjustments-report tr:hover td,
+#printable-inventory-report tr:hover td {
+  background-color: transparent !important;
+  color: #111827 !important;
+}
+
+.report-paper-sheet .report-muted,
+.report-paper-sheet .text-muted,
+#printable-sales-report .text-muted,
+#printable-transactions-report .text-muted,
+#printable-adjustments-report .text-muted,
+#printable-inventory-report .text-muted {
+  color: #4b5563 !important;
+}
+
+.report-paper-sheet .report-emerald,
+#printable-sales-report .report-emerald,
+#printable-transactions-report .report-emerald {
+  color: #059669 !important;
+}
+
+.report-paper-sheet .report-rose,
+#printable-adjustments-report .report-rose {
+  color: #dc2626 !important;
+}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Printer, X, Calendar, DollarSign, Receipt, CreditCard, Wallet, Users, RefreshCw } from 'lucide-react';
 import api from '../services/api';
 import { formatCurrency, formatAuditDate } from '../utils/formatters';
@@ -129,7 +130,7 @@ export default function PrintTransactionsReportModal({
 
   return (
     <>
-      {/* Dynamic Print CSS: ensures only the A4 landscape report is printed */}
+      {/* Dynamic Print CSS: ensures only the A4 landscape report is printed and collapses #root */}
       <style>{`
         #printable-transactions-report {
           display: none;
@@ -139,17 +140,18 @@ export default function PrintTransactionsReportModal({
             size: A4 landscape;
             margin: 10mm 8mm;
           }
-          body * {
-            visibility: hidden;
+          #root {
+            display: none !important;
+            height: 0 !important;
+            overflow: hidden !important;
           }
           #printable-transactions-report,
           #printable-transactions-report * {
             visibility: visible !important;
           }
           #printable-transactions-report {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
+            display: block !important;
+            position: static !important;
             width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
@@ -157,8 +159,6 @@ export default function PrintTransactionsReportModal({
             color: #000000 !important;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
             font-size: 10px !important;
-            display: block !important;
-            z-index: 9999999 !important;
           }
           .no-print {
             display: none !important;
@@ -317,9 +317,10 @@ export default function PrintTransactionsReportModal({
             }}
           >
             <div
+              className="report-paper-sheet"
               style={{
                 background: '#ffffff',
-                color: '#000000',
+                color: '#111827',
                 padding: '24px',
                 borderRadius: '8px',
                 boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)',
@@ -361,7 +362,7 @@ export default function PrintTransactionsReportModal({
               </div>
 
               {/* Table preview */}
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px', color: '#000' }}>
+              <table className="report-paper-sheet" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px', color: '#111827' }}>
                 <thead>
                   <tr style={{ background: '#f2f2f2', borderBottom: '1.5px solid #000' }}>
                     <th style={{ padding: '6px 4px', textAlign: 'left', width: '30px' }}>#</th>
@@ -487,9 +488,10 @@ export default function PrintTransactionsReportModal({
       </div>
 
       {/* =========================================================================
-          PRINTABLE SHEET CONTAINER (Strictly visible during browser print)
+          PRINTABLE SHEET CONTAINER (Rendered via portal into body)
          ========================================================================= */}
-      <div id="printable-transactions-report">
+      {typeof document !== 'undefined' && createPortal(
+        <div id="printable-transactions-report" className="report-paper-sheet">
         {/* Printable Header */}
         <div style={{ borderBottom: '2px solid #000000', paddingBottom: '10px', marginBottom: '12px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -614,7 +616,9 @@ export default function PrintTransactionsReportModal({
             </div>
           </div>
         </div>
-      </div>
+      </div>,
+        document.body
+      )}
     </>
   );
 }
