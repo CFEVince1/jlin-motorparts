@@ -17,6 +17,19 @@ const formatSerialNumbers = (serialNumbers) => {
     return serialNumbers || '';
 };
 
+const getPageNumbers = (current, total) => {
+    if (total <= 7) {
+        return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    if (current <= 3) {
+        return [1, 2, 3, 4, '...', total];
+    }
+    if (current >= total - 2) {
+        return [1, '...', total - 3, total - 2, total - 1, total];
+    }
+    return [1, '...', current - 1, current, current + 1, '...', total];
+};
+
 const POS = () => {
     const navigate = useNavigate();
     const { user } = useContext(AuthContext);
@@ -31,16 +44,24 @@ const POS = () => {
         });
     }, []);
 
+    const [pageSize, setPageSize] = useState(10);
+
     const {
         searchQuery,
         setSearchQuery,
         filters,
         setFilter,
-        filteredItems: filteredProducts
+        filteredItems: filteredProducts,
+        paginatedItems: paginatedProducts,
+        currentPage,
+        totalPages,
+        paginate,
+        filteredCount
     } = useTableFilter({
         items: products,
         initialFilters: { category: 'All', brand: 'All', type: 'All' },
-        filterFn: filterProductsFn
+        filterFn: filterProductsFn,
+        itemsPerPage: pageSize
     });
 
     const category = filters.category;
@@ -627,28 +648,62 @@ const POS = () => {
                 </div>
 
                 <div className="table-container" style={{ width: '100%', overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                    <table>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                             <tr>
-                                <th>Part Number</th>
+                                <th style={{ width: '140px', whiteSpace: 'nowrap' }}>Part Number</th>
                                 <th>Product Name</th>
-                                <th>Brand</th>
-                                <th>Size</th>
-                                <th style={{ textAlign: 'right' }}>Stock</th>
-                                <th style={{ textAlign: 'right' }}>Price</th>
-                                <th>Compatibility</th>
+                                <th style={{ width: '100px', whiteSpace: 'nowrap' }}>Brand</th>
+                                <th style={{ width: '90px', whiteSpace: 'nowrap' }}>Size</th>
+                                <th style={{ width: '80px', textAlign: 'right', whiteSpace: 'nowrap' }}>Stock</th>
+                                <th style={{ width: '100px', textAlign: 'right', whiteSpace: 'nowrap' }}>Price</th>
+                                <th style={{ width: '190px', whiteSpace: 'nowrap' }}>Compatibility</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredProducts.length > 0 ? filteredProducts.map(p => (
-                                <tr key={p.id} onClick={() => addToCart(p)} style={{ cursor: 'pointer' }}>
-                                    <td style={{ color: 'var(--text-muted)', fontWeight: '600' }}>{p.part_number}</td>
-                                    <td style={{ fontWeight: '600' }}>{p.product_name}</td>
-                                    <td>{p.brand}</td>
-                                    <td>{p.size}</td>
-                                    <td style={{ textAlign: 'right', color: p.stock <= 5 ? 'var(--danger)' : 'var(--success)', fontWeight: 'bold' }}>{p.stock}</td>
-                                    <td style={{ textAlign: 'right', color: 'var(--primary)', fontWeight: 'bold' }}>{formatCurrency(p.price)}</td>
-                                    <td>{p.compatibility_display || '-'}</td>
+                            {paginatedProducts.length > 0 ? paginatedProducts.map(p => (
+                                <tr key={p.id} onClick={() => addToCart(p)} style={{ cursor: 'pointer' }} title="Click row to add to order">
+                                    <td style={{ fontFamily: 'monospace', fontWeight: '600', color: 'var(--text-main)', whiteSpace: 'nowrap' }}>
+                                        {p.part_number}
+                                    </td>
+                                    <td>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>{p.product_name || p.name}</span>
+                                            {p.is_serialized ? (
+                                                <span className="badge-pill badge-serialized" style={{ fontSize: '0.65rem', padding: '1px 6px' }}>
+                                                    Serialized
+                                                </span>
+                                            ) : null}
+                                        </div>
+                                        {p.category && (
+                                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                                {p.category}
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{p.brand || '-'}</td>
+                                    <td style={{ whiteSpace: 'nowrap' }}>{p.size || '-'}</td>
+                                    <td style={{ textAlign: 'right', color: p.stock <= (p.reorder_level || 5) ? 'var(--danger)' : 'var(--success)', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                        {p.stock}
+                                    </td>
+                                    <td style={{ textAlign: 'right', color: 'var(--primary)', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                        {formatCurrency(p.price)}
+                                    </td>
+                                    <td>
+                                        <div
+                                            style={{
+                                                maxWidth: '190px',
+                                                whiteSpace: 'nowrap',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                fontSize: '0.8rem',
+                                                color: 'var(--text-muted)'
+                                            }}
+                                            title={p.compatibility_display || 'Universal / All models'}
+                                        >
+                                            {p.compatibility_display || 'Universal'}
+                                        </div>
+                                    </td>
                                 </tr>
                             )) : (
                                 <tr>
@@ -660,6 +715,65 @@ const POS = () => {
                         </tbody>
                     </table>
                 </div>
+
+                {/* POS Catalog Pagination Controls */}
+                {totalPages > 1 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            <span>
+                                Showing <strong>{((currentPage - 1) * pageSize) + 1}</strong> - <strong>{Math.min(currentPage * pageSize, filteredCount)}</strong> of <strong>{filteredCount}</strong> products
+                            </span>
+                            <select
+                                value={pageSize}
+                                onChange={(e) => setPageSize(Number(e.target.value))}
+                                className="input-premium"
+                                style={{ padding: '2px 8px', fontSize: '0.75rem', width: 'auto', cursor: 'pointer' }}
+                                title="Products per page"
+                            >
+                                <option value={10}>10 / page</option>
+                                <option value={20}>20 / page</option>
+                                <option value={50}>50 / page</option>
+                            </select>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <button
+                                type="button"
+                                disabled={currentPage === 1}
+                                onClick={() => paginate(currentPage - 1)}
+                                className="btn-secondary"
+                                style={{ padding: '4px 10px', fontSize: '0.8rem', opacity: currentPage === 1 ? 0.5 : 1, cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+                            >
+                                Prev
+                            </button>
+
+                            {getPageNumbers(currentPage, totalPages).map((pageNum, idx) => (
+                                pageNum === '...' ? (
+                                    <span key={`dots-${idx}`} style={{ padding: '0 4px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>...</span>
+                                ) : (
+                                    <button
+                                        key={pageNum}
+                                        type="button"
+                                        onClick={() => paginate(pageNum)}
+                                        className={currentPage === pageNum ? 'btn-primary' : 'btn-secondary'}
+                                        style={{ padding: '4px 10px', fontSize: '0.8rem', minWidth: '30px', textAlign: 'center' }}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                )
+                            ))}
+
+                            <button
+                                type="button"
+                                disabled={currentPage === totalPages}
+                                onClick={() => paginate(currentPage + 1)}
+                                className="btn-secondary"
+                                style={{ padding: '4px 10px', fontSize: '0.8rem', opacity: currentPage === totalPages ? 0.5 : 1, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* CART AREA (4 of 12 columns on desktop) */}
