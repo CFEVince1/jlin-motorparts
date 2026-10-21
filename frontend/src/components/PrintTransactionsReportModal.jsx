@@ -301,7 +301,7 @@ export default function PrintTransactionsReportModal({
               <span style={{ padding: '3px 8px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', fontWeight: 600 }}>
                 Cash: {formatCurrency(cashSales)}
               </span>
-              <span style={{ padding: '3px 8px', borderRadius: '4px', background: 'rgba(22, 163, 74, 0.1)', color: '#16A34A', fontWeight: 600 }}>
+              <span style={{ padding: '3px 8px', borderRadius: '4px', background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', fontWeight: 600 }}>
                 GCash: {formatCurrency(gcashSales)}
               </span>
             </div>

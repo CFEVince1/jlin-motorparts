@@ -18,8 +18,6 @@ const formatSerialNumbers = (serialNumbers) => {
 };
 
 const POS = () => {
-    const searchInputRef = useRef(null);
-    const [cashReceived, setCashReceived] = useState('');
     const navigate = useNavigate();
     const { user } = useContext(AuthContext);
     const [products, setProducts] = useState([]);
@@ -535,7 +533,7 @@ const POS = () => {
                     }
                     .pos-filters-grid {
                         display: grid;
-                        grid-template-columns: 2fr 1fr 1fr 1fr;
+                        grid-template-columns: repeat(4, minmax(0, 1fr));
                         gap: 8px;
                         align-items: center;
                         width: 100%;
@@ -595,8 +593,8 @@ const POS = () => {
                         <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                         <input
                             type="text"
-                            placeholder="Search or scan part #"
-                            ref={searchInputRef} className="input-premium pos-search-input"
+                            placeholder="Search or scan part # (Enter to add)..."
+                            className="input-premium pos-search-input"
                             style={{ paddingLeft: '32px', width: '100%' }}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
@@ -632,7 +630,7 @@ const POS = () => {
                     <table>
                         <thead>
                             <tr>
-                                <th style={{ minWidth: '150px', whiteSpace: 'nowrap' }}>Part Number</th>
+                                <th>Part Number</th>
                                 <th>Product Name</th>
                                 <th>Brand</th>
                                 <th>Size</th>
@@ -644,42 +642,13 @@ const POS = () => {
                         <tbody>
                             {filteredProducts.length > 0 ? filteredProducts.map(p => (
                                 <tr key={p.id} onClick={() => addToCart(p)} style={{ cursor: 'pointer' }}>
-                                    <td style={{ color: 'var(--text-muted)', fontWeight: '600', minWidth: '150px', whiteSpace: 'nowrap' }}>{p.part_number}</td>
+                                    <td style={{ color: 'var(--text-muted)', fontWeight: '600' }}>{p.part_number}</td>
                                     <td style={{ fontWeight: '600' }}>{p.product_name}</td>
                                     <td>{p.brand}</td>
                                     <td>{p.size}</td>
-                                    <td style={{ textAlign: 'right' }}>
-                                        {p.stock === 0 ? (
-                                            <span className="badge-pill" style={{ background: 'rgba(220, 38, 38, 0.12)', color: 'var(--danger)', border: '1px solid rgba(220, 38, 38, 0.3)', fontWeight: 600 }}>Out</span>
-                                        ) : p.stock <= 5 ? (
-                                            <span className="badge-pill" style={{ background: '#FEF3C7', color: '#D97706', border: '1px solid #FCD34D', fontWeight: 600 }}>Low ({p.stock})</span>
-                                        ) : (
-                                            <span className="badge-pill" style={{ background: 'rgba(22, 163, 74, 0.12)', color: 'var(--primary)', border: '1px solid rgba(22, 163, 74, 0.3)', fontWeight: 600 }}>In stock ({p.stock})</span>
-                                        )}
-                                    </td>
+                                    <td style={{ textAlign: 'right', color: p.stock <= 5 ? 'var(--danger)' : 'var(--success)', fontWeight: 'bold' }}>{p.stock}</td>
                                     <td style={{ textAlign: 'right', color: 'var(--primary)', fontWeight: 'bold' }}>{formatCurrency(p.price)}</td>
-                                    <td>
-                                        {p.compatibility_display ? (
-                                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                                                {p.compatibility_display.split(/[,/]+/).map((chip, idx) => (
-                                                    <span key={idx} style={{
-                                                        fontSize: '0.72rem',
-                                                        background: 'var(--surface-hover)',
-                                                        border: '1px solid var(--border)',
-                                                        color: 'var(--text-muted)',
-                                                        padding: '1px 6px',
-                                                        borderRadius: '4px',
-                                                        whiteSpace: 'nowrap',
-                                                        textTransform: 'capitalize'
-                                                    }}>
-                                                        {chip.trim().replace(/\b\w/g, l => l.toUpperCase())}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <span style={{ color: 'var(--text-muted)' }}>-</span>
-                                        )}
-                                    </td>
+                                    <td>{p.compatibility_display || '-'}</td>
                                 </tr>
                             )) : (
                                 <tr>
@@ -698,18 +667,14 @@ const POS = () => {
                 <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', borderRadius: '12px 12px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1rem', fontWeight: 600 }}><ShoppingCart size={18} /> Current Order</h3>
                     {cart.length > 0 && (
-                        <span style={{ fontSize: '0.75rem', background: 'rgba(22, 163, 74, 0.12)', color: 'var(--primary)', border: '1px solid rgba(22, 163, 74, 0.3)', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                        <span style={{ fontSize: '0.75rem', background: 'rgba(99, 102, 241, 0.2)', color: 'var(--primary)', border: '1px solid rgba(99, 102, 241, 0.4)', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
                             {cart.reduce((sum, item) => sum + item.quantity, 0)} {cart.reduce((sum, item) => sum + item.quantity, 0) === 1 ? 'item' : 'items'}
                         </span>
                     )}
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto', padding: '12px', maxHeight: '420px' }}>
                     {cart.length === 0 ? (
-                        <div style={{ height: '100%', minHeight: '180px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.9rem', gap: '8px', textAlign: 'center', padding: '20px' }}>
-                            <ShoppingCart size={36} style={{ strokeWidth: 1.5, opacity: 0.4 }} />
-                            <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>Scan an item to start</span>
-                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Scan barcode or search part # to add</span>
-                        </div>
+                        <div style={{ height: '100%', minHeight: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Order is empty</div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {cart.map(item => (
@@ -891,30 +856,6 @@ const POS = () => {
                         <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Total Amount</span>
                         <span style={{ fontWeight: 'bold', color: 'var(--primary)', fontSize: '1.4rem' }}>{formatCurrency(totalAmount)}</span>
                     </div>
-                    
-                    {/* Cash Received & Automatic Change Counter */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px', background: 'var(--surface-hover)', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-main)' }}>Cash Received (₱)</label>
-                            <input
-                                type="number"
-                                min="0"
-                                step="any"
-                                placeholder="0.00"
-                                value={cashReceived}
-                                onChange={(e) => setCashReceived(e.target.value)}
-                                className="input-premium"
-                                style={{ width: '130px', textAlign: 'right', height: '32px', fontSize: '0.9rem', fontWeight: 'bold' }}
-                            />
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-                            <span style={{ color: 'var(--text-muted)' }}>Change Due</span>
-                            <span style={{ fontWeight: 'bold', color: (parseFloat(cashReceived) || 0) >= totalAmount ? 'var(--primary)' : 'var(--text-muted)', fontSize: '1rem' }}>
-                                {formatCurrency(Math.max(0, (parseFloat(cashReceived) || 0) - totalAmount))}
-                            </span>
-                        </div>
-                    </div>
-
                     <button className="btn-primary" style={{ width: '100%', padding: '10px 14px', fontSize: '0.9rem' }} onClick={handleCheckoutClick} disabled={cart.length === 0}>
                         <CheckCircle2 size={16} /> Complete Payment
                     </button>
@@ -1051,7 +992,7 @@ const POS = () => {
                                 title="Customer forgot something? Void this transaction and return items to cart to add more items."
                             >
                                 <RotateCcw size={15} />
-                                {voidingSale ? 'Voiding & Restoring Cart...' : 'Void & Return to Cart'}
+                                {voidingSale ? 'Voiding & Restoring Cart...' : '↩ Void & Return to Cart'}
                             </button>
                         </div>
                     </div>

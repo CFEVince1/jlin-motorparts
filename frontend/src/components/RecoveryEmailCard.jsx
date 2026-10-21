@@ -195,13 +195,13 @@ export default function RecoveryEmailCard() {
           ? 'rgba(16, 185, 129, 0.1)' 
           : isPendingVerification 
             ? 'rgba(234, 179, 8, 0.1)' 
-            : 'rgba(22, 163, 74, 0.1)',
+            : 'rgba(59, 130, 246, 0.1)',
         border: `1px solid ${
           isVerified 
             ? 'rgba(16, 185, 129, 0.3)' 
             : isPendingVerification 
               ? 'rgba(234, 179, 8, 0.3)' 
-              : 'rgba(22, 163, 74, 0.3)'
+              : 'rgba(59, 130, 246, 0.3)'
         }`,
         margin: '12px 0 16px 0',
         fontSize: '0.85rem'
@@ -211,7 +211,7 @@ export default function RecoveryEmailCard() {
         ) : isPendingVerification ? (
           <AlertCircle size={18} style={{ color: '#eab308', flexShrink: 0, marginTop: '2px' }} />
         ) : (
-          <Mail size={18} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }} />
+          <Mail size={18} style={{ color: '#3b82f6', flexShrink: 0, marginTop: '2px' }} />
         )}
         <div style={{ margin: 0, color: 'var(--text-main)' }}>
           {status.email ? (

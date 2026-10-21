@@ -22,7 +22,7 @@ import {
 const Sidebar = () => {
     const { user, logout } = useContext(AuthContext);
     const navigate = useNavigate();
-    const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
+    const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
 
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
@@ -110,9 +110,9 @@ const Sidebar = () => {
                         position: 'absolute',
                         top: 0,
                         right: '12px',
-                        background: '#1F2937',
-                        border: '1px solid #374151',
-                        color: '#F3F4F6',
+                        background: 'var(--surface-hover)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-main)',
                         cursor: 'pointer',
                         padding: '5px',
                         borderRadius: '6px',
@@ -143,7 +143,7 @@ const Sidebar = () => {
                 <div style={{
                     fontWeight: 800,
                     fontSize: '0.88rem',
-                    color: '#FFFFFF',
+                    color: 'var(--text-main)',
                     letterSpacing: '0.5px',
                     textAlign: 'center',
                     lineHeight: 1.2
@@ -151,7 +151,7 @@ const Sidebar = () => {
                     JLIN MOTO PARTS
                 </div>
                 <div style={{
-                    color: '#9CA3AF',
+                    color: 'var(--text-muted)',
                     fontSize: '0.64rem',
                     textTransform: 'uppercase',
                     letterSpacing: '1px',
@@ -280,7 +280,7 @@ const Sidebar = () => {
                                 whiteSpace: 'nowrap',
                                 textOverflow: 'ellipsis',
                                 overflow: 'hidden',
-                                color: '#FFFFFF',
+                                color: 'var(--text-main)',
                                 lineHeight: 1.2
                             }}
                         >
@@ -289,7 +289,7 @@ const Sidebar = () => {
                         <div
                             style={{
                                 fontSize: '0.66rem',
-                                color: '#9CA3AF',
+                                color: 'var(--text-muted)',
                                 textTransform: 'capitalize'
                             }}
                         >

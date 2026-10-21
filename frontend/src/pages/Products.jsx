@@ -431,7 +431,7 @@ const Products = () => {
                                             const isAlreadySelected = formData.compatibility_group_ids.map(Number).includes(groupId);
                                             const modelCount = group.member_units?.length || 0;
                                             const modelsSample = (group.member_units || []).slice(0, 3).map(m => m.model).join(', ');
-                                            const label = `${group.group_name}${modelCount > 0 ? ` (${modelCount} models: ${modelsSample})` : ''}${isAlreadySelected ? ' (Added)' : ''}`;
+                                            const label = `${group.group_name}${modelCount > 0 ? ` (${modelCount} models: ${modelsSample})` : ''}${isAlreadySelected ? ' ✓ (Added)' : ''}`;
 
                                             return (
                                                 <option key={group.id} value={group.id} disabled={isAlreadySelected}>
@@ -472,15 +472,15 @@ const Products = () => {
                                                         alignItems: 'center',
                                                         gap: '8px',
                                                         padding: '6px 12px',
-                                                        background: 'rgba(22, 163, 74, 0.1)',
-                                                        border: '1px solid rgba(22, 163, 74, 0.3)',
+                                                        background: 'rgba(99, 102, 241, 0.15)',
+                                                        border: '1px solid rgba(99, 102, 241, 0.4)',
                                                         borderRadius: '20px',
                                                         color: 'var(--text-main)',
                                                         fontSize: '0.85rem'
                                                     }}
                                                     title={memberNames ? `Covers: ${memberNames}` : 'No specific models attached'}
                                                 >
-                                                    <span style={{ fontWeight: 600 }}>{group.group_name}</span>
+                                                    <span style={{ fontWeight: 600 }}>🏷️ {group.group_name}</span>
                                                     {group.member_units?.length > 0 && (
                                                         <span style={{
                                                             fontSize: '0.75rem',

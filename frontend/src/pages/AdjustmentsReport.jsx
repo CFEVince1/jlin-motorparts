@@ -164,7 +164,7 @@ export const AdjustmentsReport = () => {
       case 'LOSS':
         return { bg: 'rgba(239, 68, 68, 0.15)', text: '#ef4444', border: 'rgba(239, 68, 68, 0.4)' };
       case 'RETURN_TO_SUPPLIER':
-        return { bg: 'rgba(55, 65, 81, 0.15)', text: '#374151', border: 'rgba(55, 65, 81, 0.4)' };
+        return { bg: 'rgba(99, 102, 241, 0.15)', text: '#6366f1', border: 'rgba(99, 102, 241, 0.4)' };
       default:
         return { bg: 'var(--surface-hover)', text: 'var(--text-main)', border: 'var(--border)' };
     }
@@ -257,8 +257,8 @@ export const AdjustmentsReport = () => {
           style={{
             padding: '16px',
             cursor: 'pointer',
-            border: selectedType === 'RETURN_TO_SUPPLIER' ? '2px solid #374151' : '1px solid var(--border)',
-            background: selectedType === 'RETURN_TO_SUPPLIER' ? 'rgba(55, 65, 81, 0.08)' : 'var(--surface)',
+            border: selectedType === 'RETURN_TO_SUPPLIER' ? '2px solid #6366f1' : '1px solid var(--border)',
+            background: selectedType === 'RETURN_TO_SUPPLIER' ? 'rgba(99, 102, 241, 0.08)' : 'var(--surface)',
             transition: 'all 0.2s ease'
           }}
           onClick={() => toggleCardType('RETURN_TO_SUPPLIER')}
@@ -269,12 +269,12 @@ export const AdjustmentsReport = () => {
               Returned to Supplier
             </span>
             {selectedType === 'RETURN_TO_SUPPLIER' && (
-              <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: '#374151', color: '#fff', fontWeight: 700 }}>
+              <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: '#6366f1', color: '#fff', fontWeight: 700 }}>
                 ACTIVE FILTER
               </span>
             )}
           </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: '#374151', marginTop: '6px' }}>
+          <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: '#6366f1', marginTop: '6px' }}>
             {data.summary?.RETURN_TO_SUPPLIER || 0}
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>

@@ -360,7 +360,7 @@ exports.getBestSelling = async (req, res) => {
             LEFT JOIN products p ON si.product_id = p.id
             JOIN sales s ON si.sale_id = s.id
             LEFT JOIN (${compatibilityDisplaySubquery}) cd ON cd.product_id = si.product_id
-            ${sql ? `${sql} AND` : 'WHERE'} (si.product_name NOT LIKE '%Snapshot%' AND si.product_name NOT LIKE '%Test%')
+            ${sql}
             GROUP BY
                 si.product_id,
                 si.part_number,
@@ -592,58 +592,6 @@ exports.getAdjustmentsReport = async (req, res, next) => {
             summary
         });
 
-    } catch (err) {
-        next(err);
-    }
-};
-
-exports.getWeeklySalesChart = async (req, res, next) => {
-    try {
-        let userCondition = '';
-        const params = [];
-        if (req.user?.role !== 'admin') {
-            userCondition = 'AND s.user_id = ?';
-            params.push(req.user.id);
-        }
-
-        const query = `
-            SELECT DATE_FORMAT(s.sale_date, '%Y-%m-%d') as date,
-                   DATE_FORMAT(s.sale_date, '%a') as day,
-                   COALESCE(SUM(s.total_amount), 0) as total_sales,
-                   COUNT(s.id) as total_orders
-            FROM sales s
-            WHERE s.sale_date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
-              AND COALESCE(s.status, 'COMPLETED') != 'VOIDED'
-              ${userCondition}
-            GROUP BY DATE(s.sale_date), DATE_FORMAT(s.sale_date, '%Y-%m-%d'), DATE_FORMAT(s.sale_date, '%a')
-            ORDER BY DATE(s.sale_date) ASC
-        `;
-        const [rows] = await db.query(query, params);
-        
-        // Ensure all 7 consecutive days are represented
-        const [allDays] = await db.query(`
-            SELECT 
-                DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL seq.n DAY), '%Y-%m-%d') as date,
-                DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL seq.n DAY), '%a') as day
-            FROM (
-                SELECT 6 as n UNION ALL SELECT 5 UNION ALL SELECT 4 
-                UNION ALL SELECT 3 UNION ALL SELECT 2 UNION ALL SELECT 1 UNION ALL SELECT 0
-            ) seq
-            ORDER BY seq.n DESC
-        `);
-
-        const salesByDate = new Map(rows.map(r => [r.date, r]));
-        const result = allDays.map(d => {
-            const match = salesByDate.get(d.date);
-            return {
-                date: d.date,
-                day: d.day,
-                total_sales: match ? parseFloat(match.total_sales || 0) : 0,
-                total_orders: match ? parseInt(match.total_orders || 0, 10) : 0
-            };
-        });
-
-        res.json(result);
     } catch (err) {
         next(err);
     }

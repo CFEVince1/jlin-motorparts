@@ -64,7 +64,7 @@ export const ItemLedgerDrawer = ({
       case 'FOUND':
         return { bg: 'rgba(16, 185, 129, 0.15)', text: '#10b981', border: 'rgba(16, 185, 129, 0.4)' };
       case 'SALE':
-        return { bg: 'rgba(22, 163, 74, 0.12)', text: '#16A34A', border: 'rgba(22, 163, 74, 0.35)' };
+        return { bg: 'rgba(59, 130, 246, 0.15)', text: '#3b82f6', border: 'rgba(59, 130, 246, 0.4)' };
       case 'DAMAGE':
       case 'LOSS':
       case 'RETURN_TO_SUPPLIER':

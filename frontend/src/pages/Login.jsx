@@ -59,7 +59,7 @@ const Login = () => {
             justifyContent: 'center',
             position: 'relative',
             overflow: 'hidden',
-            backgroundColor: 'var(--bg-base)'
+            backgroundColor: '#0a0d0a'
         }}>
             {/* Background Graphic: Responsive, Centered & Proportional without distortion */}
             <div style={{
@@ -76,7 +76,7 @@ const Login = () => {
             <div style={{
                 position: 'absolute',
                 inset: 0,
-                background: 'radial-gradient(ellipse at center, rgba(249, 250, 251, 0.4) 0%, rgba(243, 244, 246, 0.85) 100%)',
+                background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.8) 100%)',
                 pointerEvents: 'none',
                 zIndex: 1
             }}></div>
@@ -91,10 +91,11 @@ const Login = () => {
             }}>
                 <div className="glass-panel" style={{
                     padding: '36px 32px',
-                    backgroundColor: 'var(--surface)',
-                    border: '1px solid var(--border)',
+                    backgroundColor: 'rgba(18, 20, 18, 0.90)',
+                    backdropFilter: 'blur(16px)',
+                    border: '1px solid rgba(16, 185, 129, 0.35)',
                     borderRadius: '12px',
-                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)'
+                    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.65), 0 0 30px rgba(16, 185, 129, 0.15)'
                 }}>
                     <img
                         src="/jlin-logo.png"
@@ -179,7 +180,21 @@ const Login = () => {
                             </button>
                         </div>
 
-                        
+                        <div style={{ textAlign: 'right', marginTop: '-6px' }}>
+                            <Link 
+                                to="/forgot-password" 
+                                style={{ 
+                                    color: 'var(--text-muted)', 
+                                    fontSize: '0.85rem', 
+                                    textDecoration: 'none',
+                                    transition: 'color 0.2s'
+                                }}
+                                onMouseEnter={(e) => e.target.style.color = 'var(--primary)'}
+                                onMouseLeave={(e) => e.target.style.color = 'var(--text-muted)'}
+                            >
+                                Forgot password?
+                            </Link>
+                        </div>
 
                         {errorMessage && (
                             <div style={{
