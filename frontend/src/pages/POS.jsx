@@ -77,6 +77,7 @@ const POS = () => {
     const [showReceipt, setShowReceipt] = useState(false);
     const [lastTransaction, setLastTransaction] = useState(null);
     const [paymentMethod, setPaymentMethod] = useState('Cash');
+    const [selectedTableSerials, setSelectedTableSerials] = useState({});
     const [tenderedAmount, setTenderedAmount] = useState('');
     const [customerName, setCustomerName] = useState('');
     const [customerAddress, setCustomerAddress] = useState('');
@@ -112,6 +113,13 @@ const POS = () => {
                 const res = await api.get('/products');
                 const activeProducts = res.data.filter(p => p.stock > 0);
                 setProducts(activeProducts);
+                const initialSerials = {};
+                activeProducts.forEach(p => {
+                    if (p.is_serialized && p.serials && p.serials.length > 0) {
+                        initialSerials[p.id] = Number(p.serials[0].id);
+                    }
+                });
+                setSelectedTableSerials(prev => ({ ...initialSerials, ...prev }));
             } catch {
                 toast.error('Failed to load products');
             }
@@ -217,31 +225,40 @@ const POS = () => {
     const addToCart = useCallback((product) => {
         if (!product) return;
 
-        // If product is serialized: directly assign the next available serial WITHOUT opening any modal form
+        // If product is serialized: directly add or increment using selected serial from table (no form/modal popup)
         if (isSerializedProduct(product)) {
             const currentCart = cartRef.current;
             const existing = currentCart.find(item => item.product_id === product.id);
-            const currentlySelectedSerialIds = existing ? (existing.serial_ids || []).map(Number) : [];
 
-            // Find next available unselected serial
             const availableSerials = product.serials || [];
-            const nextSerial = availableSerials.find(s => !currentlySelectedSerialIds.includes(Number(s.id)));
+            const chosenId = selectedTableSerials[product.id] || (availableSerials[0]?.id);
+            const chosenSerial = availableSerials.find(s => Number(s.id) === Number(chosenId)) || availableSerials[0];
+            const chosenSerialId = chosenSerial ? Number(chosenSerial.id) : null;
+            const chosenSerialNum = chosenSerial ? chosenSerial.serial_number : (product.serial_display || 'SN-DEFAULT');
 
-            if (!nextSerial && currentlySelectedSerialIds.length >= (product.stock || 0)) {
-                toast.error(`All available serials for ${product.product_name || product.name} are already in the cart`);
-                return;
-            }
+            if (existing) {
+                if (existing.quantity >= product.stock) {
+                    toast.error(`Cannot exceed available stock (${product.stock})`);
+                    return;
+                }
+                const newQty = existing.quantity + 1;
+                const updatedSerialIds = chosenSerialId && !existing.serial_ids.includes(chosenSerialId)
+                    ? [...existing.serial_ids, chosenSerialId]
+                    : (existing.serial_ids.length > 0 ? existing.serial_ids : (chosenSerialId ? [chosenSerialId] : []));
+                const updatedSerialNums = chosenSerialNum && !existing.serial_numbers.includes(chosenSerialNum)
+                    ? [...existing.serial_numbers, chosenSerialNum]
+                    : (existing.serial_numbers.length > 0 ? existing.serial_numbers : (chosenSerialNum ? [chosenSerialNum] : []));
 
-            const updatedSerialIds = nextSerial 
-                ? [...currentlySelectedSerialIds, Number(nextSerial.id)]
-                : currentlySelectedSerialIds;
-            const updatedSerialNumbers = nextSerial
-                ? [...(existing?.serial_numbers || []), nextSerial.serial_number]
-                : (existing?.serial_numbers || []);
-            const newQty = (existing ? existing.quantity : 0) + 1;
+                const cartItem = {
+                    ...existing,
+                    quantity: newQty,
+                    serial_ids: updatedSerialIds,
+                    serial_numbers: updatedSerialNums,
+                    subtotal: calculateItemSubtotal(newQty, product.price)
+                };
 
-            if (newQty > product.stock) {
-                toast.error(`Cannot exceed available stock (${product.stock})`);
+                setCart(prev => prev.map(item => item.product_id === product.id ? cartItem : item));
+                toast.success(`Updated ${product.product_name || product.name} quantity to ${newQty}`);
                 return;
             }
 
@@ -253,22 +270,16 @@ const POS = () => {
                 size: product.size,
                 compatibility_display: product.compatibility_display,
                 is_serialized: true,
-                serial_ids: updatedSerialIds,
-                serial_numbers: updatedSerialNumbers,
-                quantity: newQty,
+                serial_ids: chosenSerialId ? [chosenSerialId] : [],
+                serial_numbers: chosenSerialNum ? [chosenSerialNum] : [],
+                quantity: 1,
                 price: Number(product.price),
-                subtotal: calculateItemSubtotal(newQty, product.price),
+                subtotal: calculateItemSubtotal(1, product.price),
                 maxStock: product.stock
             };
 
-            setCart(prev => {
-                const itemExists = prev.some(item => item.product_id === product.id);
-                return itemExists
-                    ? prev.map(item => item.product_id === product.id ? cartItem : item)
-                    : [...prev, cartItem];
-            });
-
-            toast.success(`Added ${product.product_name || product.name}${nextSerial ? ` (SN: ${nextSerial.serial_number})` : ''}`);
+            setCart(prev => [...prev, cartItem]);
+            toast.success(`Added ${product.product_name || product.name} (SN: ${chosenSerialNum})`);
             return;
         }
 
@@ -304,40 +315,11 @@ const POS = () => {
             }
         });
         toast.success(`Added ${product.product_name || product.name}`);
-    }, []);
+    }, [selectedTableSerials]);
 
     const updateQuantity = (id, delta) => {
         setCart(cart.map(item => {
             if (item.product_id === id) {
-                if (item.is_serialized) {
-                    if (delta < 0) {
-                        if (item.quantity <= 1) return item;
-                        const newQty = item.quantity - 1;
-                        return {
-                            ...item,
-                            quantity: newQty,
-                            serial_ids: (item.serial_ids || []).slice(0, newQty),
-                            serial_numbers: (item.serial_numbers || []).slice(0, newQty),
-                            subtotal: calculateItemSubtotal(newQty, item.price)
-                        };
-                    } else {
-                        const prod = productsRef.current.find(p => p.id === id);
-                        const available = prod?.serials || [];
-                        const nextSerial = available.find(s => !(item.serial_ids || []).includes(Number(s.id)));
-                        if (item.quantity >= item.maxStock) {
-                            toast.error(`Cannot exceed available stock (${item.maxStock})`);
-                            return item;
-                        }
-                        const newQty = item.quantity + 1;
-                        return {
-                            ...item,
-                            quantity: newQty,
-                            serial_ids: nextSerial ? [...(item.serial_ids || []), Number(nextSerial.id)] : item.serial_ids,
-                            serial_numbers: nextSerial ? [...(item.serial_numbers || []), nextSerial.serial_number] : item.serial_numbers,
-                            subtotal: calculateItemSubtotal(newQty, item.price)
-                        };
-                    }
-                }
                 const newQty = item.quantity + delta;
                 if (newQty < 1) return item;
                 if (newQty > item.maxStock) {
@@ -357,14 +339,10 @@ const POS = () => {
     const setQuantityDirect = (id, newQuantity) => {
         setCart(cart.map(item => {
             if (item.product_id === id) {
-                if (item.is_serialized) {
-                    toast.error('Edit selected serials to change quantity');
-                    return item;
-                }
                 let qty = parseInt(newQuantity);
                 if (isNaN(qty) || qty < 1) qty = 1;
                 if (qty > item.maxStock) {
-                    toast.error('Cannot exceed available stock');
+                    toast.error(`Cannot exceed available stock (${item.maxStock})`);
                     qty = item.maxStock;
                 }
                 return { ...item, quantity: qty, subtotal: calculateItemSubtotal(qty, item.price) };
@@ -761,29 +739,51 @@ const POS = () => {
                                             </div>
                                         )}
                                     </td>
-                                    <td style={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                                    <td style={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
                                         {p.is_serialized ? (
-                                            <span
-                                                style={{
-                                                    fontFamily: 'monospace',
-                                                    fontSize: '0.75rem',
-                                                    color: 'var(--accent)',
-                                                    background: 'rgba(10, 132, 255, 0.1)',
-                                                    padding: '2px 6px',
-                                                    borderRadius: '4px',
-                                                    border: '1px solid rgba(10, 132, 255, 0.25)',
-                                                    display: 'inline-block',
-                                                    maxWidth: '130px',
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    whiteSpace: 'nowrap'
-                                                }}
-                                                title={p.serial_display || (p.serial_numbers && p.serial_numbers.length > 0 ? p.serial_numbers.join(', ') : 'Serialized')}
-                                            >
-                                                {p.serial_numbers && p.serial_numbers.length > 0
-                                                    ? (p.serial_numbers.length === 1 ? p.serial_numbers[0] : `${p.serial_numbers[0]} (+${p.serial_numbers.length - 1})`)
-                                                    : (p.serial_display && p.serial_display !== '-' ? p.serial_display : 'Serialized')}
-                                            </span>
+                                            (p.serials && p.serials.length > 0) ? (
+                                                <select
+                                                    className="input-premium"
+                                                    value={selectedTableSerials[p.id] || p.serials[0].id}
+                                                    onChange={(e) => {
+                                                        const chosenId = Number(e.target.value);
+                                                        setSelectedTableSerials(prev => ({ ...prev, [p.id]: chosenId }));
+                                                    }}
+                                                    style={{
+                                                        fontFamily: 'monospace',
+                                                        fontSize: '0.78rem',
+                                                        padding: '3px 8px',
+                                                        borderRadius: '6px',
+                                                        border: '1px solid var(--border)',
+                                                        background: 'var(--surface)',
+                                                        color: 'var(--text-main)',
+                                                        maxWidth: '155px',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                    title="Select specific serial"
+                                                >
+                                                    {p.serials.map(s => (
+                                                        <option key={s.id} value={s.id}>
+                                                            {s.serial_number}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            ) : (
+                                                <span
+                                                    style={{
+                                                        fontFamily: 'monospace',
+                                                        fontSize: '0.75rem',
+                                                        color: 'var(--accent)',
+                                                        background: 'rgba(10, 132, 255, 0.1)',
+                                                        padding: '2px 6px',
+                                                        borderRadius: '4px',
+                                                        border: '1px solid rgba(10, 132, 255, 0.25)',
+                                                        display: 'inline-block'
+                                                    }}
+                                                >
+                                                    {p.serial_display && p.serial_display !== '-' ? p.serial_display : 'Serialized'}
+                                                </span>
+                                            )
                                         ) : (
                                             <span style={{ color: 'var(--text-muted)' }}>-</span>
                                         )}
@@ -948,7 +948,12 @@ const POS = () => {
                                             </div>
                                             {item.is_serialized && (
                                                 <div style={{ fontSize: '0.75rem', color: 'var(--accent)', marginTop: '4px' }}>
-                                                    Serials: {item.serial_numbers?.length > 0 ? item.serial_numbers.join(', ') : 'None selected'}
+                                                    Serial: <strong>{item.serial_numbers?.length > 0 ? item.serial_numbers.join(', ') : 'Selected'}</strong>
+                                                    {item.quantity > 1 && (
+                                                        <span style={{ marginLeft: '6px', color: 'var(--text-muted)' }}>
+                                                            (Qty: {item.quantity})
+                                                        </span>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>

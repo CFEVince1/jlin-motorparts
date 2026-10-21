@@ -112,29 +112,23 @@ exports.checkout = async (req, res, next) => {
             const product = productRows[0];
             const serialized = normalizeBoolean(product.is_serialized);
 
-            // Serial validation
+            // Serial validation (supports single serial, batch serial, or multi-qty purchases)
             if (serialized) {
                 if (serialIds.length === 0) {
                     throw new AppValidationError(`Serial selection is required for ${product.name}`);
                 }
                 const uniqueSerialIds = [...new Set(serialIds)];
-                if (uniqueSerialIds.length !== serialIds.length) {
-                    throw new AppValidationError(`Duplicate serial selections are not allowed for ${product.name}`);
-                }
-                if (qty !== serialIds.length) {
-                    throw new AppValidationError(`Serialized quantity (${qty}) must match selected serial count (${serialIds.length}) for ${product.name}`);
-                }
 
-                const placeholders = serialIds.map(() => '?').join(', ');
+                const placeholders = uniqueSerialIds.map(() => '?').join(', ');
                 const [serialRows] = await connection.query(
                     `SELECT id FROM product_serials
-                     WHERE product_id = ? AND status = 'available' AND id IN (${placeholders})
+                     WHERE product_id = ? AND id IN (${placeholders})
                      FOR UPDATE`,
-                    [productId, ...serialIds]
+                    [productId, ...uniqueSerialIds]
                 );
 
-                if (serialRows.length !== serialIds.length) {
-                    throw new AppValidationError(`One or more selected serial numbers for ${product.name} are no longer available.`);
+                if (serialRows.length !== uniqueSerialIds.length) {
+                    throw new AppValidationError(`One or more selected serial numbers for ${product.name} are invalid or not found.`);
                 }
             } else if (serialIds.length > 0) {
                 throw new AppValidationError(`Serial numbers cannot be assigned to non-serialized product ${product.name}`);
