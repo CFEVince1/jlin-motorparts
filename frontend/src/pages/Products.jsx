@@ -52,7 +52,6 @@ const initialFormState = {
 const Products = () => {
     const [products, setProducts] = useState([]);
     const [motorcycleUnits, setMotorcycleUnits] = useState([]);
-    const [compatibilityGroups, setCompatibilityGroups] = useState([]);
     const [loading, setLoading] = useState(true);
     const { user } = useContext(AuthContext);
 
@@ -117,37 +116,12 @@ const Products = () => {
         }
     };
 
-    const fetchCompatibilityGroups = async () => {
-        try {
-            const res = await api.get('/products/compatibility-groups');
-            const clean = Array.isArray(res.data)
-                ? res.data
-                    .filter(g => !isJunkText(g.group_name) && !isJunkText(g.description))
-                    .map(g => ({
-                        ...g,
-                        member_units: (g.member_units || []).filter(u => !isJunkText(u.brand) && !isJunkText(u.model) && !isJunkText(u.year_model))
-                    }))
-                : [];
-            setCompatibilityGroups(clean);
-        } catch {
-            toast.error('Failed to load compatibility groups');
-        }
-    };
-
     useEffect(() => {
         fetchProducts();
         fetchMotorcycleUnits();
-        fetchCompatibilityGroups();
     }, []);
 
-    const [selectedGroupIdToAdd, setSelectedGroupIdToAdd] = useState('');
     const [unitSearchQuery, setUnitSearchQuery] = useState('');
-    const [showExactUnits, setShowExactUnits] = useState(false);
-    const [isCreatingGroup, setIsCreatingGroup] = useState(false);
-    const [newGroupName, setNewGroupName] = useState('');
-    const [newGroupDescription, setNewGroupDescription] = useState('');
-    const [newGroupUnitIds, setNewGroupUnitIds] = useState([]);
-    const [savingGroup, setSavingGroup] = useState(false);
 
     const toggleMotorcycleUnit = (unitId) => {
         const numericId = Number(unitId);
@@ -159,75 +133,6 @@ const Products = () => {
                 ? selected.filter(id => id !== numericId)
                 : [...selected, numericId]
         });
-    };
-
-    const toggleCompatibilityGroup = (groupId) => {
-        const numericId = Number(groupId);
-        const selected = formData.compatibility_group_ids.map(Number);
-
-        setFormData({
-            ...formData,
-            compatibility_group_ids: selected.includes(numericId)
-                ? selected.filter(id => id !== numericId)
-                : [...selected, numericId]
-        });
-    };
-
-    const addCompatibilityGroup = (groupId) => {
-        if (!groupId) return;
-        const numericId = Number(groupId);
-        const selected = formData.compatibility_group_ids.map(Number);
-        if (!selected.includes(numericId)) {
-            setFormData({
-                ...formData,
-                compatibility_group_ids: [...selected, numericId]
-            });
-        }
-        setSelectedGroupIdToAdd('');
-    };
-
-    const removeCompatibilityGroup = (groupId) => {
-        const numericId = Number(groupId);
-        setFormData({
-            ...formData,
-            compatibility_group_ids: formData.compatibility_group_ids.map(Number).filter(id => id !== numericId)
-        });
-    };
-
-    const handleQuickCreateGroup = async (e) => {
-        e.preventDefault();
-        if (!newGroupName.trim()) {
-            toast.error('Platform group name is required');
-            return;
-        }
-        setSavingGroup(true);
-        try {
-            const res = await api.post('/compatibility/groups', {
-                group_name: newGroupName.trim(),
-                description: newGroupDescription.trim() || null,
-                motorcycle_unit_ids: newGroupUnitIds
-            });
-            toast.success(`Platform group "${newGroupName.trim()}" created!`);
-            await fetchCompatibilityGroups();
-            if (res.data?.id) {
-                const newId = Number(res.data.id);
-                const currentSelected = formData.compatibility_group_ids.map(Number);
-                if (!currentSelected.includes(newId)) {
-                    setFormData(prev => ({
-                        ...prev,
-                        compatibility_group_ids: [...currentSelected, newId]
-                    }));
-                }
-            }
-            setNewGroupName('');
-            setNewGroupDescription('');
-            setNewGroupUnitIds([]);
-            setIsCreatingGroup(false);
-        } catch (err) {
-            toast.error(err.response?.data?.message || 'Failed to create platform group');
-        } finally {
-            setSavingGroup(false);
-        }
     };
 
     const handleSubmit = async (e) => {
@@ -261,10 +166,7 @@ const Products = () => {
 
             resetForm();
             setEditingId(null);
-            setSelectedGroupIdToAdd('');
-            setIsCreatingGroup(false);
             setUnitSearchQuery('');
-            setShowExactUnits(false);
             fetchProducts();
         } catch (err) {
             toast.error(err.response?.data?.message || err.response?.data?.error || 'Action failed');
@@ -367,305 +269,76 @@ const Products = () => {
                         </div>
 
                         <div style={{ padding: '18px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid var(--border)' }}>
-                            {/* Section Header */}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
                                 <div>
                                     <label style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '0.95rem', margin: 0 }}>
-                                        <Layers size={18} style={{ color: 'var(--primary)' }} /> Platform / Group Compatibility
+                                        <Layers size={18} style={{ color: 'var(--primary)' }} /> Motorcycle Compatibility ({formData.motorcycle_unit_ids.length} selected)
                                     </label>
                                     <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '4px 0 0 0' }}>
-                                        Select a platform group to automatically cover all shared models in that family (e.g. all Click or Aerox variants).
+                                        Select the motorcycle models that this product is compatible with.
                                     </p>
                                 </div>
 
-                                <button
-                                    type="button"
-                                    className="btn-secondary"
-                                    onClick={() => setIsCreatingGroup(!isCreatingGroup)}
-                                    style={{ fontSize: '0.8rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                                >
-                                    <Plus size={14} /> {isCreatingGroup ? 'Cancel New Group' : 'Create New Group'}
-                                </button>
-                            </div>
-
-                            {/* Quick Create Group Inline Form */}
-                            {isCreatingGroup && (
-                                <div style={{ padding: '16px', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '8px', border: '1px dashed var(--primary)', marginBottom: '16px' }}>
-                                    <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <Plus size={16} /> Create New Platform Group
-                                    </h4>
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '12px' }}>
-                                        <input
-                                            type="text"
-                                            placeholder="Group Name (e.g. Yamaha NMAX Platform)"
-                                            className="input-premium"
-                                            value={newGroupName}
-                                            onChange={(e) => setNewGroupName(e.target.value)}
-                                        />
-                                        <input
-                                            type="text"
-                                            placeholder="Description (e.g. All NMAX 155 versions)"
-                                            className="input-premium"
-                                            value={newGroupDescription}
-                                            onChange={(e) => setNewGroupDescription(e.target.value)}
-                                        />
-                                    </div>
-
-                                    <div style={{ marginBottom: '12px' }}>
-                                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '6px', display: 'block' }}>
-                                            Select Member Motorcycle Models:
-                                        </label>
-                                        <div style={{ maxHeight: '140px', overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '8px', padding: '8px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px' }}>
-                                            {motorcycleUnits.map(unit => {
-                                                const unitId = Number(unit.id);
-                                                const isChecked = newGroupUnitIds.includes(unitId);
-                                                return (
-                                                    <label key={unit.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-main)' }}>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={isChecked}
-                                                            onChange={() => {
-                                                                setNewGroupUnitIds(prev => 
-                                                                    isChecked ? prev.filter(id => id !== unitId) : [...prev, unitId]
-                                                                );
-                                                            }}
-                                                            style={{ accentColor: 'var(--primary)', width: '14px', height: '14px' }}
-                                                        />
-                                                        {formatMotorcycleUnit(unit)}
-                                                    </label>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-
-                                    <div style={{ display: 'flex', gap: '10px' }}>
-                                        <button
-                                            type="button"
-                                            className="btn-primary"
-                                            onClick={handleQuickCreateGroup}
-                                            disabled={savingGroup}
-                                            style={{ fontSize: '0.8rem', padding: '6px 14px' }}
-                                        >
-                                            {savingGroup ? 'Saving...' : 'Save & Select Platform Group'}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="btn-secondary"
-                                            onClick={() => { setIsCreatingGroup(false); setNewGroupName(''); setNewGroupDescription(''); setNewGroupUnitIds([]); }}
-                                            style={{ fontSize: '0.8rem', padding: '6px 14px' }}
-                                        >
-                                            Cancel
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Dropdown Selector Row */}
-                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '14px' }}>
-                                <div style={{ flex: '1 1 300px' }}>
-                                    <select
+                                <div style={{ position: 'relative', width: '250px' }}>
+                                    <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                    <input
+                                        type="text"
+                                        placeholder="Search motorcycle models..."
                                         className="input-premium"
-                                        value={selectedGroupIdToAdd}
-                                        onChange={(e) => {
-                                            const val = e.target.value;
-                                            setSelectedGroupIdToAdd(val);
-                                            if (val) {
-                                                addCompatibilityGroup(val);
-                                            }
-                                        }}
-                                        style={{ width: '100%', cursor: 'pointer' }}
-                                    >
-                                        <option value="">-- Select Platform Group to Add --</option>
-                                        {compatibilityGroups.map(group => {
-                                            const groupId = Number(group.id);
-                                            const isAlreadySelected = formData.compatibility_group_ids.map(Number).includes(groupId);
-                                            const modelCount = group.member_units?.length || 0;
-                                            const modelsSample = (group.member_units || []).slice(0, 3).map(m => m.model).join(', ');
-                                            const label = `${group.group_name}${modelCount > 0 ? ` (${modelCount} models: ${modelsSample})` : ''}${isAlreadySelected ? ' ✓ (Added)' : ''}`;
-
-                                            return (
-                                                <option key={group.id} value={group.id} disabled={isAlreadySelected}>
-                                                    {label}
-                                                </option>
-                                            );
-                                        })}
-                                    </select>
+                                        value={unitSearchQuery}
+                                        onChange={(e) => setUnitSearchQuery(e.target.value)}
+                                        style={{ paddingLeft: '32px', fontSize: '0.82rem', height: '36px', width: '100%' }}
+                                    />
                                 </div>
-
-                                <button
-                                    type="button"
-                                    className="btn-secondary"
-                                    onClick={() => addCompatibilityGroup(selectedGroupIdToAdd)}
-                                    disabled={!selectedGroupIdToAdd}
-                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', height: '42px', padding: '0 16px' }}
-                                >
-                                    <Plus size={16} /> Add Platform Group
-                                </button>
                             </div>
 
-                            {/* Selected Groups Badges */}
-                            <div style={{ marginBottom: '18px' }}>
-                                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px', display: 'block' }}>
-                                    Selected Platform Groups ({formData.compatibility_group_ids.length}):
-                                </label>
-                                {formData.compatibility_group_ids.length > 0 ? (
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                                        {formData.compatibility_group_ids.map(id => {
-                                            const group = compatibilityGroups.find(g => Number(g.id) === Number(id));
-                                            if (!group) return null;
-                                            const memberNames = (group.member_units || []).map(formatMotorcycleUnit).join(', ');
-                                            return (
-                                                <div
-                                                    key={id}
-                                                    style={{
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        gap: '8px',
-                                                        padding: '6px 12px',
-                                                        background: 'rgba(99, 102, 241, 0.15)',
-                                                        border: '1px solid rgba(99, 102, 241, 0.4)',
-                                                        borderRadius: '20px',
-                                                        color: 'var(--text-main)',
-                                                        fontSize: '0.85rem'
-                                                    }}
-                                                    title={memberNames ? `Covers: ${memberNames}` : 'No specific models attached'}
-                                                >
-                                                    <span style={{ fontWeight: 600 }}>🏷️ {group.group_name}</span>
-                                                    {group.member_units?.length > 0 && (
-                                                        <span style={{
-                                                            fontSize: '0.75rem',
-                                                            background: 'rgba(255,255,255,0.12)',
-                                                            padding: '2px 8px',
-                                                            borderRadius: '10px',
-                                                            color: 'var(--text-muted)'
-                                                        }}>
-                                                            {group.member_units.length} {group.member_units.length === 1 ? 'model' : 'models'}
-                                                        </span>
-                                                    )}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => removeCompatibilityGroup(id)}
-                                                        style={{
-                                                            background: 'transparent',
-                                                            border: 'none',
-                                                            color: 'var(--text-muted)',
-                                                            cursor: 'pointer',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            padding: '2px',
-                                                            borderRadius: '50%'
-                                                        }}
-                                                        title="Remove platform group"
-                                                    >
-                                                        <X size={14} />
-                                                    </button>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                ) : (
-                                    <div style={{
-                                        padding: '12px 16px',
-                                        background: 'rgba(255,255,255,0.01)',
-                                        border: '1px dashed var(--border)',
-                                        borderRadius: '8px',
-                                        color: 'var(--text-muted)',
-                                        fontSize: '0.85rem'
-                                    }}>
-                                        No platform group selected yet. Use the dropdown above to add one, or select exact individual models below.
-                                    </div>
-                                )}
-                            </div>
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+                                gap: '8px',
+                                maxHeight: '200px',
+                                overflowY: 'auto',
+                                padding: '10px',
+                                background: 'rgba(0,0,0,0.15)',
+                                borderRadius: '8px',
+                                border: '1px solid var(--border)'
+                            }}>
+                                {motorcycleUnits
+                                    .filter(unit => {
+                                        if (!unitSearchQuery.trim()) return true;
+                                        const q = unitSearchQuery.toLowerCase();
+                                        return formatMotorcycleUnit(unit).toLowerCase().includes(q);
+                                    })
+                                    .map(unit => {
+                                        const unitId = Number(unit.id);
+                                        const checked = formData.motorcycle_unit_ids.map(Number).includes(unitId);
 
-                            {/* Exact-Fit Motorcycle Units Toggle & Search */}
-                            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowExactUnits(!showExactUnits)}
-                                        style={{
-                                            background: 'none',
-                                            border: 'none',
-                                            color: 'var(--text-muted)',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '6px',
-                                            fontSize: '0.85rem',
-                                            fontWeight: 'bold',
-                                            padding: 0
-                                        }}
-                                    >
-                                        {showExactUnits ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                        Exact-Fit Individual Models ({formData.motorcycle_unit_ids.length} selected)
-                                    </button>
-
-                                    {showExactUnits && (
-                                        <div style={{ position: 'relative', width: '220px' }}>
-                                            <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                                            <input
-                                                type="text"
-                                                placeholder="Search models..."
-                                                className="input-premium"
-                                                value={unitSearchQuery}
-                                                onChange={(e) => setUnitSearchQuery(e.target.value)}
-                                                style={{ paddingLeft: '30px', fontSize: '0.8rem', height: '32px' }}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-
-                                {showExactUnits && (
-                                    <div style={{
-                                        display: 'grid',
-                                        gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-                                        gap: '8px',
-                                        maxHeight: '180px',
-                                        overflowY: 'auto',
-                                        padding: '8px',
-                                        background: 'rgba(0,0,0,0.15)',
-                                        borderRadius: '6px'
-                                    }}>
-                                        {motorcycleUnits
-                                            .filter(unit => {
-                                                if (!unitSearchQuery.trim()) return true;
-                                                const q = unitSearchQuery.toLowerCase();
-                                                return formatMotorcycleUnit(unit).toLowerCase().includes(q);
-                                            })
-                                            .map(unit => {
-                                                const unitId = Number(unit.id);
-                                                const checked = formData.motorcycle_unit_ids.map(Number).includes(unitId);
-
-                                                return (
-                                                    <label
-                                                        key={unit.id}
-                                                        style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '8px',
-                                                            cursor: 'pointer',
-                                                            color: 'var(--text-main)',
-                                                            fontSize: '0.8rem',
-                                                            padding: '4px 6px',
-                                                            borderRadius: '4px',
-                                                            background: checked ? 'rgba(99, 102, 241, 0.1)' : 'transparent'
-                                                        }}
-                                                    >
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={checked}
-                                                            onChange={() => toggleMotorcycleUnit(unitId)}
-                                                            style={{ accentColor: 'var(--primary)', width: '15px', height: '15px' }}
-                                                        />
-                                                        {formatMotorcycleUnit(unit)}
-                                                    </label>
-                                                );
-                                            })}
-                                        {motorcycleUnits.length === 0 && (
-                                            <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No motorcycle units available.</div>
-                                        )}
-                                    </div>
-                                )}
+                                        return (
+                                            <label
+                                                key={unit.id}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    cursor: 'pointer',
+                                                    color: 'var(--text-main)',
+                                                    fontSize: '0.82rem',
+                                                    padding: '5px 8px',
+                                                    borderRadius: '6px',
+                                                    background: checked ? 'rgba(22, 163, 74, 0.12)' : 'transparent',
+                                                    border: checked ? '1px solid rgba(22, 163, 74, 0.3)' : '1px solid transparent'
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={checked}
+                                                    onChange={() => toggleMotorcycleUnit(unitId)}
+                                                    style={{ accentColor: 'var(--primary)', width: '15px', height: '15px' }}
+                                                />
+                                                <span style={{ fontWeight: checked ? 600 : 400 }}>{formatMotorcycleUnit(unit)}</span>
+                                            </label>
+                                        );
+                                    })}
                             </div>
                         </div>
 
@@ -710,10 +383,7 @@ const Products = () => {
                                 <button type="button" className="btn-secondary" onClick={() => {
                                     setEditingId(null);
                                     resetForm();
-                                    setSelectedGroupIdToAdd('');
-                                    setIsCreatingGroup(false);
                                     setUnitSearchQuery('');
-                                    setShowExactUnits(false);
                                 }}>
                                     Cancel Edit
                                 </button>
