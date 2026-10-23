@@ -731,16 +731,6 @@ const POS = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <button
                             type="button"
-                            onClick={() => navigate('/fitment')}
-                            className="btn-secondary"
-                            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', padding: '6px 14px' }}
-                            title="Check parts compatibility by motorcycle model and version"
-                        >
-                            <Search size={16} />
-                            <span>Fitment Lookup</span>
-                        </button>
-                        <button
-                            type="button"
                             onClick={() => navigate('/transactions')}
                             className="btn-secondary"
                             style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', padding: '6px 14px' }}
