@@ -492,7 +492,7 @@ export const AdjustmentsReport = () => {
                 <th>Product Name</th>
                 <th>Status</th>
                 <th style={{ textAlign: 'center' }}>Quantity</th>
-                <th style={{ textAlign: 'center' }}>Balance After</th>
+                <th style={{ textAlign: 'center' }}>Stock</th>
                 <th>Reference Code</th>
                 <th>Staff</th>
                 <th>Remarks</th>
