@@ -490,8 +490,8 @@ export const AdjustmentsReport = () => {
                 <th>Date / Time</th>
                 <th>Part Number</th>
                 <th>Product Name</th>
-                <th>Reason / Type</th>
-                <th style={{ textAlign: 'center' }}>Change</th>
+                <th>Status</th>
+                <th style={{ textAlign: 'center' }}>Quantity</th>
                 <th style={{ textAlign: 'center' }}>Balance After</th>
                 <th>Reference Code</th>
                 <th>Staff</th>

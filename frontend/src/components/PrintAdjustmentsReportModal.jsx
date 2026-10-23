@@ -272,8 +272,8 @@ export default function PrintAdjustmentsReportModal({
                     <th style={{ padding: '6px 4px', textAlign: 'left', width: '110px' }}>Date / Time</th>
                     <th style={{ padding: '6px 4px', textAlign: 'left', width: '90px' }}>Part Number</th>
                     <th style={{ padding: '6px 4px', textAlign: 'left' }}>Product Name</th>
-                    <th style={{ padding: '6px 4px', textAlign: 'left', width: '90px' }}>Type / Reason</th>
-                    <th style={{ padding: '6px 4px', textAlign: 'center', width: '55px' }}>Change</th>
+                    <th style={{ padding: '6px 4px', textAlign: 'left', width: '90px' }}>Status</th>
+                    <th style={{ padding: '6px 4px', textAlign: 'center', width: '55px' }}>Quantity</th>
                     <th style={{ padding: '6px 4px', textAlign: 'center', width: '55px' }}>Balance</th>
                     <th style={{ padding: '6px 4px', textAlign: 'left', width: '90px' }}>Ref Code</th>
                     <th style={{ padding: '6px 4px', textAlign: 'left', width: '70px' }}>Staff</th>
@@ -417,8 +417,8 @@ export default function PrintAdjustmentsReportModal({
               <th style={{ padding: '5px 4px', textAlign: 'left', width: '105px' }}>Date / Time</th>
               <th style={{ padding: '5px 4px', textAlign: 'left', width: '90px' }}>Part Number</th>
               <th style={{ padding: '5px 4px', textAlign: 'left' }}>Product Name</th>
-              <th style={{ padding: '5px 4px', textAlign: 'left', width: '85px' }}>Type / Reason</th>
-              <th style={{ padding: '5px 4px', textAlign: 'center', width: '50px' }}>Change</th>
+              <th style={{ padding: '5px 4px', textAlign: 'left', width: '85px' }}>Status</th>
+              <th style={{ padding: '5px 4px', textAlign: 'center', width: '50px' }}>Quantity</th>
               <th style={{ padding: '5px 4px', textAlign: 'center', width: '50px' }}>Balance</th>
               <th style={{ padding: '5px 4px', textAlign: 'left', width: '85px' }}>Ref Code</th>
               <th style={{ padding: '5px 4px', textAlign: 'left', width: '65px' }}>Staff</th>
