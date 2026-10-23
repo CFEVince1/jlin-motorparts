@@ -682,37 +682,7 @@ const POS = () => {
         addToCart(product);
     };
 
-    const handleTableAddQuantity = (product) => {
-        addToCart(product);
-    };
 
-    const handleTableReduceQuantity = (product) => {
-        const availableSerials = product.serials || [];
-        const chosenId = selectedTableSerials[product.id] || (availableSerials[0]?.id);
-        const targetCartKey = isSerializedProduct(product)
-            ? `${product.id}_${chosenId || (product.serial_display || 'SN-DEFAULT')}`
-            : String(product.id);
-
-        setCart(currentCart => {
-            const existing = currentCart.find(item => (item.cart_key || String(item.product_id)) === targetCartKey)
-                || currentCart.find(item => item.product_id === product.id);
-
-            if (!existing) return currentCart;
-            const itemKey = existing.cart_key || String(existing.product_id);
-
-            if (existing.quantity <= 1) {
-                toast.success(`Removed ${product.product_name || product.name} (${existing.selected_serial_number || 'item'}) from order`);
-                return currentCart.filter(item => (item.cart_key || String(item.product_id)) !== itemKey);
-            } else {
-                const newQty = existing.quantity - 1;
-                return currentCart.map(item => (item.cart_key || String(item.product_id)) === itemKey ? {
-                    ...item,
-                    quantity: newQty,
-                    subtotal: calculateItemSubtotal(newQty, item.price)
-                } : item);
-            }
-        });
-    };
 
     return (
         <div className="main-layout" style={{ display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', height: '100%', gap: '16px', position: 'relative' }}>
@@ -868,192 +838,118 @@ const POS = () => {
                                             const selectedSerialObj = serialOptions.find(s => Number(s.id) === Number(selectedId)) || serialOptions[0];
                                             const isDropdownOpen = openSerialDropdownId === p.id;
 
-                                            const targetCartKey = `${p.id}_${selectedSerialObj?.id || selectedSerialObj?.serial_number || ''}`;
-                                            const currentCartItemForSerial = cart.find(item => (item.cart_key || String(item.product_id)) === targetCartKey);
-                                            const currentSerialCartQty = currentCartItemForSerial ? currentCartItemForSerial.quantity : 0;
-                                            const totalProductCartQty = cart
-                                                .filter(item => item.product_id === p.id)
-                                                .reduce((sum, item) => sum + item.quantity, 0);
-
                                             return (
-                                                <div className="serial-dropdown-container" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', position: 'relative' }}>
-                                                    {/* Dropdown Button / Selector */}
-                                                    <div style={{ position: 'relative' }}>
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setOpenSerialDropdownId(prev => prev === p.id ? null : p.id);
-                                                            }}
-                                                            style={{
-                                                                display: 'inline-flex',
-                                                                alignItems: 'center',
-                                                                justifyContent: 'space-between',
-                                                                gap: '6px',
-                                                                padding: '4px 8px',
-                                                                borderRadius: '6px',
-                                                                border: isDropdownOpen ? '1px solid var(--primary)' : '1px solid var(--border)',
-                                                                background: isDropdownOpen ? 'rgba(22, 163, 74, 0.08)' : 'var(--surface)',
-                                                                color: 'var(--text-main)',
-                                                                fontFamily: 'monospace',
-                                                                fontSize: '0.78rem',
-                                                                fontWeight: 600,
-                                                                cursor: 'pointer',
-                                                                minWidth: '135px'
-                                                            }}
-                                                            title="Click to select specific serial"
-                                                        >
-                                                            <span style={{ color: 'var(--primary)', maxWidth: '105px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                                {selectedSerialObj?.serial_number || 'Select Serial'}
-                                                            </span>
-                                                            <ChevronDown size={13} style={{ color: 'var(--text-muted)', transform: isDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
-                                                        </button>
-
-                                                        {/* Interactive Dropdown Menu */}
-                                                        {isDropdownOpen && (
-                                                            <div style={{
-                                                                position: 'absolute',
-                                                                top: 'calc(100% + 4px)',
-                                                                left: 0,
-                                                                zIndex: 100,
-                                                                background: 'var(--surface, #ffffff)',
-                                                                border: '1px solid var(--border)',
-                                                                borderRadius: '8px',
-                                                                boxShadow: '0 10px 20px -3px rgba(0, 0, 0, 0.15), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                                                                minWidth: '190px',
-                                                                maxHeight: '220px',
-                                                                overflowY: 'auto',
-                                                                padding: '4px'
-                                                            }}>
-                                                                <div style={{ padding: '4px 8px', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', marginBottom: '4px' }}>
-                                                                    Choose Serial to Sell ({serialOptions.length}):
-                                                                </div>
-                                                                {serialOptions.map(s => {
-                                                                    const isSelected = Number(s.id) === Number(selectedId);
-                                                                    const sCartKey = `${p.id}_${s.id}`;
-                                                                    const cartEntry = cart.find(item => (item.cart_key || String(item.product_id)) === sCartKey);
-                                                                    const inCartCount = cartEntry ? cartEntry.quantity : 0;
-
-                                                                    return (
-                                                                        <button
-                                                                            key={s.id}
-                                                                            type="button"
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                setSelectedTableSerials(prev => ({ ...prev, [p.id]: Number(s.id) }));
-                                                                                setOpenSerialDropdownId(null);
-                                                                                addSerializedToCart(p, s);
-                                                                            }}
-                                                                            style={{
-                                                                                width: '100%',
-                                                                                textAlign: 'left',
-                                                                                padding: '6px 8px',
-                                                                                borderRadius: '4px',
-                                                                                border: 'none',
-                                                                                background: isSelected ? 'rgba(22, 163, 74, 0.12)' : 'transparent',
-                                                                                color: isSelected ? 'var(--primary)' : 'var(--text-main)',
-                                                                                fontFamily: 'monospace',
-                                                                                fontSize: '0.78rem',
-                                                                                fontWeight: isSelected ? 700 : 500,
-                                                                                cursor: 'pointer',
-                                                                                display: 'flex',
-                                                                                alignItems: 'center',
-                                                                                justifyContent: 'space-between',
-                                                                                gap: '6px'
-                                                                            }}
-                                                                            onMouseEnter={(e) => {
-                                                                                if (!isSelected) e.currentTarget.style.background = 'var(--surface-hover)';
-                                                                            }}
-                                                                            onMouseLeave={(e) => {
-                                                                                if (!isSelected) e.currentTarget.style.background = 'transparent';
-                                                                            }}
-                                                                        >
-                                                                            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                                                <span>{s.serial_number}</span>
-                                                                                {inCartCount > 0 && (
-                                                                                    <span style={{
-                                                                                        fontSize: '0.68rem',
-                                                                                        background: 'rgba(22, 163, 74, 0.2)',
-                                                                                        color: 'var(--primary)',
-                                                                                        padding: '1px 5px',
-                                                                                        borderRadius: '4px',
-                                                                                        fontWeight: 700
-                                                                                    }}>
-                                                                                        {inCartCount} in cart
-                                                                                    </span>
-                                                                                )}
-                                                                            </span>
-                                                                            {isSelected && <Check size={12} color="var(--primary)" />}
-                                                                        </button>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Table Quick Add/Reduce Quantity Controls for Selected Serial */}
-                                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'var(--surface-hover)', padding: '2px 4px', borderRadius: '6px', border: '1px solid var(--border)' }}>
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleTableReduceQuantity(p);
-                                                            }}
-                                                            disabled={currentSerialCartQty <= 0}
-                                                            className="btn-secondary"
-                                                            style={{
-                                                                width: '22px',
-                                                                height: '22px',
-                                                                padding: 0,
-                                                                borderRadius: '4px',
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                justifyContent: 'center',
-                                                                cursor: currentSerialCartQty > 0 ? 'pointer' : 'not-allowed',
-                                                                opacity: currentSerialCartQty > 0 ? 1 : 0.4
-                                                            }}
-                                                            title="Reduce quantity of selected serial"
-                                                        >
-                                                            <Minus size={11} />
-                                                        </button>
-
-                                                        <span style={{
-                                                            minWidth: '18px',
-                                                            textAlign: 'center',
-                                                            fontWeight: 700,
+                                                <div className="serial-dropdown-container" style={{ position: 'relative', display: 'inline-block' }}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setOpenSerialDropdownId(prev => prev === p.id ? null : p.id);
+                                                        }}
+                                                        style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'space-between',
+                                                            gap: '6px',
+                                                            padding: '4px 8px',
+                                                            borderRadius: '6px',
+                                                            border: isDropdownOpen ? '1px solid var(--primary)' : '1px solid var(--border)',
+                                                            background: isDropdownOpen ? 'rgba(22, 163, 74, 0.08)' : 'var(--surface)',
+                                                            color: 'var(--text-main)',
+                                                            fontFamily: 'monospace',
                                                             fontSize: '0.78rem',
-                                                            color: currentSerialCartQty > 0 ? 'var(--primary)' : 'var(--text-muted)'
-                                                        }}>
-                                                            {currentSerialCartQty}
+                                                            fontWeight: 600,
+                                                            cursor: 'pointer',
+                                                            minWidth: '135px'
+                                                        }}
+                                                        title="Click to select specific serial"
+                                                    >
+                                                        <span style={{ color: 'var(--primary)', maxWidth: '105px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            {selectedSerialObj?.serial_number || 'Select Serial'}
                                                         </span>
+                                                        <ChevronDown size={13} style={{ color: 'var(--text-muted)', transform: isDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
+                                                    </button>
 
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                addSerializedToCart(p, selectedSerialObj);
-                                                            }}
-                                                            disabled={totalProductCartQty >= p.stock}
-                                                            className="btn-secondary"
-                                                            style={{
-                                                                width: '22px',
-                                                                height: '22px',
-                                                                padding: 0,
-                                                                borderRadius: '4px',
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                justifyContent: 'center',
-                                                                cursor: totalProductCartQty < p.stock ? 'pointer' : 'not-allowed',
-                                                                opacity: totalProductCartQty < p.stock ? 1 : 0.4,
-                                                                background: 'rgba(22, 163, 74, 0.12)',
-                                                                borderColor: 'rgba(22, 163, 74, 0.3)',
-                                                                color: 'var(--primary)'
-                                                            }}
-                                                            title="Add more quantity with selected serial"
-                                                        >
-                                                            <Plus size={11} />
-                                                        </button>
-                                                    </div>
+                                                    {/* Interactive Dropdown Menu */}
+                                                    {isDropdownOpen && (
+                                                        <div style={{
+                                                            position: 'absolute',
+                                                            top: 'calc(100% + 4px)',
+                                                            left: 0,
+                                                            zIndex: 100,
+                                                            background: 'var(--surface, #ffffff)',
+                                                            border: '1px solid var(--border)',
+                                                            borderRadius: '8px',
+                                                            boxShadow: '0 10px 20px -3px rgba(0, 0, 0, 0.15), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                                                            minWidth: '190px',
+                                                            maxHeight: '220px',
+                                                            overflowY: 'auto',
+                                                            padding: '4px'
+                                                        }}>
+                                                            <div style={{ padding: '4px 8px', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', marginBottom: '4px' }}>
+                                                                Choose Serial to Sell ({serialOptions.length}):
+                                                            </div>
+                                                            {serialOptions.map(s => {
+                                                                const isSelected = Number(s.id) === Number(selectedId);
+                                                                const sCartKey = `${p.id}_${s.id}`;
+                                                                const cartEntry = cart.find(item => (item.cart_key || String(item.product_id)) === sCartKey);
+                                                                const inCartCount = cartEntry ? cartEntry.quantity : 0;
+
+                                                                return (
+                                                                    <button
+                                                                        key={s.id}
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setSelectedTableSerials(prev => ({ ...prev, [p.id]: Number(s.id) }));
+                                                                            setOpenSerialDropdownId(null);
+                                                                            addSerializedToCart(p, s);
+                                                                        }}
+                                                                        style={{
+                                                                            width: '100%',
+                                                                            textAlign: 'left',
+                                                                            padding: '6px 8px',
+                                                                            borderRadius: '4px',
+                                                                            border: 'none',
+                                                                            background: isSelected ? 'rgba(22, 163, 74, 0.12)' : 'transparent',
+                                                                            color: isSelected ? 'var(--primary)' : 'var(--text-main)',
+                                                                            fontFamily: 'monospace',
+                                                                            fontSize: '0.78rem',
+                                                                            fontWeight: isSelected ? 700 : 500,
+                                                                            cursor: 'pointer',
+                                                                            display: 'flex',
+                                                                            alignItems: 'center',
+                                                                            justifyContent: 'space-between',
+                                                                            gap: '6px'
+                                                                        }}
+                                                                        onMouseEnter={(e) => {
+                                                                            if (!isSelected) e.currentTarget.style.background = 'var(--surface-hover)';
+                                                                        }}
+                                                                        onMouseLeave={(e) => {
+                                                                            if (!isSelected) e.currentTarget.style.background = 'transparent';
+                                                                        }}
+                                                                    >
+                                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                            <span>{s.serial_number}</span>
+                                                                            {inCartCount > 0 && (
+                                                                                <span style={{
+                                                                                    fontSize: '0.68rem',
+                                                                                    background: 'rgba(22, 163, 74, 0.2)',
+                                                                                    color: 'var(--primary)',
+                                                                                    padding: '1px 5px',
+                                                                                    borderRadius: '4px',
+                                                                                    fontWeight: 700
+                                                                                }}>
+                                                                                    {inCartCount} in cart
+                                                                                </span>
+                                                                            )}
+                                                                        </span>
+                                                                        {isSelected && <Check size={12} color="var(--primary)" />}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })() : (
