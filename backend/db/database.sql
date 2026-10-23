@@ -433,6 +433,16 @@ SELECT p.id, m.id
 FROM products p
 JOIN motorcycle_units m ON m.brand = 'Suzuki' AND m.model = 'Raider FI' AND m.year_model = '2022'
 WHERE p.part_number = 'ECU-RAIDER-01' AND p.brand = 'Suzuki';
+INSERT INTO product_serials (product_id, serial_number, status)
+SELECT p.id, serials.serial_number, 'available'
+FROM products p
+JOIN (
+    SELECT 'LEG-0100-001' AS serial_number
+    UNION ALL SELECT 'LEG-0100-002'
+    UNION ALL SELECT 'LEG-0100-003'
+) serials
+WHERE p.part_number = 'LEGACY-0100' OR p.name = 'JVT Tensioner Manual Alloy';
+
 
 INSERT INTO product_serials (product_id, serial_number, status)
 SELECT p.id, serials.serial_number, 'available'

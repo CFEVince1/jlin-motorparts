@@ -310,6 +310,37 @@ async function ensureSchema() {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
       console.log('[Schema] Verified return_refund_history table.');
+
+    // 8b. Ensure legacy serials for JVT Tensioner Manual Alloy (part LEGACY-0100) are LEG-0100-001, -002, -003
+    try {
+      const [tensionerProds] = await db.query(
+        "SELECT id, part_number, name FROM products WHERE part_number LIKE '%0100%' OR name LIKE '%Tensioner%' LIMIT 1"
+      );
+      if (tensionerProds.length > 0) {
+        const tId = tensionerProds[0].id;
+        const [tSerials] = await db.query(
+          "SELECT id, serial_number, status FROM product_serials WHERE product_id = ? ORDER BY id ASC",
+          [tId]
+        );
+        const targetNames = ['LEG-0100-001', 'LEG-0100-002', 'LEG-0100-003'];
+        for (let i = 0; i < targetNames.length; i++) {
+          const targetSN = targetNames[i];
+          if (i < tSerials.length) {
+            if (tSerials[i].serial_number !== targetSN) {
+              await db.query("UPDATE product_serials SET serial_number = ? WHERE id = ?", [targetSN, tSerials[i].id]);
+            }
+          } else {
+            const [existingSN] = await db.query("SELECT id FROM product_serials WHERE serial_number = ? LIMIT 1", [targetSN]);
+            if (existingSN.length === 0) {
+              await db.query("INSERT INTO product_serials (product_id, serial_number, status, created_at) VALUES (?, ?, 'available', NOW())", [tId, targetSN]);
+            }
+          }
+        }
+      }
+    } catch (legErr) {
+      // Safe fallback
+    }
+
     } catch (err) {
       console.warn('[Schema] Failed to verify return_refund_history table:', err.message);
     }

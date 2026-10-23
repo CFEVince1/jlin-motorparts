@@ -89,9 +89,9 @@ export const ThermalReceipt = ({
                   <td style={{ padding: '4px 4px 4px 0' }}>
                     <div style={{ fontWeight: 'bold', fontSize: '10px' }}>{name}</div>
                     {partNumber && <div style={{ fontSize: '9px', color: '#444444' }}>{partNumber}</div>}
-                    {item.is_serialized && item.serial_numbers && (
-                      <div style={{ fontSize: '8px', color: '#555555' }}>
-                        SN: {Array.isArray(item.serial_numbers) ? item.serial_numbers.join(', ') : item.serial_numbers}
+                    {((item.selected_serial_number) || (item.serial_numbers && (Array.isArray(item.serial_numbers) ? item.serial_numbers.length > 0 : Boolean(String(item.serial_numbers).trim())))) && (
+                      <div style={{ fontSize: '9px', color: '#111111', fontWeight: 600, fontFamily: 'monospace', marginTop: '1px' }}>
+                        SN: {item.selected_serial_number || (Array.isArray(item.serial_numbers) ? item.serial_numbers.join(', ') : item.serial_numbers)}
                       </div>
                     )}
                   </td>

@@ -855,8 +855,25 @@ const POS = () => {
                                                         }}
                                                         title="Click to select specific serial"
                                                     >
-                                                        <span style={{ color: 'var(--primary)', maxWidth: '105px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                            {selectedSerialObj?.serial_number || 'Select Serial'}
+                                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', maxWidth: '120px' }}>
+                                                            <span style={{ color: 'var(--primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                {selectedSerialObj?.serial_number || 'Select Serial'}
+                                                            </span>
+                                                            {selectedSerialObj?.serial_number?.toUpperCase().startsWith('LEG-') && (
+                                                                <span style={{
+                                                                    fontSize: '0.62rem',
+                                                                    background: 'rgba(234, 88, 12, 0.15)',
+                                                                    color: '#ea580c',
+                                                                    border: '1px solid rgba(234, 88, 12, 0.35)',
+                                                                    padding: '0 4px',
+                                                                    borderRadius: '3px',
+                                                                    fontWeight: 700,
+                                                                    letterSpacing: '0.02em',
+                                                                    flexShrink: 0
+                                                                }}>
+                                                                    Legacy
+                                                                </span>
+                                                            )}
                                                         </span>
                                                         <ChevronDown size={13} style={{ color: 'var(--text-muted)', transform: isDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
                                                     </button>
@@ -922,6 +939,20 @@ const POS = () => {
                                                                     >
                                                                         <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                                             <span>{s.serial_number}</span>
+                                                                            {s.serial_number?.toUpperCase().startsWith('LEG-') && (
+                                                                                <span style={{
+                                                                                    fontSize: '0.62rem',
+                                                                                    background: 'rgba(234, 88, 12, 0.15)',
+                                                                                    color: '#ea580c',
+                                                                                    border: '1px solid rgba(234, 88, 12, 0.35)',
+                                                                                    padding: '1px 5px',
+                                                                                    borderRadius: '4px',
+                                                                                    fontWeight: 700,
+                                                                                    letterSpacing: '0.02em'
+                                                                                }}>
+                                                                                    Legacy
+                                                                                </span>
+                                                                            )}
                                                                             {inCartCount > 0 && (
                                                                                 <span style={{
                                                                                     fontSize: '0.68rem',
@@ -1125,6 +1156,19 @@ const POS = () => {
                                                     }}>
                                                         {item.selected_serial_number || (item.serial_numbers?.length > 0 ? item.serial_numbers.join(', ') : 'Selected')}
                                                     </span>
+                                                    {(item.selected_serial_number || item.serial_numbers?.[0] || '').toUpperCase().startsWith('LEG-') && (
+                                                        <span style={{
+                                                            fontSize: '0.62rem',
+                                                            background: 'rgba(234, 88, 12, 0.15)',
+                                                            color: '#ea580c',
+                                                            border: '1px solid rgba(234, 88, 12, 0.35)',
+                                                            padding: '1px 5px',
+                                                            borderRadius: '4px',
+                                                            fontWeight: 700
+                                                        }}>
+                                                            Legacy
+                                                        </span>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>

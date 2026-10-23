@@ -615,6 +615,7 @@ exports.getSaleById = async (req, res, next) => {
                 si.product_name,
                 si.brand,
                 si.size,
+                COALESCE(p.is_serialized, 0) AS is_serialized,
                 COALESCE(
                     GROUP_CONCAT(DISTINCT ps.serial_number ORDER BY ps.serial_number SEPARATOR ', '),
                     ''
@@ -624,6 +625,7 @@ exports.getSaleById = async (req, res, next) => {
                     ''
                 ) AS serial_ids
             FROM sale_items si
+            LEFT JOIN products p ON p.id = si.product_id
             LEFT JOIN sale_item_serials sis ON sis.sale_item_id = si.id
             LEFT JOIN product_serials ps ON ps.id = sis.serial_id
             WHERE si.sale_id = ?
@@ -637,7 +639,8 @@ exports.getSaleById = async (req, res, next) => {
                 si.part_number,
                 si.product_name,
                 si.brand,
-                si.size
+                si.size,
+                p.is_serialized
         `, [id]);
 
         // Fetch any existing return records for this sale
