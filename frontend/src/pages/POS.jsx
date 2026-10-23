@@ -801,6 +801,7 @@ const POS = () => {
                                 <th style={{ width: '90px', whiteSpace: 'nowrap' }}>Brand</th>
                                 <th style={{ width: '80px', whiteSpace: 'nowrap' }}>Size</th>
                                 <th style={{ width: '70px', textAlign: 'right', whiteSpace: 'nowrap' }}>Stock</th>
+                                <th style={{ width: '90px', textAlign: 'right', whiteSpace: 'nowrap' }}>Cost Price</th>
                                 <th style={{ width: '90px', textAlign: 'right', whiteSpace: 'nowrap' }}>Price</th>
                                 <th style={{ width: '170px', whiteSpace: 'nowrap' }}>Compatibility</th>
                             </tr>
@@ -961,6 +962,9 @@ const POS = () => {
                                     <td style={{ textAlign: 'right', color: p.stock <= (p.reorder_level || 5) ? 'var(--danger)' : 'var(--success)', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                                         {p.stock}
                                     </td>
+                                    <td style={{ textAlign: 'right', color: 'var(--text-muted)', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                                        {formatCurrency(p.cost_price || 0)}
+                                    </td>
                                     <td style={{ textAlign: 'right', color: 'var(--primary)', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                                         {formatCurrency(p.price)}
                                     </td>
@@ -982,7 +986,7 @@ const POS = () => {
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan={8} className="table-empty-state">
+                                    <td colSpan={9} className="table-empty-state">
                                         No matching products found. Try scanning another part number or clearing filters.
                                     </td>
                                 </tr>
