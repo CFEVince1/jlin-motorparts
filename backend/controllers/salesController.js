@@ -293,8 +293,8 @@ exports.checkout = async (req, res, next) => {
         // 4. Insert single source of truth sales record first to obtain atomic auto-increment ID
         const [saleResult] = await connection.query(
             `INSERT INTO sales (
-                user_id, total_amount, tendered_amount, change_due, payment_method, order_number, payment_reference, sale_date, cash_amount, gcash_amount
-            ) VALUES (?, ?, ?, ?, ?, NULL, ?, NOW(), ?, ?)`,
+                user_id, total_amount, tendered_amount, change_due, payment_method, order_number, payment_reference, sale_date, cash_amount, gcash_amount, status
+            ) VALUES (?, ?, ?, ?, ?, NULL, ?, NOW(), ?, ?, 'SOLD')`,
             [userId, totalAmount, finalTendered, finalChangeDue, method, paymentReferenceToSave, finalCashAmount, finalGcashAmount]
         );
         const saleId = saleResult.insertId;
@@ -448,6 +448,8 @@ exports.getSales = async (req, res, next) => {
         if (req.query.status && req.query.status !== 'ALL') {
             if (req.query.status === 'REFUNDED') {
                 whereClauses.push("s.status IN ('REFUNDED', 'PARTIALLY_REFUNDED')");
+            } else if (req.query.status === 'SOLD' || req.query.status === 'COMPLETED') {
+                whereClauses.push("s.status IN ('SOLD', 'COMPLETED')");
             } else {
                 whereClauses.push("s.status = ?");
                 whereParams.push(req.query.status);
@@ -529,7 +531,7 @@ exports.getSales = async (req, res, next) => {
         const dataQuery = `
             SELECT s.id, COALESCE(s.order_number, CONCAT('SO-', s.id)) AS order_number,
                    s.total_amount, s.tendered_amount, s.change_due, s.payment_method,
-                   s.payment_reference, s.cash_amount, s.gcash_amount, COALESCE(s.status, 'COMPLETED') AS status, s.sale_date, u.username as cashier,
+                   s.payment_reference, s.cash_amount, s.gcash_amount, COALESCE(NULLIF(s.status, 'COMPLETED'), 'SOLD') AS status, s.sale_date, u.username as cashier,
                    COALESCE(s.refund_amount, 0.00) AS refund_amount,
                    (SELECT COUNT(*) FROM sale_returns sr WHERE sr.sale_id = s.id) AS return_count,
                    (SELECT GROUP_CONCAT(DISTINCT sri.disposition SEPARATOR ', ') FROM sale_return_items sri JOIN sale_returns sr2 ON sr2.id = sri.sale_return_id WHERE sr2.sale_id = s.id) AS return_dispositions,
@@ -583,7 +585,7 @@ exports.getSaleById = async (req, res, next) => {
         let query = `
             SELECT s.id, COALESCE(s.order_number, CONCAT('SO-', s.id)) AS order_number,
                    s.total_amount, s.tendered_amount, s.change_due, s.payment_method,
-                   s.payment_reference, s.cash_amount, s.gcash_amount, COALESCE(s.status, 'COMPLETED') AS status, s.sale_date, u.username as cashier
+                   s.payment_reference, s.cash_amount, s.gcash_amount, COALESCE(NULLIF(s.status, 'COMPLETED'), 'SOLD') AS status, s.sale_date, u.username as cashier
             FROM sales s
             JOIN users u ON s.user_id = u.id
             WHERE s.id = ?

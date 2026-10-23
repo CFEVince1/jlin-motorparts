@@ -55,12 +55,19 @@ async function ensureSchema() {
       }
     }
 
-    if (!salesColNames.includes('status')) {
+        if (!salesColNames.includes('status')) {
       try {
-        await db.query("ALTER TABLE sales ADD COLUMN status VARCHAR(50) NOT NULL DEFAULT 'COMPLETED'");
-        console.log('[Schema] Added status column to sales table.');
+        await db.query("ALTER TABLE sales ADD COLUMN status VARCHAR(50) NOT NULL DEFAULT 'SOLD'");
+        console.log('[Schema] Added status column to sales table with default SOLD.');
       } catch (err) {
         console.warn('[Schema] Failed to add status to sales:', err.message);
+      }
+    } else {
+      try {
+        await db.query("ALTER TABLE sales ALTER COLUMN status SET DEFAULT 'SOLD'");
+        await db.query("UPDATE sales SET status = 'SOLD' WHERE status = 'COMPLETED'");
+      } catch (err) {
+        // Fallback for MySQL environments
       }
     }
 

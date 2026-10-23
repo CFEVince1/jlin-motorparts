@@ -952,7 +952,7 @@ export default function Returns() {
                                                                 background: s.status === 'REFUNDED' ? 'rgba(220, 38, 38, 0.12)' : s.status === 'PARTIALLY_REFUNDED' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(22, 163, 74, 0.1)',
                                                                 color: s.status === 'REFUNDED' ? '#dc2626' : s.status === 'PARTIALLY_REFUNDED' ? '#d97706' : '#16a34a'
                                                             }}>
-                                                                {s.status === 'PARTIALLY_REFUNDED' ? 'PARTIAL REFUND' : s.status}
+                                                                {s.status === 'REFUNDED' ? 'REFUNDED' : s.status === 'PARTIALLY_REFUNDED' ? 'PARTIAL REFUND' : 'SOLD'}
                                                             </span>
                                                         </td>
                                                         <td className="text-right">
@@ -989,7 +989,7 @@ export default function Returns() {
                                             background: 'rgba(22, 163, 74, 0.1)',
                                             color: 'var(--primary)'
                                         }}>
-                                            {selectedSale.status}
+                                            {selectedSale.status === 'REFUNDED' ? 'REFUNDED' : selectedSale.status === 'PARTIALLY_REFUNDED' ? 'PARTIAL REFUND' : 'SOLD'}
                                         </span>
                                     </div>
                                     <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>

@@ -79,7 +79,9 @@ const Transactions = () => {
                 if (statusFilter === 'REFUNDED') {
                     matchStatus = transaction.status === 'REFUNDED' || transaction.status === 'PARTIALLY_REFUNDED';
                 } else {
-                    matchStatus = transaction.status === statusFilter;
+                    matchStatus = (statusFilter === 'SOLD' || statusFilter === 'COMPLETED')
+                        ? (transaction.status === 'SOLD' || transaction.status === 'COMPLETED')
+                        : transaction.status === statusFilter;
                 }
             }
 
@@ -402,8 +404,7 @@ const Transactions = () => {
                 color: '#16a34a',
                 border: '1px solid rgba(22, 163, 74, 0.3)'
             }}>
-                Completed
-            </span>
+                Sold</span>
         );
     };
 
@@ -536,7 +537,7 @@ const Transactions = () => {
                             onChange={(e) => setStatusFilter(e.target.value)}
                         >
                             <option value="ALL">All Statuses</option>
-                            <option value="COMPLETED">Completed Only</option>
+                            <option value="SOLD">Sold Only</option>
                             <option value="REFUNDED">Refunded / Returned</option>
                             <option value="VOIDED">Voided Only</option>
                         </select>
