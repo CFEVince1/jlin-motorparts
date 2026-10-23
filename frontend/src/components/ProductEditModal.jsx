@@ -169,6 +169,45 @@ export const ProductEditModal = ({
           </span>
         </div>
 
+        {product.is_serialized ? (
+          <div style={{
+            padding: '10px 14px',
+            background: 'rgba(22, 163, 74, 0.05)',
+            borderRadius: '8px',
+            border: '1px solid rgba(22, 163, 74, 0.25)',
+            marginBottom: '16px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: product.serials?.length ? '6px' : 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span className="badge-pill badge-serialized" style={{ fontSize: '0.72rem' }}>
+                  Serialized Product
+                </span>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  ({product.serials?.length || 0} active serials registered)
+                </span>
+              </div>
+            </div>
+            {product.serials && product.serials.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxHeight: '72px', overflowY: 'auto' }}>
+                {product.serials.map((s, idx) => (
+                  <span key={s.id || idx} style={{
+                    fontFamily: 'monospace',
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    background: 'rgba(22, 163, 74, 0.12)',
+                    color: 'var(--primary)',
+                    border: '1px solid rgba(22, 163, 74, 0.25)',
+                    padding: '1px 6px',
+                    borderRadius: '4px'
+                  }}>
+                    {s.serial_number}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
+
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div>

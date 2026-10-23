@@ -72,6 +72,7 @@ const Products = () => {
     const [editingId, setEditingId] = useState(null);
     const [editingProductModal, setEditingProductModal] = useState(null);
     const [ledgerTarget, setLedgerTarget] = useState(null);
+    const [selectedSerialsModalProduct, setSelectedSerialsModalProduct] = useState(null);
 
     const {
         searchQuery,
@@ -303,7 +304,7 @@ const Products = () => {
             selling_price: p,
             reorder_level: product.reorder_level || '',
             stock: product.stock,
-            is_serialized: product.is_serialized === 1,
+            is_serialized: product.is_serialized === 1 || product.is_serialized === true,
             serial_numbers: '', // We don't allow editing serials directly from here yet
             motorcycle_unit_ids: (product.motorcycle_unit_ids || []).map(Number),
             compatibility_group_ids: (product.compatibility_group_ids || []).map(Number)
@@ -760,6 +761,7 @@ const Products = () => {
                                 <tr>
                                     <th>Part Number</th>
                                     <th>Name</th>
+                                    <th style={{ minWidth: '170px' }}>Serial Number(s)</th>
                                     <th>Brand</th>
                                     <th>Size</th>
                                     <th style={{ textAlign: 'right' }}>Stock</th>
@@ -774,8 +776,67 @@ const Products = () => {
                             <tbody>
                                 {filteredProducts.length > 0 ? filteredProducts.map(p => (
                                     <tr key={p.id}>
-                                        <td style={{ color: 'var(--text-muted)', fontWeight: '600' }}>{p.part_number}</td>
-                                        <td style={{ fontWeight: '500' }}>{p.product_name}</td>
+                                        <td style={{ color: 'var(--text-muted)', fontWeight: '600', fontFamily: 'monospace' }}>{p.part_number}</td>
+                                        <td style={{ fontWeight: '500' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <span>{p.product_name}</span>
+                                                {p.is_serialized ? (
+                                                    <span className="badge-pill badge-serialized" style={{ fontSize: '0.65rem', padding: '1px 6px' }}>
+                                                        Serialized
+                                                    </span>
+                                                ) : null}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            {p.is_serialized ? (
+                                                p.serials && p.serials.length > 0 ? (
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxWidth: '250px', alignItems: 'center' }}>
+                                                        {p.serials.slice(0, 3).map(s => (
+                                                            <span
+                                                                key={s.id || s.serial_number}
+                                                                style={{
+                                                                    fontFamily: 'monospace',
+                                                                    fontSize: '0.73rem',
+                                                                    fontWeight: 600,
+                                                                    background: 'rgba(22, 163, 74, 0.12)',
+                                                                    color: 'var(--primary)',
+                                                                    border: '1px solid rgba(22, 163, 74, 0.25)',
+                                                                    padding: '1px 6px',
+                                                                    borderRadius: '4px',
+                                                                    whiteSpace: 'nowrap'
+                                                                }}
+                                                            >
+                                                                {s.serial_number}
+                                                            </span>
+                                                        ))}
+                                                        {p.serials.length > 3 && (
+                                                            <span
+                                                                onClick={() => setSelectedSerialsModalProduct(p)}
+                                                                style={{
+                                                                    fontSize: '0.7rem',
+                                                                    fontWeight: 700,
+                                                                    color: 'var(--text-main)',
+                                                                    background: 'var(--surface-hover)',
+                                                                    border: '1px solid var(--border)',
+                                                                    padding: '1px 6px',
+                                                                    borderRadius: '4px',
+                                                                    cursor: 'pointer',
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center'
+                                                                }}
+                                                                title={`Click to view all ${p.serials.length} serial numbers`}
+                                                            >
+                                                                +{p.serials.length - 3} more
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No serials in stock</span>
+                                                )
+                                            ) : (
+                                                <span style={{ color: 'var(--text-muted)' }}>-</span>
+                                            )}
+                                        </td>
                                         <td style={{ color: 'var(--text-muted)' }}>{p.brand}</td>
                                         <td>{p.size}</td>
                                         <td style={{ textAlign: 'right', color: p.stock <= p.reorder_level ? 'var(--danger)' : 'var(--success)', fontWeight: 'bold' }}>
@@ -808,7 +869,7 @@ const Products = () => {
                                     </tr>
                                 )) : (
                                     <tr>
-                                        <td colSpan={isAdmin ? 11 : 10} className="table-empty-state">
+                                        <td colSpan={isAdmin ? 12 : 11} className="table-empty-state">
                                             No products match your search or filter criteria.
                                         </td>
                                     </tr>
@@ -826,6 +887,96 @@ const Products = () => {
                 product={editingProductModal}
                 onSuccess={fetchProducts}
             />
+
+            
+            {/* Serial Numbers Modal */}
+            {selectedSerialsModalProduct && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(0,0,0,0.7)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 9999,
+                    padding: '20px'
+                }}>
+                    <div style={{
+                        background: 'var(--surface, #1e293b)',
+                        borderRadius: '12px',
+                        border: '1px solid var(--border)',
+                        padding: '20px',
+                        maxWidth: '480px',
+                        width: '100%',
+                        maxHeight: '80vh',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
+                            <div>
+                                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                                    Serialized Units in Stock ({selectedSerialsModalProduct.serials?.length || 0})
+                                </h3>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                    {selectedSerialsModalProduct.product_name} • <span style={{ fontFamily: 'monospace' }}>{selectedSerialsModalProduct.part_number}</span>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedSerialsModalProduct(null)}
+                                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div style={{
+                            overflowY: 'auto',
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+                            gap: '8px',
+                            padding: '4px',
+                            marginBottom: '14px'
+                        }}>
+                            {selectedSerialsModalProduct.serials?.map((s, idx) => (
+                                <div
+                                    key={s.id || idx}
+                                    style={{
+                                        background: 'rgba(22, 163, 74, 0.08)',
+                                        border: '1px solid rgba(22, 163, 74, 0.2)',
+                                        padding: '6px 10px',
+                                        borderRadius: '6px',
+                                        fontFamily: 'monospace',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 600,
+                                        color: 'var(--primary)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between'
+                                    }}
+                                >
+                                    <span>{s.serial_number}</span>
+                                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
+                                        {s.status || 'available'}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedSerialsModalProduct(null)}
+                                className="btn-secondary"
+                                style={{ padding: '6px 16px', fontSize: '0.85rem' }}
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Item Ledger Drawer */}
             <ItemLedgerDrawer
