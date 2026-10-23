@@ -56,7 +56,40 @@ exports.getInventory = async (req, res, next) => {
                 p.retail_price
             ORDER BY p.name ASC
         `);
-        res.json(products);
+
+        let availableSerials = [];
+        try {
+            const productIds = products.map(p => p.id);
+            if (productIds.length > 0) {
+                const [serialsRows] = await db.query(`
+                    SELECT id, product_id, serial_number, status
+                    FROM product_serials
+                    WHERE product_id IN (?) AND (status = 'available' OR status IS NULL)
+                    ORDER BY id ASC
+                `, [productIds]);
+                availableSerials = serialsRows;
+            }
+        } catch (serialErr) {
+            availableSerials = [];
+        }
+
+        const result = products.map(p => {
+            const prodSerials = availableSerials.filter(s => s.product_id === p.id);
+            const serialNumbers = prodSerials.map(s => s.serial_number);
+            const isSerialized = Boolean(p.is_serialized);
+
+            return {
+                ...p,
+                is_serialized: isSerialized,
+                serials: prodSerials,
+                serial_numbers: serialNumbers,
+                serial_display: isSerialized
+                    ? (serialNumbers.length > 0 ? serialNumbers.join(', ') : 'No serials')
+                    : '-'
+            };
+        });
+
+        res.json(result);
     } catch (err) {
         next(err);
     }
