@@ -317,8 +317,17 @@ const Dashboard = () => {
                                             : Number(st.all_time_sales || 0);
 
                                         return (
-                                            <tr key={st.id}>
-                                                <td style={{ fontWeight: 600 }}>{st.username}</td>
+                                            <tr
+                                                key={st.id}
+                                                onClick={() => navigate(`/transactions?user=${encodeURIComponent(st.username)}`)}
+                                                style={{ cursor: 'pointer' }}
+                                                title={`Click to view transactions for ${st.username}`}
+                                            >
+                                                <td style={{ fontWeight: 600 }}>
+                                                    <span style={{ color: 'var(--primary)', textDecoration: 'none' }}>
+                                                        {st.username}
+                                                    </span>
+                                                </td>
                                                 <td>
                                                     <span className={`badge-pill ${st.role === 'admin' ? 'badge-admin' : 'badge-staff'}`} style={{ textTransform: 'capitalize' }}>
                                                         {st.role}
@@ -334,7 +343,10 @@ const Dashboard = () => {
                                                     <button
                                                         type="button"
                                                         className="btn-secondary"
-                                                        onClick={() => navigate(`/transactions?search=${encodeURIComponent(st.username)}`)}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            navigate(`/transactions?user=${encodeURIComponent(st.username)}`);
+                                                        }}
                                                         style={{
                                                             padding: '4px 10px',
                                                             fontSize: '0.75rem',
@@ -342,7 +354,7 @@ const Dashboard = () => {
                                                             alignItems: 'center',
                                                             gap: '5px'
                                                         }}
-                                                        title={`View all transactions for ${st.username}`}
+                                                        title={`View transactions for ${st.username}`}
                                                     >
                                                         <History size={13} /> View ({st.all_time_transactions || 0})
                                                     </button>
@@ -375,7 +387,7 @@ const Dashboard = () => {
                                                 <button
                                                     type="button"
                                                     className="btn-secondary"
-                                                    onClick={() => navigate('/transactions')}
+                                                    onClick={() => navigate('/transactions?user=ALL')}
                                                     style={{
                                                         padding: '4px 10px',
                                                         fontSize: '0.75rem',

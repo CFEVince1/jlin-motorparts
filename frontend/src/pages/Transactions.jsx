@@ -51,8 +51,24 @@ const Transactions = () => {
     const [showPrintModal, setShowPrintModal] = useState(false);
 
     // User / Cashier Filter State
-    const [userFilter, setUserFilter] = useState(() => searchParams.get('user') || searchParams.get('cashier') || 'ALL');
+    const [userFilter, setUserFilter] = useState(() => {
+        const u = searchParams.get('user') || searchParams.get('cashier');
+        return (u && u !== 'ALL') ? u : 'ALL';
+    });
     const [usersList, setUsersList] = useState([]);
+
+    useEffect(() => {
+        const qUser = searchParams.get('user') || searchParams.get('cashier');
+        if (qUser && qUser !== 'ALL') {
+            if (qUser !== userFilter) {
+                setUserFilter(qUser);
+            }
+        } else if (qUser === 'ALL' || (!qUser && searchParams.has('user'))) {
+            if (userFilter !== 'ALL') {
+                setUserFilter('ALL');
+            }
+        }
+    }, [searchParams]);
 
     // Status Filter State
     const [statusFilter, setStatusFilter] = useState('ALL');
@@ -125,7 +141,8 @@ const Transactions = () => {
         filteredItems: filteredTransactions
     } = useTableFilter({
         items: transactions,
-        initialFilters: { date: '', sortBy: 'newest' },
+        initialSearch: searchParams.get('search') || '',
+        initialFilters: { date: searchParams.get('date') || '', sortBy: 'newest' },
         filterFn: filterTransactionsFn
     });
 
@@ -582,7 +599,20 @@ const Transactions = () => {
                             className="input-premium"
                             style={{ width: '175px' }}
                             value={userFilter}
-                            onChange={(e) => setUserFilter(e.target.value)}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setUserFilter(val);
+                                setSearchParams(prev => {
+                                    const next = new URLSearchParams(prev);
+                                    if (val === 'ALL') {
+                                        next.delete('user');
+                                        next.delete('cashier');
+                                    } else {
+                                        next.set('user', val);
+                                    }
+                                    return next;
+                                });
+                            }}
                             title="Filter by user / cashier"
                         >
                             <option value="ALL">All Users / Cashiers</option>
