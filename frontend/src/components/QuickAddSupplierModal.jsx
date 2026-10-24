@@ -21,18 +21,55 @@ export const QuickAddSupplierModal = ({ isOpen, onClose, onSupplierCreated }) =>
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim()) {
+    const cleanName = name.trim();
+    if (!cleanName) {
       toast.error('Supplier name is required');
       return;
+    }
+    if (!/[a-zA-Z]/.test(cleanName) || cleanName.replace(/[^a-zA-Z]/g, '').length < 2) {
+      toast.error('Supplier name must contain at least 2 letters and cannot be purely numbers');
+      return;
+    }
+
+    const cleanContact = contactPerson.trim();
+    if (cleanContact) {
+      if (/\d/.test(cleanContact)) {
+        toast.error('Contact person cannot contain numbers');
+        return;
+      }
+      if (!/^[a-zA-Z\s.'-]+$/.test(cleanContact) || cleanContact.replace(/[^a-zA-Z]/g, '').length < 2) {
+        toast.error('Please enter a valid contact person name (letters only)');
+        return;
+      }
+    }
+
+    const cleanPhone = phone.trim();
+    if (cleanPhone) {
+      if (/[a-zA-Z]/.test(cleanPhone)) {
+        toast.error('Contact phone cannot contain letters');
+        return;
+      }
+      if (!/^[0-9+\-()\s]{7,20}$/.test(cleanPhone) || cleanPhone.replace(/[^0-9]/g, '').length < 7) {
+        toast.error('Please enter a valid phone number (at least 7 digits)');
+        return;
+      }
+    }
+
+    const cleanEmail = email.trim();
+    if (cleanEmail) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        toast.error('Please enter a valid email address');
+        return;
+      }
     }
 
     try {
       setLoading(true);
       const res = await api.post('/suppliers', {
-        name: name.trim(),
-        contact_person: contactPerson.trim() || undefined,
-        phone: phone.trim() || undefined,
-        email: email.trim() || undefined,
+        name: cleanName,
+        contact_person: cleanContact || undefined,
+        phone: cleanPhone || undefined,
+        email: cleanEmail || undefined,
         address: address.trim() || undefined
       });
 
@@ -120,10 +157,10 @@ export const QuickAddSupplierModal = ({ isOpen, onClose, onSupplierCreated }) =>
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Maria Santos"
+                  placeholder="e.g. Maria Santos (letters only)"
                   className="input-premium"
                   value={contactPerson}
-                  onChange={(e) => setContactPerson(e.target.value)}
+                  onChange={(e) => setContactPerson(e.target.value.replace(/[0-9]/g, ''))}
                 />
               </div>
               <div>
@@ -132,10 +169,10 @@ export const QuickAddSupplierModal = ({ isOpen, onClose, onSupplierCreated }) =>
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. 0917-123-4567"
+                  placeholder="e.g. 0917-123-4567 (digits only)"
                   className="input-premium"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => setPhone(e.target.value.replace(/[^0-9+\-()\s]/g, ''))}
                 />
               </div>
             </div>

@@ -16,7 +16,7 @@ export const Suppliers = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'inactive'
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(() => new URLSearchParams(window.location.search).get('add') === 'true');
   const [selectedSupplierForEdit, setSelectedSupplierForEdit] = useState(null);
 
   const fetchSuppliers = async () => {

@@ -84,9 +84,31 @@ exports.createSupplier = async (req, res, next) => {
         }
 
         const trimmedName = String(name).trim();
+        if (!/[a-zA-Z]/.test(trimmedName) || trimmedName.replace(/[^a-zA-Z]/g, '').length < 2) {
+            throw new AppValidationError('Supplier name must contain at least 2 letters and cannot be purely numbers');
+        }
+
         const trimmedContact = isMissing(contact_person) ? null : String(contact_person).trim();
+        if (trimmedContact) {
+            if (/\d/.test(trimmedContact) || !/^[a-zA-Z\s.'-]+$/.test(trimmedContact) || trimmedContact.replace(/[^a-zA-Z]/g, '').length < 2) {
+                throw new AppValidationError('Contact person cannot contain numbers and must contain only letters and spaces');
+            }
+        }
+
         const trimmedPhone = isMissing(phone) ? null : String(phone).trim();
+        if (trimmedPhone) {
+            if (/[a-zA-Z]/.test(trimmedPhone) || !/^[0-9+\-()\s]{7,20}$/.test(trimmedPhone) || trimmedPhone.replace(/[^0-9]/g, '').length < 7) {
+                throw new AppValidationError('Contact phone must be a valid phone number and cannot contain letters');
+            }
+        }
+
         const trimmedEmail = isMissing(email) ? null : String(email).trim();
+        if (trimmedEmail) {
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+                throw new AppValidationError('Please enter a valid email address');
+            }
+        }
+
         const trimmedAddress = isMissing(address) ? null : String(address).trim();
         const activeStatus = is_active !== undefined ? normalizeBoolean(is_active, true) : true;
 
@@ -161,6 +183,27 @@ exports.updateSupplier = async (req, res, next) => {
 
         if (isMissing(updatedName)) {
             throw new AppValidationError('Supplier name cannot be empty');
+        }
+        if (!/[a-zA-Z]/.test(updatedName) || updatedName.replace(/[^a-zA-Z]/g, '').length < 2) {
+            throw new AppValidationError('Supplier name must contain at least 2 letters and cannot be purely numbers');
+        }
+
+        if (updatedContact) {
+            if (/\d/.test(updatedContact) || !/^[a-zA-Z\s.'-]+$/.test(updatedContact) || updatedContact.replace(/[^a-zA-Z]/g, '').length < 2) {
+                throw new AppValidationError('Contact person cannot contain numbers and must contain only letters and spaces');
+            }
+        }
+
+        if (updatedPhone) {
+            if (/[a-zA-Z]/.test(updatedPhone) || !/^[0-9+\-()\s]{7,20}$/.test(updatedPhone) || updatedPhone.replace(/[^0-9]/g, '').length < 7) {
+                throw new AppValidationError('Contact phone must be a valid phone number and cannot contain letters');
+            }
+        }
+
+        if (updatedEmail) {
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updatedEmail)) {
+                throw new AppValidationError('Please enter a valid email address');
+            }
         }
 
         // Check uniqueness if name changed
