@@ -273,7 +273,6 @@ const Products = () => {
                                 <button type="button" className="btn-secondary" onClick={() => {
                                     setEditingId(null);
                                     resetForm();
-                                    setUnitSearchQuery('');
                                 }}>
                                     Cancel Edit
                                 </button>
@@ -286,7 +285,7 @@ const Products = () => {
             <div className="responsive-filter-row" style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
                 <div style={{ position: 'relative', flex: '1 1 250px' }}>
                     <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                    <input type="text" className="input-premium" placeholder="Search by part number, compatibility, name, brand, or size..." value={searchQuery} onChange={handleSearchChange} style={{ paddingLeft: '36px', width: '100%' }} />
+                    <input type="text" className="input-premium" placeholder="Search by part number, name, brand, or size..." value={searchQuery} onChange={handleSearchChange} style={{ paddingLeft: '36px', width: '100%' }} />
                 </div>
                 <div style={{ flex: '1 1 150px' }}>
                     <select className="input-premium" value={brandFilter} onChange={(e) => setFilter('brand', e.target.value)} style={{ width: '100%', cursor: 'pointer' }}>
@@ -329,7 +328,6 @@ const Products = () => {
                                     <th style={{ textAlign: 'center' }}>Markup %</th>
                                     <th style={{ textAlign: 'right' }}>Selling Price</th>
                                     <th>Type</th>
-                                    <th>Compatibility</th>
                                     {isAdmin && <th style={{ textAlign: 'center' }}>Actions</th>}
                                 </tr>
                             </thead>
@@ -416,7 +414,6 @@ const Products = () => {
                                                 {p.is_serialized ? 'Serialized' : 'Non-Serialized'}
                                             </span>
                                         </td>
-                                        <td>{p.compatibility_display || '-'}</td>
                                         {isAdmin && (
                                             <td style={{ textAlign: 'center' }}>
                                                 <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
@@ -429,7 +426,7 @@ const Products = () => {
                                     </tr>
                                 )) : (
                                     <tr>
-                                        <td colSpan={isAdmin ? 12 : 11} className="table-empty-state">
+                                        <td colSpan={isAdmin ? 11 : 10} className="table-empty-state">
                                             No products match your search or filter criteria.
                                         </td>
                                     </tr>
