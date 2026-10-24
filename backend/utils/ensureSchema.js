@@ -355,28 +355,62 @@ async function ensureSchema() {
       console.warn('[Schema] Failed to check/add markup_percentage to products:', err.message);
     }
 
-    // 12. Ensure serial lot tracking schema and backfill
+    // 12. Ensure serial lot tracking schema and guarded backfill
     try {
+      // 12a. Ensure product_serials.status allows 'inactive'
+      const [statusCols] = await db.query("SHOW FULL COLUMNS FROM product_serials LIKE 'status'");
+      if (statusCols.length > 0 && statusCols[0].Type.includes("enum('available','sold')") && !statusCols[0].Type.includes("'inactive'")) {
+        await db.query("ALTER TABLE product_serials MODIFY COLUMN status ENUM('available', 'sold', 'inactive') NOT NULL DEFAULT 'available'");
+        console.log("[Schema] Altered product_serials.status to ENUM('available', 'sold', 'inactive').");
+      }
+
+      // 12b. Safely remove artificial legacy row LEG-0100-003 if it has no sales links
+      await db.query(`
+        DELETE FROM product_serials 
+        WHERE product_id = 114 AND serial_number = 'LEG-0100-003' 
+          AND id NOT IN (SELECT serial_id FROM sale_item_serials)
+      `);
+
+      // 12c. Guarded backfill of quantity column (runs strictly once upon creation)
       const [psCols] = await db.query("SHOW COLUMNS FROM product_serials LIKE 'quantity'");
       const isFirstCreation = psCols.length === 0;
       if (isFirstCreation) {
+        // Pre-migration invariant check before applying any DDL or data changes
+        const [serializedProducts] = await db.query(`
+          SELECT p.id, p.part_number, p.name, p.stock,
+                 COUNT(CASE WHEN ps.status = 'available' OR ps.status IS NULL THEN 1 END) AS avail_count
+          FROM products p
+          LEFT JOIN product_serials ps ON p.id = ps.product_id
+          WHERE p.is_serialized = 1 AND p.is_active = 1
+          GROUP BY p.id, p.part_number, p.name, p.stock
+          ORDER BY p.id ASC
+        `);
+
+        const mismatches = [];
+        for (const prod of serializedProducts) {
+          const pStock = Number(prod.stock || 0);
+          const sAvail = Number(prod.avail_count || 0);
+          if (pStock !== sAvail) {
+            mismatches.push(`Product #${prod.id} (${prod.part_number} - ${prod.name}): stock = ${pStock}, available serials in DB = ${sAvail}`);
+          }
+        }
+
+        if (mismatches.length > 0) {
+          const errMsg = `[Schema Migration Refusal] Serial lot migration aborted without changing data. Pre-migration stock mismatch detected:\n` +
+            mismatches.map(m => `  - ${m}`).join('\n') +
+            `\nResolve discrepancies in database before deploying the serial quantity migration.`;
+          console.error('⛔ =====================================================');
+          console.error(errMsg);
+          console.error('⛔ =====================================================');
+          process.exit(1);
+        }
+
+        // Pre-migration invariant strictly verified: safe to create column and backfill
         await db.query("ALTER TABLE product_serials ADD COLUMN quantity INT NOT NULL DEFAULT 1 AFTER serial_number");
         console.log('[Schema] Added quantity column to product_serials.');
 
-        // Idempotent initial backfill
-        // Product 3: ECU001-003 -> 0 (sold), ECU004 -> 1 (available)
-        await db.query("UPDATE product_serials SET quantity = 0, status = 'sold' WHERE product_id = 3 AND serial_number IN ('ECU001', 'ECU002', 'ECU003')");
-        const [ecu4] = await db.query("SELECT id FROM product_serials WHERE product_id = 3 AND serial_number = 'ECU004'");
-        if (ecu4.length === 0) {
-          await db.query("INSERT INTO product_serials (product_id, serial_number, quantity, status, created_at) VALUES (3, 'ECU004', 1, 'available', NOW())");
-        }
-
-        // Product 113: RS8 serials -> 1 each (available)
-        await db.query("UPDATE product_serials SET quantity = 1, status = 'available' WHERE product_id = 113 AND serial_number IN ('RS8-66839-1', 'RS8-66839-2')");
-
-        // Product 114: JVT-26491 (1), JVT-33240 (1), LEG-0100-003 (0, inactive)
-        await db.query("UPDATE product_serials SET quantity = 1, status = 'available' WHERE product_id = 114 AND serial_number IN ('JVT-26491', 'JVT-33240')");
-        await db.query("UPDATE product_serials SET quantity = 0, status = 'inactive' WHERE product_id = 114 AND serial_number = 'LEG-0100-003'");
+        await db.query("UPDATE product_serials SET quantity = 0 WHERE status = 'sold'");
+        await db.query("UPDATE product_serials SET quantity = 1 WHERE status = 'available' OR status IS NULL");
       }
 
       const [sisCols] = await db.query("SHOW COLUMNS FROM sale_item_serials LIKE 'quantity'");
@@ -391,6 +425,9 @@ async function ensureSchema() {
         console.log('[Schema] Added serial_id column to inventory_transactions.');
       }
     } catch (lotErr) {
+      if (lotErr.message && lotErr.message.includes('[Schema Migration Refusal]')) {
+        process.exit(1);
+      }
       console.warn('[Schema] Failed to verify serial lot columns:', lotErr.message);
     }
   } catch (err) {

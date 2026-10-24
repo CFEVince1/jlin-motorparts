@@ -148,7 +148,7 @@ CREATE TABLE product_serials (
     product_id INT NOT NULL,
     serial_number VARCHAR(100) NOT NULL UNIQUE,
     quantity INT NOT NULL DEFAULT 1,
-    status VARCHAR(50) NOT NULL DEFAULT 'available',
+    status ENUM('available', 'sold', 'inactive') NOT NULL DEFAULT 'available',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
 );
@@ -463,7 +463,6 @@ FROM products p
 JOIN (
     SELECT 'JVT-26491' AS serial_number, 1 AS quantity, 'available' AS status
     UNION ALL SELECT 'JVT-33240', 1, 'available'
-    UNION ALL SELECT 'LEG-0100-003', 0, 'inactive'
 ) serials
 WHERE p.part_number = 'LEGACY-0100' OR p.name = 'JVT Tensioner Manual Alloy';
 

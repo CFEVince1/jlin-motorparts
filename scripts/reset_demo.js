@@ -353,7 +353,7 @@ async function resetDemoDatabase() {
             }
             await connection.query("UPDATE product_serials SET quantity = 1, status = 'available' WHERE product_id = 113 AND serial_number IN ('RS8-66839-1', 'RS8-66839-2')");
             await connection.query("UPDATE product_serials SET quantity = 1, status = 'available' WHERE product_id = 114 AND serial_number IN ('JVT-26491', 'JVT-33240')");
-            await connection.query("UPDATE product_serials SET quantity = 0, status = 'inactive' WHERE product_id = 114 AND serial_number = 'LEG-0100-003'");
+            await connection.query("DELETE FROM product_serials WHERE product_id = 114 AND serial_number = 'LEG-0100-003' AND id NOT IN (SELECT serial_id FROM sale_item_serials)");
         }
 
         const [sisCols] = await connection.query("SHOW COLUMNS FROM sale_item_serials LIKE 'quantity'");

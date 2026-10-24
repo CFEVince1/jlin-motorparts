@@ -69,10 +69,12 @@ async function checkSerialQuantities() {
     }
 
     const availableSerials = serials.filter(s => s.status === 'available' || s.status === null);
-    const sumQuantities = availableSerials.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
+    const sumQuantities = hasQtyCol
+      ? availableSerials.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0)
+      : availableSerials.length;
     const productStock = Number(prod.stock ?? prod.current_stock ?? 0);
 
-    const match = hasQtyCol ? (sumQuantities === productStock) : false;
+    const match = (sumQuantities === productStock);
     if (!match) {
       hasDiscrepancy = true;
     }
@@ -84,9 +86,9 @@ async function checkSerialQuantities() {
       product_stock: productStock,
       total_serials: serials.length,
       available_serials: availableSerials.length,
-      sum_serial_quantities: hasQtyCol ? sumQuantities : 'N/A (no quantity col)',
+      sum_serial_quantities: hasQtyCol ? sumQuantities : `${sumQuantities} (avail count)`,
       status: match ? 'MATCH' : 'MISMATCH',
-      serials_detail: serials.map(s => `${s.serial_number} (${s.status}${hasQtyCol ? `, qty=${s.quantity}` : ''})`).join(', ')
+      serials_detail: serials.map(s => `${s.serial_number} (${s.status || 'unknown'}${hasQtyCol ? `, qty=${s.quantity}` : ''})`).join(', ')
     });
   }
 
