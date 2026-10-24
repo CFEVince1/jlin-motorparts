@@ -374,7 +374,6 @@ const Inventory = () => {
                                         <th>Size</th>
                                         <th>Measurement</th>
                                         <th>Thread Type</th>
-                                        <th>Compatibility</th>
                                         <th style={{ textAlign: 'right' }}>Price</th>
                                         <th style={{ textAlign: 'center', width: '120px' }}>Stock</th>
                                     </tr>
@@ -431,7 +430,6 @@ const Inventory = () => {
                                             <td>{p.size || '-'}</td>
                                             <td>{p.measurement || '-'}</td>
                                             <td>{p.thread_type || '-'}</td>
-                                            <td>{p.compatibility_display || '-'}</td>
                                             <td style={{ textAlign: 'right', fontWeight: '600', color: 'var(--primary)' }}>{formatCurrency(p.price)}</td>
                                             <td style={{ textAlign: 'center', width: '120px' }}>
                                                 <div style={{
@@ -466,7 +464,7 @@ const Inventory = () => {
                                         </tr>
                                         {p.is_serialized && expandedSerials.has(p.id) && (
                                             <tr key={`${p.id}_serials_breakdown`} style={{ background: 'rgba(255, 255, 255, 0.02)' }}>
-                                                <td colSpan={10} style={{ padding: '10px 16px 14px 32px' }}>
+                                                <td colSpan={9} style={{ padding: '10px 16px 14px 32px' }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                                                         <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>
                                                             Serial Lots Breakdown for {p.product_name}
@@ -536,7 +534,7 @@ const Inventory = () => {
                                     ))}
                                     {filteredProducts.length === 0 && (
                                         <tr>
-                                            <td colSpan={10} className="table-empty-state">
+                                            <td colSpan={9} className="table-empty-state">
                                                 No inventory stock matches your search or filter criteria.
                                             </td>
                                         </tr>
