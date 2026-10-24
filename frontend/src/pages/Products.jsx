@@ -323,6 +323,8 @@ const Products = () => {
                                     <th style={{ minWidth: '170px' }}>Serial Number(s)</th>
                                     <th>Brand</th>
                                     <th>Size</th>
+                                    <th>Measurement</th>
+                                    <th>Thread Type</th>
                                     <th style={{ textAlign: 'right' }}>Stock</th>
                                     <th style={{ textAlign: 'right' }}>Cost</th>
                                     <th style={{ textAlign: 'center' }}>Markup %</th>
@@ -396,7 +398,9 @@ const Products = () => {
                                             )}
                                         </td>
                                         <td style={{ color: 'var(--text-muted)' }}>{p.brand}</td>
-                                        <td>{p.size}</td>
+                                        <td>{p.size || '-'}</td>
+                                        <td>{p.measurement || '-'}</td>
+                                        <td>{p.thread_type || '-'}</td>
                                         <td style={{ textAlign: 'right', color: p.stock <= p.reorder_level ? 'var(--danger)' : 'var(--success)', fontWeight: 'bold' }}>
                                             {p.stock}
                                         </td>
@@ -426,7 +430,7 @@ const Products = () => {
                                     </tr>
                                 )) : (
                                     <tr>
-                                        <td colSpan={isAdmin ? 11 : 10} className="table-empty-state">
+                                        <td colSpan={isAdmin ? 13 : 12} className="table-empty-state">
                                             No products match your search or filter criteria.
                                         </td>
                                     </tr>

@@ -7,6 +7,8 @@ const MATCH_RANKS = {
     product_name: 3,
     brand: 4,
     size: 5,
+    measurement: 6,
+    thread_type: 7,
     none: Number.POSITIVE_INFINITY
 };
 
@@ -87,6 +89,16 @@ export const getProductMatch = (product, query) => {
         return { matchType: 'size', rank: MATCH_RANKS.size };
     }
 
+    const measurement = normalizeSearchText(product?.measurement);
+    if (measurement.includes(normalizedQuery)) {
+        return { matchType: 'measurement', rank: MATCH_RANKS.measurement };
+    }
+
+    const threadType = normalizeSearchText(product?.thread_type);
+    if (threadType.includes(normalizedQuery)) {
+        return { matchType: 'thread_type', rank: MATCH_RANKS.thread_type };
+    }
+
     return { matchType: 'none', rank: MATCH_RANKS.none };
 };
 
@@ -149,6 +161,16 @@ export const getProductSnapshotMatch = (snapshot, query) => {
 
     if (size.includes(normalizedQuery)) {
         return { matchType: 'size', rank: MATCH_RANKS.size };
+    }
+
+    const measurement = normalizeSearchText(snapshot?.measurement || snapshot?.measurements);
+    if (measurement.includes(normalizedQuery)) {
+        return { matchType: 'measurement', rank: MATCH_RANKS.measurement };
+    }
+
+    const threadType = normalizeSearchText(snapshot?.thread_type || snapshot?.thread_types);
+    if (threadType.includes(normalizedQuery)) {
+        return { matchType: 'thread_type', rank: MATCH_RANKS.thread_type };
     }
 
     return { matchType: 'none', rank: MATCH_RANKS.none };
