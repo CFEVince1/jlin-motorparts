@@ -1,7 +1,7 @@
 import { useState, useEffect, useContext } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { PackagePlus, Trash2, Edit2, Search, History, Layers, Plus, X, ChevronDown, ChevronUp, Check } from 'lucide-react';
+import { PackagePlus, Trash2, Edit2, Search, History, Plus, X, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { AuthContext } from '../context/AuthContextValue';
 import Spinner from '../components/Spinner';
 import { filterProducts } from '../utils/productFilter';
@@ -10,25 +10,6 @@ import useForm from '../hooks/useForm';
 import { formatCurrency } from '../utils/formatters';
 import ProductEditModal from '../components/ProductEditModal';
 import ItemLedgerDrawer from '../components/ItemLedgerDrawer';
-
-const formatMotorcycleUnit = (unit) => {
-    if (!unit) return '';
-    const brand = (unit.brand || '').trim();
-    const model = (unit.model || '').trim();
-    const year = (unit.year_model || '').trim();
-    const formattedBrand = brand ? brand.charAt(0).toUpperCase() + brand.slice(1) : '';
-    if (!year) return `${formattedBrand} ${model}`.trim();
-    if (model.toLowerCase().includes(year.toLowerCase())) {
-        return `${formattedBrand} ${model}`.trim();
-    }
-    return `${formattedBrand} ${model} ${year}`.trim();
-};
-
-const isJunkText = (str) => {
-    if (!str) return false;
-    const s = String(str).toLowerCase();
-    return s.includes('test') || s.includes('werewe') || s.includes('wampipti') || s.includes('susuki') || s.includes('naglulu') || s.includes('inanak') || s.includes('sila');
-};
 
 const initialFormState = {
     part_number: '',
@@ -51,7 +32,6 @@ const initialFormState = {
 
 const Products = () => {
     const [products, setProducts] = useState([]);
-    const [motorcycleUnits, setMotorcycleUnits] = useState([]);
     const [loading, setLoading] = useState(true);
     const { user } = useContext(AuthContext);
 
@@ -118,22 +98,7 @@ const Products = () => {
 
     useEffect(() => {
         fetchProducts();
-        fetchMotorcycleUnits();
     }, []);
-
-    const [unitSearchQuery, setUnitSearchQuery] = useState('');
-
-    const toggleMotorcycleUnit = (unitId) => {
-        const numericId = Number(unitId);
-        const selected = formData.motorcycle_unit_ids.map(Number);
-
-        setFormData({
-            ...formData,
-            motorcycle_unit_ids: selected.includes(numericId)
-                ? selected.filter(id => id !== numericId)
-                : [...selected, numericId]
-        });
-    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -166,7 +131,6 @@ const Products = () => {
 
             resetForm();
             setEditingId(null);
-            setUnitSearchQuery('');
             fetchProducts();
         } catch (err) {
             toast.error(err.response?.data?.message || err.response?.data?.error || 'Action failed');
@@ -266,80 +230,6 @@ const Products = () => {
 
                             <input type="number" name="reorder_level" placeholder="Reorder Level" className="input-premium" required min="0"
                                 value={formData.reorder_level} onChange={handleChange} />
-                        </div>
-
-                        <div style={{ padding: '18px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid var(--border)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
-                                <div>
-                                    <label style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '0.95rem', margin: 0 }}>
-                                        <Layers size={18} style={{ color: 'var(--primary)' }} /> Motorcycle Compatibility ({formData.motorcycle_unit_ids.length} selected)
-                                    </label>
-                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '4px 0 0 0' }}>
-                                        Select the motorcycle models that this product is compatible with.
-                                    </p>
-                                </div>
-
-                                <div style={{ position: 'relative', width: '250px' }}>
-                                    <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                                    <input
-                                        type="text"
-                                        placeholder="Search motorcycle models..."
-                                        className="input-premium"
-                                        value={unitSearchQuery}
-                                        onChange={(e) => setUnitSearchQuery(e.target.value)}
-                                        style={{ paddingLeft: '32px', fontSize: '0.82rem', height: '36px', width: '100%' }}
-                                    />
-                                </div>
-                            </div>
-
-                            <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-                                gap: '8px',
-                                maxHeight: '200px',
-                                overflowY: 'auto',
-                                padding: '10px',
-                                background: 'rgba(0,0,0,0.15)',
-                                borderRadius: '8px',
-                                border: '1px solid var(--border)'
-                            }}>
-                                {motorcycleUnits
-                                    .filter(unit => {
-                                        if (!unitSearchQuery.trim()) return true;
-                                        const q = unitSearchQuery.toLowerCase();
-                                        return formatMotorcycleUnit(unit).toLowerCase().includes(q);
-                                    })
-                                    .map(unit => {
-                                        const unitId = Number(unit.id);
-                                        const checked = formData.motorcycle_unit_ids.map(Number).includes(unitId);
-
-                                        return (
-                                            <label
-                                                key={unit.id}
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '8px',
-                                                    cursor: 'pointer',
-                                                    color: 'var(--text-main)',
-                                                    fontSize: '0.82rem',
-                                                    padding: '5px 8px',
-                                                    borderRadius: '6px',
-                                                    background: checked ? 'rgba(22, 163, 74, 0.12)' : 'transparent',
-                                                    border: checked ? '1px solid rgba(22, 163, 74, 0.3)' : '1px solid transparent'
-                                                }}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={checked}
-                                                    onChange={() => toggleMotorcycleUnit(unitId)}
-                                                    style={{ accentColor: 'var(--primary)', width: '15px', height: '15px' }}
-                                                />
-                                                <span style={{ fontWeight: checked ? 600 : 400 }}>{formatMotorcycleUnit(unit)}</span>
-                                            </label>
-                                        );
-                                    })}
-                            </div>
                         </div>
 
                         <div style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
