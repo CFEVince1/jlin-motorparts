@@ -337,7 +337,6 @@ const Inventory = () => {
                                         <th>Compatibility</th>
                                         <th style={{ textAlign: 'right' }}>Price</th>
                                         <th>Stock Label</th>
-                                        <th style={{ textAlign: 'center' }}>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -400,32 +399,10 @@ const Inventory = () => {
                                                 {getStockStatus(p) === 'low_stock' && <span className="badge-pill" style={{marginLeft: '8px', background: 'var(--danger)', color: 'white'}}>LOW</span>}
                                                 {getStockStatus(p) === 'out_of_stock' && <span className="badge-pill" style={{marginLeft: '8px', background: 'var(--danger)', color: 'white'}}>OUT</span>}
                                             </td>
-                                            <td style={{ textAlign: 'center' }}>
-                                                <div style={{ display: 'inline-flex', gap: '6px' }}>
-                                                    <button
-                                                        onClick={() => setLedgerTarget(p)}
-                                                        className="btn-secondary"
-                                                        style={{ padding: '4px 8px', fontSize: '0.75rem', height: '28px' }}
-                                                        title="View Stock Movement History"
-                                                    >
-                                                        <History size={14} /> History
-                                                    </button>
-                                                    {isAdmin && (
-                                                        <button
-                                                            onClick={() => setAdjustmentTarget(p)}
-                                                            className="btn-secondary"
-                                                            style={{ padding: '4px 8px', fontSize: '0.75rem', height: '28px' }}
-                                                            title="Adjust Stock (Damage, Loss, Return, Found)"
-                                                        >
-                                                            <SlidersHorizontal size={14} /> Adjust
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </td>
                                         </tr>
                                         {p.is_serialized && expandedSerials.has(p.id) && (
                                             <tr key={`${p.id}_serials_breakdown`} style={{ background: 'rgba(255, 255, 255, 0.02)' }}>
-                                                <td colSpan={9} style={{ padding: '10px 16px 14px 32px' }}>
+                                                <td colSpan={8} style={{ padding: '10px 16px 14px 32px' }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                                                         <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>
                                                             Serial Lots Breakdown for {p.product_name}
@@ -477,7 +454,7 @@ const Inventory = () => {
                                     ))}
                                     {filteredProducts.length === 0 && (
                                         <tr>
-                                            <td colSpan={9} className="table-empty-state">
+                                            <td colSpan={8} className="table-empty-state">
                                                 No inventory stock matches your search or filter criteria.
                                             </td>
                                         </tr>
