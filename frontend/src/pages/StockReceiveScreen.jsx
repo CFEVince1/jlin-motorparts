@@ -29,13 +29,9 @@ export const StockReceiveScreen = () => {
   const [isAddSupplierOpen, setIsAddSupplierOpen] = useState(false);
 
   // Line items matrix
-  const [lineItems, setLineItems] = useState(() => {
-    const p = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-    if (p && p.get('demo') === 'batch_serial') {
-      return [{ itemId: '113', quantity: '7', costPrice: '800.00', serials: ['jtv123'], serialsInput: 'jtv123', selectedSerialId: '' }];
-    }
-    return [{ itemId: '', quantity: '', costPrice: '', serials: [], serialsInput: '', selectedSerialId: '' }];
-  });
+  const [lineItems, setLineItems] = useState([
+    { itemId: '', quantity: '', costPrice: '' }
+  ]);
 
   // Receiving History State
   const [receivingHistory, setReceivingHistory] = useState([]);
@@ -101,7 +97,7 @@ export const StockReceiveScreen = () => {
   }, [fetchReceivingHistory]);
 
   const addRow = () => {
-    setLineItems(prev => [...prev, { itemId: '', quantity: '', costPrice: '', serials: [], serialsInput: '', selectedSerialId: '' }]);
+    setLineItems(prev => [...prev, { itemId: '', quantity: '', costPrice: '' }]);
   };
 
   const removeRow = (index) => {
@@ -110,32 +106,6 @@ export const StockReceiveScreen = () => {
       return;
     }
     setLineItems(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleSerialsInputChange = (index, value) => {
-    const rawTokens = value.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
-    setLineItems(prev => {
-      const next = [...prev];
-      next[index] = {
-        ...next[index],
-        serialsInput: value,
-        serials: rawTokens
-      };
-      return next;
-    });
-  };
-
-  const handleRemoveSerialChip = (index, serialIdx) => {
-    setLineItems(prev => {
-      const next = [...prev];
-      const newSerials = (next[index].serials || []).filter((_, i) => i !== serialIdx);
-      next[index] = {
-        ...next[index],
-        serials: newSerials,
-        serialsInput: newSerials.join(', ')
-      };
-      return next;
-    });
   };
 
   const updateRow = (index, field, value) => {
@@ -162,10 +132,6 @@ export const StockReceiveScreen = () => {
         if (selectedProd && (!next[index].costPrice || next[index].costPrice === '')) {
           next[index].costPrice = selectedProd.cost_price || '';
         }
-        // If changed product, reset serials
-        next[index].serials = [];
-        next[index].serialsInput = '';
-        next[index].selectedSerialId = '';
       }
       return next;
     });
@@ -234,65 +200,10 @@ export const StockReceiveScreen = () => {
         return;
       }
 
-      const prod = products.find(p => String(p.id) === String(row.itemId));
-      const isSerialized = Boolean(prod?.is_serialized);
-      const serials = Array.isArray(row.serials) ? row.serials.map(s => String(s).trim()).filter(Boolean) : [];
-      const uniqueSerials = [...new Set(serials.map(s => s.trim()).filter(Boolean))];
-
-      if (isSerialized) {
-        const prodSerials = prod?.serials || [];
-        const effectiveSingleSerial = uniqueSerials.length === 1 ? uniqueSerials[0] : null;
-
-        const matchedSerial = row.selectedSerialId
-          ? prodSerials.find(s => String(s.id) === String(row.selectedSerialId))
-          : (effectiveSingleSerial ? prodSerials.find(s => s.serial_number && s.serial_number.toLowerCase() === effectiveSingleSerial.toLowerCase()) : null);
-
-        if (matchedSerial) {
-          // Receiving into existing serial lot
-          formattedItems.push({
-            itemId: Number(row.itemId),
-            quantity: qty,
-            costPrice: cost,
-            serial_id: matchedSerial.id,
-            serial_number: matchedSerial.serial_number,
-            serials: [matchedSerial.serial_number]
-          });
-          continue;
-        }
-
-        if (effectiveSingleSerial) {
-          // Receiving into single new serial lot with quantity = qty (Batch / Lot Mode)
-          formattedItems.push({
-            itemId: Number(row.itemId),
-            quantity: qty,
-            costPrice: cost,
-            serial_number: effectiveSingleSerial,
-            serials: [effectiveSingleSerial]
-          });
-          continue;
-        }
-
-        if (serials.length !== qty) {
-          toast.error(`Line #${i + 1} (${prod?.part_number || prod?.name}): Enter 1 serial for all ${qty} units (Batch Mode) or exactly ${qty} unique serial numbers (provided: ${serials.length}).`);
-          return;
-        }
-
-        const seenSerials = new Set();
-        for (const s of serials) {
-          const upper = s.toUpperCase();
-          if (seenSerials.has(upper)) {
-            toast.error(`Line #${i + 1}: Duplicate serial "${s}" detected. If all units share this serial, enter "${s}" only once.`);
-            return;
-          }
-          seenSerials.add(upper);
-        }
-      }
-
       formattedItems.push({
         itemId: Number(row.itemId),
         quantity: qty,
-        costPrice: cost,
-        serials: isSerialized ? serials : []
+        costPrice: cost
       });
     }
 
@@ -311,7 +222,7 @@ export const StockReceiveScreen = () => {
       // Reset form
       setReferenceNo('');
       setDeliveryPersonnel('');
-      setLineItems([{ itemId: '', quantity: '', costPrice: '', serials: [], serialsInput: '' }]);
+      setLineItems([{ itemId: '', quantity: '', costPrice: '' }]);
 
       // Refresh product stock cache & receiving history log
       const updatedProds = await api.get('/products');
@@ -575,11 +486,11 @@ export const StockReceiveScreen = () => {
                                     ? 'rgba(239, 68, 68, 0.12)' 
                                     : (currentStock <= reorderLevel ? 'rgba(234, 179, 8, 0.15)' : 'rgba(22, 163, 74, 0.12)'),
                                   color: currentStock <= 0 
-                                    ? '#dc2626' 
-                                    : (currentStock <= reorderLevel ? '#ca8a04' : '#16a34a'),
-                                  border: `1px solid ${currentStock <= 0 ? 'rgba(239, 68, 68, 0.25)' : (currentStock <= reorderLevel ? 'rgba(234, 179, 8, 0.3)' : 'rgba(22, 163, 74, 0.25)')}`
+                                    ? 'var(--danger)' 
+                                    : (currentStock <= reorderLevel ? '#b45309' : 'var(--primary)'),
+                                  border: `1px solid ${currentStock <= 0 ? 'rgba(239, 68, 68, 0.25)' : (currentStock <= reorderLevel ? 'rgba(245, 158, 11, 0.3)' : 'rgba(22, 163, 74, 0.25)')}`
                                 }}>
-                                  {currentStock} in stock
+                                  {currentStock} units
                                 </span>
                                 {qty > 0 && (
                                   <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
@@ -644,251 +555,6 @@ export const StockReceiveScreen = () => {
                             </button>
                           </td>
                         </tr>
-
-                        {/* Serial Numbers input panel for serialized items */}
-                        {isSerialized && (() => {
-                          const rawSerials = row.serials || [];
-                          const serialsCount = rawSerials.length;
-                          const uniqueSerials = [...new Set(rawSerials.map(s => String(s).trim()).filter(Boolean))];
-                          const isRepeatedSameSerial = serialsCount > 1 && uniqueSerials.length === 1;
-                          const isSingleSerialLot = (serialsCount === 1 || isRepeatedSameSerial) && qty >= 1;
-                          const isIndividualMode = serialsCount === qty && qty > 1 && uniqueSerials.length === qty;
-                          const prodSerials = prod?.serials || [];
-
-                          return (
-                            <tr style={{ background: 'rgba(245, 158, 11, 0.04)', borderBottom: '2px solid rgba(245, 158, 11, 0.2)' }}>
-                              <td colSpan={6} style={{ padding: '12px 16px' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                  {/* Header Info & Badges */}
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                      <span style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '4px',
-                                        padding: '2px 8px',
-                                        borderRadius: '6px',
-                                        fontSize: '0.74rem',
-                                        fontWeight: 700,
-                                        background: '#fef3c7',
-                                        color: '#d97706',
-                                        border: '1px solid #fcd34d'
-                                      }}>
-                                        ★ SERIALIZED PRODUCT
-                                      </span>
-
-                                      {isSingleSerialLot && (
-                                        <span style={{ fontSize: '0.78rem', color: '#15803d', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(22, 163, 74, 0.1)', padding: '2px 8px', borderRadius: '4px' }}>
-                                          <CheckCircle size={14} /> Batch / Lot Mode: 1 Serial ("{uniqueSerials[0]}") covers all {qty} unit(s) • Ready to Receive
-                                        </span>
-                                      )}
-
-                                      {isIndividualMode && (
-                                        <span style={{ fontSize: '0.78rem', color: '#15803d', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(22, 163, 74, 0.1)', padding: '2px 8px', borderRadius: '4px' }}>
-                                          <CheckCircle size={14} /> Individual Unit Mode: {qty} unique serials entered (1 per unit) • Ready to Receive
-                                        </span>
-                                      )}
-
-                                      {qty > 0 && serialsCount === 0 && (
-                                        <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                                          Enter 1 serial number for all {qty} units (Batch Mode) OR enter {qty} unique serials separated by commas.
-                                        </span>
-                                      )}
-
-                                      {qty === 0 && serialsCount > 0 && (
-                                        <span style={{ fontSize: '0.78rem', color: '#b45309', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                          ⚠️ Please enter Quantity to Receive in the column above for serial "{uniqueSerials[0]}"
-                                        </span>
-                                      )}
-
-                                      {qty > 0 && serialsCount > 1 && !isRepeatedSameSerial && uniqueSerials.length < qty && (
-                                        <span style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 500 }}>
-                                          (Needs {qty - uniqueSerials.length} more unique serials for 1-per-unit mode, or clear to 1 serial for batch mode)
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  {/* Helpful Notice if user entered the same serial multiple times */}
-                                  {isRepeatedSameSerial && (
-                                    <div style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'space-between',
-                                      flexWrap: 'wrap',
-                                      gap: '8px',
-                                      background: 'rgba(59, 130, 246, 0.08)',
-                                      border: '1px solid rgba(59, 130, 246, 0.25)',
-                                      padding: '7px 12px',
-                                      borderRadius: '6px',
-                                      fontSize: '0.78rem',
-                                      color: 'var(--text-main)'
-                                    }}>
-                                      <span>
-                                        💡 Notice: You entered <strong>"{uniqueSerials[0]}"</strong> {serialsCount} times. In JLIN MOTO PARTS, you only need to enter 1 serial for multiple quantities!
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          updateRow(index, 'quantity', String(serialsCount));
-                                          handleSerialsInputChange(index, uniqueSerials[0]);
-                                        }}
-                                        style={{
-                                          padding: '3px 10px',
-                                          fontSize: '0.74rem',
-                                          fontWeight: 600,
-                                          background: '#2563eb',
-                                          color: '#fff',
-                                          border: 'none',
-                                          borderRadius: '4px',
-                                          cursor: 'pointer'
-                                        }}
-                                      >
-                                        Use 1 Serial "{uniqueSerials[0]}" with Qty {serialsCount}
-                                      </button>
-                                    </div>
-                                  )}
-
-                                  {/* Quick Quantity setter when serial is entered but Quantity is 0 */}
-                                  {qty === 0 && serialsCount > 0 && (
-                                    <div style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '8px',
-                                      flexWrap: 'wrap',
-                                      background: 'rgba(245, 158, 11, 0.08)',
-                                      border: '1px solid rgba(245, 158, 11, 0.25)',
-                                      padding: '6px 12px',
-                                      borderRadius: '6px',
-                                      fontSize: '0.76rem'
-                                    }}>
-                                      <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>
-                                        Quickly set Quantity to Receive for "{uniqueSerials[0]}":
-                                      </span>
-                                      {[1, 5, 7, 10, (serialsCount > 1 ? serialsCount : null)].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).map(quickQty => (
-                                        <button
-                                          key={quickQty}
-                                          type="button"
-                                          onClick={() => {
-                                            updateRow(index, 'quantity', String(quickQty));
-                                            if (isRepeatedSameSerial) handleSerialsInputChange(index, uniqueSerials[0]);
-                                          }}
-                                          style={{
-                                            padding: '2px 8px',
-                                            fontSize: '0.74rem',
-                                            fontWeight: 600,
-                                            borderRadius: '4px',
-                                            border: '1px solid var(--border)',
-                                            background: 'var(--surface)',
-                                            cursor: 'pointer'
-                                          }}
-                                        >
-                                          + {quickQty} units
-                                        </button>
-                                      ))}
-                                    </div>
-                                  )}
-
-                                  {/* Existing Serial Lots in Stock */}
-                                  {prodSerials.length > 0 && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                                      <span>Or add to existing serial lot in stock:</span>
-                                      {prodSerials.map((ps, psIdx) => (
-                                        <button
-                                          key={ps.id || psIdx}
-                                          type="button"
-                                          onClick={() => {
-                                            handleSerialsInputChange(index, ps.serial_number);
-                                            setLineItems(prev => {
-                                              const next = [...prev];
-                                              next[index].selectedSerialId = ps.id;
-                                              return next;
-                                            });
-                                          }}
-                                          style={{
-                                            padding: '2px 7px',
-                                            borderRadius: '4px',
-                                            border: row.selectedSerialId === ps.id || (uniqueSerials.length === 1 && uniqueSerials[0].toLowerCase() === ps.serial_number?.toLowerCase())
-                                              ? '1px solid #16a34a'
-                                              : '1px solid var(--border)',
-                                            background: row.selectedSerialId === ps.id || (uniqueSerials.length === 1 && uniqueSerials[0].toLowerCase() === ps.serial_number?.toLowerCase())
-                                              ? 'rgba(22, 163, 74, 0.12)'
-                                              : 'var(--surface)',
-                                            color: row.selectedSerialId === ps.id || (uniqueSerials.length === 1 && uniqueSerials[0].toLowerCase() === ps.serial_number?.toLowerCase())
-                                              ? '#15803d'
-                                              : 'var(--text-main)',
-                                            fontSize: '0.72rem',
-                                            fontFamily: 'monospace',
-                                            cursor: 'pointer',
-                                            fontWeight: 600
-                                          }}
-                                        >
-                                          {ps.serial_number} ({ps.quantity} in stock)
-                                        </button>
-                                      ))}
-                                    </div>
-                                  )}
-
-                                  {/* Input Field */}
-                                  <div>
-                                    <input
-                                      type="text"
-                                      className="input-premium"
-                                      placeholder={
-                                        qty > 1
-                                          ? `Enter 1 serial number for all ${qty} units (Batch Mode) OR enter ${qty} unique serials separated by commas`
-                                          : "Enter or scan serial number (e.g. JVT-001)"
-                                      }
-                                      value={row.serialsInput !== undefined ? row.serialsInput : (row.serials ? row.serials.join(', ') : '')}
-                                      onChange={(e) => handleSerialsInputChange(index, e.target.value)}
-                                      style={{
-                                        fontSize: '0.82rem',
-                                        borderColor: isSingleSerialLot || isIndividualMode ? '#16a34a' : 'rgba(245, 158, 11, 0.4)'
-                                      }}
-                                    />
-                                  </div>
-
-                                  {/* Assigned serial chips */}
-                                  {row.serials && row.serials.length > 0 && (
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-                                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                        {isSingleSerialLot ? 'Batch Serial (applied to all units):' : 'Assigned serials:'}
-                                      </span>
-                                      {(isRepeatedSameSerial ? [uniqueSerials[0]] : row.serials).map((sn, sIdx) => (
-                                        <span
-                                          key={sIdx}
-                                          style={{
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: '4px',
-                                            background: isSingleSerialLot ? 'rgba(22, 163, 74, 0.08)' : 'var(--surface-hover)',
-                                            border: isSingleSerialLot ? '1px solid rgba(22, 163, 74, 0.3)' : '1px solid var(--border)',
-                                            color: isSingleSerialLot ? '#15803d' : 'var(--text-main)',
-                                            padding: '2px 8px',
-                                            borderRadius: '4px',
-                                            fontSize: '0.75rem',
-                                            fontFamily: 'monospace',
-                                            fontWeight: 600
-                                          }}
-                                        >
-                                          {sn} {isSingleSerialLot && qty > 1 ? `(x${qty})` : ''}
-                                          <button
-                                            type="button"
-                                            onClick={() => handleRemoveSerialChip(index, sIdx)}
-                                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text-muted)' }}
-                                            title="Remove serial"
-                                          >
-                                            <X size={11} />
-                                          </button>
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })()}
                       </React.Fragment>
                     );
                   })}

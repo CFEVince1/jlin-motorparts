@@ -269,7 +269,19 @@ exports.receiveStock = async (req, res, next) => {
                         throw new AppValidationError(`Serial number(s) already belong to another product: ${dupes.map(d => d.serial_number).join(', ')}`);
                     }
                 } else {
-                    throw new AppValidationError(`Serial number or lot selection required for serialized product "${prod.name}"`);
+                    // No serial numbers provided during stock receiving:
+                    // Automatically add to existing product serial lot defined in Product Directory
+                    const [existingRows] = await connection.query(
+                        'SELECT id, serial_number, quantity, status FROM product_serials WHERE product_id = ? ORDER BY id ASC',
+                        [resolvedId]
+                    );
+                    if (existingRows.length > 0) {
+                        targetSerialId = existingRows[0].id;
+                        targetSerialNum = existingRows[0].serial_number;
+                        lotIncrement = true;
+                    } else {
+                        targetSerialNum = prod.part_number || `SN-${prod.id}`;
+                    }
                 }
             }
 
