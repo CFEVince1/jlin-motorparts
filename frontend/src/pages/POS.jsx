@@ -19,14 +19,15 @@ const formatSerialNumbers = (serialNumbers) => {
 };
 
 const getPageNumbers = (current, total) => {
+    if (total <= 1) return [1];
     if (total <= 7) {
         return Array.from({ length: total }, (_, i) => i + 1);
     }
-    if (current <= 3) {
-        return [1, 2, 3, 4, '...', total];
+    if (current <= 4) {
+        return [1, 2, 3, 4, 5, '...', total];
     }
-    if (current >= total - 2) {
-        return [1, '...', total - 3, total - 2, total - 1, total];
+    if (current >= total - 3) {
+        return [1, '...', total - 4, total - 3, total - 2, total - 1, total];
     }
     return [1, '...', current - 1, current, current + 1, '...', total];
 };
@@ -45,7 +46,18 @@ const POS = () => {
         });
     }, []);
 
-    const [pageSize, setPageSize] = useState(25);
+    const [pageSize, setPageSize] = useState(() => {
+        const saved = typeof window !== 'undefined' ? localStorage.getItem('pos_page_size') : null;
+        return saved ? Number(saved) : 10;
+    });
+
+    const handlePageSizeChange = useCallback((newSize) => {
+        const size = Number(newSize);
+        setPageSize(size);
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('pos_page_size', String(size));
+        }
+    }, []);
 
     // Expand serialized products: 1 row per available serial lot with quantity > 0, sorted by serial.
     // Non-serialized products remain as single rows with total stock.
@@ -98,6 +110,7 @@ const POS = () => {
     const {
         searchQuery,
         setSearchQuery,
+        handleSearchChange,
         filters,
         setFilter,
         filteredItems: filteredProducts,
@@ -109,6 +122,7 @@ const POS = () => {
     } = useTableFilter({
         items: catalogRows,
         initialSearch: typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('q') || '') : '',
+        initialPage: typeof window !== 'undefined' ? Math.max(1, Number(new URLSearchParams(window.location.search).get('page')) || 1) : 1,
         initialFilters: { category: 'All', brand: 'All', type: 'All' },
         filterFn: filterProductsFn,
         itemsPerPage: pageSize
@@ -120,6 +134,14 @@ const POS = () => {
     const setCategory = (val) => setFilter('category', val);
     const setBrandFilter = (val) => setFilter('brand', val);
     const setTypeFilter = (val) => setFilter('type', val);
+
+    const handlePageChange = useCallback((newPage) => {
+        paginate(newPage);
+        const catalogEl = document.querySelector('.pos-catalog-wrapper');
+        if (catalogEl && typeof catalogEl.scrollIntoView === 'function') {
+            catalogEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }, [paginate]);
 
     // Receipt & Confirmation Modal State
     const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -859,7 +881,7 @@ const POS = () => {
                             className="input-premium pos-search-input"
                             style={{ paddingLeft: '32px', width: '100%' }}
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onChange={handleSearchChange}
                             onKeyDown={handleSearchKeyDown}
                             autoFocus
                         />
@@ -984,61 +1006,97 @@ const POS = () => {
                 </div>
 
                 {/* POS Catalog Pagination Controls */}
-                {totalPages > 1 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                {filteredCount > 0 && (
+                    <div className="pos-pagination-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap', gap: '8px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                             <span>
                                 Showing <strong>{((currentPage - 1) * pageSize) + 1}</strong> - <strong>{Math.min(currentPage * pageSize, filteredCount)}</strong> of <strong>{filteredCount}</strong> products
                             </span>
                             <select
                                 value={pageSize}
-                                onChange={(e) => setPageSize(Number(e.target.value))}
+                                onChange={(e) => handlePageSizeChange(e.target.value)}
                                 className="input-premium"
                                 style={{ padding: '2px 8px', fontSize: '0.75rem', width: 'auto', cursor: 'pointer' }}
                                 title="Products per page"
                             >
+                                <option value={10}>10 / page</option>
                                 <option value={25}>25 / page</option>
                                 <option value={50}>50 / page</option>
                                 <option value={100}>100 / page</option>
                             </select>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <button
-                                type="button"
-                                disabled={currentPage === 1}
-                                onClick={() => paginate(currentPage - 1)}
-                                className="btn-secondary"
-                                style={{ padding: '4px 10px', fontSize: '0.8rem', opacity: currentPage === 1 ? 0.5 : 1, cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
-                            >
-                                Prev
-                            </button>
 
-                            {getPageNumbers(currentPage, totalPages).map((pageNum, idx) => (
-                                pageNum === '...' ? (
-                                    <span key={`dots-${idx}`} style={{ padding: '0 4px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>...</span>
-                                ) : (
-                                    <button
-                                        key={pageNum}
-                                        type="button"
-                                        onClick={() => paginate(pageNum)}
-                                        className={currentPage === pageNum ? 'btn-primary' : 'btn-secondary'}
-                                        style={{ padding: '4px 10px', fontSize: '0.8rem', minWidth: '30px', textAlign: 'center' }}
-                                    >
-                                        {pageNum}
-                                    </button>
-                                )
-                            ))}
+                        {totalPages > 1 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <button
+                                    type="button"
+                                    disabled={currentPage === 1}
+                                    onClick={() => handlePageChange(currentPage - 1)}
+                                    className="btn-secondary"
+                                    style={{
+                                        padding: '4px 10px',
+                                        fontSize: '0.8rem',
+                                        height: '32px',
+                                        minHeight: '32px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        opacity: currentPage === 1 ? 0.4 : 1,
+                                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    Prev
+                                </button>
 
-                            <button
-                                type="button"
-                                disabled={currentPage === totalPages}
-                                onClick={() => paginate(currentPage + 1)}
-                                className="btn-secondary"
-                                style={{ padding: '4px 10px', fontSize: '0.8rem', opacity: currentPage === totalPages ? 0.5 : 1, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
-                            >
-                                Next
-                            </button>
-                        </div>
+                                {getPageNumbers(currentPage, totalPages).map((pageNum, idx) => (
+                                    pageNum === '...' ? (
+                                        <span key={`dots-${idx}`} style={{ padding: '0 4px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>...</span>
+                                    ) : (
+                                        <button
+                                            key={`page-${pageNum}`}
+                                            type="button"
+                                            onClick={() => handlePageChange(pageNum)}
+                                            className={currentPage === pageNum ? 'btn-primary' : 'btn-secondary'}
+                                            style={{
+                                                padding: '4px 10px',
+                                                fontSize: '0.8rem',
+                                                minWidth: '32px',
+                                                height: '32px',
+                                                minHeight: '32px',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                textAlign: 'center',
+                                                fontWeight: currentPage === pageNum ? 700 : 500,
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            {pageNum}
+                                        </button>
+                                    )
+                                ))}
+
+                                <button
+                                    type="button"
+                                    disabled={currentPage === totalPages}
+                                    onClick={() => handlePageChange(currentPage + 1)}
+                                    className="btn-secondary"
+                                    style={{
+                                        padding: '4px 10px',
+                                        fontSize: '0.8rem',
+                                        height: '32px',
+                                        minHeight: '32px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        opacity: currentPage === totalPages ? 0.4 : 1,
+                                        cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
