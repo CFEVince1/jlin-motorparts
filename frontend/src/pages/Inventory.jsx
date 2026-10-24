@@ -338,7 +338,7 @@ const Inventory = () => {
                                         <th>Thread Type</th>
                                         <th>Compatibility</th>
                                         <th style={{ textAlign: 'right' }}>Price</th>
-                                        <th>Stock</th>
+                                        <th style={{ textAlign: 'center', width: '120px' }}>Stock</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -395,13 +395,35 @@ const Inventory = () => {
                                             <td>{p.thread_type || '-'}</td>
                                             <td>{p.compatibility_display || '-'}</td>
                                             <td style={{ textAlign: 'right', fontWeight: '600', color: 'var(--primary)' }}>{formatCurrency(p.price)}</td>
-                                            <td style={{
-                                                color: getStockStatus(p) === 'low_stock' || getStockStatus(p) === 'out_of_stock' ? 'var(--danger)' : 'var(--success)',
-                                                fontWeight: 'bold',
-                                            }}>
-                                                {p.stock}
-                                                {getStockStatus(p) === 'low_stock' && <span className="badge-pill" style={{marginLeft: '8px', background: 'var(--danger)', color: 'white'}}>LOW</span>}
-                                                {getStockStatus(p) === 'out_of_stock' && <span className="badge-pill" style={{marginLeft: '8px', background: 'var(--danger)', color: 'white'}}>OUT</span>}
+                                            <td style={{ textAlign: 'center', width: '120px' }}>
+                                                <div style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    gap: '6px'
+                                                }}>
+                                                    <span style={{
+                                                        fontWeight: 'bold',
+                                                        fontVariantNumeric: 'tabular-nums',
+                                                        minWidth: '36px',
+                                                        textAlign: 'right',
+                                                        color: getStockStatus(p) === 'low_stock' || getStockStatus(p) === 'out_of_stock' ? 'var(--danger)' : 'var(--success)'
+                                                    }}>
+                                                        {p.stock}
+                                                    </span>
+                                                    <span style={{ width: '42px', display: 'inline-flex', justifyContent: 'flex-start' }}>
+                                                        {getStockStatus(p) === 'low_stock' && (
+                                                            <span className="badge-pill" style={{ background: 'var(--danger)', color: 'white', fontSize: '0.68rem', padding: '1px 6px' }}>
+                                                                LOW
+                                                            </span>
+                                                        )}
+                                                        {getStockStatus(p) === 'out_of_stock' && (
+                                                            <span className="badge-pill" style={{ background: 'var(--danger)', color: 'white', fontSize: '0.68rem', padding: '1px 6px' }}>
+                                                                OUT
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                </div>
                                             </td>
                                         </tr>
                                         {p.is_serialized && expandedSerials.has(p.id) && (
