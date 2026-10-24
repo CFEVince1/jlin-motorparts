@@ -25,9 +25,26 @@ export const AdjustmentModal = ({
   const [selectedLossId, setSelectedLossId] = useState('');
   const [loadingLosses, setLoadingLosses] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [availableSerials, setAvailableSerials] = useState([]);
+  const [selectedSerialId, setSelectedSerialId] = useState('');
 
   const itemId = product?.id || product?.product_id;
   const currentStock = product?.current_stock ?? product?.stock ?? 0;
+
+  // When serialized product modal opens, load serial lots
+  useEffect(() => {
+    if (!isOpen || !itemId || !product?.is_serialized) return;
+    if (product.serials && product.serials.length > 0) {
+      setAvailableSerials(product.serials);
+      setSelectedSerialId(String(product.serials[0].id));
+    } else {
+      api.get(`/products/${itemId}/serials`).then(res => {
+        const sList = res.data || [];
+        setAvailableSerials(sList);
+        if (sList.length > 0) setSelectedSerialId(String(sList[0].id));
+      }).catch(() => setAvailableSerials([]));
+    }
+  }, [isOpen, itemId, product]);
 
   // When movementType changes to FOUND, fetch open losses for this item
   useEffect(() => {
@@ -81,8 +98,11 @@ export const AdjustmentModal = ({
       return;
     }
 
-    if (isDeduction && qtyNumber > currentStock) {
-      toast.error(`Cannot deduct more than available current stock (${currentStock})`);
+    const activeSerial = availableSerials.find(s => String(s.id) === String(selectedSerialId));
+    const maxLotStock = product.is_serialized && activeSerial ? Number(activeSerial.quantity || 0) : currentStock;
+
+    if (isDeduction && qtyNumber > maxLotStock) {
+      toast.error(`Cannot deduct more than available stock in serial lot (${maxLotStock})`);
       return;
     }
 
@@ -124,6 +144,7 @@ export const AdjustmentModal = ({
         quantity: qtyNumber,
         reference_no: referenceNo.trim(),
         remarks: remarks.trim(),
+        serial_id: product.is_serialized && selectedSerialId ? Number(selectedSerialId) : undefined,
         loss_transaction_id: lossTxId,
         loss_reference_no: lossRefNo,
       });

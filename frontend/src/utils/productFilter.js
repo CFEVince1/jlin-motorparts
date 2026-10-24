@@ -1,6 +1,8 @@
 const MATCH_RANKS = {
     part_number_exact: 0,
+    serial_exact: 0.5,
     part_number_partial: 1,
+    serial_partial: 1.5,
     compatibility: 2,
     product_name: 3,
     brand: 4,
@@ -46,9 +48,23 @@ export const getProductMatch = (product, query) => {
     const productName = normalizeSearchText(product?.product_name || product?.name);
     const brand = normalizeSearchText(product?.brand);
     const size = normalizeSearchText(product?.size);
+    const serialNumber = normalizeSearchText(product?.serial_number);
+    const compactSerial = normalizePartNumberSearch(product?.serial_number);
+    const hasSpecificSerial = Boolean(product?.serial_number && product.serial_number !== '—');
+    const serialsList = (!hasSpecificSerial && Array.isArray(product?.serials))
+        ? product.serials.map(s => normalizeSearchText(s?.serial_number)).filter(Boolean)
+        : (!hasSpecificSerial && Array.isArray(product?.serial_numbers) ? product.serial_numbers.map(normalizeSearchText).filter(Boolean) : []);
+
+    if (serialNumber === normalizedQuery || (compactQuery && compactSerial === compactQuery) || serialsList.includes(normalizedQuery)) {
+        return { matchType: 'serial_exact', rank: MATCH_RANKS.serial_exact };
+    }
 
     if (partNumber === normalizedQuery || (compactQuery && compactPartNumber === compactQuery)) {
         return { matchType: 'part_number_exact', rank: MATCH_RANKS.part_number_exact };
+    }
+
+    if (serialNumber.includes(normalizedQuery) || (compactQuery && compactSerial && compactSerial.includes(compactQuery)) || serialsList.some(s => s.includes(normalizedQuery))) {
+        return { matchType: 'serial_partial', rank: MATCH_RANKS.serial_partial };
     }
 
     if (partNumber.includes(normalizedQuery) || (compactQuery && compactPartNumber.includes(compactQuery))) {

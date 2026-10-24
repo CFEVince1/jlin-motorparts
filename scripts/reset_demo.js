@@ -33,6 +33,7 @@ for (const envPath of envPaths) {
 
 const mysql = require('mysql2/promise');
 const { getSslConfig } = require('../backend/config/db');
+const ensureSchema = require('../backend/utils/ensureSchema');
 
 function askConfirmation(promptText) {
     return new Promise((resolve) => {
@@ -186,42 +187,16 @@ async function resetDemoDatabase() {
     const dbName = (process.env.DB_NAME || 'jlin_inventory_db').trim();
 
     const normalizedHost = host.toLowerCase();
-    const isLocal = ['localhost', '127.0.0.1', '::1'].includes(normalizedHost);
+    const isLocal = ['localhost', '127.0.0.1'].includes(normalizedHost);
 
-    // Guard against overwriting live / remote databases
-    const forceRemote = process.argv.includes('--force-remote') || process.env.ALLOW_REMOTE_RESET === 'true';
-    const confirmArg = process.argv.find(arg => arg.startsWith('--confirm='));
-    const preConfirmVal = confirmArg ? confirmArg.split('=')[1].trim() : (process.env.CONFIRM_REMOTE_RESET || '').trim();
-
+    // Strict safety guard: Refuse to execute unless DB host is explicitly localhost or 127.0.0.1
     if (!isLocal) {
-        console.warn('⚠️  =====================================================');
-        console.warn(`⚠️  REMOTE DATABASE HOST DETECTED: [${host}]`);
-        console.warn('⚠️  =====================================================\n');
-
-        if (!forceRemote) {
-            console.error(`⛔ SAFETY REFUSAL: Target database host is remote ('${host}').`);
-            console.error('Refusing to reset remote database without explicit permission to protect production data.');
-            console.error('To permit remote reset, pass the --force-remote flag or set ALLOW_REMOTE_RESET=true.');
-            console.error(`Example: node scripts/reset_demo.js --force-remote\n`);
-            process.exit(1);
-        }
-
-        let confirmedName = preConfirmVal;
-        if (!confirmedName) {
-            console.warn(`WARNING: This will completely replace and reset data in '${dbName}' on remote host '${host}'.`);
-            if (process.stdin.isTTY) {
-                confirmedName = await askConfirmation(`Type '${dbName}' to confirm remote reset: `);
-            } else {
-                console.error(`⛔ Confirmation required in non-interactive mode. Pass --confirm=${dbName} or set CONFIRM_REMOTE_RESET=${dbName}.`);
-                process.exit(1);
-            }
-        }
-
-        if (confirmedName !== dbName) {
-            console.error(`⛔ Confirmation failed: input '${confirmedName}' does not match '${dbName}'. Reset aborted.`);
-            process.exit(1);
-        }
-        console.log(`✓ Remote database reset authorized and confirmed for '${dbName}'.\n`);
+        console.error('⛔ =====================================================');
+        console.error(`⛔ SAFETY REFUSAL: Target database host is remote ('${host}').`);
+        console.error('reset_demo.js is strictly restricted to localhost or 127.0.0.1.');
+        console.error('Remote execution is unconditionally disabled to protect production data.');
+        console.error('⛔ =====================================================\n');
+        process.exit(1);
     }
 
     console.log(`Target Database: ${dbName} on ${host}:${port} (User: ${user})`);
@@ -364,7 +339,32 @@ async function resetDemoDatabase() {
         console.log(`  * Compatibilities:        ${compatCount[0].count} matrix entries`);
         console.log(`  * System Users:           ${userCount[0].count} accounts`);
 
+        // Ensure all application schema migrations and serial lot invariant columns exist
+        await ensureSchema();
 
+        // Ensure serial lot columns and invariant baseline exist
+        const [psCols] = await connection.query("SHOW COLUMNS FROM product_serials LIKE 'quantity'");
+        if (psCols.length === 0) {
+            await connection.query("ALTER TABLE product_serials ADD COLUMN quantity INT NOT NULL DEFAULT 1 AFTER serial_number");
+            await connection.query("UPDATE product_serials SET quantity = 0, status = 'sold' WHERE product_id = 3 AND serial_number IN ('ECU001', 'ECU002', 'ECU003')");
+            const [ecu4] = await connection.query("SELECT id FROM product_serials WHERE product_id = 3 AND serial_number = 'ECU004'");
+            if (ecu4.length === 0) {
+                await connection.query("INSERT INTO product_serials (product_id, serial_number, quantity, status, created_at) VALUES (3, 'ECU004', 1, 'available', NOW())");
+            }
+            await connection.query("UPDATE product_serials SET quantity = 1, status = 'available' WHERE product_id = 113 AND serial_number IN ('RS8-66839-1', 'RS8-66839-2')");
+            await connection.query("UPDATE product_serials SET quantity = 1, status = 'available' WHERE product_id = 114 AND serial_number IN ('JVT-26491', 'JVT-33240')");
+            await connection.query("UPDATE product_serials SET quantity = 0, status = 'inactive' WHERE product_id = 114 AND serial_number = 'LEG-0100-003'");
+        }
+
+        const [sisCols] = await connection.query("SHOW COLUMNS FROM sale_item_serials LIKE 'quantity'");
+        if (sisCols.length === 0) {
+            await connection.query("ALTER TABLE sale_item_serials ADD COLUMN quantity INT NOT NULL DEFAULT 1 AFTER serial_id");
+        }
+
+        const [itCols] = await connection.query("SHOW COLUMNS FROM inventory_transactions LIKE 'serial_id'");
+        if (itCols.length === 0) {
+            await connection.query("ALTER TABLE inventory_transactions ADD COLUMN serial_id INT NULL DEFAULT NULL AFTER product_id, ADD INDEX idx_it_serial_id (serial_id)");
+        }
 
         // 1. Verify Triggers Exist and are Active
         const [triggers] = await connection.query(`
@@ -432,6 +432,23 @@ async function resetDemoDatabase() {
         if (totalStock !== totalLedger) {
             throw new Error(`Restore failed overall ledger verification: total stock (${totalStock}) != total ledger units (${totalLedger})`);
         }
+
+        // 5. Verify Serial Lots Invariant: Every serialized product's stock must strictly equal sum of available serial quantities
+        const [serializedMismatches] = await connection.query(`
+            SELECT p.id, p.part_number, p.name, p.stock,
+                   COALESCE(SUM(CASE WHEN ps.status = 'available' OR ps.status IS NULL THEN ps.quantity ELSE 0 END), 0) AS serial_sum
+            FROM products p
+            LEFT JOIN product_serials ps ON p.id = ps.product_id
+            WHERE p.is_serialized = 1 AND p.is_active = 1
+            GROUP BY p.id, p.part_number, p.name, p.stock
+            HAVING p.stock != serial_sum
+        `);
+
+        if (serializedMismatches.length > 0) {
+            console.error('❌ SERIAL QUANTITY VS STOCK MISMATCH DETECTED IN RESET:', serializedMismatches);
+            throw new Error(`Reset failed serial invariant check: ${serializedMismatches.length} serialized products have stock != sum of available serial quantities!`);
+        }
+        console.log(`  * Serial Quantities vs Stock: All ${prodCount[0].count} products verified (Serial Invariant Match ✓)`);
 
     } finally {
         await connection.end();

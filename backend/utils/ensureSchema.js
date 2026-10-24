@@ -354,6 +354,45 @@ async function ensureSchema() {
     } catch (err) {
       console.warn('[Schema] Failed to check/add markup_percentage to products:', err.message);
     }
+
+    // 12. Ensure serial lot tracking schema and backfill
+    try {
+      const [psCols] = await db.query("SHOW COLUMNS FROM product_serials LIKE 'quantity'");
+      const isFirstCreation = psCols.length === 0;
+      if (isFirstCreation) {
+        await db.query("ALTER TABLE product_serials ADD COLUMN quantity INT NOT NULL DEFAULT 1 AFTER serial_number");
+        console.log('[Schema] Added quantity column to product_serials.');
+
+        // Idempotent initial backfill
+        // Product 3: ECU001-003 -> 0 (sold), ECU004 -> 1 (available)
+        await db.query("UPDATE product_serials SET quantity = 0, status = 'sold' WHERE product_id = 3 AND serial_number IN ('ECU001', 'ECU002', 'ECU003')");
+        const [ecu4] = await db.query("SELECT id FROM product_serials WHERE product_id = 3 AND serial_number = 'ECU004'");
+        if (ecu4.length === 0) {
+          await db.query("INSERT INTO product_serials (product_id, serial_number, quantity, status, created_at) VALUES (3, 'ECU004', 1, 'available', NOW())");
+        }
+
+        // Product 113: RS8 serials -> 1 each (available)
+        await db.query("UPDATE product_serials SET quantity = 1, status = 'available' WHERE product_id = 113 AND serial_number IN ('RS8-66839-1', 'RS8-66839-2')");
+
+        // Product 114: JVT-26491 (1), JVT-33240 (1), LEG-0100-003 (0, inactive)
+        await db.query("UPDATE product_serials SET quantity = 1, status = 'available' WHERE product_id = 114 AND serial_number IN ('JVT-26491', 'JVT-33240')");
+        await db.query("UPDATE product_serials SET quantity = 0, status = 'inactive' WHERE product_id = 114 AND serial_number = 'LEG-0100-003'");
+      }
+
+      const [sisCols] = await db.query("SHOW COLUMNS FROM sale_item_serials LIKE 'quantity'");
+      if (sisCols.length === 0) {
+        await db.query("ALTER TABLE sale_item_serials ADD COLUMN quantity INT NOT NULL DEFAULT 1 AFTER serial_id");
+        console.log('[Schema] Added quantity column to sale_item_serials.');
+      }
+
+      const [itCols] = await db.query("SHOW COLUMNS FROM inventory_transactions LIKE 'serial_id'");
+      if (itCols.length === 0) {
+        await db.query("ALTER TABLE inventory_transactions ADD COLUMN serial_id INT NULL DEFAULT NULL AFTER product_id, ADD INDEX idx_it_serial_id (serial_id)");
+        console.log('[Schema] Added serial_id column to inventory_transactions.');
+      }
+    } catch (lotErr) {
+      console.warn('[Schema] Failed to verify serial lot columns:', lotErr.message);
+    }
   } catch (err) {
     console.warn('[Schema] Auto-migration check completed with note:', err.message);
   }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext, useRef } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
@@ -27,6 +27,16 @@ const Inventory = () => {
     const [adjustmentTarget, setAdjustmentTarget] = useState(null);
     const [ledgerTarget, setLedgerTarget] = useState(null);
     const [selectedSerialsModalProduct, setSelectedSerialsModalProduct] = useState(null);
+    const [expandedSerials, setExpandedSerials] = useState(new Set());
+
+    const toggleExpandSerials = (id) => {
+        setExpandedSerials(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
 
     const {
         searchQuery,
@@ -332,7 +342,8 @@ const Inventory = () => {
                                 </thead>
                                 <tbody>
                                     {currentItems.map(p => (
-                                        <tr key={p.id}>
+                                        <React.Fragment key={p.id}>
+                                        <tr>
                                             <td style={{ color: 'var(--text-muted)', fontWeight: '600', fontFamily: 'monospace' }}>{p.part_number}</td>
                                             <td style={{ fontWeight: '500' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -347,46 +358,29 @@ const Inventory = () => {
                                             <td>
                                                 {p.is_serialized ? (
                                                     p.serials && p.serials.length > 0 ? (
-                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxWidth: '250px', alignItems: 'center' }}>
-                                                            {p.serials.slice(0, 3).map(s => (
-                                                                <span
-                                                                    key={s.id || s.serial_number}
-                                                                    style={{
-                                                                        fontFamily: 'monospace',
-                                                                        fontSize: '0.73rem',
-                                                                        fontWeight: 600,
-                                                                        background: 'rgba(22, 163, 74, 0.12)',
-                                                                        color: 'var(--primary)',
-                                                                        border: '1px solid rgba(22, 163, 74, 0.25)',
-                                                                        padding: '1px 6px',
-                                                                        borderRadius: '4px',
-                                                                        whiteSpace: 'nowrap'
-                                                                    }}
-                                                                >
-                                                                    {s.serial_number}
-                                                                </span>
-                                                            ))}
-                                                            {p.serials.length > 3 && (
-                                                                <span
-                                                                    onClick={() => setSelectedSerialsModalProduct(p)}
-                                                                    style={{
-                                                                        fontSize: '0.7rem',
-                                                                        fontWeight: 700,
-                                                                        color: 'var(--text-main)',
-                                                                        background: 'var(--surface-hover)',
-                                                                        border: '1px solid var(--border)',
-                                                                        padding: '1px 6px',
-                                                                        borderRadius: '4px',
-                                                                        cursor: 'pointer',
-                                                                        display: 'inline-flex',
-                                                                        alignItems: 'center'
-                                                                    }}
-                                                                    title={`Click to view all ${p.serials.length} serial numbers`}
-                                                                >
-                                                                    +{p.serials.length - 3} more
-                                                                </span>
-                                                            )}
-                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toggleExpandSerials(p.id)}
+                                                            className="btn-secondary"
+                                                            style={{
+                                                                padding: '3px 8px',
+                                                                fontSize: '0.72rem',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '5px',
+                                                                cursor: 'pointer'
+                                                            }}
+                                                            title="Toggle serial lots breakdown"
+                                                        >
+                                                            <span>{p.serials.length} serial lot{p.serials.length > 1 ? 's' : ''}</span>
+                                                            <ChevronDown
+                                                                size={13}
+                                                                style={{
+                                                                    transform: expandedSerials.has(p.id) ? 'rotate(180deg)' : 'none',
+                                                                    transition: 'transform 0.15s ease'
+                                                                }}
+                                                            />
+                                                        </button>
                                                     ) : (
                                                         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No serials in stock</span>
                                                     )
@@ -429,6 +423,57 @@ const Inventory = () => {
                                                 </div>
                                             </td>
                                         </tr>
+                                        {p.is_serialized && expandedSerials.has(p.id) && (
+                                            <tr key={`${p.id}_serials_breakdown`} style={{ background: 'rgba(255, 255, 255, 0.02)' }}>
+                                                <td colSpan={9} style={{ padding: '10px 16px 14px 32px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                                                            Serial Lots Breakdown for {p.product_name}
+                                                        </span>
+                                                        <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                                                            (Total Stock: <strong style={{ color: 'var(--text-main)' }}>{p.stock}</strong> units)
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                                        {(p.serials || []).map(s => (
+                                                            <div
+                                                                key={s.id || s.serial_number}
+                                                                style={{
+                                                                    background: 'var(--surface-hover)',
+                                                                    border: '1px solid var(--border)',
+                                                                    borderRadius: '6px',
+                                                                    padding: '6px 10px',
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '8px',
+                                                                    fontSize: '0.78rem'
+                                                                }}
+                                                            >
+                                                                <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--text-main)' }}>
+                                                                    {s.serial_number}
+                                                                </span>
+                                                                <span style={{
+                                                                    padding: '1px 6px',
+                                                                    borderRadius: '4px',
+                                                                    fontSize: '0.68rem',
+                                                                    fontWeight: 600,
+                                                                    textTransform: 'capitalize',
+                                                                    background: (s.status === 'available' || !s.status) ? 'rgba(22, 163, 74, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                                                    color: (s.status === 'available' || !s.status) ? 'var(--success)' : 'var(--danger)',
+                                                                    border: `1px solid ${(s.status === 'available' || !s.status) ? 'rgba(22, 163, 74, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+                                                                }}>
+                                                                    {s.status || 'available'}
+                                                                </span>
+                                                                <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>
+                                                                    Qty: <strong style={{ color: 'var(--text-main)' }}>{s.quantity}</strong>
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                        </React.Fragment>
                                     ))}
                                     {filteredProducts.length === 0 && (
                                         <tr>

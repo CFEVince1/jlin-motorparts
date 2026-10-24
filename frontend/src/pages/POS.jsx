@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext, useRef, useCallback } from 'react';
+import { useState, useEffect, useContext, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
@@ -45,7 +45,55 @@ const POS = () => {
         });
     }, []);
 
-    const [pageSize, setPageSize] = useState(10);
+    const [pageSize, setPageSize] = useState(25);
+
+    // Expand serialized products: 1 row per available serial lot with quantity > 0, sorted by serial.
+    // Non-serialized products remain as single rows with total stock.
+    const catalogRows = useMemo(() => {
+        const rows = [];
+        const sortedProducts = [...products].sort((a, b) =>
+            (a.product_name || a.name || '').localeCompare(b.product_name || b.name || '')
+        );
+
+        for (const p of sortedProducts) {
+            if (p.is_serialized) {
+                const availSerials = (p.serials || []).filter(s => 
+                    s && s.serial_number && 
+                    (s.status === 'available' || s.status === null || !s.status) && 
+                    Number(s.quantity || 0) > 0
+                );
+                const sortedSerials = [...availSerials].sort((s1, s2) =>
+                    String(s1.serial_number).localeCompare(String(s2.serial_number), undefined, { numeric: true, sensitivity: 'base' })
+                );
+
+                for (const s of sortedSerials) {
+                    const lotStock = Number(s.quantity || 1);
+                    rows.push({
+                        ...p,
+                        row_key: `${p.id}_${s.id}`,
+                        product_id: p.id,
+                        serial_id: Number(s.id),
+                        serial_number: s.serial_number,
+                        is_serialized: true,
+                        stock: lotStock,
+                        stock_display: `In stock (${lotStock})`
+                    });
+                }
+            } else {
+                rows.push({
+                    ...p,
+                    row_key: String(p.id),
+                    product_id: p.id,
+                    serial_id: null,
+                    serial_number: '—',
+                    is_serialized: false,
+                    stock: p.stock ?? p.current_stock ?? 0,
+                    stock_display: `In stock (${p.stock ?? p.current_stock ?? 0})`
+                });
+            }
+        }
+        return rows;
+    }, [products]);
 
     const {
         searchQuery,
@@ -59,7 +107,8 @@ const POS = () => {
         paginate,
         filteredCount
     } = useTableFilter({
-        items: products,
+        items: catalogRows,
+        initialSearch: typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('q') || '') : '',
         initialFilters: { category: 'All', brand: 'All', type: 'All' },
         filterFn: filterProductsFn,
         itemsPerPage: pageSize
@@ -121,6 +170,40 @@ const POS = () => {
                     }
                 });
                 setSelectedTableSerials(prev => ({ ...initialSerials, ...prev }));
+
+                const urlParams = new URLSearchParams(window.location.search);
+                const addSerial = urlParams.get('add_serial');
+                if (addSerial) {
+                    for (const p of activeProducts) {
+                        const s = (p.serials || []).find(ser => ser.serial_number === addSerial);
+                        if (s) {
+                            const cartKey = `${p.id}_${s.id}`;
+                            const productPrice = Number(p.price ?? p.selling_price ?? 0);
+                            const lotStock = Number(s.quantity || 1);
+                            setCart([{
+                                cart_key: cartKey,
+                                product_id: p.id,
+                                part_number: p.part_number,
+                                name: p.product_name || p.name,
+                                brand: p.brand,
+                                size: p.size,
+                                compatibility_display: p.compatibility_display,
+                                is_serialized: true,
+                                serial_id: s.id,
+                                selected_serial_id: s.id,
+                                serial_number: s.serial_number,
+                                selected_serial_number: s.serial_number,
+                                serial_ids: [s.id],
+                                serial_numbers: [s.serial_number],
+                                quantity: lotStock,
+                                price: productPrice,
+                                subtotal: lotStock * productPrice,
+                                maxStock: lotStock
+                            }]);
+                            break;
+                        }
+                    }
+                }
             } catch {
                 toast.error('Failed to load products');
             }
@@ -128,8 +211,11 @@ const POS = () => {
         fetchProducts();
     }, []);
 
-    const uniqueCategories = [...new Set(products.map(product => product.category))];
-    const uniqueBrands = ['All', ...new Set(products.map(product => product.brand).filter(Boolean))];
+    const uniqueCategories = [...new Set(catalogRows.map(product => product.category).filter(Boolean))];
+    const uniqueBrands = ['All', ...new Set(catalogRows.map(product => product.brand).filter(Boolean))];
+
+    const catalogRowsRef = useRef(catalogRows);
+    catalogRowsRef.current = catalogRows;
 
     const openSerialPicker = useCallback(async (product) => {
         if (!product) return;
@@ -288,54 +374,76 @@ const POS = () => {
         }
     }, []);
 
-    const addToCart = useCallback((product) => {
-        if (!product) return;
+    const handleRowClick = useCallback((item) => {
+        if (!item) return;
 
-        // If product is serialized: directly add or increment using selected serial from table
-        if (isSerializedProduct(product)) {
-            const availableSerials = product.serials || [];
-            const chosenId = selectedTableSerials[product.id] || (availableSerials[0]?.id);
-            const chosenSerial = availableSerials.find(s => Number(s.id) === Number(chosenId)) || availableSerials[0];
-            if (chosenSerial) {
-                addSerializedToCart(product, chosenSerial);
-            } else if (product.serial_numbers && product.serial_numbers.length > 0) {
-                addSerializedToCart(product, { id: 1, serial_number: product.serial_numbers[0] });
-            } else {
-                addSerializedToCart(product, { id: 1, serial_number: product.serial_display || 'SN-DEFAULT' });
+        if (item.is_serialized) {
+            const serialId = item.serial_id;
+            const serialNum = item.serial_number;
+            const cartKey = `${item.product_id}_${serialId}`;
+            const existing = cartRef.current.find(cItem => (cItem.cart_key || String(cItem.product_id)) === cartKey);
+
+            if (existing) {
+                toast.error(`Serial ${serialNum} is already in the cart`);
+                return;
             }
+
+            const productPrice = Number(item.price ?? item.selling_price ?? item.retail_price ?? 0);
+            const newItem = {
+                cart_key: cartKey,
+                product_id: item.product_id,
+                part_number: item.part_number,
+                name: item.product_name || item.name,
+                brand: item.brand,
+                size: item.size,
+                compatibility_display: item.compatibility_display,
+                is_serialized: true,
+                serial_id: serialId,
+                selected_serial_id: serialId,
+                serial_number: serialNum,
+                selected_serial_number: serialNum,
+                serial_ids: [serialId],
+                serial_numbers: [serialNum],
+                quantity: 1,
+                price: productPrice,
+                subtotal: calculateItemSubtotal(1, productPrice),
+                maxStock: Number(item.stock || 1)
+            };
+            setCart(prev => [...prev, newItem]);
+            toast.success(`Added ${item.product_name || item.name} (${serialNum})`);
             return;
         }
 
         // Non-serialized item handling:
         const currentCart = cartRef.current;
-        const targetCartKey = String(product.id);
-        const existing = currentCart.find(item => (item.cart_key || String(item.product_id)) === targetCartKey);
-        const maxStock = Number(product.stock ?? product.current_stock ?? 0);
+        const targetCartKey = String(item.product_id);
+        const existing = currentCart.find(cItem => (cItem.cart_key || String(cItem.product_id)) === targetCartKey);
+        const maxStock = Number(item.stock ?? item.current_stock ?? 0);
 
         if (existing && existing.quantity >= maxStock) {
             toast.error(`Cannot exceed available stock (${maxStock})`);
             return;
         }
 
-        const productPrice = Number(product.price ?? product.selling_price ?? product.retail_price ?? 0);
+        const productPrice = Number(item.price ?? item.selling_price ?? item.retail_price ?? 0);
 
         if (existing) {
             const newQty = existing.quantity + 1;
-            setCart(prev => prev.map(item =>
-                (item.cart_key || String(item.product_id)) === targetCartKey
-                    ? { ...item, quantity: newQty, subtotal: calculateItemSubtotal(newQty, item.price) }
-                    : item
+            setCart(prev => prev.map(cItem =>
+                (cItem.cart_key || String(cItem.product_id)) === targetCartKey
+                    ? { ...cItem, quantity: newQty, subtotal: calculateItemSubtotal(newQty, cItem.price) }
+                    : cItem
             ));
-            toast.success(`Updated ${product.product_name || product.name} quantity to ${newQty}`);
+            toast.success(`Updated ${item.product_name || item.name} quantity to ${newQty}`);
         } else {
             const newItem = {
                 cart_key: targetCartKey,
-                product_id: product.id,
-                part_number: product.part_number,
-                name: product.product_name || product.name,
-                brand: product.brand,
-                size: product.size,
-                compatibility_display: product.compatibility_display,
+                product_id: item.product_id,
+                part_number: item.part_number,
+                name: item.product_name || item.name,
+                brand: item.brand,
+                size: item.size,
+                compatibility_display: item.compatibility_display,
                 is_serialized: false,
                 serial_ids: [],
                 serial_numbers: [],
@@ -345,9 +453,11 @@ const POS = () => {
                 maxStock: maxStock
             };
             setCart(prev => [...prev, newItem]);
-            toast.success(`Added ${product.product_name || product.name}`);
+            toast.success(`Added ${item.product_name || item.name}`);
         }
-    }, [selectedTableSerials, addSerializedToCart]);
+    }, []);
+
+    const addToCart = handleRowClick;
 
     const updateQuantity = (cartKey, delta) => {
         setCart(currentCart => {
@@ -357,14 +467,20 @@ const POS = () => {
             const newQty = target.quantity + delta;
             if (newQty < 1) return currentCart;
 
-            // Compute total stock of this product in other cart lines
-            const otherLinesQty = currentCart
-                .filter(item => item.product_id === target.product_id && (item.cart_key || String(item.product_id)) !== String(cartKey))
-                .reduce((sum, item) => sum + item.quantity, 0);
+            if (target.is_serialized) {
+                if (newQty > target.maxStock) {
+                    toast.error(`Cannot exceed available stock (${target.maxStock}) for serial ${target.serial_number}`);
+                    return currentCart;
+                }
+            } else {
+                const otherLinesQty = currentCart
+                    .filter(item => !item.is_serialized && item.product_id === target.product_id && (item.cart_key || String(item.product_id)) !== String(cartKey))
+                    .reduce((sum, item) => sum + item.quantity, 0);
 
-            if (newQty + otherLinesQty > target.maxStock) {
-                toast.error(`Cannot exceed available stock (${target.maxStock}) for ${target.name}`);
-                return currentCart;
+                if (newQty + otherLinesQty > target.maxStock) {
+                    toast.error(`Cannot exceed available stock (${target.maxStock}) for ${target.name}`);
+                    return currentCart;
+                }
             }
 
             return currentCart.map(item => {
@@ -388,13 +504,16 @@ const POS = () => {
             let qty = parseInt(newQuantity);
             if (isNaN(qty) || qty < 1) qty = 1;
 
-            const otherLinesQty = currentCart
-                .filter(item => item.product_id === target.product_id && (item.cart_key || String(item.product_id)) !== String(cartKey))
-                .reduce((sum, item) => sum + item.quantity, 0);
+            let maxAllowed = target.maxStock;
+            if (!target.is_serialized) {
+                const otherLinesQty = currentCart
+                    .filter(item => !item.is_serialized && item.product_id === target.product_id && (item.cart_key || String(item.product_id)) !== String(cartKey))
+                    .reduce((sum, item) => sum + item.quantity, 0);
+                maxAllowed = Math.max(1, target.maxStock - otherLinesQty);
+            }
 
-            const maxAllowed = Math.max(1, target.maxStock - otherLinesQty);
             if (qty > maxAllowed) {
-                toast.error(`Cannot exceed available stock (${target.maxStock}) for ${target.name}`);
+                toast.error(`Cannot exceed available stock (${maxAllowed}) for ${target.name}`);
                 qty = maxAllowed;
             }
 
@@ -576,30 +695,27 @@ const POS = () => {
             }
         }
 
-        // 1b. Check if the scanned code matches a serial number in any product
-        const serialMatchProduct = currentProducts.find(p =>
-            p.serials && p.serials.some(s => (s.serial_number || '').toLowerCase() === trimmed.toLowerCase())
+        const currentRows = catalogRowsRef.current;
+        // 1. Direct serial number match:
+        const serialMatch = currentRows.find(
+            r => r.is_serialized && (r.serial_number || '').toLowerCase() === trimmed.toLowerCase()
         );
-        if (serialMatchProduct) {
-            const matchedSerial = serialMatchProduct.serials.find(s => (s.serial_number || '').toLowerCase() === trimmed.toLowerCase());
-            addSerializedToCart(serialMatchProduct, matchedSerial);
-            toast.success(`Scanned serial: ${matchedSerial.serial_number} for ${serialMatchProduct.product_name || serialMatchProduct.name}`);
+        if (serialMatch) {
+            handleRowClick(serialMatch);
             setSearchQuery('');
             return;
         }
 
-        // 2. Search against catalog
-        const currentProducts = productsRef.current;
-        const exactMatch = currentProducts.find(
-            p => p.part_number.toLowerCase() === trimmed.toLowerCase() ||
-                 normalizePartNumberSearch(p.part_number) === normalizePartNumberSearch(trimmed)
+        // 2. Part number match:
+        const exactMatch = currentRows.find(
+            r => r.part_number.toLowerCase() === trimmed.toLowerCase() ||
+                 normalizePartNumberSearch(r.part_number) === normalizePartNumberSearch(trimmed)
         );
 
-        const targetProduct = exactMatch || filterProducts(currentProducts, trimmed)[0];
+        const targetRow = exactMatch || filterProducts(currentRows, trimmed)[0];
 
-        if (targetProduct) {
-            addToCart(targetProduct);
-            toast.success(`Scanned: ${targetProduct.product_name} (${targetProduct.part_number})`);
+        if (targetRow) {
+            handleRowClick(targetRow);
             setSearchQuery('');
         } else {
             toast.error(`No product matches barcode: ${trimmed}`);
@@ -668,19 +784,7 @@ const POS = () => {
     };
 
 
-    useEffect(() => {
-        const handleOutsideClick = (e) => {
-            if (!e.target.closest('.serial-dropdown-container')) {
-                setOpenSerialDropdownId(null);
-            }
-        };
-        window.addEventListener('click', handleOutsideClick);
-        return () => window.removeEventListener('click', handleOutsideClick);
-    }, []);
 
-    const handleRowClick = (product) => {
-        addToCart(product);
-    };
 
 
 
@@ -787,18 +891,25 @@ const POS = () => {
                             <tr>
                                 <th style={{ width: '130px', whiteSpace: 'nowrap' }}>Part Number</th>
                                 <th>Product Name</th>
-                                <th style={{ minWidth: '230px', whiteSpace: 'nowrap' }}>Serial</th>
+                                <th style={{ width: '130px', whiteSpace: 'nowrap' }}>Serial</th>
                                 <th style={{ width: '90px', whiteSpace: 'nowrap' }}>Brand</th>
                                 <th style={{ width: '80px', whiteSpace: 'nowrap' }}>Size</th>
-                                <th style={{ width: '70px', textAlign: 'right', whiteSpace: 'nowrap' }}>Stock</th>
-                                <th style={{ width: '90px', textAlign: 'right', whiteSpace: 'nowrap' }}>Cost Price</th>
+                                <th style={{ width: '110px', textAlign: 'right', whiteSpace: 'nowrap' }}>Stock</th>
+                                {user?.role === 'admin' && (
+                                    <th style={{ width: '90px', textAlign: 'right', whiteSpace: 'nowrap' }}>Cost Price</th>
+                                )}
                                 <th style={{ width: '90px', textAlign: 'right', whiteSpace: 'nowrap' }}>Price</th>
                                 <th style={{ width: '170px', whiteSpace: 'nowrap' }}>Compatibility</th>
                             </tr>
                         </thead>
                         <tbody>
                             {paginatedProducts.length > 0 ? paginatedProducts.map(p => (
-                                <tr key={p.id} onClick={() => handleRowClick(p)} style={{ cursor: 'pointer', background: openSerialDropdownId === p.id ? 'rgba(22, 163, 74, 0.05)' : 'transparent' }} title="Click product to add to order">
+                                <tr
+                                    key={p.row_key || `${p.id}_${p.serial_id || 'noserial'}`}
+                                    onClick={() => handleRowClick(p)}
+                                    style={{ cursor: 'pointer', transition: 'background 0.15s ease' }}
+                                    title="Click row to add to cart"
+                                >
                                     <td style={{ fontFamily: 'monospace', fontWeight: '600', color: 'var(--text-main)', whiteSpace: 'nowrap' }}>
                                         {p.part_number}
                                     </td>
@@ -817,144 +928,44 @@ const POS = () => {
                                             </div>
                                         )}
                                     </td>
-                                    <td style={{ fontSize: '0.8rem', whiteSpace: 'nowrap', position: 'relative' }} onClick={(e) => e.stopPropagation()}>
-                                        {p.is_serialized ? (() => {
-                                            const serialOptions = (p.serials && p.serials.length > 0)
-                                                ? p.serials
-                                                : (p.serial_numbers && p.serial_numbers.length > 0)
-                                                    ? p.serial_numbers.map((sn, idx) => ({ id: idx + 1, serial_number: sn }))
-                                                    : [{ id: 1, serial_number: p.serial_display || 'SN-DEFAULT' }];
-
-                                            const selectedId = selectedTableSerials[p.id] || serialOptions[0]?.id;
-                                            const selectedSerialObj = serialOptions.find(s => Number(s.id) === Number(selectedId)) || serialOptions[0];
-                                            const isDropdownOpen = openSerialDropdownId === p.id;
-
-                                            return (
-                                                <div className="serial-dropdown-container" style={{ position: 'relative', display: 'inline-block' }}>
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setOpenSerialDropdownId(prev => prev === p.id ? null : p.id);
-                                                        }}
-                                                        style={{
-                                                            display: 'inline-flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'space-between',
-                                                            gap: '6px',
-                                                            padding: '4px 8px',
-                                                            borderRadius: '6px',
-                                                            border: isDropdownOpen ? '1px solid var(--primary)' : '1px solid var(--border)',
-                                                            background: isDropdownOpen ? 'rgba(22, 163, 74, 0.08)' : 'var(--surface)',
-                                                            color: 'var(--text-main)',
-                                                            fontFamily: 'monospace',
-                                                            fontSize: '0.78rem',
-                                                            fontWeight: 600,
-                                                            cursor: 'pointer',
-                                                            minWidth: '135px'
-                                                        }}
-                                                        title="Click to select specific serial"
-                                                    >
-                                                        <span style={{ color: 'var(--primary)', maxWidth: '105px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                            {selectedSerialObj?.serial_number || 'Select Serial'}
-                                                        </span>
-                                                        <ChevronDown size={13} style={{ color: 'var(--text-muted)', transform: isDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
-                                                    </button>
-
-                                                    {/* Interactive Dropdown Menu */}
-                                                    {isDropdownOpen && (
-                                                        <div style={{
-                                                            position: 'absolute',
-                                                            top: 'calc(100% + 4px)',
-                                                            left: 0,
-                                                            zIndex: 100,
-                                                            background: 'var(--surface, #ffffff)',
-                                                            border: '1px solid var(--border)',
-                                                            borderRadius: '8px',
-                                                            boxShadow: '0 10px 20px -3px rgba(0, 0, 0, 0.15), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                                                            minWidth: '190px',
-                                                            maxHeight: '220px',
-                                                            overflowY: 'auto',
-                                                            padding: '4px'
-                                                        }}>
-                                                            <div style={{ padding: '4px 8px', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', marginBottom: '4px' }}>
-                                                                Choose Serial to Sell ({serialOptions.length}):
-                                                            </div>
-                                                            {serialOptions.map(s => {
-                                                                const isSelected = Number(s.id) === Number(selectedId);
-                                                                const sCartKey = `${p.id}_${s.id}`;
-                                                                const cartEntry = cart.find(item => (item.cart_key || String(item.product_id)) === sCartKey);
-                                                                const inCartCount = cartEntry ? cartEntry.quantity : 0;
-
-                                                                return (
-                                                                    <button
-                                                                        key={s.id}
-                                                                        type="button"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            setSelectedTableSerials(prev => ({ ...prev, [p.id]: Number(s.id) }));
-                                                                            setOpenSerialDropdownId(null);
-                                                                            addSerializedToCart(p, s);
-                                                                        }}
-                                                                        style={{
-                                                                            width: '100%',
-                                                                            textAlign: 'left',
-                                                                            padding: '6px 8px',
-                                                                            borderRadius: '4px',
-                                                                            border: 'none',
-                                                                            background: isSelected ? 'rgba(22, 163, 74, 0.12)' : 'transparent',
-                                                                            color: isSelected ? 'var(--primary)' : 'var(--text-main)',
-                                                                            fontFamily: 'monospace',
-                                                                            fontSize: '0.78rem',
-                                                                            fontWeight: isSelected ? 700 : 500,
-                                                                            cursor: 'pointer',
-                                                                            display: 'flex',
-                                                                            alignItems: 'center',
-                                                                            justifyContent: 'space-between',
-                                                                            gap: '6px'
-                                                                        }}
-                                                                        onMouseEnter={(e) => {
-                                                                            if (!isSelected) e.currentTarget.style.background = 'var(--surface-hover)';
-                                                                        }}
-                                                                        onMouseLeave={(e) => {
-                                                                            if (!isSelected) e.currentTarget.style.background = 'transparent';
-                                                                        }}
-                                                                    >
-                                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                                            <span>{s.serial_number}</span>
-                                                                            {inCartCount > 0 && (
-                                                                                <span style={{
-                                                                                    fontSize: '0.68rem',
-                                                                                    background: 'rgba(22, 163, 74, 0.2)',
-                                                                                    color: 'var(--primary)',
-                                                                                    padding: '1px 5px',
-                                                                                    borderRadius: '4px',
-                                                                                    fontWeight: 700
-                                                                                }}>
-                                                                                    {inCartCount} in cart
-                                                                                </span>
-                                                                            )}
-                                                                        </span>
-                                                                        {isSelected && <Check size={12} color="var(--primary)" />}
-                                                                    </button>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })() : (
-                                            <span style={{ color: 'var(--text-muted)' }}>-</span>
+                                    <td style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                                        {p.is_serialized ? (
+                                            <span style={{
+                                                fontFamily: 'monospace',
+                                                fontWeight: 700,
+                                                color: 'var(--primary)',
+                                                background: 'rgba(22, 163, 74, 0.1)',
+                                                padding: '2px 6px',
+                                                borderRadius: '4px',
+                                                border: '1px solid rgba(22, 163, 74, 0.2)'
+                                            }}>
+                                                {p.serial_number}
+                                            </span>
+                                        ) : (
+                                            <span style={{ color: 'var(--text-muted)' }}>—</span>
                                         )}
                                     </td>
                                     <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{p.brand || '-'}</td>
                                     <td style={{ whiteSpace: 'nowrap' }}>{p.size || '-'}</td>
-                                    <td style={{ textAlign: 'right', color: p.stock <= (p.reorder_level || 5) ? 'var(--danger)' : 'var(--success)', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                                        {p.stock}
+                                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                        {p.is_serialized ? (
+                                            <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>
+                                                In stock ({p.stock})
+                                            </span>
+                                        ) : (
+                                            <span style={{
+                                                color: p.stock <= (p.reorder_level || 5) ? 'var(--danger)' : 'var(--success)',
+                                                fontWeight: 'bold'
+                                            }}>
+                                                In stock ({p.stock})
+                                            </span>
+                                        )}
                                     </td>
-                                    <td style={{ textAlign: 'right', color: 'var(--text-muted)', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
-                                        {formatCurrency(p.cost_price || 0)}
-                                    </td>
+                                    {user?.role === 'admin' && (
+                                        <td style={{ textAlign: 'right', color: 'var(--text-muted)', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                                            {formatCurrency(p.cost_price || 0)}
+                                        </td>
+                                    )}
                                     <td style={{ textAlign: 'right', color: 'var(--primary)', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                                         {formatCurrency(p.price)}
                                     </td>
@@ -999,9 +1010,9 @@ const POS = () => {
                                 style={{ padding: '2px 8px', fontSize: '0.75rem', width: 'auto', cursor: 'pointer' }}
                                 title="Products per page"
                             >
-                                <option value={10}>10 / page</option>
-                                <option value={20}>20 / page</option>
+                                <option value={25}>25 / page</option>
                                 <option value={50}>50 / page</option>
+                                <option value={100}>100 / page</option>
                             </select>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -1165,62 +1176,66 @@ const POS = () => {
                                         borderTop: '1px solid rgba(255, 255, 255, 0.05)'
                                     }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => updateQuantity(itemKey, -1)}
-                                                    className="btn-secondary"
-                                                    style={{
-                                                        width: '28px',
-                                                        height: '28px',
-                                                        padding: 0,
-                                                        borderRadius: '6px',
-                                                        cursor: 'pointer',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        flexShrink: 0
-                                                    }}
-                                                    title="Decrease quantity"
-                                                >
-                                                    <Minus size={14} />
-                                                </button>
-                                                <input
-                                                    type="number"
-                                                    min="1"
-                                                    max={item.maxStock}
-                                                    value={item.quantity}
-                                                    onChange={(e) => setQuantityDirect(itemKey, e.target.value)}
-                                                    className="input-premium"
-                                                    style={{
-                                                        width: '42px',
-                                                        height: '28px',
-                                                        textAlign: 'center',
-                                                        padding: '0 2px',
-                                                        fontSize: '0.85rem',
-                                                        fontWeight: '600',
-                                                        borderRadius: '6px'
-                                                    }}
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => updateQuantity(itemKey, 1)}
-                                                    className="btn-secondary"
-                                                    style={{
-                                                        width: '28px',
-                                                        height: '28px',
-                                                        padding: 0,
-                                                        borderRadius: '6px',
-                                                        cursor: 'pointer',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        flexShrink: 0
-                                                    }}
-                                                    title="Increase quantity"
-                                                >
-                                                    <Plus size={14} />
-                                                </button>
-                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => updateQuantity(itemKey, -1)}
+                                                className="btn-secondary"
+                                                style={{
+                                                    width: '28px',
+                                                    height: '28px',
+                                                    padding: 0,
+                                                    borderRadius: '6px',
+                                                    cursor: item.quantity <= 1 ? 'not-allowed' : 'pointer',
+                                                    opacity: item.quantity <= 1 ? 0.5 : 1,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    flexShrink: 0
+                                                }}
+                                                disabled={item.quantity <= 1}
+                                                title="Decrease quantity"
+                                            >
+                                                <Minus size={14} />
+                                            </button>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max={item.maxStock}
+                                                value={item.quantity}
+                                                onChange={(e) => setQuantityDirect(itemKey, e.target.value)}
+                                                className="input-premium"
+                                                style={{
+                                                    width: '42px',
+                                                    height: '28px',
+                                                    textAlign: 'center',
+                                                    padding: '0 2px',
+                                                    fontSize: '0.85rem',
+                                                    fontWeight: '600',
+                                                    borderRadius: '6px'
+                                                }}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => updateQuantity(itemKey, 1)}
+                                                className="btn-secondary"
+                                                style={{
+                                                    width: '28px',
+                                                    height: '28px',
+                                                    padding: 0,
+                                                    borderRadius: '6px',
+                                                    cursor: item.quantity >= item.maxStock ? 'not-allowed' : 'pointer',
+                                                    opacity: item.quantity >= item.maxStock ? 0.5 : 1,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    flexShrink: 0
+                                                }}
+                                                disabled={item.quantity >= item.maxStock}
+                                                title={item.quantity >= item.maxStock ? `Max available (${item.maxStock})` : "Increase quantity"}
+                                            >
+                                                <Plus size={14} />
+                                            </button>
+                                        </div>
 
                                         <div style={{ textAlign: 'right' }}>
                                             <span style={{

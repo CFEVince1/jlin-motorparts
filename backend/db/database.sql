@@ -147,7 +147,8 @@ CREATE TABLE product_serials (
     id INT AUTO_INCREMENT PRIMARY KEY,
     product_id INT NOT NULL,
     serial_number VARCHAR(100) NOT NULL UNIQUE,
-    status ENUM('available', 'sold') NOT NULL DEFAULT 'available',
+    quantity INT NOT NULL DEFAULT 1,
+    status VARCHAR(50) NOT NULL DEFAULT 'available',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
 );
@@ -436,15 +437,35 @@ WHERE p.part_number = 'ECU-RAIDER-01' AND p.brand = 'Suzuki';
 
 
 
-INSERT INTO product_serials (product_id, serial_number, status)
-SELECT p.id, serials.serial_number, 'available'
+INSERT INTO product_serials (product_id, serial_number, quantity, status)
+SELECT p.id, serials.serial_number, serials.quantity, serials.status
 FROM products p
 JOIN (
-    SELECT 'ECU001' AS serial_number
-    UNION ALL SELECT 'ECU002'
-    UNION ALL SELECT 'ECU003'
+    SELECT 'ECU001' AS serial_number, 0 AS quantity, 'sold' AS status
+    UNION ALL SELECT 'ECU002', 0, 'sold'
+    UNION ALL SELECT 'ECU003', 0, 'sold'
+    UNION ALL SELECT 'ECU004', 1, 'available'
 ) serials
 WHERE p.part_number = 'ECU-RAIDER-01' AND p.brand = 'Suzuki';
+
+INSERT INTO product_serials (product_id, serial_number, quantity, status)
+SELECT p.id, serials.serial_number, serials.quantity, serials.status
+FROM products p
+JOIN (
+    SELECT 'RS8-66839-1' AS serial_number, 1 AS quantity, 'available' AS status
+    UNION ALL SELECT 'RS8-66839-2', 1, 'available'
+) serials
+WHERE p.part_number = 'LEGACY-0101' OR p.name = 'RS8 Torque Drive Assembly';
+
+INSERT INTO product_serials (product_id, serial_number, quantity, status)
+SELECT p.id, serials.serial_number, serials.quantity, serials.status
+FROM products p
+JOIN (
+    SELECT 'JVT-26491' AS serial_number, 1 AS quantity, 'available' AS status
+    UNION ALL SELECT 'JVT-33240', 1, 'available'
+    UNION ALL SELECT 'LEG-0100-003', 0, 'inactive'
+) serials
+WHERE p.part_number = 'LEGACY-0100' OR p.name = 'JVT Tensioner Manual Alloy';
 
 INSERT INTO compatibility_groups (group_name, description) VALUES
     ('Yamaha Mio Platform', 'Shared parts for Yamaha Mio series'),

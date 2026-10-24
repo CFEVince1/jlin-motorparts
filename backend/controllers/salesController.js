@@ -142,23 +142,40 @@ exports.checkout = async (req, res, next) => {
             const product = lockedProductMap.get(productId);
             const serialized = normalizeBoolean(product.is_serialized);
 
-            // Serial validation (supports single serial, batch serial, or multi-qty purchases)
+            // Serial validation (supports single serial lot with quantity, or multi-serial selections)
             if (serialized) {
                 if (serialIds.length === 0) {
                     throw new AppValidationError(`Serial selection is required for ${product.name}`);
                 }
                 const uniqueSerialIds = [...new Set(serialIds)];
 
-                const placeholders = uniqueSerialIds.map(() => '?').join(', ');
-                const [serialRows] = await connection.query(
-                    `SELECT id FROM product_serials
-                     WHERE product_id = ? AND id IN (${placeholders})
-                     FOR UPDATE`,
-                    [productId, ...uniqueSerialIds]
-                );
+                if (uniqueSerialIds.length === 1) {
+                    const [serialRows] = await connection.query(
+                        `SELECT id, serial_number, quantity, status FROM product_serials
+                         WHERE product_id = ? AND id = ? AND (status = 'available' OR status IS NULL)
+                         FOR UPDATE`,
+                        [productId, uniqueSerialIds[0]]
+                    );
 
-                if (serialRows.length !== uniqueSerialIds.length) {
-                    throw new AppValidationError(`One or more selected serial numbers for ${product.name} are invalid or not found.`);
+                    if (serialRows.length === 0) {
+                        throw new AppValidationError(`Selected serial number for ${product.name} is no longer available or already sold.`);
+                    }
+                    const availableLotQty = Number(serialRows[0].quantity || 0);
+                    if (availableLotQty < qty) {
+                        throw new AppValidationError(`Insufficient stock for serial ${serialRows[0].serial_number} (available: ${availableLotQty}, requested: ${qty}).`);
+                    }
+                } else {
+                    const placeholders = uniqueSerialIds.map(() => '?').join(', ');
+                    const [serialRows] = await connection.query(
+                        `SELECT id, serial_number, quantity, status FROM product_serials
+                         WHERE product_id = ? AND id IN (${placeholders}) AND (status = 'available' OR status IS NULL)
+                         FOR UPDATE`,
+                        [productId, ...uniqueSerialIds]
+                    );
+
+                    if (serialRows.length !== uniqueSerialIds.length) {
+                        throw new AppValidationError(`One or more selected serial numbers for ${product.name} are no longer available or already sold.`);
+                    }
                 }
             } else if (serialIds.length > 0) {
                 throw new AppValidationError(`Serial numbers cannot be assigned to non-serialized product ${product.name}`);
@@ -326,21 +343,46 @@ exports.checkout = async (req, res, next) => {
             const saleItemId = saleItemResult.insertId;
 
             // Handle Serials if serialized
+            let primarySerialId = null;
             if (item.is_serialized && item.serial_ids.length > 0) {
-                await connection.query(
-                    `UPDATE product_serials
-                     SET status = 'sold'
-                     WHERE product_id = ? AND status = 'available' AND id IN (${item.serial_ids.map(() => '?').join(', ')})`,
-                    [item.product_id, ...item.serial_ids]
-                );
+                primarySerialId = item.serial_ids[0];
+                if (item.serial_ids.length === 1) {
+                    const targetSerialId = item.serial_ids[0];
+                    const [sRows] = await connection.query(
+                        'SELECT quantity FROM product_serials WHERE id = ?',
+                        [targetSerialId]
+                    );
+                    const currentLotQty = Number(sRows[0]?.quantity || 0);
+                    const newLotQty = Math.max(0, currentLotQty - item.quantity);
+                    const newLotStatus = newLotQty === 0 ? 'sold' : 'available';
 
-                const serialValues = item.serial_ids.map(sId => [saleItemId, sId]);
-                await connection.query('INSERT INTO sale_item_serials (sale_item_id, serial_id) VALUES ?', [serialValues]);
+                    await connection.query(
+                        'UPDATE product_serials SET quantity = ?, status = ? WHERE id = ?',
+                        [newLotQty, newLotStatus, targetSerialId]
+                    );
+
+                    await connection.query(
+                        'INSERT INTO sale_item_serials (sale_item_id, serial_id, quantity) VALUES (?, ?, ?)',
+                        [saleItemId, targetSerialId, item.quantity]
+                    );
+                } else {
+                    for (const sId of item.serial_ids) {
+                        await connection.query(
+                            "UPDATE product_serials SET quantity = GREATEST(0, quantity - 1), status = IF(quantity <= 1, 'sold', 'available') WHERE id = ?",
+                            [sId]
+                        );
+                        await connection.query(
+                            'INSERT INTO sale_item_serials (sale_item_id, serial_id, quantity) VALUES (?, ?, 1)',
+                            [saleItemId, sId]
+                        );
+                    }
+                }
             }
 
             // Deduct inventory and log SALE row via inventoryService atomically
             await applyMovement(connection, {
                 itemId: item.product_id,
+                serialId: primarySerialId,
                 transactionType: 'SALE',
                 quantityChange: -item.quantity,
                 referenceNo: orderNo,
@@ -801,9 +843,28 @@ exports.voidAndReopen = async (req, res, next) => {
 
         // 3. Reverse inventory movements & release serials
         for (const item of saleItems) {
+            // If item has serial numbers, restore their quantity and mark available
+            const [serials] = await connection.query(
+                'SELECT serial_id, quantity FROM sale_item_serials WHERE sale_item_id = ?',
+                [item.id]
+            );
+
+            let primarySerialId = null;
+            if (serials.length > 0) {
+                primarySerialId = serials[0].serial_id;
+                for (const s of serials) {
+                    const restoredLotQty = Number(s.quantity || item.quantity || 1);
+                    await connection.query(
+                        "UPDATE product_serials SET quantity = quantity + ?, status = 'available' WHERE id = ?",
+                        [restoredLotQty, s.serial_id]
+                    );
+                }
+            }
+
             // Restore inventory using immutable 'RETURN' ledger movement
             await applyMovement(connection, {
                 itemId: item.product_id,
+                serialId: primarySerialId,
                 transactionType: 'RETURN',
                 quantityChange: item.quantity,
                 referenceNo: sale.order_number || `SO-${sale.id}`,
@@ -813,21 +874,6 @@ exports.voidAndReopen = async (req, res, next) => {
                 remarks: `Sale Void & Reopen: ${sale.order_number || sale.id} (${item.quantity}x ${item.product_name})`,
                 createdBy: userId
             });
-
-            // If item has serial numbers, restore them to available
-            const [serials] = await connection.query(
-                'SELECT serial_id FROM sale_item_serials WHERE sale_item_id = ?',
-                [item.id]
-            );
-
-            if (serials.length > 0) {
-                const serialIds = serials.map(s => s.serial_id);
-                const placeholders = serialIds.map(() => '?').join(', ');
-                await connection.query(
-                    `UPDATE product_serials SET status = 'available' WHERE id IN (${placeholders})`,
-                    serialIds
-                );
-            }
         }
 
         // 4. Mark sale as VOIDED in database
@@ -1036,9 +1082,22 @@ exports.processSaleRefund = async (req, res, next) => {
             const itemRemarks = `Return/Refund (${item.disposition}) from Order ${sale.order_number || ('SO-' + sale.id)}: ${item.quantity}x ${item.productName}`;
 
             if (item.disposition === 'RESTOCK' || item.disposition === 'FOUND') {
+                // If serials returned, restore their quantity and mark them back as available
+                let primarySerialId = null;
+                if (item.serialIds.length > 0) {
+                    primarySerialId = item.serialIds[0];
+                    for (const sId of item.serialIds) {
+                        await connection.query(
+                            "UPDATE product_serials SET quantity = quantity + ?, status = 'available' WHERE id = ?",
+                            [item.quantity || 1, sId]
+                        );
+                    }
+                }
+
                 // FOUND: Restock to inventory (+ into inventory)
                 await applyMovement(connection, {
                     itemId: item.productId,
+                    serialId: primarySerialId,
                     transactionType: 'FOUND',
                     quantityChange: item.quantity,
                     referenceNo: itemRef,
@@ -1048,15 +1107,6 @@ exports.processSaleRefund = async (req, res, next) => {
                     remarks: itemRemarks,
                     createdBy: userId
                 });
-
-                // If serials returned, mark them back as available
-                if (item.serialIds.length > 0) {
-                    const placeholders = item.serialIds.map(() => '?').join(', ');
-                    await connection.query(
-                        `UPDATE product_serials SET status = 'available' WHERE id IN (${placeholders})`,
-                        item.serialIds
-                    );
-                }
             } else if (item.disposition === 'RETURN_TO_SUPPLIER') {
                 // RETURN_TO_SUPPLIER: (- into inventory / return to supplier)
                 // First return the unit into store custody from customer:

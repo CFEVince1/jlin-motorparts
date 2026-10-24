@@ -7,12 +7,13 @@ import useDebouncedValue from './useDebouncedValue';
  */
 export const useTableFilter = ({
     items = [],
+    initialSearch = '',
     initialFilters = {},
     filterFn = null,
     debounceMs = 250,
     itemsPerPage = 0
 }) => {
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState(initialSearch);
     const [filters, setFilters] = useState(initialFilters);
     const [currentPage, setCurrentPage] = useState(1);
 

@@ -21,11 +21,26 @@ const decodeToken = (token) => {
 };
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [user, setUser] = useState(() => {
+        if (typeof window === 'undefined') return null;
+        const urlParams = new URLSearchParams(window.location.search);
+        const paramToken = urlParams.get('auth_token');
+        if (paramToken) {
+            localStorage.setItem('token', paramToken);
+            return decodeToken(paramToken);
+        }
+        const t = localStorage.getItem('token');
+        return t ? decodeToken(t) : null;
+    });
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         const initAuth = async () => {
+            const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+            const paramToken = urlParams?.get('auth_token');
+            if (paramToken) {
+                localStorage.setItem('token', paramToken);
+            }
             const token = localStorage.getItem('token');
             if (token) {
                 const decodedUser = decodeToken(token);

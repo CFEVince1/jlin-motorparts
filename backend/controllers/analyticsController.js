@@ -111,13 +111,30 @@ exports.getDashboardData = async (req, res) => {
                 p.name AS product_name,
                 p.brand,
                 p.size,
-                COALESCE(p.current_stock, p.stock) AS current_stock,
-                COALESCE(p.current_stock, p.stock) AS stock,
+                CASE
+                    WHEN p.is_serialized = 1 THEN (
+                        SELECT COALESCE(SUM(ps.quantity), 0) FROM product_serials ps WHERE ps.product_id = p.id AND (ps.status = 'available' OR ps.status IS NULL)
+                    )
+                    ELSE COALESCE(p.current_stock, p.stock, 0)
+                END AS current_stock,
+                CASE
+                    WHEN p.is_serialized = 1 THEN (
+                        SELECT COALESCE(SUM(ps.quantity), 0) FROM product_serials ps WHERE ps.product_id = p.id AND (ps.status = 'available' OR ps.status IS NULL)
+                    )
+                    ELSE COALESCE(p.current_stock, p.stock, 0)
+                END AS stock,
                 p.reorder_level
             FROM products p
             WHERE p.is_active = true
-              AND COALESCE(p.current_stock, p.stock) <= p.reorder_level
-            ORDER BY COALESCE(p.current_stock, p.stock) ASC
+              AND (
+                CASE
+                    WHEN p.is_serialized = 1 THEN (
+                        SELECT COALESCE(SUM(ps.quantity), 0) FROM product_serials ps WHERE ps.product_id = p.id AND (ps.status = 'available' OR ps.status IS NULL)
+                    )
+                    ELSE COALESCE(p.current_stock, p.stock, 0)
+                END
+              ) <= p.reorder_level
+            ORDER BY stock ASC
             LIMIT 10
         `);
 

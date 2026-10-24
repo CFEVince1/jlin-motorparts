@@ -370,15 +370,32 @@ exports.getLowStock = async (req, res) => {
                 p.name AS product_name,
                 p.brand,
                 p.size,
-                COALESCE(p.current_stock, p.stock) AS current_stock,
-                COALESCE(p.current_stock, p.stock) AS stock,
+                CASE
+                    WHEN p.is_serialized = 1 THEN (
+                        SELECT COALESCE(SUM(ps.quantity), 0) FROM product_serials ps WHERE ps.product_id = p.id AND (ps.status = 'available' OR ps.status IS NULL)
+                    )
+                    ELSE COALESCE(p.current_stock, p.stock, 0)
+                END AS current_stock,
+                CASE
+                    WHEN p.is_serialized = 1 THEN (
+                        SELECT COALESCE(SUM(ps.quantity), 0) FROM product_serials ps WHERE ps.product_id = p.id AND (ps.status = 'available' OR ps.status IS NULL)
+                    )
+                    ELSE COALESCE(p.current_stock, p.stock, 0)
+                END AS stock,
                 p.reorder_level,
                 COALESCE(cd.compatibility_display, '') AS compatibility_display
             FROM products p
             LEFT JOIN (${compatibilityDisplaySubquery}) cd ON cd.product_id = p.id
-            WHERE COALESCE(p.current_stock, p.stock) <= p.reorder_level AND p.is_active = true AND LOWER(p.name) NOT LIKE '%test%' AND LOWER(p.name) NOT LIKE '%pretest%' AND LOWER(p.part_number) NOT LIKE '%test%'
+            WHERE (
+                CASE
+                    WHEN p.is_serialized = 1 THEN (
+                        SELECT COALESCE(SUM(ps.quantity), 0) FROM product_serials ps WHERE ps.product_id = p.id AND (ps.status = 'available' OR ps.status IS NULL)
+                    )
+                    ELSE COALESCE(p.current_stock, p.stock, 0)
+                END
+            ) <= p.reorder_level AND p.is_active = true AND LOWER(p.name) NOT LIKE '%test%' AND LOWER(p.name) NOT LIKE '%pretest%' AND LOWER(p.part_number) NOT LIKE '%test%'
             ${filterSql}
-            ORDER BY COALESCE(p.current_stock, p.stock) ASC
+            ORDER BY stock ASC
         `, params);
         res.json(products);
     } catch (err) {

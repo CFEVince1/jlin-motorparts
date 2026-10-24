@@ -1,3 +1,20 @@
+function stripCostPrice(data) {
+    if (data === null || data === undefined) return data;
+    if (typeof data !== 'object') return data;
+    if (data instanceof Date) return data;
+    if (Array.isArray(data)) {
+        return data.map(stripCostPrice);
+    }
+    const clean = {};
+    for (const [key, value] of Object.entries(data)) {
+        if (key === 'cost_price' || key === 'cost') {
+            continue;
+        }
+        clean[key] = stripCostPrice(value);
+    }
+    return clean;
+}
+
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 
@@ -56,6 +73,14 @@ const authenticateToken = async (req, res, next) => {
             role: user.role,
             token_version: currentTokenVersion
         };
+
+        // Requirement (2): Strip cost_price from every API response for non-admin users
+        if (user.role !== 'admin') {
+            const originalJson = res.json.bind(res);
+            res.json = function(data) {
+                return originalJson(stripCostPrice(data));
+            };
+        }
 
         next();
     } catch (err) {

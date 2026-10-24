@@ -30,7 +30,7 @@ export const StockReceiveScreen = () => {
 
   // Line items matrix
   const [lineItems, setLineItems] = useState([
-    { itemId: '', quantity: '', costPrice: '', serials: [], serialsInput: '' }
+    { itemId: '', quantity: '', costPrice: '', serials: [], serialsInput: '', selectedSerialId: '' }
   ]);
 
   // Receiving History State
@@ -97,7 +97,7 @@ export const StockReceiveScreen = () => {
   }, [fetchReceivingHistory]);
 
   const addRow = () => {
-    setLineItems(prev => [...prev, { itemId: '', quantity: '', costPrice: '', serials: [], serialsInput: '' }]);
+    setLineItems(prev => [...prev, { itemId: '', quantity: '', costPrice: '', serials: [], serialsInput: '', selectedSerialId: '' }]);
   };
 
   const removeRow = (index) => {
@@ -187,6 +187,7 @@ export const StockReceiveScreen = () => {
         // If changed product, reset serials
         next[index].serials = [];
         next[index].serialsInput = '';
+        next[index].selectedSerialId = '';
       }
       return next;
     });
@@ -251,10 +252,41 @@ export const StockReceiveScreen = () => {
       const serials = Array.isArray(row.serials) ? row.serials.map(s => String(s).trim()).filter(Boolean) : [];
 
       if (isSerialized) {
+        const prodSerials = prod?.serials || [];
+        const matchedSerial = row.selectedSerialId
+          ? prodSerials.find(s => String(s.id) === String(row.selectedSerialId))
+          : (serials.length === 1 ? prodSerials.find(s => s.serial_number && s.serial_number.toLowerCase() === serials[0].toLowerCase()) : null);
+
+        if (matchedSerial) {
+          // Receiving into existing serial lot
+          formattedItems.push({
+            itemId: Number(row.itemId),
+            quantity: qty,
+            costPrice: cost,
+            serial_id: matchedSerial.id,
+            serial_number: matchedSerial.serial_number,
+            serials: [matchedSerial.serial_number]
+          });
+          continue;
+        }
+
+        if (serials.length === 1) {
+          // Receiving into single new serial lot with quantity = qty
+          formattedItems.push({
+            itemId: Number(row.itemId),
+            quantity: qty,
+            costPrice: cost,
+            serial_number: serials[0],
+            serials: [serials[0]]
+          });
+          continue;
+        }
+
         if (serials.length !== qty) {
-          toast.error(`Line #${i + 1} (${prod?.part_number || prod?.name}): Exactly ${qty} serial number(s) required, but ${serials.length} provided.`);
+          toast.error(`Line #${i + 1} (${prod?.part_number || prod?.name}): Choose an existing serial lot or enter exactly ${qty} serial numbers (provided: ${serials.length}).`);
           return;
         }
+
         const seenSerials = new Set();
         for (const s of serials) {
           const upper = s.toUpperCase();

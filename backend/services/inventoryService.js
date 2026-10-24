@@ -45,6 +45,8 @@ const INFLOW_TYPES = [
 async function applyMovement(trx, {
     itemId,
     productId,
+    serialId,
+    serial_id,
     type,
     transactionType,
     quantityChange,
@@ -156,6 +158,7 @@ async function applyMovement(trx, {
             transaction_number,
             reference_no,
             product_id,
+            serial_id,
             transaction_type,
             quantity,
             quantity_change,
@@ -169,11 +172,12 @@ async function applyMovement(trx, {
             remarks,
             created_by,
             created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
         [
             txNumber,
             cleanRefNo,
             resolvedId,
+            serialId || serial_id || null,
             normalizedType,
             Math.abs(qtyChange),
             qtyChange,
