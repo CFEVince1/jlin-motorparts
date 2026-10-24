@@ -106,8 +106,9 @@ const Users = () => {
         } catch (err) {
             if (err instanceof z.ZodError) {
                 const errors = {};
-                err.errors.forEach(e => {
-                    if (e.path.length > 0) {
+                const issues = err.issues || err.errors || [];
+                issues.forEach(e => {
+                    if (e.path && e.path.length > 0) {
                         errors[e.path[0]] = e.message;
                     }
                 });

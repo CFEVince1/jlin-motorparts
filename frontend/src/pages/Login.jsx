@@ -41,8 +41,9 @@ const Login = () => {
             navigate('/dashboard');
         } catch (err) {
             setLoading(false);
-            if (err.errors && Array.isArray(err.errors)) {
-                setErrorMessage(err.errors[0]?.message || 'Please fill in all fields');
+            const issues = err.issues || err.errors;
+            if (issues && Array.isArray(issues)) {
+                setErrorMessage(issues[0]?.message || 'Please fill in all fields');
                 return;
             }
             const msg = err.response?.data?.message || err.response?.data?.error || 'Invalid credentials';
