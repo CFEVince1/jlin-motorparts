@@ -363,30 +363,7 @@ async function resetDemoDatabase() {
         console.log(`  * Inventory Transactions: ${txCount[0].count} ledger rows`);
         console.log(`  * Compatibilities:        ${compatCount[0].count} matrix entries`);
         console.log(`  * System Users:           ${userCount[0].count} accounts`);
-        // Ensure legacy serials for JVT Tensioner Manual Alloy (LEGACY-0100) match LEG-0100-001, -002, -003
-        try {
-            const [prods] = await connection.query("SELECT id FROM products WHERE part_number LIKE '%0100%' OR name LIKE '%Tensioner%' LIMIT 1");
-            if (prods.length > 0) {
-                const pId = prods[0].id;
-                const [curSerials] = await connection.query("SELECT id, serial_number, status FROM product_serials WHERE product_id = ? ORDER BY id ASC", [pId]);
-                const targetSerials = ['LEG-0100-001', 'LEG-0100-002', 'LEG-0100-003'];
-                for (let i = 0; i < targetSerials.length; i++) {
-                    const targetSN = targetSerials[i];
-                    if (i < curSerials.length) {
-                        if (curSerials[i].serial_number !== targetSN) {
-                            await connection.query("UPDATE product_serials SET serial_number = ? WHERE id = ?", [targetSN, curSerials[i].id]);
-                        }
-                    } else {
-                        const [exists] = await connection.query("SELECT id FROM product_serials WHERE serial_number = ? LIMIT 1", [targetSN]);
-                        if (exists.length === 0) {
-                            await connection.query("INSERT INTO product_serials (product_id, serial_number, status, created_at) VALUES (?, ?, 'available', NOW())", [pId, targetSN]);
-                        }
-                    }
-                }
-            }
-        } catch (err) {
-            console.warn('[Reset] Note on legacy serials:', err.message);
-        }
+
 
 
         // 1. Verify Triggers Exist and are Active

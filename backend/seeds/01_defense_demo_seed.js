@@ -234,20 +234,7 @@ async function seed(knex) {
             is_serialized: true
         });
 
-        // Seed / rename legacy serials for JVT Tensioner
-        const legacySerials = ['LEG-0100-001', 'LEG-0100-002', 'LEG-0100-003'];
-        for (const sn of legacySerials) {
-            const [existSn] = await connection.query(
-                "SELECT id, status FROM product_serials WHERE serial_number = ? LIMIT 1",
-                [sn]
-            );
-            if (existSn.length === 0) {
-                await connection.query(
-                    "INSERT INTO product_serials (product_id, serial_number, status, created_at) VALUES (?, ?, 'available', NOW())",
-                    [prodTensionerId, sn]
-                );
-            }
-        }
+
 
 
         // ----------------------------------------------------
