@@ -130,6 +130,16 @@ exports.receiveStock = async (req, res, next) => {
         });
     }
 
+    const driverName = (deliveryPersonnel || '').trim();
+    if (driverName) {
+        if (/\d/.test(driverName) || !/^[a-zA-Z\s.'-]+$/.test(driverName)) {
+            return res.status(422).json({
+                message: 'Delivery personnel / driver name cannot contain numbers',
+                errors: [{ field: 'deliveryPersonnel', message: 'Driver name must contain only letters and spaces' }]
+            });
+        }
+    }
+
     if (!items || !Array.isArray(items) || items.length === 0) {
         return res.status(422).json({ 
             message: 'Receiving record must contain at least one item',
@@ -274,11 +284,15 @@ exports.receiveStock = async (req, res, next) => {
         }
 
         // 5. Create receiving_records header
+        const finalNotes = notes
+            ? (driverName ? `Driver: ${driverName} | ${notes}` : notes)
+            : (driverName ? `Driver: ${driverName}` : null);
+
         const [recResult] = await connection.query(
             `INSERT INTO receiving_records (
                 supplier_id, reference_number, reference_no, received_by, total_cost, status, notes, received_at
             ) VALUES (?, ?, ?, ?, ?, 'received', ?, NOW())`,
-            [finalSupplierId, refNo, refNo, userId, totalCost, notes || null]
+            [finalSupplierId, refNo, refNo, userId, totalCost, finalNotes]
         );
         const receivingRecordId = recResult.insertId;
 

@@ -108,32 +108,6 @@ export const StockReceiveScreen = () => {
     setLineItems(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleAutoGenerateSerials = (index, prod, qty) => {
-    if (!qty || qty <= 0) {
-      toast.error('Please enter quantity first');
-      return;
-    }
-    const rawPart = (prod.part_number || prod.sku || 'SN').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const prefix = rawPart.length > 8 ? rawPart.slice(0, 8) : rawPart;
-    const now = new Date();
-    const dateStr = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-    const generated = [];
-    for (let i = 1; i <= qty; i++) {
-      const pad = String(i).padStart(2, '0');
-      generated.push(`${prefix}-${dateStr}-${pad}`);
-    }
-    setLineItems(prev => {
-      const next = [...prev];
-      next[index] = {
-        ...next[index],
-        serials: generated,
-        serialsInput: generated.join(', ')
-      };
-      return next;
-    });
-    toast.success(`Generated ${qty} sequential serials for ${prod.part_number}`);
-  };
-
   const handleSerialsInputChange = (index, value) => {
     const rawTokens = value.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
     setLineItems(prev => {
@@ -214,8 +188,17 @@ export const StockReceiveScreen = () => {
       return;
     }
 
-    if (!deliveryPersonnel.trim()) {
+    const cleanDriver = deliveryPersonnel.trim();
+    if (!cleanDriver) {
       toast.error('Delivery personnel / driver name is required');
+      return;
+    }
+    if (/\d/.test(cleanDriver)) {
+      toast.error('Driver name cannot contain numbers');
+      return;
+    }
+    if (!/^[a-zA-Z\s.'-]+$/.test(cleanDriver) || cleanDriver.replace(/[^a-zA-Z]/g, '').length < 2) {
+      toast.error('Please enter a valid driver name (letters and spaces only)');
       return;
     }
 
@@ -483,10 +466,10 @@ export const StockReceiveScreen = () => {
                 </label>
                 <input
                   type="text"
-                  placeholder="Driver or courier name"
+                  placeholder="Driver or courier name (letters only)"
                   className="input-premium"
                   value={deliveryPersonnel}
-                  onChange={(e) => setDeliveryPersonnel(e.target.value)}
+                  onChange={(e) => setDeliveryPersonnel(e.target.value.replace(/[0-9]/g, ''))}
                   required
                   disabled={submitting}
                 />
@@ -690,17 +673,6 @@ export const StockReceiveScreen = () => {
                                       </span>
                                     )}
                                   </div>
-                                  {qty > 0 && (
-                                    <button
-                                      type="button"
-                                      className="btn-secondary"
-                                      style={{ fontSize: '0.75rem', padding: '3px 10px', height: '28px', color: '#d97706', borderColor: '#fcd34d' }}
-                                      onClick={() => handleAutoGenerateSerials(index, selectedProd, qty)}
-                                      title="Auto-generate sequential serial numbers for this delivery batch"
-                                    >
-                                      ⚡ Auto-Generate {qty} Serials
-                                    </button>
-                                  )}
                                 </div>
 
                                 <div>
