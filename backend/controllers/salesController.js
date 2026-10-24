@@ -466,6 +466,17 @@ exports.getSales = async (req, res, next) => {
         if (role !== 'admin' && req.query.selfOnly === 'true') {
             whereClauses.push('s.user_id = ?');
             whereParams.push(userId);
+        } else if (req.query.user && req.query.user !== 'ALL') {
+            if (Number.isInteger(Number(req.query.user))) {
+                whereClauses.push('s.user_id = ?');
+                whereParams.push(Number(req.query.user));
+            } else {
+                whereClauses.push('s.user_id IN (SELECT id FROM users WHERE username = ?)');
+                whereParams.push(req.query.user);
+            }
+        } else if (req.query.cashier && req.query.cashier !== 'ALL') {
+            whereClauses.push('s.user_id IN (SELECT id FROM users WHERE username = ?)');
+            whereParams.push(req.query.cashier);
         }
 
 
@@ -1322,6 +1333,17 @@ exports.getReturnsHistory = async (req, res, next) => {
         if (role !== 'admin' && req.query.selfOnly === 'true') {
             whereClauses.push('sr.user_id = ?');
             whereParams.push(userId);
+        } else if (req.query.user && req.query.user !== 'ALL') {
+            if (Number.isInteger(Number(req.query.user))) {
+                whereClauses.push('sr.user_id = ?');
+                whereParams.push(Number(req.query.user));
+            } else {
+                whereClauses.push('u.username = ?');
+                whereParams.push(req.query.user);
+            }
+        } else if (req.query.cashier && req.query.cashier !== 'ALL') {
+            whereClauses.push('u.username = ?');
+            whereParams.push(req.query.cashier);
         }
 
         if (req.query.date) {

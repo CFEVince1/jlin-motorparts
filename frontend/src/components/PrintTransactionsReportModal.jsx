@@ -61,6 +61,7 @@ export default function PrintTransactionsReportModal({
       if (startDate) params.startDate = startDate;
       if (endDate) params.endDate = endDate;
       if (searchQuery && searchQuery.trim()) params.search = searchQuery.trim();
+      if (currentCashier) params.user = currentCashier;
 
       const res = await api.get('/sales', { params });
       const raw = res.data;

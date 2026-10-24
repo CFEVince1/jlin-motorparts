@@ -50,6 +50,10 @@ const Transactions = () => {
     });
     const [showPrintModal, setShowPrintModal] = useState(false);
 
+    // User / Cashier Filter State
+    const [userFilter, setUserFilter] = useState(() => searchParams.get('user') || searchParams.get('cashier') || 'ALL');
+    const [usersList, setUsersList] = useState([]);
+
     // Status Filter State
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [staffScope, setStaffScope] = useState('all');
@@ -78,6 +82,13 @@ const Transactions = () => {
                 matchDate = localISOTime === filters.date;
             }
 
+            let matchUser = true;
+            if (userFilter !== 'ALL') {
+                const qUser = String(userFilter).toLowerCase();
+                matchUser = String(transaction.cashier || '').toLowerCase() === qUser ||
+                            String(transaction.user_id) === String(userFilter);
+            }
+
             let matchStatus = true;
             if (statusFilter !== 'ALL') {
                 if (statusFilter === 'REFUNDED') {
@@ -89,7 +100,7 @@ const Transactions = () => {
                 }
             }
 
-            return matchSearch && matchDate && matchStatus;
+            return matchSearch && matchDate && matchStatus && matchUser;
         }).sort((a, b) => {
             if (normalizedQuery && a.matchRank !== b.matchRank) {
                 return a.matchRank - b.matchRank;
@@ -104,7 +115,7 @@ const Transactions = () => {
             }
             return a.index - b.index;
         }).map(({ transaction }) => transaction);
-    }, [statusFilter, staffScope]);
+    }, [statusFilter, staffScope, userFilter]);
 
     const {
         searchQuery,
@@ -128,6 +139,22 @@ const Transactions = () => {
         totalPages: 1
     });
 
+    useEffect(() => {
+        const fetchUsers = async () => {
+            try {
+                const res = await api.get('/users');
+                if (Array.isArray(res.data)) {
+                    setUsersList(res.data);
+                }
+            } catch (err) {
+                // Ignore if unauthorized or failed
+            }
+        };
+        if (!isStaff) {
+            fetchUsers();
+        }
+    }, [isStaff]);
+
     const fetchTransactions = async (page = 1) => {
         try {
             const res = await api.get('/sales', {
@@ -135,7 +162,8 @@ const Transactions = () => {
                     page,
                     limit: 20,
                     status: statusFilter !== 'ALL' ? statusFilter : undefined,
-                    selfOnly: (isStaff && staffScope === 'mine') ? 'true' : undefined
+                    selfOnly: (isStaff && staffScope === 'mine') ? 'true' : undefined,
+                    user: userFilter !== 'ALL' ? userFilter : undefined
                 }
             });
             const rawData = res.data;
@@ -159,7 +187,8 @@ const Transactions = () => {
                     page,
                     limit: 20,
                     search: searchQuery || undefined,
-                    date: filterDate || undefined
+                    date: filterDate || undefined,
+                    user: userFilter !== 'ALL' ? userFilter : undefined
                 }
             });
             const rawData = res.data;
@@ -204,13 +233,13 @@ const Transactions = () => {
     useEffect(() => {
         fetchTransactions();
         fetchReturnsHistory();
-    }, [statusFilter, staffScope]);
+    }, [statusFilter, staffScope, userFilter]);
 
     useEffect(() => {
         if (activeTab === 'returns') {
             fetchReturnsHistory(1);
         }
-    }, [activeTab, searchQuery, filterDate]);
+    }, [activeTab, searchQuery, filterDate, userFilter]);
 
     const handleViewReceipt = async (saleId) => {
         setLoadingReceipt(true);
@@ -523,23 +552,48 @@ const Transactions = () => {
                 </div>
 
 
-                {activeTab === 'sales' && (
-                    <div style={{ flex: '0 0 auto' }}>
-                        {isStaff && (
+                <div style={{ flex: '0 0 auto', display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    {isStaff ? (
+                        activeTab === 'sales' && (
+                            <select
+                                className="input-premium"
+                                style={{ width: '160px' }}
+                                value={staffScope}
+                                onChange={(e) => setStaffScope(e.target.value)}
+                            >
+                                <option value="all">All Store Sales</option>
+                                <option value="mine">My Sales Only</option>
+                            </select>
+                        )
+                    ) : (
                         <select
                             className="input-premium"
-                            style={{ width: '160px', marginRight: '10px' }}
-                            value={staffScope}
-                            onChange={(e) => setStaffScope(e.target.value)}
+                            style={{ width: '175px' }}
+                            value={userFilter}
+                            onChange={(e) => setUserFilter(e.target.value)}
+                            title="Filter by user / cashier"
                         >
-                            <option value="all">All Store Sales</option>
-                            <option value="mine">My Sales Only</option>
+                            <option value="ALL">All Users / Cashiers</option>
+                            {usersList.length > 0 ? (
+                                usersList.map((u) => (
+                                    <option key={u.id} value={u.username}>
+                                        {u.username} ({u.role})
+                                    </option>
+                                ))
+                            ) : (
+                                <>
+                                    <option value="admin">admin (Admin)</option>
+                                    <option value="staff">staff (Staff)</option>
+                                </>
+                            )}
                         </select>
                     )}
-                    <select
-                        className="input-premium"
-                        style={{ width: '170px' }}
-                        value={statusFilter}
+
+                    {activeTab === 'sales' && (
+                        <select
+                            className="input-premium"
+                            style={{ width: '170px' }}
+                            value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
                         >
                             <option value="ALL">All Statuses</option>
@@ -547,8 +601,8 @@ const Transactions = () => {
                             <option value="REFUNDED">Refunded / Returned</option>
                             <option value="VOIDED">Voided Only</option>
                         </select>
-                    </div>
-                )}
+                    )}
+                </div>
 
 
                 {activeTab === 'sales' && (
@@ -1036,6 +1090,7 @@ const Transactions = () => {
                 user={user}
                 transactions={filteredTransactions}
                 currentFilterDate={filterDate}
+                currentCashier={userFilter !== 'ALL' ? userFilter : ''}
                 searchQuery={searchQuery}
             />
 
