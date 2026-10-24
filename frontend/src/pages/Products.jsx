@@ -202,13 +202,13 @@ const Products = () => {
                             <input type="text" name="name" placeholder="Product Name" className="input-premium" required
                                 value={formData.name} onChange={handleChange} />
 
-                            <input type="text" name="brand" placeholder="Brand" className="input-premium" required
+                            <input type="text" name="brand" placeholder="Brand" className="input-premium"
                                 value={formData.brand} onChange={handleChange} />
 
                             <input type="text" name="category" placeholder="Category (e.g. Engine, Tires)" className="input-premium" required
                                 value={formData.category} onChange={handleChange} />
 
-                            <input type="text" name="size" placeholder="Size" className="input-premium" required
+                            <input type="text" name="size" placeholder="Size" className="input-premium"
                                 value={formData.size} onChange={handleChange} />
 
                             <input type="text" name="measurement" placeholder="Measurement" className="input-premium"

@@ -113,7 +113,6 @@ exports.createItem = async (req, res, next) => {
 
     if (!resolvedSku) throw new AppValidationError('SKU / Part Number is required');
     if (!resolvedName) throw new AppValidationError('Item name is required');
-    if (!resolvedBrand) throw new AppValidationError('Brand is required');
     if (!resolvedCategory) throw new AppValidationError('Category is required');
 
     if (cost_price !== undefined && cost_price !== null && cost_price !== '') {
@@ -271,12 +270,9 @@ exports.updateItem = async (req, res, next) => {
             if (!targetSku) {
                 throw new AppValidationError('SKU / Part Number cannot be empty');
             }
-            if (!targetBrand) {
-                throw new AppValidationError('Brand cannot be empty');
-            }
             const [duplicate] = await connection.query(
                 'SELECT id FROM products WHERE (sku = ? OR part_number = ?) AND brand = ? AND id != ? AND is_active = true LIMIT 1',
-                [targetSku, targetSku, targetBrand, itemId]
+                [targetSku, targetSku, targetBrand || '', itemId]
             );
             if (duplicate.length > 0) {
                 throw new AppValidationError(`An item with SKU "${targetSku}" and brand "${targetBrand}" already exists`);

@@ -239,10 +239,8 @@ exports.createProduct = async (req, res) => {
     try {
         const resolvedPartNumber = String(part_number || sku || '').trim();
         if (isMissing(resolvedPartNumber)) throw new Error('Part number is required');
-        if (isMissing(brand)) throw new Error('Brand is required');
         if (isMissing(name)) throw new Error('Product name is required');
         if (isMissing(category)) throw new Error('Category is required');
-        if (isMissing(size)) throw new Error('Size is required');
         if (isMissing(cost_price)) throw new Error('Cost price is required');
 
         const rawPrice = selling_price !== undefined && selling_price !== null && selling_price !== ''
@@ -271,7 +269,7 @@ exports.createProduct = async (req, res) => {
         }
 
         const trimmedPartNumber = resolvedPartNumber;
-        const trimmedBrand = String(brand).trim();
+        const trimmedBrand = String(brand || '').trim();
 
         const unitIds = normalizeMotorcycleUnitIds(motorcycle_unit_ids);
         const groupIds = normalizeCompatibilityGroupIds(req.body.compatibility_group_ids);
@@ -318,9 +316,9 @@ exports.createProduct = async (req, res) => {
                 String(part_number).trim(),
                 String(part_number).trim(),
                 String(name).trim(),
-                String(brand).trim(),
+                trimmedBrand,
                 String(category).trim(),
-                String(size).trim(),
+                String(size || '').trim(),
                 isMissing(measurement) ? null : String(measurement).trim(),
                 isMissing(thread_type) ? null : String(thread_type).trim(),
                 parsedCost,
@@ -433,10 +431,8 @@ exports.updateProduct = async (req, res) => {
     try {
         const resolvedPartNumber = String(part_number || sku || '').trim();
         if (isMissing(resolvedPartNumber)) throw new Error('Part number is required');
-        if (isMissing(brand)) throw new Error('Brand is required');
         if (isMissing(name)) throw new Error('Product name is required');
         if (isMissing(category)) throw new Error('Category is required');
-        if (isMissing(size)) throw new Error('Size is required');
         if (isMissing(cost_price)) throw new Error('Cost price is required');
 
         const rawPrice = selling_price !== undefined && selling_price !== null && selling_price !== ''
@@ -464,7 +460,7 @@ exports.updateProduct = async (req, res) => {
         }
 
         const trimmedPartNumber = resolvedPartNumber;
-        const trimmedBrand = String(brand).trim();
+        const trimmedBrand = String(brand || '').trim();
 
         const unitIds = normalizeMotorcycleUnitIds(motorcycle_unit_ids);
         const groupIds = normalizeCompatibilityGroupIds(req.body.compatibility_group_ids);
@@ -515,9 +511,9 @@ exports.updateProduct = async (req, res) => {
                 String(part_number).trim(),
                 String(part_number).trim(),
                 String(name).trim(),
-                String(brand).trim(),
+                trimmedBrand,
                 String(category).trim(),
-                String(size).trim(),
+                String(size || '').trim(),
                 isMissing(measurement) ? null : String(measurement).trim(),
                 isMissing(thread_type) ? null : String(thread_type).trim(),
                 parsedCost,
