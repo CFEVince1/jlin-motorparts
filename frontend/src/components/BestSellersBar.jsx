@@ -1,6 +1,7 @@
 // frontend/src/components/BestSellersBar.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { TrendingUp } from 'lucide-react';
 import api from '../services/api';
 
 export default function BestSellersBar({ onAddToCart }) {
@@ -23,7 +24,6 @@ export default function BestSellersBar({ onAddToCart }) {
         const res = await api.get(`/sales/best-sellers${query}`);
         data = res.data;
       } catch (axiosErr) {
-        // Fallback to fetch if direct API proxy / URL is used
         const token = localStorage.getItem('token');
         const fetchUrl = `/api/sales/best-sellers${query}`;
         const res = await fetch(fetchUrl, {
@@ -46,6 +46,35 @@ export default function BestSellersBar({ onAddToCart }) {
     }
   };
 
+  const getRankBadgeStyle = (index) => {
+    if (index === 0) {
+      return {
+        background: '#d97706',
+        color: '#ffffff',
+        border: 'none'
+      };
+    }
+    if (index === 1) {
+      return {
+        background: '#0284c7',
+        color: '#ffffff',
+        border: 'none'
+      };
+    }
+    if (index === 2) {
+      return {
+        background: '#16a34a',
+        color: '#ffffff',
+        border: 'none'
+      };
+    }
+    return {
+      background: 'var(--surface)',
+      color: 'var(--text-muted)',
+      border: '1px solid var(--border)'
+    };
+  };
+
   return (
     <div
       className="glass-panel best-sellers-widget"
@@ -54,68 +83,55 @@ export default function BestSellersBar({ onAddToCart }) {
         borderRadius: '12px',
         border: '1px solid var(--border)',
         background: 'var(--surface)',
-        padding: '12px 14px',
+        padding: '14px 16px',
         boxShadow: 'var(--glass-shadow)'
       }}
     >
+      {/* Widget Header */}
       <div
-        className="flex items-center justify-between mb-2"
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          marginBottom: '10px',
+          marginBottom: '12px',
           flexWrap: 'wrap',
           gap: '8px'
         }}
       >
-        <div
-          className="flex items-center gap-2"
-          style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}
-        >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <TrendingUp size={18} style={{ color: 'var(--primary)' }} />
           <h3
-            className="text-xs font-bold uppercase tracking-wider text-amber-400"
             style={{
-              fontSize: '0.78rem',
+              fontSize: '0.92rem',
               fontWeight: '700',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              color: '#f59e0b',
+              color: 'var(--text-main)',
               margin: 0
             }}
           >
-            Staff Quick Guide: Top Selling Items
+            Top Selling Items
           </h3>
           <span
-            className="text-[10px] text-zinc-500"
-            style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}
+            style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}
           >
-            (Quick answer for inquiring customers)
+            (Quick reference for customer inquiries)
           </span>
         </div>
 
-        {/* Timeframe Toggle */}
-        <div
-          className="flex items-center gap-1 text-[10px]"
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem' }}
-        >
+        {/* Timeframe Toggle Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <button
             type="button"
             onClick={() => setTimeframe('30')}
-            className={`px-2 py-0.5 rounded transition ${
-              timeframe === '30'
-                ? 'bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/40'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
             style={{
-              padding: '4px 8px',
+              padding: '4px 10px',
               borderRadius: '6px',
-              border: timeframe === '30' ? '1px solid rgba(245, 158, 11, 0.5)' : '1px solid var(--border)',
-              background: timeframe === '30' ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
-              color: timeframe === '30' ? '#fbbf24' : 'var(--text-muted)',
+              border: timeframe === '30' ? '1px solid var(--primary)' : '1px solid var(--border)',
+              background: timeframe === '30' ? 'var(--primary)' : 'transparent',
+              color: timeframe === '30' ? '#ffffff' : 'var(--text-muted)',
               fontWeight: timeframe === '30' ? '600' : 'normal',
               cursor: 'pointer',
-              fontSize: '0.75rem'
+              fontSize: '0.75rem',
+              transition: 'all 0.15s ease'
             }}
           >
             Last 30 Days
@@ -123,20 +139,16 @@ export default function BestSellersBar({ onAddToCart }) {
           <button
             type="button"
             onClick={() => setTimeframe('')}
-            className={`px-2 py-0.5 rounded transition ${
-              timeframe === ''
-                ? 'bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/40'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
             style={{
-              padding: '4px 8px',
+              padding: '4px 10px',
               borderRadius: '6px',
-              border: timeframe === '' ? '1px solid rgba(245, 158, 11, 0.5)' : '1px solid var(--border)',
-              background: timeframe === '' ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
-              color: timeframe === '' ? '#fbbf24' : 'var(--text-muted)',
+              border: timeframe === '' ? '1px solid var(--primary)' : '1px solid var(--border)',
+              background: timeframe === '' ? 'var(--primary)' : 'transparent',
+              color: timeframe === '' ? '#ffffff' : 'var(--text-muted)',
               fontWeight: timeframe === '' ? '600' : 'normal',
               cursor: 'pointer',
-              fontSize: '0.75rem'
+              fontSize: '0.75rem',
+              transition: 'all 0.15s ease'
             }}
           >
             All-Time
@@ -144,87 +156,83 @@ export default function BestSellersBar({ onAddToCart }) {
         </div>
       </div>
 
-      <style>{`
-        .best-sellers-cards-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 12px;
-        }
-        @media (min-width: 900px) {
-          .best-sellers-cards-grid {
-            grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-          }
-        }
-      `}</style>
-
+      {/* Cards Display */}
       {loading ? (
-        <div
-          className="text-[11px] text-zinc-500 py-1"
-          style={{ fontSize: '0.8rem', color: 'var(--text-muted)', padding: '6px 0' }}
-        >
-          Loading recommendations...
+        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', padding: '12px 0', textAlign: 'center' }}>
+          Loading top selling items...
         </div>
       ) : bestSellers.length === 0 ? (
-        <div
-          className="text-[11px] text-zinc-500 py-1"
-          style={{ fontSize: '0.8rem', color: 'var(--text-muted)', padding: '6px 0' }}
-        >
+        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', padding: '12px 0', textAlign: 'center' }}>
           No sales recorded yet.
         </div>
       ) : (
         <div
           className="best-sellers-cards-grid"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: '12px'
+          }}
         >
           {bestSellers.map((item, index) => {
             const stockCount = Number(item.current_stock ?? item.stock ?? 0);
             const isOutOfStock = stockCount <= 0;
             const price = Number(item.retail_price ?? item.price ?? 0);
+            const rankStyle = getRankBadgeStyle(index);
 
             return (
               <div
                 key={item.product_id || item.id || index}
                 onClick={() => !isOutOfStock && (onAddToCart ? onAddToCart(item) : navigate('/pos'))}
+                title={isOutOfStock ? `${item.name} is currently out of stock` : `Click to open POS for ${item.name}`}
                 style={{
                   position: 'relative',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  borderRadius: '8px',
-                  border: isOutOfStock ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid var(--border)',
-                  background: isOutOfStock ? 'rgba(239, 68, 68, 0.08)' : 'var(--surface-hover)',
-                  padding: '10px 12px',
-                  opacity: isOutOfStock ? 0.8 : 1,
+                  borderRadius: '10px',
+                  border: isOutOfStock ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid var(--border)',
+                  background: isOutOfStock ? 'rgba(239, 68, 68, 0.06)' : 'var(--surface-hover)',
+                  padding: '12px 14px',
                   cursor: isOutOfStock ? 'not-allowed' : 'pointer',
                   userSelect: 'none',
                   transition: 'all 0.15s ease'
                 }}
               >
-                {/* Rank Badge */}
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: '-8px',
-                    left: '-4px',
-                    padding: '2px 7px',
-                    borderRadius: '10px',
-                    background: '#f59e0b',
-                    color: '#000000',
-                    fontSize: '10px',
-                    fontWeight: '900',
-                    letterSpacing: '0.04em',
-                    boxShadow: '0 2px 6px rgba(0, 0, 0, 0.4)',
-                    zIndex: 2,
-                    lineHeight: '1.2'
-                  }}
-                >
-                  TOP {index + 1}
-                </span>
+                {/* Clean Rank Badge */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      fontSize: '0.68rem',
+                      fontWeight: '700',
+                      letterSpacing: '0.04em',
+                      lineHeight: '1.2',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      ...rankStyle
+                    }}
+                  >
+                    TOP {index + 1}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: 'monospace',
+                      fontWeight: '700',
+                      fontSize: '0.85rem',
+                      color: 'var(--primary)'
+                    }}
+                  >
+                    ₱{price.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
 
                 <div>
                   <div
                     title={item.name}
                     style={{
-                      fontSize: '0.82rem',
+                      fontSize: '0.85rem',
                       fontWeight: '600',
                       color: 'var(--text-main)',
                       whiteSpace: 'nowrap',
@@ -236,52 +244,34 @@ export default function BestSellersBar({ onAddToCart }) {
                   </div>
                   <div
                     style={{
-                      fontSize: '0.72rem',
+                      fontSize: '0.74rem',
                       color: 'var(--text-muted)',
-                      display: 'flex',
-                      justifyContent: 'space-between',
                       marginTop: '2px'
                     }}
                   >
-                    <span>{item.brand || 'Generic'}</span>
-                    <span
-                      style={{
-                        fontFamily: 'monospace',
-                        fontWeight: '600',
-                        color: 'var(--primary)'
-                      }}
-                    >
-                      ₱{price.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
+                    {item.brand || 'Generic'}
                   </div>
                 </div>
 
                 <div
                   style={{
-                    marginTop: '8px',
+                    marginTop: '10px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     borderTop: '1px solid var(--border)',
                     paddingTop: '6px',
-                    fontSize: '0.72rem'
+                    fontSize: '0.74rem'
                   }}
                 >
                   {/* Stock Availability */}
                   <span
-                    className={`font-semibold ${
-                      isOutOfStock
-                        ? 'text-red-400'
-                        : stockCount <= 3
-                        ? 'text-amber-400'
-                        : 'text-emerald-400'
-                    }`}
                     style={{
                       fontWeight: '600',
                       color: isOutOfStock
                         ? 'var(--danger)'
                         : stockCount <= 3
-                        ? '#fbbf24'
+                        ? '#d97706'
                         : 'var(--success)'
                     }}
                   >
@@ -289,11 +279,8 @@ export default function BestSellersBar({ onAddToCart }) {
                   </span>
 
                   {/* Volume Sold */}
-                  <span
-                    className="text-zinc-500"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    {item.units_sold || 0} sold
+                  <span style={{ color: 'var(--text-muted)' }}>
+                    <strong style={{ color: 'var(--text-main)' }}>{item.units_sold || 0}</strong> sold
                   </span>
                 </div>
               </div>

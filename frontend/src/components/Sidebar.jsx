@@ -23,7 +23,7 @@ import {
 const Sidebar = () => {
     const { user, logout } = useContext(AuthContext);
     const navigate = useNavigate();
-    const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+    const [theme, setTheme] = useState(() => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('theme')) || localStorage.getItem('theme') || 'dark');
 
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
