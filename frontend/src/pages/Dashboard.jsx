@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useContext } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
-import { TrendingUp, AlertTriangle, DollarSign, ShoppingCart, Award, Users, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { TrendingUp, AlertTriangle, DollarSign, ShoppingCart, Award, Users, RefreshCw, ChevronLeft, ChevronRight, History } from 'lucide-react';
 import { AuthContext } from '../context/AuthContextValue';
 import { formatCurrency } from '../utils/formatters';
 import BestSellersBar from '../components/BestSellersBar';
@@ -8,6 +9,9 @@ import { subscribeToInventoryChange } from '../utils/syncEvents';
 
 const Dashboard = () => {
     const { user } = useContext(AuthContext);
+    const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const [staffPeriod, setStaffPeriod] = useState(() => searchParams.get('period') === 'all' ? 'all' : 'today');
     const [stats, setStats] = useState({
         dailySales: { total_revenue: 0, total_transactions: 0 },
         lowStock: [],
@@ -221,14 +225,54 @@ const Dashboard = () => {
             {/* Admin View: Staff Today's Sales & Transactions Live Breakdown */}
             {user?.role === 'admin' && (
                 <div className="glass-panel" style={{ padding: '20px 24px', marginBottom: '24px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
                         <div>
                             <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.05rem' }}>
-                                <Users size={20} style={{ color: 'var(--primary)' }} /> Staff Today's Sales & Transactions
+                                <Users size={20} style={{ color: 'var(--primary)' }} /> Staff Sales & Transactions
                             </h3>
                             <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '4px' }}>
-                                Live real-time breakdown of all staff shift totals and cashier transactions for today.
+                                {staffPeriod === 'today'
+                                    ? "Live breakdown of cashier shift totals and transactions for today."
+                                    : "All-time breakdown of all store transactions and revenue by staff."}
                             </div>
+                        </div>
+
+                        {/* Toggle button to see how many transactions (Today vs All-Time) */}
+                        <div style={{ display: 'flex', gap: '6px', background: 'rgba(0,0,0,0.15)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                            <button
+                                type="button"
+                                onClick={() => setStaffPeriod('today')}
+                                style={{
+                                    padding: '5px 14px',
+                                    borderRadius: '6px',
+                                    border: 'none',
+                                    background: staffPeriod === 'today' ? 'var(--primary)' : 'transparent',
+                                    color: staffPeriod === 'today' ? '#ffffff' : 'var(--text-muted)',
+                                    fontWeight: staffPeriod === 'today' ? 700 : 500,
+                                    fontSize: '0.8rem',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
+                                }}
+                            >
+                                Today
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setStaffPeriod('all')}
+                                style={{
+                                    padding: '5px 14px',
+                                    borderRadius: '6px',
+                                    border: 'none',
+                                    background: staffPeriod === 'all' ? 'var(--primary)' : 'transparent',
+                                    color: staffPeriod === 'all' ? '#ffffff' : 'var(--text-muted)',
+                                    fontWeight: staffPeriod === 'all' ? 700 : 500,
+                                    fontSize: '0.8rem',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
+                                }}
+                            >
+                                All Time
+                            </button>
                         </div>
                     </div>
 
@@ -239,37 +283,95 @@ const Dashboard = () => {
                                     <tr>
                                         <th>Staff / Cashier</th>
                                         <th>Role</th>
-                                        <th style={{ textAlign: 'center' }}>Today Transactions</th>
-                                        <th style={{ textAlign: 'right' }}>Today Sales</th>
+                                        <th style={{ textAlign: 'center' }}>
+                                            {staffPeriod === 'today' ? "Today's Transactions" : 'Total Transactions'}
+                                        </th>
+                                        <th style={{ textAlign: 'right' }}>
+                                            {staffPeriod === 'today' ? "Today's Sales" : 'Total Sales'}
+                                        </th>
+                                        <th style={{ textAlign: 'center', width: '160px' }}>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {stats.staffToday.map((st) => (
-                                        <tr key={st.id}>
-                                            <td style={{ fontWeight: 600 }}>{st.username}</td>
-                                            <td>
-                                                <span className={`badge-pill ${st.role === 'admin' ? 'badge-admin' : 'badge-staff'}`} style={{ textTransform: 'capitalize' }}>
-                                                    {st.role}
-                                                </span>
-                                            </td>
-                                            <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
-                                                {st.today_transactions} {st.today_transactions === 1 ? 'sale' : 'sales'}
-                                            </td>
-                                            <td style={{ textAlign: 'right', color: 'var(--primary)', fontWeight: 'bold' }}>
-                                                {formatCurrency(st.today_sales)}
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {stats.staffToday.map((st) => {
+                                        const txCount = staffPeriod === 'today'
+                                            ? Number(st.today_transactions || 0)
+                                            : Number(st.all_time_transactions || 0);
+                                        const salesAmount = staffPeriod === 'today'
+                                            ? Number(st.today_sales || 0)
+                                            : Number(st.all_time_sales || 0);
+
+                                        return (
+                                            <tr key={st.id}>
+                                                <td style={{ fontWeight: 600 }}>{st.username}</td>
+                                                <td>
+                                                    <span className={`badge-pill ${st.role === 'admin' ? 'badge-admin' : 'badge-staff'}`} style={{ textTransform: 'capitalize' }}>
+                                                        {st.role}
+                                                    </span>
+                                                </td>
+                                                <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                                                    {txCount} {txCount === 1 ? 'sale' : 'sales'}
+                                                </td>
+                                                <td style={{ textAlign: 'right', color: 'var(--primary)', fontWeight: 'bold' }}>
+                                                    {formatCurrency(salesAmount)}
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <button
+                                                        type="button"
+                                                        className="btn-secondary"
+                                                        onClick={() => navigate(`/transactions?search=${encodeURIComponent(st.username)}`)}
+                                                        style={{
+                                                            padding: '4px 10px',
+                                                            fontSize: '0.75rem',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '5px'
+                                                        }}
+                                                        title={`View all transactions for ${st.username}`}
+                                                    >
+                                                        <History size={13} /> View ({st.all_time_transactions || 0})
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                                 {stats.staffToday.length > 1 && (
                                     <tfoot>
                                         <tr style={{ fontWeight: 'bold', borderTop: '2px solid var(--border)', background: 'rgba(0,0,0,0.02)' }}>
                                             <td colSpan={2}>All Staff Combined</td>
                                             <td style={{ textAlign: 'center' }}>
-                                                {stats.staffToday.reduce((sum, st) => sum + (Number(st.today_transactions) || 0), 0)} sales
+                                                {stats.staffToday.reduce((sum, st) => {
+                                                    const count = staffPeriod === 'today'
+                                                        ? Number(st.today_transactions || 0)
+                                                        : Number(st.all_time_transactions || 0);
+                                                    return sum + count;
+                                                }, 0)} sales
                                             </td>
                                             <td style={{ textAlign: 'right', color: 'var(--primary)' }}>
-                                                {formatCurrency(stats.staffToday.reduce((sum, st) => sum + (Number(st.today_sales) || 0), 0))}
+                                                {formatCurrency(stats.staffToday.reduce((sum, st) => {
+                                                    const amount = staffPeriod === 'today'
+                                                        ? Number(st.today_sales || 0)
+                                                        : Number(st.all_time_sales || 0);
+                                                    return sum + amount;
+                                                }, 0))}
+                                            </td>
+                                            <td style={{ textAlign: 'center' }}>
+                                                <button
+                                                    type="button"
+                                                    className="btn-secondary"
+                                                    onClick={() => navigate('/transactions')}
+                                                    style={{
+                                                        padding: '4px 10px',
+                                                        fontSize: '0.75rem',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: '5px'
+                                                    }}
+                                                    title="View all store transactions"
+                                                >
+                                                    <History size={13} /> View All
+                                                </button>
                                             </td>
                                         </tr>
                                     </tfoot>
@@ -277,7 +379,7 @@ const Dashboard = () => {
                             </table>
                         </div>
                     ) : (
-                        <p style={{ color: 'var(--text-muted)', margin: '12px 0 0 0' }}>No staff sales recorded today yet.</p>
+                        <p style={{ color: 'var(--text-muted)', margin: '12px 0 0 0' }}>No staff sales recorded yet.</p>
                     )}
                 </div>
             )}
