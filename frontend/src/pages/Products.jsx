@@ -49,6 +49,11 @@ const Products = () => {
     const topSellingPrice = Math.round(topCostNum * (1 + topMarkupNum / 100) * 100) / 100;
 
     const [editingId, setEditingId] = useState(null);
+    const [isAddFormOpen, setIsAddFormOpen] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        const p = new URLSearchParams(window.location.search);
+        return p.get('add') === 'true' || p.get('type') === 'serialized';
+    });
     const [editingProductModal, setEditingProductModal] = useState(null);
     const [ledgerTarget, setLedgerTarget] = useState(null);
     const [selectedSerialsModalProduct, setSelectedSerialsModalProduct] = useState(null);
@@ -141,6 +146,7 @@ const Products = () => {
 
             resetForm();
             setEditingId(null);
+            setIsAddFormOpen(false);
             fetchProducts();
         } catch (err) {
             toast.error(err.response?.data?.message || err.response?.data?.error || 'Action failed');
@@ -186,6 +192,7 @@ const Products = () => {
             compatibility_group_ids: (product.compatibility_group_ids || []).map(Number)
         });
         setEditingId(product.id);
+        setIsAddFormOpen(true);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
@@ -196,120 +203,299 @@ const Products = () => {
 
     return (
         <div>
-            <h1 style={{ marginBottom: '24px' }}>Products Directory</h1>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                <div>
+                    <h1 style={{ margin: 0, fontSize: '1.5rem' }}>Products Directory</h1>
+                    <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                        Manage catalog items, pricing, specifications, and serial settings.
+                    </p>
+                </div>
+                {isAdmin && (
+                    <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={() => {
+                            if (isAddFormOpen && editingId) {
+                                setEditingId(null);
+                                resetForm();
+                            }
+                            setIsAddFormOpen(prev => !prev);
+                        }}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '7px',
+                            padding: '8px 16px',
+                            fontSize: '0.82rem',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                        }}
+                    >
+                        {isAddFormOpen ? <ChevronUp size={15} /> : <Plus size={15} />}
+                        {isAddFormOpen ? 'Hide Form' : 'Add New Product'}
+                    </button>
+                )}
+            </div>
 
-            {isAdmin && (
-                <div className="glass-panel" style={{ padding: '24px', marginBottom: '24px' }}>
-                    <h3 style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <PackagePlus size={20} /> {editingId ? 'Edit Product' : 'Add New Product'}
-                    </h3>
+            {isAdmin && isAddFormOpen && (
+                <div className="glass-panel" style={{ padding: '16px 20px', marginBottom: '20px', borderRadius: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.95rem', fontWeight: 700 }}>
+                            <PackagePlus size={18} style={{ color: 'var(--primary)' }} /> {editingId ? 'Edit Product' : 'Add New Product'}
+                        </h3>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setEditingId(null);
+                                resetForm();
+                                setIsAddFormOpen(false);
+                            }}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'var(--text-muted)',
+                                cursor: 'pointer',
+                                padding: '4px',
+                                display: 'flex',
+                                alignItems: 'center'
+                            }}
+                            title="Close form"
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
 
-                    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        <div className="responsive-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-                            <input type="text" name="part_number" placeholder="Part Number" className="input-premium" required
-                                value={formData.part_number} onChange={handleChange} />
-
-                            <input type="text" name="name" placeholder="Product Name" className="input-premium" required
-                                value={formData.name} onChange={handleChange} />
-
-                            <input type="text" name="brand" placeholder="Brand" className="input-premium"
-                                value={formData.brand} onChange={handleChange} />
-
-                            <input type="text" name="category" placeholder="Category (e.g. Engine, Tires)" className="input-premium" required
-                                value={formData.category} onChange={handleChange} />
-
-                            <input type="text" name="size" placeholder="Size" className="input-premium"
-                                value={formData.size} onChange={handleChange} />
-
-                            <input type="text" name="measurement" placeholder="Measurement" className="input-premium"
-                                value={formData.measurement} onChange={handleChange} />
-
-                            <input type="text" name="thread_type" placeholder="Thread Type" className="input-premium"
-                                value={formData.thread_type} onChange={handleChange} />
-
-                            <input type="number" name="cost_price" placeholder="Supplier Cost (₱)" className="input-premium" required min="0" step="0.01"
-                                value={formData.cost_price} onChange={handleChange} title="Supplier Cost (₱)" />
-
-                            <input type="number" name="markup_percentage" placeholder="Markup % (e.g. 30)" className="input-premium" required min="0" step="0.01"
-                                value={formData.markup_percentage} onChange={handleChange} title="Markup percentage on cost" />
-
-                            <input type="number" name="selling_price" placeholder="Selling Price (₱)" className="input-premium" readOnly disabled
+                    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '10px' }}>
+                            <input
+                                type="text"
+                                name="part_number"
+                                placeholder="Part Number *"
+                                className="input-premium"
+                                required
+                                value={formData.part_number}
+                                onChange={handleChange}
+                                style={{ padding: '7px 11px', fontSize: '0.82rem', height: '35px' }}
+                            />
+                            <input
+                                type="text"
+                                name="name"
+                                placeholder="Product Name *"
+                                className="input-premium"
+                                required
+                                value={formData.name}
+                                onChange={handleChange}
+                                style={{ padding: '7px 11px', fontSize: '0.82rem', height: '35px' }}
+                            />
+                            <input
+                                type="text"
+                                name="brand"
+                                placeholder="Brand"
+                                className="input-premium"
+                                value={formData.brand}
+                                onChange={handleChange}
+                                style={{ padding: '7px 11px', fontSize: '0.82rem', height: '35px' }}
+                            />
+                            <input
+                                type="text"
+                                name="category"
+                                placeholder="Category *"
+                                className="input-premium"
+                                required
+                                value={formData.category}
+                                onChange={handleChange}
+                                style={{ padding: '7px 11px', fontSize: '0.82rem', height: '35px' }}
+                            />
+                            <input
+                                type="text"
+                                name="size"
+                                placeholder="Size"
+                                className="input-premium"
+                                value={formData.size}
+                                onChange={handleChange}
+                                style={{ padding: '7px 11px', fontSize: '0.82rem', height: '35px' }}
+                            />
+                            <input
+                                type="text"
+                                name="measurement"
+                                placeholder="Measurement"
+                                className="input-premium"
+                                value={formData.measurement}
+                                onChange={handleChange}
+                                style={{ padding: '7px 11px', fontSize: '0.82rem', height: '35px' }}
+                            />
+                            <input
+                                type="text"
+                                name="thread_type"
+                                placeholder="Thread Type"
+                                className="input-premium"
+                                value={formData.thread_type}
+                                onChange={handleChange}
+                                style={{ padding: '7px 11px', fontSize: '0.82rem', height: '35px' }}
+                            />
+                            <input
+                                type="number"
+                                name="reorder_level"
+                                placeholder="Reorder Level *"
+                                className="input-premium"
+                                required
+                                min="0"
+                                value={formData.reorder_level}
+                                onChange={handleChange}
+                                style={{ padding: '7px 11px', fontSize: '0.82rem', height: '35px' }}
+                            />
+                            <input
+                                type="number"
+                                name="cost_price"
+                                placeholder="Supplier Cost (₱) *"
+                                className="input-premium"
+                                required
+                                min="0"
+                                step="0.01"
+                                value={formData.cost_price}
+                                onChange={handleChange}
+                                title="Supplier Cost (₱)"
+                                style={{ padding: '7px 11px', fontSize: '0.82rem', height: '35px' }}
+                            />
+                            <input
+                                type="number"
+                                name="markup_percentage"
+                                placeholder="Markup % (e.g. 30) *"
+                                className="input-premium"
+                                required
+                                min="0"
+                                step="0.01"
+                                value={formData.markup_percentage}
+                                onChange={handleChange}
+                                title="Markup percentage on cost"
+                                style={{ padding: '7px 11px', fontSize: '0.82rem', height: '35px' }}
+                            />
+                            <input
+                                type="number"
+                                name="selling_price"
+                                placeholder="Selling Price (₱)"
+                                className="input-premium"
+                                readOnly
+                                disabled
                                 value={topSellingPrice > 0 ? topSellingPrice.toFixed(2) : ''}
-                                style={{ fontWeight: 'bold', color: 'var(--primary)', background: 'var(--surface-hover)', cursor: 'not-allowed' }}
-                                title="Selling Price = Cost + (Cost × Markup %)" />
-
-                            <input type="number" name="reorder_level" placeholder="Reorder Level" className="input-premium" required min="0"
-                                value={formData.reorder_level} onChange={handleChange} />
+                                style={{
+                                    padding: '7px 11px',
+                                    fontSize: '0.82rem',
+                                    height: '35px',
+                                    fontWeight: 'bold',
+                                    color: 'var(--primary)',
+                                    background: 'var(--surface-hover)',
+                                    cursor: 'not-allowed'
+                                }}
+                                title="Selling Price = Cost + (Cost × Markup %)"
+                            />
                         </div>
 
-                        <div style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
-                            <div style={{ display: 'flex', gap: '16px', alignItems: 'center', padding: '8px 16px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', flexWrap: 'wrap' }}>
-                                <label style={{ color: 'var(--text-muted)' }}>Type:</label>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                                    <input type="radio" name="product_type" checked={!formData.is_serialized} onChange={() => setFormData({ ...formData, is_serialized: false, serial_numbers: '' })} style={{ accentColor: 'var(--primary)', width: '16px', height: '16px' }} disabled={editingId !== null} />
+                        {/* Compact Type Selector & Initial Stock Indicator */}
+                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', marginTop: '2px' }}>
+                            <div style={{
+                                display: 'inline-flex',
+                                gap: '12px',
+                                alignItems: 'center',
+                                padding: '4px 12px',
+                                background: 'rgba(255,255,255,0.04)',
+                                border: '1px solid var(--border)',
+                                borderRadius: '6px',
+                                fontSize: '0.8rem'
+                            }}>
+                                <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Type:</span>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: 500 }}>
+                                    <input
+                                        type="radio"
+                                        name="product_type"
+                                        checked={!formData.is_serialized}
+                                        onChange={() => setFormData({ ...formData, is_serialized: false, serial_numbers: '' })}
+                                        style={{ accentColor: 'var(--primary)', width: '14px', height: '14px' }}
+                                        disabled={editingId !== null}
+                                    />
                                     Non-Serialized
                                 </label>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                                    <input type="radio" name="product_type" checked={formData.is_serialized} onChange={() => setFormData({ ...formData, is_serialized: true })} style={{ accentColor: 'var(--primary)', width: '16px', height: '16px' }} disabled={editingId !== null} />
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: 500 }}>
+                                    <input
+                                        type="radio"
+                                        name="product_type"
+                                        checked={formData.is_serialized}
+                                        onChange={() => setFormData({ ...formData, is_serialized: true })}
+                                        style={{ accentColor: 'var(--primary)', width: '14px', height: '14px' }}
+                                        disabled={editingId !== null}
+                                    />
                                     Serialized
                                 </label>
                             </div>
+
                             {editingId ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                    <input
-                                        type="text"
-                                        readOnly
-                                        disabled
-                                        value={`Current Stock: ${formData.stock ?? 0} units (Managed via Stock Receive)`}
-                                        className="input-premium"
-                                        style={{ width: '320px', opacity: 0.85, cursor: 'not-allowed', background: 'var(--surface-hover)' }}
-                                    />
-                                </div>
+                                <input
+                                    type="text"
+                                    readOnly
+                                    disabled
+                                    value={`Current Stock: ${formData.stock ?? 0} units (Managed via Stock Receive)`}
+                                    className="input-premium"
+                                    style={{
+                                        width: '260px',
+                                        height: '32px',
+                                        padding: '4px 10px',
+                                        fontSize: '0.78rem',
+                                        opacity: 0.85,
+                                        cursor: 'not-allowed',
+                                        background: 'var(--surface-hover)'
+                                    }}
+                                />
                             ) : (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                                    <span style={{ padding: '6px 12px', background: 'var(--surface-hover)', borderRadius: '6px', border: '1px solid var(--border)' }}>
-                                        {formData.is_serialized ? (
-                                            formData.serial_numbers.trim() ? (
-                                                <>Initial Stock: <strong style={{ color: 'var(--primary)' }}>{formData.serial_numbers.split(/[\n,]+/).map(s => s.trim()).filter(Boolean).length} units</strong> (from entered serials)</>
-                                            ) : (
-                                                <>Initial Stock: <strong>0 units</strong> (Serials can be entered below or received via <em>Stock Receive</em>)</>
-                                            )
+                                <span style={{
+                                    padding: '4px 10px',
+                                    background: 'var(--surface-hover)',
+                                    borderRadius: '6px',
+                                    border: '1px solid var(--border)',
+                                    fontSize: '0.78rem',
+                                    color: 'var(--text-muted)'
+                                }}>
+                                    {formData.is_serialized ? (
+                                        formData.serial_numbers.trim() ? (
+                                            <>Initial Stock: <strong style={{ color: 'var(--primary)' }}>{formData.serial_numbers.split(/[\n,]+/).map(s => s.trim()).filter(Boolean).length} units</strong> (from serials)</>
                                         ) : (
-                                            <>Initial Stock: <strong>0 units</strong> (Stock must be received via <em>Stock Receive</em> with a supplier receipt)</>
-                                        )}
-                                    </span>
-                                </div>
+                                            <>Initial Stock: <strong>0 units</strong> (Serials can be entered below or received via <em>Stock Receive</em>)</>
+                                        )
+                                    ) : (
+                                        <>Initial Stock: <strong>0 units</strong> (Receive stock via <em>Stock Receive</em> with supplier receipt)</>
+                                    )}
+                                </span>
                             )}
                         </div>
 
+                        {/* Compact Serial Number Input for Serialized Items */}
                         {formData.is_serialized && !editingId && (
                             <div style={{
-                                padding: '14px 16px',
+                                padding: '10px 12px',
                                 background: 'var(--surface-hover)',
-                                borderRadius: '8px',
+                                borderRadius: '6px',
                                 border: '1px solid var(--border)',
                                 display: 'flex',
                                 flexDirection: 'column',
-                                gap: '8px'
+                                gap: '6px'
                             }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                                    <label style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '0.85rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                                    <label style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '0.8rem' }}>
                                         Serial Number(s)
                                     </label>
-                                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                                        Enter initial serial numbers (comma separated or one per line), or leave blank to receive stock later via Stock Receive.
+                                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                                        Comma separated or one per line. Leave blank to receive stock later via Stock Receive.
                                     </span>
                                 </div>
                                 <textarea
                                     name="serial_numbers"
                                     placeholder="e.g. SN-001, SN-002, SN-003"
                                     className="input-premium"
-                                    style={{ height: '70px', resize: 'vertical', fontFamily: 'monospace', fontSize: '0.85rem' }}
+                                    style={{ height: '52px', resize: 'vertical', fontFamily: 'monospace', fontSize: '0.8rem', padding: '6px 10px' }}
                                     value={formData.serial_numbers}
                                     onChange={handleChange}
                                 />
                                 {formData.serial_numbers.trim() && (
-                                    <div style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600 }}>
+                                    <div style={{ fontSize: '0.74rem', color: 'var(--primary)', fontWeight: 600 }}>
                                         ✓ Initial Stock: {
                                             formData.serial_numbers
                                                 .split(/[\n,]+/)
@@ -321,19 +507,27 @@ const Products = () => {
                             </div>
                         )}
 
-                        <div style={{ display: 'flex', gap: '12px' }}>
-                            <button type="submit" className="btn-primary">
-                                {editingId ? 'Save Changes' : 'Add to Catalog'}
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '2px' }}>
+                            <button
+                                type="submit"
+                                className="btn-primary"
+                                style={{ padding: '6px 16px', fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                            >
+                                <Plus size={14} /> {editingId ? 'Save Changes' : 'Add to Catalog'}
                             </button>
 
-                            {editingId && (
-                                <button type="button" className="btn-secondary" onClick={() => {
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => {
                                     setEditingId(null);
                                     resetForm();
-                                }}>
-                                    Cancel Edit
-                                </button>
-                            )}
+                                    setIsAddFormOpen(false);
+                                }}
+                                style={{ padding: '6px 14px', fontSize: '0.82rem' }}
+                            >
+                                Cancel
+                            </button>
                         </div>
                     </form>
                 </div>
