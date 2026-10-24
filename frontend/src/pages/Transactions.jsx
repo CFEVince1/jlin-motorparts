@@ -464,8 +464,20 @@ const Transactions = () => {
                         <option value="Yearly">Yearly Report</option>
                         <option value="All">All Time Report</option>
                     </select>
-                    <button onClick={() => setShowPrintModal(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Printer size={16} /> Print {timeframe === 'All' ? 'All' : timeframe} {isStaff ? 'Transaction Records' : 'Transactions'}
+                    <button
+                        onClick={() => setShowPrintModal(true)}
+                        className="btn-primary"
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
+                            height: '40px',
+                            padding: '0 16px'
+                        }}
+                    >
+                        <Printer size={16} /> Print {timeframe === 'All' ? 'All-Time' : timeframe} Report
                     </button>
                 </div>
             </div>
