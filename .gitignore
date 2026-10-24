@@ -39,3 +39,4 @@ screenshots/
 rollback_aiven_*.sql
 *backup*.sql
 *.dump.sql
+*backup*.json
