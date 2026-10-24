@@ -338,7 +338,7 @@ const Inventory = () => {
                                         <th>Thread Type</th>
                                         <th>Compatibility</th>
                                         <th style={{ textAlign: 'right' }}>Price</th>
-                                        <th>Stock Label</th>
+                                        <th>Stock</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -399,7 +399,7 @@ const Inventory = () => {
                                                 color: getStockStatus(p) === 'low_stock' || getStockStatus(p) === 'out_of_stock' ? 'var(--danger)' : 'var(--success)',
                                                 fontWeight: 'bold',
                                             }}>
-                                                {p.stock} in stock
+                                                {p.stock}
                                                 {getStockStatus(p) === 'low_stock' && <span className="badge-pill" style={{marginLeft: '8px', background: 'var(--danger)', color: 'white'}}>LOW</span>}
                                                 {getStockStatus(p) === 'out_of_stock' && <span className="badge-pill" style={{marginLeft: '8px', background: 'var(--danger)', color: 'white'}}>OUT</span>}
                                             </td>
