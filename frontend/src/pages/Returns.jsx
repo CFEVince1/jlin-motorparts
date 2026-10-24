@@ -477,9 +477,9 @@ export default function Returns() {
                     borderRadius: '6px',
                     fontSize: '0.75rem',
                     fontWeight: 700,
-                    background: 'rgba(249, 115, 22, 0.15)',
-                    color: '#ea580c',
-                    border: '1px solid rgba(249, 115, 22, 0.35)'
+                    background: 'rgba(249, 115, 22, 0.12)',
+                    color: '#c2410c',
+                    border: '1px solid rgba(249, 115, 22, 0.3)'
                 }}>
                     {text}
                 </span>
@@ -493,9 +493,9 @@ export default function Returns() {
                     borderRadius: '6px',
                     fontSize: '0.75rem',
                     fontWeight: 700,
-                    background: 'rgba(239, 68, 68, 0.15)',
-                    color: '#dc2626',
-                    border: '1px solid rgba(239, 68, 68, 0.35)'
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    color: '#b91c1c',
+                    border: '1px solid rgba(239, 68, 68, 0.3)'
                 }}>
                     {text}
                 </span>
@@ -509,9 +509,9 @@ export default function Returns() {
                     borderRadius: '6px',
                     fontSize: '0.75rem',
                     fontWeight: 700,
-                    background: 'rgba(234, 179, 8, 0.18)',
-                    color: '#ca8a04',
-                    border: '1px solid rgba(234, 179, 8, 0.4)'
+                    background: 'rgba(217, 119, 6, 0.12)',
+                    color: '#b45309',
+                    border: '1px solid rgba(217, 119, 6, 0.3)'
                 }}>
                     {text}
                 </span>
@@ -524,9 +524,9 @@ export default function Returns() {
                 borderRadius: '6px',
                 fontSize: '0.75rem',
                 fontWeight: 700,
-                background: 'rgba(22, 163, 74, 0.15)',
-                color: '#16a34a',
-                border: '1px solid rgba(22, 163, 74, 0.35)'
+                background: 'rgba(22, 163, 74, 0.12)',
+                color: '#15803d',
+                border: '1px solid rgba(22, 163, 74, 0.3)'
             }}>
                 {text}
             </span>
@@ -535,29 +535,29 @@ export default function Returns() {
 
     const renderFlowPathBadge = (flowPath) => {
         const text = String(flowPath || '');
-        let bg = 'var(--surface-hover, #f3f4f6)';
-        let color = 'var(--text-main, #111111)';
-        let border = 'var(--border, #e5e7eb)';
+        let bg = 'var(--surface-hover)';
+        let color = 'var(--text-main)';
+        let border = 'var(--border)';
 
         if (text.includes('Damage → Return to Supplier')) {
             bg = 'rgba(234, 88, 12, 0.12)';
-            color = '#ea580c';
+            color = '#c2410c';
             border = 'rgba(234, 88, 12, 0.3)';
         } else if (text.includes('Damage')) {
             bg = 'rgba(220, 38, 38, 0.1)';
-            color = '#dc2626';
+            color = '#b91c1c';
             border = 'rgba(220, 38, 38, 0.25)';
         } else if (text.includes('Good') || text.includes('Found')) {
             bg = 'rgba(22, 163, 74, 0.1)';
-            color = '#16a34a';
+            color = '#15803d';
             border = 'rgba(22, 163, 74, 0.25)';
         } else if (text.includes('Loss')) {
             bg = 'rgba(147, 51, 234, 0.1)';
-            color = '#9333ea';
+            color = '#7e22ce';
             border = 'rgba(147, 51, 234, 0.25)';
         } else if (text.includes('Return to Supplier')) {
             bg = 'rgba(217, 119, 6, 0.1)';
-            color = '#d97706';
+            color = '#b45309';
             border = 'rgba(217, 119, 6, 0.25)';
         }
 
@@ -567,7 +567,7 @@ export default function Returns() {
                 alignItems: 'center',
                 gap: '4px',
                 padding: '3px 8px',
-                borderRadius: '4px',
+                borderRadius: '6px',
                 fontSize: '0.74rem',
                 fontWeight: 600,
                 background: bg,
@@ -683,39 +683,100 @@ export default function Returns() {
             <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-                gap: '12px',
+                gap: '14px',
                 marginBottom: '20px'
             }}>
+                {/* Card 1: Customer Good Condition */}
                 <div style={{
                     background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px',
-                    padding: '12px 14px',
-                    borderLeft: '4px solid #16a34a'
+                    border: '1px solid rgba(22, 163, 74, 0.25)',
+                    borderLeft: '4px solid #16a34a',
+                    borderRadius: '10px',
+                    padding: '14px 16px',
+                    boxShadow: 'var(--glass-shadow)',
+                    transition: 'all 0.15s ease'
                 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#16a34a', fontSize: '0.85rem' }}>
-                        <ArrowUpRight size={16} /> Customer: Good Condition (+ Restock)
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{
+                                width: '26px',
+                                height: '26px',
+                                borderRadius: '6px',
+                                background: 'rgba(22, 163, 74, 0.12)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#16a34a'
+                            }}>
+                                <CheckCircle size={15} />
+                            </div>
+                            <span style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.86rem' }}>
+                                Good Condition Return
+                            </span>
+                        </div>
+                        <span style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: '10px',
+                            background: 'rgba(22, 163, 74, 0.12)',
+                            color: '#16a34a',
+                            border: '1px solid rgba(22, 163, 74, 0.25)'
+                        }}>
+                            +1 Restock
+                        </span>
                     </div>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.45 }}>
                         Customer returns sellable item in good condition. Restocked back to shelf stock (+1 Inventory).
                     </div>
                 </div>
 
+                {/* Card 2: Defective / Damaged */}
                 <div style={{
                     background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px',
-                    padding: '12px 14px',
-                    borderLeft: '4px solid #dc2626'
+                    border: '1px solid rgba(220, 38, 38, 0.25)',
+                    borderLeft: '4px solid #dc2626',
+                    borderRadius: '10px',
+                    padding: '14px 16px',
+                    boxShadow: 'var(--glass-shadow)',
+                    transition: 'all 0.15s ease'
                 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#dc2626', fontSize: '0.85rem' }}>
-                        <ArrowDownRight size={16} /> Customer: Defective / Damaged (+ Damage Pool)
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{
+                                width: '26px',
+                                height: '26px',
+                                borderRadius: '6px',
+                                background: 'rgba(220, 38, 38, 0.12)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#dc2626'
+                            }}>
+                                <AlertTriangle size={15} />
+                            </div>
+                            <span style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.86rem' }}>
+                                Defective / Damaged
+                            </span>
+                        </div>
+                        <span style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: '10px',
+                            background: 'rgba(220, 38, 38, 0.12)',
+                            color: '#dc2626',
+                            border: '1px solid rgba(220, 38, 38, 0.25)'
+                        }}>
+                            Damage Pool
+                        </span>
                     </div>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.45 }}>
                         Customer returns broken unit. Kept off sellable shelf and held in Damage Pool for supplier return.
                     </div>
                 </div>
 
+                {/* Card 3: Warehouse Loss & Found */}
                 <div
                     onClick={() => {
                         if (!isStaff) {
@@ -725,22 +786,52 @@ export default function Returns() {
                     }}
                     style={{
                         background: 'var(--surface)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '8px',
-                        padding: '12px 14px',
+                        border: '1px solid rgba(147, 51, 234, 0.25)',
                         borderLeft: '4px solid #9333ea',
-                        cursor: !isStaff ? 'pointer' : 'default'
+                        borderRadius: '10px',
+                        padding: '14px 16px',
+                        boxShadow: 'var(--glass-shadow)',
+                        cursor: !isStaff ? 'pointer' : 'default',
+                        transition: 'all 0.15s ease'
                     }}
                     title={!isStaff ? "Click to open Warehouse Loss / Found form" : "Warehouse Discrepancy (Admin only)"}
                 >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#9333ea', fontSize: '0.85rem' }}>
-                        <ArrowDownRight size={16} /> Warehouse: Loss (- Inventory) & Found (+ Inv)
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{
+                                width: '26px',
+                                height: '26px',
+                                borderRadius: '6px',
+                                background: 'rgba(147, 51, 234, 0.12)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#9333ea'
+                            }}>
+                                <AlertOctagon size={15} />
+                            </div>
+                            <span style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.86rem' }}>
+                                Warehouse Discrepancy
+                            </span>
+                        </div>
+                        <span style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: '10px',
+                            background: 'rgba(147, 51, 234, 0.12)',
+                            color: '#9333ea',
+                            border: '1px solid rgba(147, 51, 234, 0.25)'
+                        }}>
+                            Loss / Found
+                        </span>
                     </div>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.45 }}>
                         Internal inventory count discrepancies: Loss deducts missing stock, Found adds discovered surplus.
                     </div>
                 </div>
 
+                {/* Card 4: Supplier Return */}
                 <div
                     onClick={() => {
                         if (!isStaff) {
@@ -750,25 +841,54 @@ export default function Returns() {
                     }}
                     style={{
                         background: 'var(--surface)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '8px',
-                        padding: '12px 14px',
+                        border: '1px solid rgba(217, 119, 6, 0.25)',
                         borderLeft: '4px solid #d97706',
-                        cursor: !isStaff ? 'pointer' : 'default'
+                        borderRadius: '10px',
+                        padding: '14px 16px',
+                        boxShadow: 'var(--glass-shadow)',
+                        cursor: !isStaff ? 'pointer' : 'default',
+                        transition: 'all 0.15s ease'
                     }}
                     title={!isStaff ? "Click to open Return to Supplier form" : "Return to Supplier (Admin only)"}
                 >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#d97706', fontSize: '0.85rem' }}>
-                        <ArrowDownRight size={16} /> Supplier: Return to Supplier (- Stock)
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{
+                                width: '26px',
+                                height: '26px',
+                                borderRadius: '6px',
+                                background: 'rgba(217, 119, 6, 0.12)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#d97706'
+                            }}>
+                                <Truck size={15} />
+                            </div>
+                            <span style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.86rem' }}>
+                                Supplier RMA Return
+                            </span>
+                        </div>
+                        <span style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: '10px',
+                            background: 'rgba(217, 119, 6, 0.12)',
+                            color: '#d97706',
+                            border: '1px solid rgba(217, 119, 6, 0.25)'
+                        }}>
+                            - Stock
+                        </span>
                     </div>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.45 }}>
                         Direct dispatch or RMA return back to supplier. Deducted from damaged pool or shelf stock.
                     </div>
                 </div>
             </div>
 
             {/* Navigation Tabs */}
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '18px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '18px', borderBottom: '1px solid var(--border)', paddingBottom: '12px', flexWrap: 'wrap' }}>
                 <button
                     type="button"
                     onClick={() => setActiveTab('process')}
@@ -777,17 +897,18 @@ export default function Returns() {
                         borderRadius: '8px',
                         border: '1px solid',
                         borderColor: activeTab === 'process' ? 'var(--primary)' : 'var(--border)',
-                        background: activeTab === 'process' ? 'rgba(22, 163, 74, 0.1)' : 'var(--surface)',
-                        color: activeTab === 'process' ? 'var(--primary)' : 'var(--text-main)',
+                        background: activeTab === 'process' ? 'var(--primary)' : 'var(--surface)',
+                        color: activeTab === 'process' ? '#ffffff' : 'var(--text-main)',
                         fontWeight: 600,
                         fontSize: '0.85rem',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '6px'
+                        gap: '8px',
+                        transition: 'all 0.15s ease'
                     }}
                 >
-                    <RotateCcw size={16} /> Customer Return & Refund
+                    <RotateCcw size={16} /> Process Customer Return
                 </button>
 
                 <button
@@ -798,23 +919,25 @@ export default function Returns() {
                         borderRadius: '8px',
                         border: '1px solid',
                         borderColor: activeTab === 'history' ? 'var(--primary)' : 'var(--border)',
-                        background: activeTab === 'history' ? 'rgba(22, 163, 74, 0.1)' : 'var(--surface)',
-                        color: activeTab === 'history' ? 'var(--primary)' : 'var(--text-main)',
+                        background: activeTab === 'history' ? 'var(--primary)' : 'var(--surface)',
+                        color: activeTab === 'history' ? '#ffffff' : 'var(--text-main)',
                         fontWeight: 600,
                         fontSize: '0.85rem',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '6px'
+                        gap: '8px',
+                        transition: 'all 0.15s ease'
                     }}
                 >
-                    <History size={16} /> Return / Refund & Stock Adjustment History
+                    <History size={16} /> Return & Adjustment History
                     <span style={{
-                        background: activeTab === 'history' ? 'var(--primary)' : 'var(--border)',
-                        color: activeTab === 'history' ? '#fff' : 'var(--text-muted)',
-                        padding: '1px 6px',
+                        background: activeTab === 'history' ? 'rgba(255, 255, 255, 0.25)' : 'var(--border)',
+                        color: activeTab === 'history' ? '#ffffff' : 'var(--text-muted)',
+                        padding: '1px 7px',
                         borderRadius: '10px',
-                        fontSize: '0.72rem'
+                        fontSize: '0.72rem',
+                        fontWeight: 700
                     }}>
                         {auditPagination.total || auditHistory.length}
                     </span>
@@ -1245,11 +1368,11 @@ export default function Returns() {
                 <div className="glass-panel" style={{ padding: '24px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
                         <div>
-                            <h2 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <History size={20} color="var(--primary)" /> Return / Refund & Stock Adjustment History Table
+                            <h2 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)' }}>
+                                <History size={20} color="var(--primary)" /> Return & Stock Adjustment History
                             </h2>
-                            <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                                Complete trace of customer returns, stock damages, losses, found units, and supplier returns. Proves sellable inventory vs. damage balances side-by-side.
+                            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                                Complete trace of customer returns, stock damages, losses, found units, and supplier returns.
                             </p>
                         </div>
                         <button
@@ -1281,8 +1404,8 @@ export default function Returns() {
                                     border: '1px solid',
                                     borderColor: auditFilter === f.key ? 'var(--primary)' : 'var(--border)',
                                     background: auditFilter === f.key ? 'var(--primary)' : 'var(--surface)',
-                                    color: auditFilter === f.key ? '#fff' : 'var(--text-main)',
-                                    fontWeight: 600,
+                                    color: auditFilter === f.key ? '#fff' : 'var(--text-muted)',
+                                    fontWeight: auditFilter === f.key ? 600 : 500,
                                     fontSize: '0.8rem',
                                     cursor: 'pointer',
                                     transition: 'all 0.15s ease'
