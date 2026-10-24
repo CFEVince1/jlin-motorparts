@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Search, SlidersHorizontal, BookOpen, Printer, ChevronDown, Layers, History, Package, Building2, Truck, X } from 'lucide-react';
+import { Search, SlidersHorizontal, BookOpen, Printer, ChevronDown, Layers, History, Package, Building2, Truck, X, AlertTriangle } from 'lucide-react';
 import Spinner from '../components/Spinner';
 import { filterProducts, getStockStatus } from '../utils/productFilter';
 import useTableFilter from '../hooks/useTableFilter';
@@ -265,11 +265,49 @@ const Inventory = () => {
                                             <Truck size={16} style={{ color: '#a855f7' }} />
                                             <span style={{ fontWeight: 500 }}>Stock receive</span>
                                         </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => { setNavDropdownOpen(false); setAdjustmentTarget({}); }}
+                                            style={{
+                                                width: '100%',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '10px',
+                                                padding: '9px 12px',
+                                                background: 'transparent',
+                                                border: 'none',
+                                                borderRadius: '6px',
+                                                color: 'var(--text-main)',
+                                                cursor: 'pointer',
+                                                fontSize: '0.84rem',
+                                                textAlign: 'left',
+                                                transition: 'background 0.15s ease'
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                                        >
+                                            <AlertTriangle size={16} style={{ color: '#f59e0b' }} />
+                                            <span style={{ fontWeight: 500 }}>Adjust stock</span>
+                                        </button>
                                     </>
                                 )}
                             </div>
                         )}
                     </div>
+
+                    {/* Stock Adjustment Trigger (Admin) */}
+                    {isAdmin && (
+                        <button
+                            type="button"
+                            onClick={() => setAdjustmentTarget({})}
+                            className="btn-secondary"
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', padding: '7px 14px', cursor: 'pointer', color: '#f59e0b' }}
+                            title="Adjust stock for discrepancies (Damage, Loss, Return, Found)"
+                        >
+                            <AlertTriangle size={15} /> Adjust Stock
+                        </button>
+                    )}
 
                     {/* Print Stock Actions (Both Admin and Staff) */}
                     <button
@@ -470,6 +508,24 @@ const Inventory = () => {
                                                                 <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>
                                                                     Qty: <strong style={{ color: 'var(--text-main)' }}>{s.quantity}</strong>
                                                                 </span>
+                                                                {isAdmin && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setAdjustmentTarget({ ...p, serial_id: s.id })}
+                                                                        title={`Adjust lot ${s.serial_number}`}
+                                                                        style={{
+                                                                            background: 'none',
+                                                                            border: 'none',
+                                                                            color: '#f59e0b',
+                                                                            cursor: 'pointer',
+                                                                            padding: '0 2px',
+                                                                            display: 'inline-flex',
+                                                                            alignItems: 'center'
+                                                                        }}
+                                                                    >
+                                                                        <AlertTriangle size={13} />
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         ))}
                                                     </div>

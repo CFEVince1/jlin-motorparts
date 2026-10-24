@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { AlertTriangle, X, CheckCircle, Package } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -9,12 +9,14 @@ import toast from 'react-hot-toast';
  * Stock adjustment modal for:
  * - DAMAGE (-), LOSS (-), RETURN_TO_SUPPLIER (-)
  * - FOUND (+) with conditional open-losses dropdown via GET /api/items/:id/open-losses
+ * - Item/Serial lot picker formatted: "PART - Name (Brand) - SERIAL • Stock: n ★" for serialized lots,
+ *   and "PART - Name (Brand) • Stock: n" for non-serialized products.
  * - Mandatory reference number and remarks.
  */
 export const AdjustmentModal = ({
   isOpen,
   onClose,
-  product, // { id, part_number, name/product_name, stock/current_stock }
+  product, // optional initial target: { id, part_number, name/product_name, stock/current_stock, serial_id }
   onSuccess,
 }) => {
   const [movementType, setMovementType] = useState('DAMAGE'); // DAMAGE | LOSS | RETURN_TO_SUPPLIER | FOUND
@@ -25,26 +27,112 @@ export const AdjustmentModal = ({
   const [selectedLossId, setSelectedLossId] = useState('');
   const [loadingLosses, setLoadingLosses] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [availableSerials, setAvailableSerials] = useState([]);
-  const [selectedSerialId, setSelectedSerialId] = useState('');
 
-  const itemId = product?.id || product?.product_id;
-  const currentStock = product?.current_stock ?? product?.stock ?? 0;
+  const [productsList, setProductsList] = useState([]);
+  const [selectedOptionKey, setSelectedOptionKey] = useState('');
+  const [activeItem, setActiveItem] = useState(null);
 
-  // When serialized product modal opens, load serial lots
+  // Load all products when modal opens
   useEffect(() => {
-    if (!isOpen || !itemId || !product?.is_serialized) return;
-    if (product.serials && product.serials.length > 0) {
-      setAvailableSerials(product.serials);
-      setSelectedSerialId(String(product.serials[0].id));
-    } else {
-      api.get(`/products/${itemId}/serials`).then(res => {
-        const sList = res.data || [];
-        setAvailableSerials(sList);
-        if (sList.length > 0) setSelectedSerialId(String(sList[0].id));
-      }).catch(() => setAvailableSerials([]));
+    if (!isOpen) return;
+    api.get('/products').then(res => {
+      setProductsList(res.data || []);
+    }).catch(err => {
+      console.error('Failed to load products for adjustment modal', err);
+    });
+  }, [isOpen]);
+
+  // Build options matching specification:
+  // "each serialized product is listed as one option per serial lot (status available or sold with the lot's own quantity),
+  // in the form "PART - Name (Brand) - SERIAL • Stock: n ★", sorted by product and serial."
+  // Non-serialized products stay as a single option.
+  const adjustmentOptions = useMemo(() => {
+    const opts = [];
+    const sortedProducts = [...productsList].sort((a, b) => {
+      const pA = (a.part_number || a.name || '').toLowerCase();
+      const pB = (b.part_number || b.name || '').toLowerCase();
+      return pA.localeCompare(pB, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    for (const p of sortedProducts) {
+      const brandStr = p.brand ? p.brand : 'No Brand';
+      const prodName = p.product_name || p.name;
+      const partNum = p.part_number || 'NO-PART';
+
+      if (p.is_serialized) {
+        const rawSerials = p.serials || [];
+        const sortedSerials = [...rawSerials].sort((s1, s2) =>
+          String(s1.serial_number || '').localeCompare(String(s2.serial_number || ''), undefined, { numeric: true, sensitivity: 'base' })
+        );
+
+        for (const s of sortedSerials) {
+          const sQty = Number(s.quantity || 0);
+          opts.push({
+            value: `serial:${p.id}:${s.id}`,
+            label: `${partNum} - ${prodName} (${brandStr}) - ${s.serial_number} • Stock: ${sQty} ★`,
+            productId: p.id,
+            serialId: Number(s.id),
+            serialNumber: s.serial_number,
+            lotStock: sQty,
+            isSerialized: true,
+            product: p
+          });
+        }
+      } else {
+        const pStock = Number(p.stock ?? p.current_stock ?? 0);
+        opts.push({
+          value: `product:${p.id}`,
+          label: `${partNum} - ${prodName} (${brandStr}) • Stock: ${pStock}`,
+          productId: p.id,
+          serialId: null,
+          serialNumber: '',
+          lotStock: pStock,
+          isSerialized: false,
+          product: p
+        });
+      }
     }
-  }, [isOpen, itemId, product]);
+    return opts;
+  }, [productsList]);
+
+  // Initialize selected item when modal opens or when options load
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (product) {
+      const pId = product.id || product.product_id;
+      if (product.is_serialized) {
+        const targetSerialId = product.serial_id || (product.serials && product.serials[0]?.id);
+        const match = adjustmentOptions.find(o => o.productId === pId && (!targetSerialId || o.serialId === Number(targetSerialId)));
+        if (match) {
+          setSelectedOptionKey(match.value);
+          setActiveItem(match);
+          return;
+        }
+      } else {
+        const match = adjustmentOptions.find(o => o.productId === pId && !o.isSerialized);
+        if (match) {
+          setSelectedOptionKey(match.value);
+          setActiveItem(match);
+          return;
+        }
+      }
+    }
+
+    if (!selectedOptionKey && adjustmentOptions.length > 0) {
+      setSelectedOptionKey(adjustmentOptions[0].value);
+      setActiveItem(adjustmentOptions[0]);
+    }
+  }, [isOpen, product, adjustmentOptions, selectedOptionKey]);
+
+  const handleOptionChange = (val) => {
+    setSelectedOptionKey(val);
+    const match = adjustmentOptions.find(o => o.value === val);
+    setActiveItem(match || null);
+  };
+
+  const itemId = activeItem?.productId || product?.id || product?.product_id;
+  const currentStock = activeItem ? activeItem.lotStock : (product?.current_stock ?? product?.stock ?? 0);
 
   // When movementType changes to FOUND, fetch open losses for this item
   useEffect(() => {
@@ -76,7 +164,7 @@ export const AdjustmentModal = ({
     }
   }, [isOpen, itemId, movementType]);
 
-  if (!isOpen || !product) return null;
+  if (!isOpen) return null;
 
   const isDeduction = ['DAMAGE', 'LOSS', 'RETURN_TO_SUPPLIER'].includes(movementType);
   const qtyNumber = parseInt(quantity, 10) || 0;
@@ -93,16 +181,18 @@ export const AdjustmentModal = ({
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!activeItem || !itemId) {
+      toast.error('Please select an item / serial lot to adjust');
+      return;
+    }
+
     if (!quantity || qtyNumber <= 0) {
       toast.error('Please enter a valid positive quantity');
       return;
     }
 
-    const activeSerial = availableSerials.find(s => String(s.id) === String(selectedSerialId));
-    const maxLotStock = product.is_serialized && activeSerial ? Number(activeSerial.quantity || 0) : currentStock;
-
-    if (isDeduction && qtyNumber > maxLotStock) {
-      toast.error(`Cannot deduct more than available stock in serial lot (${maxLotStock})`);
+    if (isDeduction && qtyNumber > currentStock) {
+      toast.error(`Cannot deduct more than available stock in target lot (${currentStock})`);
       return;
     }
 
@@ -144,7 +234,7 @@ export const AdjustmentModal = ({
         quantity: qtyNumber,
         reference_no: referenceNo.trim(),
         remarks: remarks.trim(),
-        serial_id: product.is_serialized && selectedSerialId ? Number(selectedSerialId) : undefined,
+        serial_id: activeItem.isSerialized && activeItem.serialId ? Number(activeItem.serialId) : undefined,
         loss_transaction_id: lossTxId,
         loss_reference_no: lossRefNo,
       });
@@ -173,7 +263,7 @@ export const AdjustmentModal = ({
       <div className="glass-panel" style={{
         background: 'var(--surface)',
         padding: '24px',
-        width: '460px',
+        width: '480px',
         maxWidth: '100%',
         borderRadius: '12px',
         boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
@@ -195,32 +285,62 @@ export const AdjustmentModal = ({
           </button>
         </div>
 
-        {/* Item Info Banner */}
-        <div style={{
-          padding: '10px 14px',
-          background: 'var(--surface-hover)',
-          borderRadius: '8px',
-          marginBottom: '16px',
-          border: '1px solid var(--border)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div>
-            <div style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-main)' }}>
-              {product.product_name || product.name}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              Part #: {product.part_number} | {product.brand || 'No Brand'}
-            </div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>Current Stock</span>
-            <span style={{ fontWeight: 'bold', fontSize: '1.1rem', color: currentStock > 0 ? 'var(--primary)' : 'var(--danger)' }}>
-              {currentStock}
-            </span>
-          </div>
+        {/* Item / Serial Lot Picker */}
+        <div style={{ marginBottom: '14px' }}>
+          <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>
+            Select Item / Serial Lot *
+          </label>
+          <select
+            className="input-premium"
+            value={selectedOptionKey}
+            onChange={(e) => handleOptionChange(e.target.value)}
+            disabled={submitting}
+            style={{ width: '100%' }}
+          >
+            <option value="">-- Choose Item or Serial Lot --</option>
+            {adjustmentOptions.map(opt => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
+
+        {/* Item Info Banner */}
+        {activeItem && (
+          <div style={{
+            padding: '10px 14px',
+            background: 'var(--surface-hover)',
+            borderRadius: '8px',
+            marginBottom: '16px',
+            border: '1px solid var(--border)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <div>
+              <div style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                {activeItem.product?.product_name || activeItem.product?.name}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                Part #: {activeItem.product?.part_number} | {activeItem.product?.brand || 'No Brand'}
+                {activeItem.isSerialized && (
+                  <span style={{ marginLeft: '8px', color: 'var(--primary)', fontWeight: 600 }}>
+                    Serial: {activeItem.serialNumber}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>
+                {activeItem.isSerialized ? 'Lot Stock' : 'Current Stock'}
+              </span>
+              <span style={{ fontWeight: 'bold', fontSize: '1.1rem', color: currentStock > 0 ? 'var(--primary)' : 'var(--danger)' }}>
+                {currentStock}
+              </span>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {/* Movement Type */}

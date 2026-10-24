@@ -96,6 +96,8 @@ export default function Returns() {
     const [loadingProducts, setLoadingProducts] = useState(false);
     const [directItemSearch, setDirectItemSearch] = useState('');
     const [directProductId, setDirectProductId] = useState('');
+    const [directSerialId, setDirectSerialId] = useState(null);
+    const [directOptionValue, setDirectOptionValue] = useState('');
     const [directType, setDirectType] = useState(() => {
         const t = searchParams.get('tab');
         if (t === 'loss') return 'LOSS';
@@ -238,6 +240,49 @@ export default function Returns() {
             setLoadingProducts(false);
         }
     }, []);
+
+    const directOptions = useMemo(() => {
+        const opts = [];
+        const sorted = [...productsCatalog].sort((a, b) => {
+            const pA = (a.part_number || a.name || '').toLowerCase();
+            const pB = (b.part_number || b.name || '').toLowerCase();
+            return pA.localeCompare(pB, undefined, { numeric: true, sensitivity: 'base' });
+        });
+        for (const p of sorted) {
+            const brandStr = p.brand ? p.brand : 'No Brand';
+            const prodName = p.product_name || p.name;
+            const partNum = p.part_number || 'NO-PART';
+            if (p.is_serialized) {
+                const sList = [...(p.serials || [])].sort((s1, s2) =>
+                    String(s1.serial_number || '').localeCompare(String(s2.serial_number || ''), undefined, { numeric: true, sensitivity: 'base' })
+                );
+                for (const s of sList) {
+                    const sQty = Number(s.quantity || 0);
+                    opts.push({
+                        value: `serial:${p.id}:${s.id}`,
+                        label: `${partNum} - ${prodName} (${brandStr}) - ${s.serial_number} • Stock: ${sQty} ★`,
+                        productId: p.id,
+                        serialId: Number(s.id),
+                        serialNumber: s.serial_number,
+                        lotStock: sQty,
+                        isSerialized: true
+                    });
+                }
+            } else {
+                const pStock = Number(p.stock ?? p.current_stock ?? 0);
+                opts.push({
+                    value: `product:${p.id}`,
+                    label: `${partNum} - ${prodName} (${brandStr}) • Stock: ${pStock}`,
+                    productId: p.id,
+                    serialId: null,
+                    serialNumber: '',
+                    lotStock: pStock,
+                    isSerialized: false
+                });
+            }
+        }
+        return opts;
+    }, [productsCatalog]);
 
     useEffect(() => {
         fetchRecentSales();
@@ -428,6 +473,8 @@ export default function Returns() {
         try {
             const res = await api.post('/inventory/adjustments', {
                 itemId: Number(directProductId),
+                product_id: Number(directProductId),
+                serial_id: directSerialId ? Number(directSerialId) : undefined,
                 transactionType: directType,
                 quantity: Number(directQty),
                 referenceNo: directRef.trim(),
@@ -1747,15 +1794,26 @@ export default function Returns() {
                             </label>
                             <select
                                 className="input-premium"
-                                value={directProductId}
-                                onChange={(e) => setDirectProductId(e.target.value)}
+                                value={directOptionValue}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setDirectOptionValue(val);
+                                    const match = directOptions.find(o => o.value === val);
+                                    if (match) {
+                                        setDirectProductId(match.productId);
+                                        setDirectSerialId(match.serialId);
+                                    } else {
+                                        setDirectProductId('');
+                                        setDirectSerialId(null);
+                                    }
+                                }}
                                 style={{ width: '100%' }}
                                 required
                             >
-                                <option value="">-- Choose Product --</option>
-                                {productsCatalog.map(p => (
-                                    <option key={p.id} value={p.id}>
-                                        {p.name} ({p.part_number}) — In Stock: {p.current_stock ?? p.stock ?? 0}
+                                <option value="">-- Choose Product or Serial Lot --</option>
+                                {directOptions.map(opt => (
+                                    <option key={opt.value} value={opt.value}>
+                                        {opt.label}
                                     </option>
                                 ))}
                             </select>

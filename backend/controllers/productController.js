@@ -81,7 +81,7 @@ exports.getAllProducts = async (req, res) => {
             const [serialsRows] = await db.query(`
                 SELECT id, product_id, serial_number, quantity, status
                 FROM product_serials
-                WHERE product_id IN (?) AND (status = 'available' OR status IS NULL) AND quantity > 0
+                WHERE product_id IN (?) AND (status IN ('available', 'sold') OR status IS NULL)
                 ORDER BY id ASC
             `, [productIds]);
             availableSerials = serialsRows;
@@ -683,12 +683,16 @@ exports.deleteProduct = async (req, res) => {
 };
 
 // ==========================================
-// GET AVAILABLE SERIALS (Used by POS)
+// GET AVAILABLE SERIALS (Used by POS and Adjustment)
 // ==========================================
 exports.getProductSerials = async (req, res) => {
     const { id } = req.params;
+    const includeSold = req.query.include_sold === 'true' || req.query.all === 'true';
     try {
-        const [serials] = await db.query("SELECT id, serial_number, quantity, status FROM product_serials WHERE product_id = ? AND (status = 'available' OR status IS NULL) AND quantity > 0 ORDER BY serial_number ASC", [id]);
+        const query = includeSold
+            ? "SELECT id, serial_number, quantity, status FROM product_serials WHERE product_id = ? AND (status IN ('available', 'sold') OR status IS NULL) ORDER BY serial_number ASC"
+            : "SELECT id, serial_number, quantity, status FROM product_serials WHERE product_id = ? AND (status = 'available' OR status IS NULL) AND quantity > 0 ORDER BY serial_number ASC";
+        const [serials] = await db.query(query, [id]);
         res.json(serials);
     } catch (err) {
         console.error('Error fetching serial numbers:', err);

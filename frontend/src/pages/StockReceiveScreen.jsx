@@ -30,7 +30,17 @@ export const StockReceiveScreen = () => {
 
   // Line items matrix
   const [lineItems, setLineItems] = useState([
-    { itemId: '', quantity: '', costPrice: '' }
+    {
+      optionValue: '',
+      itemId: '',
+      targetType: '',
+      serialId: null,
+      serialNumber: '',
+      newSerialNumber: '',
+      quantity: '',
+      costPrice: '',
+      lotStock: 0
+    }
   ]);
 
   // Receiving History State
@@ -96,8 +106,87 @@ export const StockReceiveScreen = () => {
     fetchReceivingHistory();
   }, [fetchReceivingHistory]);
 
+  // Build structured dropdown options:
+  // - Serialized: one option per serial lot (status available or sold with lot's own qty)
+  //   Format: "PART - Name (Brand) - SERIAL • Stock: n ★"
+  //   Plus one "+ New serial" option: "PART - Name (Brand) - + New serial"
+  // - Non-serialized: single option "PART - Name (Brand) • Stock: n"
+  // Sorted by product and serial
+  const receiveOptions = useMemo(() => {
+    const opts = [];
+    const sortedProducts = [...products].sort((a, b) => {
+      const pA = (a.part_number || a.name || '').toLowerCase();
+      const pB = (b.part_number || b.name || '').toLowerCase();
+      return pA.localeCompare(pB, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    for (const p of sortedProducts) {
+      const brandStr = p.brand ? p.brand : 'No Brand';
+      const prodName = p.product_name || p.name;
+      const partNum = p.part_number || 'NO-PART';
+
+      if (p.is_serialized) {
+        const rawSerials = p.serials || [];
+        const sortedSerials = [...rawSerials].sort((s1, s2) =>
+          String(s1.serial_number || '').localeCompare(String(s2.serial_number || ''), undefined, { numeric: true, sensitivity: 'base' })
+        );
+
+        for (const s of sortedSerials) {
+          const sQty = Number(s.quantity || 0);
+          opts.push({
+            value: `serial:${p.id}:${s.id}`,
+            label: `${partNum} - ${prodName} (${brandStr}) - ${s.serial_number} • Stock: ${sQty} ★`,
+            targetType: 'existing_serial',
+            productId: p.id,
+            serialId: Number(s.id),
+            serialNumber: s.serial_number,
+            lotStock: sQty,
+            product: p
+          });
+        }
+
+        opts.push({
+          value: `new_serial:${p.id}`,
+          label: `${partNum} - ${prodName} (${brandStr}) - + New serial`,
+          targetType: 'new_serial',
+          productId: p.id,
+          serialId: null,
+          serialNumber: '',
+          lotStock: 0,
+          product: p
+        });
+      } else {
+        const pStock = Number(p.stock ?? p.current_stock ?? 0);
+        opts.push({
+          value: `product:${p.id}`,
+          label: `${partNum} - ${prodName} (${brandStr}) • Stock: ${pStock}`,
+          targetType: 'non_serialized',
+          productId: p.id,
+          serialId: null,
+          serialNumber: '',
+          lotStock: pStock,
+          product: p
+        });
+      }
+    }
+    return opts;
+  }, [products]);
+
   const addRow = () => {
-    setLineItems(prev => [...prev, { itemId: '', quantity: '', costPrice: '' }]);
+    setLineItems(prev => [
+      ...prev,
+      {
+        optionValue: '',
+        itemId: '',
+        targetType: '',
+        serialId: null,
+        serialNumber: '',
+        newSerialNumber: '',
+        quantity: '',
+        costPrice: '',
+        lotStock: 0
+      }
+    ]);
   };
 
   const removeRow = (index) => {
@@ -111,8 +200,39 @@ export const StockReceiveScreen = () => {
   const updateRow = (index, field, value) => {
     setLineItems(prev => {
       const next = [...prev];
+      if (field === 'optionValue') {
+        const selectedOpt = receiveOptions.find(o => o.value === value);
+        if (selectedOpt) {
+          next[index] = {
+            ...next[index],
+            optionValue: value,
+            itemId: selectedOpt.productId,
+            targetType: selectedOpt.targetType,
+            serialId: selectedOpt.serialId,
+            serialNumber: selectedOpt.serialNumber,
+            newSerialNumber: '',
+            lotStock: selectedOpt.lotStock,
+            costPrice: next[index].costPrice || selectedOpt.product?.cost_price || ''
+          };
+        } else {
+          next[index] = {
+            ...next[index],
+            optionValue: '',
+            itemId: '',
+            targetType: '',
+            serialId: null,
+            serialNumber: '',
+            newSerialNumber: '',
+            lotStock: 0
+          };
+        }
+        return next;
+      }
+
       let sanitizedValue = value;
-      if (field === 'quantity') {
+      if (field === 'newSerialNumber') {
+        sanitizedValue = String(value || '').toUpperCase();
+      } else if (field === 'quantity') {
         sanitizedValue = String(value).replace(/[^0-9]/g, '');
         if (sanitizedValue.length > 1 && sanitizedValue.startsWith('0')) {
           sanitizedValue = sanitizedValue.replace(/^0+/, '');
@@ -125,14 +245,6 @@ export const StockReceiveScreen = () => {
         }
       }
       next[index] = { ...next[index], [field]: sanitizedValue };
-
-      // Auto-populate default cost price when item is selected
-      if (field === 'itemId' && value) {
-        const selectedProd = products.find(p => String(p.id) === String(value));
-        if (selectedProd && (!next[index].costPrice || next[index].costPrice === '')) {
-          next[index].costPrice = selectedProd.cost_price || '';
-        }
-      }
       return next;
     });
   };
@@ -172,21 +284,43 @@ export const StockReceiveScreen = () => {
       return;
     }
 
-    // Validate rows
-    const seenItemIds = new Set();
+    // Validate rows and block batch duplicates
+    const seenExistingSerialIds = new Set();
+    const seenNewSerials = new Set();
+    const seenNonSerialized = new Set();
     const formattedItems = [];
 
     for (let i = 0; i < lineItems.length; i++) {
       const row = lineItems[i];
-      if (!row.itemId) {
-        toast.error(`Line item #${i + 1} has no product selected`);
+      if (!row.optionValue || !row.itemId) {
+        toast.error(`Line item #${i + 1} has no product or serial selected`);
         return;
       }
-      if (seenItemIds.has(row.itemId)) {
-        toast.error(`Product duplicate detected at row #${i + 1}. Consolidate quantities into a single row.`);
-        return;
+
+      if (row.targetType === 'existing_serial') {
+        if (seenExistingSerialIds.has(Number(row.serialId))) {
+          toast.error(`Duplicate serial lot selected at row #${i + 1}. Consolidate quantity into a single row.`);
+          return;
+        }
+        seenExistingSerialIds.add(Number(row.serialId));
+      } else if (row.targetType === 'new_serial') {
+        const cleanSn = String(row.newSerialNumber || '').trim().toUpperCase();
+        if (!cleanSn) {
+          toast.error(`Serial No. is required for row #${i + 1} (+ New serial)`);
+          return;
+        }
+        if (seenNewSerials.has(cleanSn)) {
+          toast.error(`Duplicate serial number "${cleanSn}" detected in delivery batch at row #${i + 1}.`);
+          return;
+        }
+        seenNewSerials.add(cleanSn);
+      } else if (row.targetType === 'non_serialized') {
+        if (seenNonSerialized.has(Number(row.itemId))) {
+          toast.error(`Product duplicate detected at row #${i + 1}. Consolidate quantities into a single row.`);
+          return;
+        }
+        seenNonSerialized.add(Number(row.itemId));
       }
-      seenItemIds.add(row.itemId);
 
       const qty = parseInt(row.quantity, 10);
       if (isNaN(qty) || qty <= 0) {
@@ -202,8 +336,11 @@ export const StockReceiveScreen = () => {
 
       formattedItems.push({
         itemId: Number(row.itemId),
+        product_id: Number(row.itemId),
         quantity: qty,
-        costPrice: cost
+        costPrice: cost,
+        serial_id: row.targetType === 'existing_serial' ? Number(row.serialId) : null,
+        serial_number: row.targetType === 'new_serial' ? String(row.newSerialNumber || '').trim().toUpperCase() : null
       });
     }
 
@@ -222,7 +359,17 @@ export const StockReceiveScreen = () => {
       // Reset form
       setReferenceNo('');
       setDeliveryPersonnel('');
-      setLineItems([{ itemId: '', quantity: '', costPrice: '' }]);
+      setLineItems([{
+        optionValue: '',
+        itemId: '',
+        targetType: '',
+        serialId: null,
+        serialNumber: '',
+        newSerialNumber: '',
+        quantity: '',
+        costPrice: '',
+        lotStock: 0
+      }]);
 
       // Refresh product stock cache & receiving history log
       const updatedProds = await api.get('/products');
@@ -444,10 +591,9 @@ export const StockReceiveScreen = () => {
                     const cost = Math.max(0, parseFloat(row.costPrice) || 0);
                     const rowSubtotal = qty * cost;
                     const selectedProd = products.find(p => String(p.id) === String(row.itemId));
-                    const currentStock = selectedProd ? Number(selectedProd.stock ?? selectedProd.current_stock ?? 0) : null;
+                    const currentStock = row.optionValue ? Number(row.lotStock || 0) : null;
                     const reorderLevel = selectedProd ? Number(selectedProd.reorder_level || 5) : 5;
                     const newStock = currentStock !== null ? currentStock + qty : null;
-                    const isSerialized = Boolean(selectedProd?.is_serialized);
 
                     return (
                       <React.Fragment key={index}>
@@ -455,24 +601,43 @@ export const StockReceiveScreen = () => {
                           <td style={{ padding: '6px 10px' }}>
                             <select
                               className="input-premium"
-                              value={row.itemId}
-                              onChange={(e) => updateRow(index, 'itemId', e.target.value)}
+                              value={row.optionValue || ''}
+                              onChange={(e) => updateRow(index, 'optionValue', e.target.value)}
                               required
                               disabled={submitting}
+                              style={{ width: '100%' }}
                             >
-                              <option value="">-- Select Product --</option>
-                              {products.map(p => {
-                                const pStock = Number(p.stock ?? p.current_stock ?? 0);
-                                return (
-                                  <option key={p.id} value={p.id}>
-                                    {p.part_number} - {p.product_name || p.name} ({p.brand || 'No Brand'}) • Current Stock: {pStock} {p.is_serialized ? '★ [Serialized]' : ''}
-                                  </option>
-                                );
-                              })}
+                              <option value="">-- Select Product or Serial Lot --</option>
+                              {receiveOptions.map(opt => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
                             </select>
+
+                            {/* Required single Serial No. input when + New serial is selected */}
+                            {row.targetType === 'new_serial' && (
+                              <div style={{ marginTop: '6px' }}>
+                                <input
+                                  type="text"
+                                  className="input-premium"
+                                  placeholder="Enter Serial No. (e.g. RS8-66839-3) *"
+                                  value={row.newSerialNumber || ''}
+                                  onChange={(e) => updateRow(index, 'newSerialNumber', e.target.value)}
+                                  required
+                                  disabled={submitting}
+                                  style={{
+                                    fontSize: '0.8rem',
+                                    padding: '5px 8px',
+                                    width: '100%',
+                                    borderColor: 'var(--primary)'
+                                  }}
+                                />
+                              </div>
+                            )}
                           </td>
                           <td style={{ padding: '6px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                            {selectedProd ? (
+                            {row.optionValue ? (
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
                                 <span style={{
                                   display: 'inline-flex',
@@ -490,7 +655,7 @@ export const StockReceiveScreen = () => {
                                     : (currentStock <= reorderLevel ? '#b45309' : 'var(--primary)'),
                                   border: `1px solid ${currentStock <= 0 ? 'rgba(239, 68, 68, 0.25)' : (currentStock <= reorderLevel ? 'rgba(245, 158, 11, 0.3)' : 'rgba(22, 163, 74, 0.25)')}`
                                 }}>
-                                  {currentStock} units
+                                  {row.targetType === 'new_serial' ? '0 units (New lot)' : `${currentStock} units`}
                                 </span>
                                 {qty > 0 && (
                                   <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
