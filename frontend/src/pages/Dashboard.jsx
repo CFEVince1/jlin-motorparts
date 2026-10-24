@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useContext } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
-import { TrendingUp, AlertTriangle, DollarSign, ShoppingCart, Award, Users, RefreshCw, ChevronLeft, ChevronRight, History } from 'lucide-react';
+import { TrendingUp, AlertTriangle, DollarSign, ShoppingCart, Award, Users, RefreshCw, ChevronLeft, ChevronRight, History, Landmark } from 'lucide-react';
 import { AuthContext } from '../context/AuthContextValue';
 import { formatCurrency } from '../utils/formatters';
 import BestSellersBar from '../components/BestSellersBar';
@@ -191,6 +191,21 @@ const Dashboard = () => {
                                 <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginBottom: '2px' }}>Total Profit</div>
                                 <div style={{ fontSize: '1.6rem', fontWeight: '700', lineHeight: 1.2 }}>
                                     {formatCurrency(stats.adminStats?.total_profit || 0)}
+                                </div>
+                            </div>
+                        </div>
+                        {/* Total Capital (Inventory Cost Value) */}
+                        <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ background: 'rgba(217, 119, 6, 0.15)', padding: '12px', borderRadius: '10px', color: '#d97706' }}>
+                                <Landmark size={24} />
+                            </div>
+                            <div>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginBottom: '2px' }}>Total Capital</div>
+                                <div style={{ fontSize: '1.6rem', fontWeight: '700', lineHeight: 1.2 }}>
+                                    {formatCurrency(stats.adminStats?.total_capital || 0)}
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                    Current stock ({stats.adminStats?.total_stock_units || 0} units)
                                 </div>
                             </div>
                         </div>

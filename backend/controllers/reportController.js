@@ -559,10 +559,21 @@ exports.getAdminStats = async (req, res) => {
             ${finalSql}
         `, params);
 
+        // Total Inventory Capital (Current active stock value at cost price)
+        const [invData] = await db.query(`
+            SELECT 
+                COALESCE(SUM(stock * cost_price), 0) AS total_capital,
+                COALESCE(SUM(stock), 0) AS total_units
+            FROM products
+            WHERE is_active = 1 OR is_active IS NULL
+        `);
+
         res.json({
             total_sales: statsData[0].total_revenue,
             total_transactions: statsData[0].total_transactions,
-            total_profit: statsData[0].total_profit
+            total_profit: statsData[0].total_profit,
+            total_capital: Number(invData[0]?.total_capital || 0),
+            total_stock_units: Number(invData[0]?.total_units || 0)
         });
     } catch (err) {
         console.error('Error fetching admin stats:', err);
