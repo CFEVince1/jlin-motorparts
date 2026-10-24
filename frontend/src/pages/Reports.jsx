@@ -41,6 +41,10 @@ const Reports = () => {
     const [showPrintModal, setShowPrintModal] = useState(false);
     const [bestSellingPage, setBestSellingPage] = useState(1);
     const bestSellingPerPage = 5;
+    const [motorcyclePage, setMotorcyclePage] = useState(1);
+    const motorcyclePerPage = 5;
+    const [cashierPage, setCashierPage] = useState(1);
+    const cashierPerPage = 5;
 
     const user = (() => {
         try {
@@ -178,6 +182,8 @@ const Reports = () => {
 
     useEffect(() => {
         setBestSellingPage(1);
+        setMotorcyclePage(1);
+        setCashierPage(1);
     }, [debouncedFilters]);
 
     // Best Selling pagination
@@ -185,6 +191,18 @@ const Reports = () => {
     const indexOfLastBestSelling = bestSellingPage * bestSellingPerPage;
     const indexOfFirstBestSelling = indexOfLastBestSelling - bestSellingPerPage;
     const currentBestSelling = bestSelling.slice(indexOfFirstBestSelling, indexOfLastBestSelling);
+
+    // Sales by Motorcycle pagination
+    const totalMotorcyclePages = Math.ceil(salesByMotorcycle.length / motorcyclePerPage) || 1;
+    const indexOfLastMotorcycle = motorcyclePage * motorcyclePerPage;
+    const indexOfFirstMotorcycle = indexOfLastMotorcycle - motorcyclePerPage;
+    const currentSalesByMotorcycle = salesByMotorcycle.slice(indexOfFirstMotorcycle, indexOfLastMotorcycle);
+
+    // Sales by Cashier pagination
+    const totalCashierPages = Math.ceil(salesByCashier.length / cashierPerPage) || 1;
+    const indexOfLastCashier = cashierPage * cashierPerPage;
+    const indexOfFirstCashier = indexOfLastCashier - cashierPerPage;
+    const currentSalesByCashier = salesByCashier.slice(indexOfFirstCashier, indexOfLastCashier);
 
     if (loading) return <Spinner text="Loading reports..." />;
 
@@ -490,7 +508,7 @@ const Reports = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {salesByMotorcycle.length > 0 ? salesByMotorcycle.map((row, idx) => (
+                                {currentSalesByMotorcycle.length > 0 ? currentSalesByMotorcycle.map((row, idx) => (
                                     <tr key={row.motorcycle_unit_id || row.model || row.motorcycle_model || idx}>
                                         <td>
                                             <div>{row.motorcycle_display || row.motorcycle_model}</div>
@@ -507,6 +525,63 @@ const Reports = () => {
                             </tbody>
                         </table>
                     </div>
+                    {salesByMotorcycle.length > 0 && (
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginTop: '16px',
+                            paddingTop: '12px',
+                            borderTop: '1px solid var(--border)',
+                            flexWrap: 'wrap',
+                            gap: '8px'
+                        }}>
+                            <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                                Showing {indexOfFirstMotorcycle + 1} to {Math.min(indexOfLastMotorcycle, salesByMotorcycle.length)} of {salesByMotorcycle.length} models
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setMotorcyclePage(prev => Math.max(prev - 1, 1))}
+                                    disabled={motorcyclePage === 1}
+                                    className="btn-secondary"
+                                    style={{
+                                        padding: '4px 8px',
+                                        fontSize: '0.78rem',
+                                        height: '28px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        opacity: motorcyclePage === 1 ? 0.5 : 1,
+                                        cursor: motorcyclePage === 1 ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    <ChevronLeft size={14} /> Prev
+                                </button>
+                                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-main)', padding: '0 4px' }}>
+                                    {motorcyclePage} / {totalMotorcyclePages}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setMotorcyclePage(prev => Math.min(prev + 1, totalMotorcyclePages))}
+                                    disabled={motorcyclePage === totalMotorcyclePages}
+                                    className="btn-secondary"
+                                    style={{
+                                        padding: '4px 8px',
+                                        fontSize: '0.78rem',
+                                        height: '28px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        opacity: motorcyclePage === totalMotorcyclePages ? 0.5 : 1,
+                                        cursor: motorcyclePage === totalMotorcyclePages ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    Next <ChevronRight size={14} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -531,7 +606,7 @@ const Reports = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {salesByCashier.length > 0 ? salesByCashier.map((staff, idx) => (
+                                {currentSalesByCashier.length > 0 ? currentSalesByCashier.map((staff, idx) => (
                                     <tr key={`${staff.cashier}-${idx}`}>
                                         <td style={{ fontWeight: 'bold', textTransform: 'capitalize' }}>{staff.cashier}</td>
                                         <td className="text-right">{staff.total_transactions}</td>
@@ -545,6 +620,63 @@ const Reports = () => {
                             </tbody>
                         </table>
                     </div>
+                    {salesByCashier.length > 0 && (
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginTop: '16px',
+                            paddingTop: '12px',
+                            borderTop: '1px solid var(--border)',
+                            flexWrap: 'wrap',
+                            gap: '8px'
+                        }}>
+                            <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                                Showing {indexOfFirstCashier + 1} to {Math.min(indexOfLastCashier, salesByCashier.length)} of {salesByCashier.length} cashiers
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setCashierPage(prev => Math.max(prev - 1, 1))}
+                                    disabled={cashierPage === 1}
+                                    className="btn-secondary"
+                                    style={{
+                                        padding: '4px 8px',
+                                        fontSize: '0.78rem',
+                                        height: '28px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        opacity: cashierPage === 1 ? 0.5 : 1,
+                                        cursor: cashierPage === 1 ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    <ChevronLeft size={14} /> Prev
+                                </button>
+                                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-main)', padding: '0 4px' }}>
+                                    {cashierPage} / {totalCashierPages}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setCashierPage(prev => Math.min(prev + 1, totalCashierPages))}
+                                    disabled={cashierPage === totalCashierPages}
+                                    className="btn-secondary"
+                                    style={{
+                                        padding: '4px 8px',
+                                        fontSize: '0.78rem',
+                                        height: '28px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        opacity: cashierPage === totalCashierPages ? 0.5 : 1,
+                                        cursor: cashierPage === totalCashierPages ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    Next <ChevronRight size={14} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
