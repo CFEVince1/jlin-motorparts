@@ -88,7 +88,7 @@ const POS = () => {
                         serial_number: s.serial_number,
                         is_serialized: true,
                         stock: lotStock,
-                        stock_display: `In stock (${lotStock})`
+                        stock_display: String(lotStock)
                     });
                 }
             } else {
@@ -100,7 +100,7 @@ const POS = () => {
                     serial_number: '—',
                     is_serialized: false,
                     stock: p.stock ?? p.current_stock ?? 0,
-                    stock_display: `In stock (${p.stock ?? p.current_stock ?? 0})`
+                    stock_display: String(p.stock ?? p.current_stock ?? 0)
                 });
             }
         }
@@ -974,14 +974,14 @@ const POS = () => {
                                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                                         {p.is_serialized ? (
                                             <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>
-                                                In stock ({p.stock})
+                                                {p.stock}
                                             </span>
                                         ) : (
                                             <span style={{
                                                 color: p.stock <= (p.reorder_level || 5) ? 'var(--danger)' : 'var(--success)',
                                                 fontWeight: 'bold'
                                             }}>
-                                                In stock ({p.stock})
+                                                {p.stock}
                                             </span>
                                         )}
                                     </td>
