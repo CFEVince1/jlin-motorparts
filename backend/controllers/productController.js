@@ -275,11 +275,16 @@ exports.createProduct = async (req, res) => {
         const groupIds = normalizeCompatibilityGroupIds(req.body.compatibility_group_ids);
 
         const serialized = normalizeBoolean(is_serialized);
+        const cleanedSerials = serialized ? normalizeSerialNumbers(serial_numbers) : [];
+        const uniqueSerials = new Set(cleanedSerials);
 
-        // Invariants: Every stock-in needs a receipt from a supplier.
-        // Catalog products strictly start with 0 stock. Stock must be received via Stock Receive.
-        // Both write paths (/api/products and /api/items) force starting stock to 0 and record an OPENING_BALANCE ledger entry.
-        const finalStock = 0;
+        if (serialized && cleanedSerials.length > 0) {
+            if (cleanedSerials.length !== uniqueSerials.size) {
+                return res.status(400).json({ message: 'Duplicate serial numbers within submission not allowed' });
+            }
+        }
+
+        const finalStock = serialized ? cleanedSerials.length : 0;
 
         await connection.beginTransaction();
 
@@ -291,6 +296,17 @@ exports.createProduct = async (req, res) => {
         if (existing.length > 0) {
             await connection.rollback();
             return res.status(400).json({ message: `Duplicate part number / SKU "${trimmedPartNumber}" and brand "${trimmedBrand}" detected.` });
+        }
+
+        if (serialized && cleanedSerials.length > 0) {
+            const [existingSerials] = await connection.query(
+                'SELECT serial_number FROM product_serials WHERE serial_number IN (?) LIMIT 1',
+                [cleanedSerials]
+            );
+            if (existingSerials.length > 0) {
+                await connection.rollback();
+                return res.status(400).json({ message: `Serial number "${existingSerials[0].serial_number}" already exists in the system.` });
+            }
         }
 
         const [productResult] = await connection.query(
@@ -338,6 +354,14 @@ exports.createProduct = async (req, res) => {
         const refNo = `OPENING-${dbDate}`;
         const userId = req.user?.id || null;
 
+        if (serialized && cleanedSerials.length > 0) {
+            const serialValues = cleanedSerials.map(serial => [productId, serial, 1, 'available']);
+            await connection.query(
+                `INSERT INTO product_serials (product_id, serial_number, quantity, status) VALUES ?`,
+                [serialValues]
+            );
+        }
+
         // Insert initial OPENING_BALANCE ledger entry in the SAME transaction
         await applyMovement(connection, {
             itemId: productId,
@@ -345,7 +369,9 @@ exports.createProduct = async (req, res) => {
             quantityChange: finalStock,
             referenceNo: refNo,
             unitCost: Number(cost_price || 0),
-            remarks: `Initial baseline OPENING_BALANCE for new product ${String(name).trim()} (${String(part_number).trim()})`,
+            remarks: finalStock > 0 
+                ? `Initial opening stock (${finalStock} serialized units: ${cleanedSerials.join(', ')}) for ${String(name).trim()}`
+                : `Initial baseline OPENING_BALANCE for new product ${String(name).trim()} (${String(part_number).trim()})`,
             createdBy: userId
         });
 

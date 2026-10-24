@@ -24,7 +24,7 @@ const initialFormState = {
     selling_price: '',
     reorder_level: '',
     stock: '',
-    is_serialized: false,
+    is_serialized: typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('type') === 'serialized',
     serial_numbers: '',
     motorcycle_unit_ids: [],
     compatibility_group_ids: []
@@ -120,6 +120,16 @@ const Products = () => {
                 motorcycle_unit_ids: formData.motorcycle_unit_ids.map(Number),
                 compatibility_group_ids: formData.compatibility_group_ids.map(Number)
             };
+
+            if (formData.is_serialized && formData.serial_numbers) {
+                const serialsArray = String(formData.serial_numbers)
+                    .split(/[\n,]+/)
+                    .map(s => s.trim())
+                    .filter(s => s.length > 0);
+                if (serialsArray.length > 0) {
+                    payload.serial_numbers = serialsArray;
+                }
+            }
 
             if (editingId) {
                 await api.put(`/products/${editingId}`, payload);
@@ -258,11 +268,58 @@ const Products = () => {
                             ) : (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
                                     <span style={{ padding: '6px 12px', background: 'var(--surface-hover)', borderRadius: '6px', border: '1px solid var(--border)' }}>
-                                        Initial Stock: <strong>0 units</strong> (Stock must be received via <em>Stock Receive</em> with a supplier receipt)
+                                        {formData.is_serialized ? (
+                                            formData.serial_numbers.trim() ? (
+                                                <>Initial Stock: <strong style={{ color: 'var(--primary)' }}>{formData.serial_numbers.split(/[\n,]+/).map(s => s.trim()).filter(Boolean).length} units</strong> (from entered serials)</>
+                                            ) : (
+                                                <>Initial Stock: <strong>0 units</strong> (Serials can be entered below or received via <em>Stock Receive</em>)</>
+                                            )
+                                        ) : (
+                                            <>Initial Stock: <strong>0 units</strong> (Stock must be received via <em>Stock Receive</em> with a supplier receipt)</>
+                                        )}
                                     </span>
                                 </div>
                             )}
                         </div>
+
+                        {formData.is_serialized && !editingId && (
+                            <div style={{
+                                padding: '14px 16px',
+                                background: 'var(--surface-hover)',
+                                borderRadius: '8px',
+                                border: '1px solid var(--border)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '8px'
+                            }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                                    <label style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '0.85rem' }}>
+                                        Serial Number(s)
+                                    </label>
+                                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                        Enter initial serial numbers (comma separated or one per line), or leave blank to receive stock later via Stock Receive.
+                                    </span>
+                                </div>
+                                <textarea
+                                    name="serial_numbers"
+                                    placeholder="e.g. SN-001, SN-002, SN-003"
+                                    className="input-premium"
+                                    style={{ height: '70px', resize: 'vertical', fontFamily: 'monospace', fontSize: '0.85rem' }}
+                                    value={formData.serial_numbers}
+                                    onChange={handleChange}
+                                />
+                                {formData.serial_numbers.trim() && (
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600 }}>
+                                        ✓ Initial Stock: {
+                                            formData.serial_numbers
+                                                .split(/[\n,]+/)
+                                                .map(s => s.trim())
+                                                .filter(Boolean).length
+                                        } serialized unit(s) will be added to stock
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         <div style={{ display: 'flex', gap: '12px' }}>
                             <button type="submit" className="btn-primary">
