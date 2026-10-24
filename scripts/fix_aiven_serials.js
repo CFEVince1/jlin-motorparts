@@ -249,13 +249,19 @@ async function run() {
   }
   const caCert = fs.readFileSync(caCertPath, 'utf8');
 
-  console.log('Connecting to Aiven Cloud Database (mysql-4b0b661-icovincent-7faa.a.aivencloud.com:27827)...');
+  const aivenHost = process.env.AIVEN_DB_HOST || 'mysql-4b0b661-icovincent-7faa.a.aivencloud.com';
+  const aivenPort = Number(process.env.AIVEN_DB_PORT || 27827);
+  const aivenUser = process.env.AIVEN_DB_USER || 'avnadmin';
+  const aivenPassword = process.env.AIVEN_DB_PASSWORD || process.env.DB_PASSWORD || '';
+  const aivenDatabase = process.env.AIVEN_DB_NAME || 'defaultdb';
+
+  console.log(`Connecting to Aiven Cloud Database (${aivenHost}:${aivenPort})...`);
   const conn = await mysql.createConnection({
-    host: 'mysql-4b0b661-icovincent-7faa.a.aivencloud.com',
-    port: 27827,
-    user: 'avnadmin',
-    password: '',
-    database: 'defaultdb',
+    host: aivenHost,
+    port: aivenPort,
+    user: aivenUser,
+    password: aivenPassword,
+    database: aivenDatabase,
     ssl: { ca: caCert, rejectUnauthorized: false }
   });
   console.log('✓ Connected to database: defaultdb\n');
