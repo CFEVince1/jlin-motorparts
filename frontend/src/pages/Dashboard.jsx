@@ -130,112 +130,205 @@ const Dashboard = () => {
             </div>
 
             {/* Metric Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: user?.role === 'admin' ? 'repeat(auto-fit, minmax(200px, 1fr))' : 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px', marginBottom: '24px' }}>
-
-                {/* Today's Sales: Staff sees their own today sales; Admin sees all staff today sales combined */}
-                <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ background: 'rgba(5, 150, 105, 0.15)', padding: '12px', borderRadius: '10px', color: 'var(--primary)' }}>
-                        <TrendingUp size={24} />
-                    </div>
-                    <div>
-                        <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginBottom: '2px' }}>
-                            {user?.role === 'admin' ? "Store Today's Sales" : "My Today's Sales"}
-                        </div>
-                        <div style={{ fontSize: '1.6rem', fontWeight: '700', lineHeight: 1.2 }}>
-                            {formatCurrency(stats.dailySales?.total_revenue || 0)}
-                        </div>
-                        {user?.role === 'admin' && (
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>All staff combined</div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Today's Transactions: Staff sees their own today count; Admin sees all staff today count combined */}
-                <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ background: 'rgba(10, 132, 255, 0.15)', padding: '12px', borderRadius: '10px', color: 'var(--accent)' }}>
-                        <ShoppingCart size={24} />
-                    </div>
-                    <div>
-                        <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginBottom: '2px' }}>
-                            {user?.role === 'admin' ? "Store Today's Transactions" : "My Today's Transactions"}
-                        </div>
-                        <div style={{ fontSize: '1.6rem', fontWeight: '700', lineHeight: 1.2 }}>
-                            {stats.dailySales?.total_transactions || 0}
-                        </div>
-                        {user?.role === 'admin' && (
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>All transactions today</div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Admin-only metric cards */}
-                {user?.role === 'admin' && (
-                    <>
-                        <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ background: 'rgba(5, 150, 105, 0.15)', padding: '12px', borderRadius: '10px', color: 'var(--primary)' }}>
-                                <TrendingUp size={24} />
+            {user?.role === 'admin' ? (
+                <>
+                    {/* Admin Row 1: Today's Shift & Inventory Alert (3 Cards) */}
+                    <div className="dashboard-grid-today">
+                        {/* Store Today's Sales */}
+                        <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                            <div style={{ background: 'rgba(5, 150, 105, 0.15)', width: '42px', height: '42px', borderRadius: '10px', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <TrendingUp size={22} />
                             </div>
-                            <div>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginBottom: '2px' }}>Total Sales (All Time)</div>
-                                <div style={{ fontSize: '1.6rem', fontWeight: '700', lineHeight: 1.2 }}>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.74rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '2px' }}>
+                                    Store Today's Sales
+                                </div>
+                                <div
+                                    title={formatCurrency(stats.dailySales?.total_revenue || 0)}
+                                    style={{ fontSize: 'clamp(1.15rem, 1.4vw, 1.45rem)', fontWeight: '700', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                >
+                                    {formatCurrency(stats.dailySales?.total_revenue || 0)}
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    All staff combined
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Store Today's Transactions */}
+                        <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                            <div style={{ background: 'rgba(10, 132, 255, 0.15)', width: '42px', height: '42px', borderRadius: '10px', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <ShoppingCart size={22} />
+                            </div>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.74rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '2px' }}>
+                                    Store Today's Transactions
+                                </div>
+                                <div
+                                    title={String(stats.dailySales?.total_transactions || 0)}
+                                    style={{ fontSize: 'clamp(1.15rem, 1.4vw, 1.45rem)', fontWeight: '700', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                >
+                                    {stats.dailySales?.total_transactions || 0}
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    All transactions today
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Low Stock Items Alert */}
+                        <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                            <div style={{ background: stats.lowStock.length > 0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)', width: '42px', height: '42px', borderRadius: '10px', color: stats.lowStock.length > 0 ? 'var(--danger)' : 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <AlertTriangle size={22} />
+                            </div>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.74rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '2px' }}>
+                                    Low Stock Items
+                                </div>
+                                <div
+                                    title={String(stats.lowStock.length)}
+                                    style={{ fontSize: 'clamp(1.15rem, 1.4vw, 1.45rem)', fontWeight: '700', lineHeight: 1.2, color: stats.lowStock.length > 0 ? 'var(--danger)' : 'var(--success)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                >
+                                    {stats.lowStock.length}
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: stats.lowStock.length > 0 ? 'var(--danger)' : 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {stats.lowStock.length > 0 ? 'Requires attention / restock' : 'All items sufficiently stocked'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Admin Row 2: Store Lifetime Financials & Capital (4 Cards) */}
+                    <div className="dashboard-grid-lifetime">
+                        {/* Total Sales (All Time) */}
+                        <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                            <div style={{ background: 'rgba(5, 150, 105, 0.15)', width: '42px', height: '42px', borderRadius: '10px', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <TrendingUp size={22} />
+                            </div>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.74rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '2px' }}>
+                                    Total Sales (All Time)
+                                </div>
+                                <div
+                                    title={formatCurrency(stats.adminStats?.total_sales || 0)}
+                                    style={{ fontSize: 'clamp(1.15rem, 1.4vw, 1.45rem)', fontWeight: '700', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                >
                                     {formatCurrency(stats.adminStats?.total_sales || 0)}
                                 </div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    Lifetime store revenue
+                                </div>
                             </div>
                         </div>
 
-                        <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ background: 'rgba(16, 185, 129, 0.15)', padding: '12px', borderRadius: '10px', color: 'var(--success)' }}>
-                                <DollarSign size={24} />
+                        {/* Total Profit */}
+                        <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                            <div style={{ background: 'rgba(16, 185, 129, 0.15)', width: '42px', height: '42px', borderRadius: '10px', color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <DollarSign size={22} />
                             </div>
-                            <div>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginBottom: '2px' }}>Total Profit</div>
-                                <div style={{ fontSize: '1.6rem', fontWeight: '700', lineHeight: 1.2 }}>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.74rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '2px' }}>
+                                    Total Profit
+                                </div>
+                                <div
+                                    title={formatCurrency(stats.adminStats?.total_profit || 0)}
+                                    style={{ fontSize: 'clamp(1.15rem, 1.4vw, 1.45rem)', fontWeight: '700', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                >
                                     {formatCurrency(stats.adminStats?.total_profit || 0)}
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    Lifetime gross profit
                                 </div>
                             </div>
                         </div>
-                        {/* Total Capital (Inventory Cost Value) */}
-                        <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ background: 'rgba(217, 119, 6, 0.15)', padding: '12px', borderRadius: '10px', color: '#d97706' }}>
-                                <Landmark size={24} />
+
+                        {/* Total Capital */}
+                        <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                            <div style={{ background: 'rgba(217, 119, 6, 0.15)', width: '42px', height: '42px', borderRadius: '10px', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <Landmark size={22} />
                             </div>
-                            <div>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginBottom: '2px' }}>Total Capital</div>
-                                <div style={{ fontSize: '1.6rem', fontWeight: '700', lineHeight: 1.2 }}>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.74rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '2px' }}>
+                                    Total Capital
+                                </div>
+                                <div
+                                    title={formatCurrency(stats.adminStats?.total_capital || 0)}
+                                    style={{ fontSize: 'clamp(1.15rem, 1.4vw, 1.45rem)', fontWeight: '700', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                >
                                     {formatCurrency(stats.adminStats?.total_capital || 0)}
                                 </div>
-                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                     Current stock ({stats.adminStats?.total_stock_units || 0} units)
                                 </div>
                             </div>
                         </div>
 
-                        <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ background: 'rgba(10, 132, 255, 0.15)', padding: '12px', borderRadius: '10px', color: 'var(--accent)' }}>
-                                <ShoppingCart size={24} />
+                        {/* Total Transactions */}
+                        <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                            <div style={{ background: 'rgba(10, 132, 255, 0.15)', width: '42px', height: '42px', borderRadius: '10px', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <ShoppingCart size={22} />
                             </div>
-                            <div>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginBottom: '2px' }}>Total Transactions</div>
-                                <div style={{ fontSize: '1.6rem', fontWeight: '700', lineHeight: 1.2 }}>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.74rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '2px' }}>
+                                    Total Transactions
+                                </div>
+                                <div
+                                    title={String(stats.adminStats?.total_transactions || 0)}
+                                    style={{ fontSize: 'clamp(1.15rem, 1.4vw, 1.45rem)', fontWeight: '700', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                >
                                     {stats.adminStats?.total_transactions || 0}
                                 </div>
-                            </div>
-                        </div>
-
-                        <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ background: 'rgba(239, 68, 68, 0.15)', padding: '12px', borderRadius: '10px', color: 'var(--danger)' }}>
-                                <AlertTriangle size={24} />
-                            </div>
-                            <div>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginBottom: '2px' }}>Low Stock Items</div>
-                                <div style={{ fontSize: '1.6rem', fontWeight: '700', lineHeight: 1.2, color: stats.lowStock.length > 0 ? 'var(--danger)' : 'var(--success)' }}>
-                                    {stats.lowStock.length}
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    Lifetime completed orders
                                 </div>
                             </div>
                         </div>
-                    </>
-                )}
-            </div>
+                    </div>
+                </>
+            ) : (
+                /* Staff Metric Cards (2 Cards) */
+                <div className="dashboard-grid-staff">
+                    <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                        <div style={{ background: 'rgba(5, 150, 105, 0.15)', width: '42px', height: '42px', borderRadius: '10px', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <TrendingUp size={22} />
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ color: 'var(--text-muted)', fontSize: '0.74rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '2px' }}>
+                                My Today's Sales
+                            </div>
+                            <div
+                                title={formatCurrency(stats.dailySales?.total_revenue || 0)}
+                                style={{ fontSize: 'clamp(1.15rem, 1.4vw, 1.45rem)', fontWeight: '700', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                            >
+                                {formatCurrency(stats.dailySales?.total_revenue || 0)}
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                Today's registered register revenue
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                        <div style={{ background: 'rgba(10, 132, 255, 0.15)', width: '42px', height: '42px', borderRadius: '10px', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <ShoppingCart size={22} />
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ color: 'var(--text-muted)', fontSize: '0.74rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '2px' }}>
+                                My Today's Transactions
+                            </div>
+                            <div
+                                title={String(stats.dailySales?.total_transactions || 0)}
+                                style={{ fontSize: 'clamp(1.15rem, 1.4vw, 1.45rem)', fontWeight: '700', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                            >
+                                {stats.dailySales?.total_transactions || 0}
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                Transactions completed today
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Admin View: Staff Today's Sales & Transactions Live Breakdown */}
             {user?.role === 'admin' && (
