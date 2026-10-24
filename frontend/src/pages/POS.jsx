@@ -800,6 +800,9 @@ const POS = () => {
                         .pos-catalog-wrapper { grid-column: span 8 / span 12 !important; }
                         .pos-cart-wrapper { grid-column: span 4 / span 12 !important; }
                     }
+                    .pos-table th, .pos-table td {
+                        padding: 8px 8px !important;
+                    }
                     .pos-filters-grid {
                         display: grid;
                         grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -886,20 +889,19 @@ const POS = () => {
                 </div>
 
                 <div className="table-container" style={{ width: '100%', overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <table className="pos-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                             <tr>
-                                <th style={{ width: '130px', whiteSpace: 'nowrap' }}>Part Number</th>
+                                <th style={{ width: '105px', whiteSpace: 'nowrap' }}>Part Number</th>
                                 <th>Product Name</th>
-                                <th style={{ width: '130px', whiteSpace: 'nowrap' }}>Serial</th>
-                                <th style={{ width: '90px', whiteSpace: 'nowrap' }}>Brand</th>
-                                <th style={{ width: '80px', whiteSpace: 'nowrap' }}>Size</th>
-                                <th style={{ width: '110px', textAlign: 'right', whiteSpace: 'nowrap' }}>Stock</th>
+                                <th style={{ width: '95px', whiteSpace: 'nowrap' }}>Serial</th>
+                                <th style={{ width: '65px', whiteSpace: 'nowrap' }}>Brand</th>
+                                <th style={{ width: '60px', whiteSpace: 'nowrap' }}>Size</th>
+                                <th style={{ width: '85px', textAlign: 'right', whiteSpace: 'nowrap' }}>Stock</th>
                                 {user?.role === 'admin' && (
-                                    <th style={{ width: '90px', textAlign: 'right', whiteSpace: 'nowrap' }}>Cost Price</th>
+                                    <th style={{ width: '80px', textAlign: 'right', whiteSpace: 'nowrap' }}>Cost Price</th>
                                 )}
-                                <th style={{ width: '90px', textAlign: 'right', whiteSpace: 'nowrap' }}>Price</th>
-                                <th style={{ width: '170px', whiteSpace: 'nowrap' }}>Compatibility</th>
+                                <th style={{ width: '80px', textAlign: 'right', whiteSpace: 'nowrap' }}>Price</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -969,25 +971,10 @@ const POS = () => {
                                     <td style={{ textAlign: 'right', color: 'var(--primary)', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                                         {formatCurrency(p.price)}
                                     </td>
-                                    <td>
-                                        <div
-                                            style={{
-                                                maxWidth: '190px',
-                                                whiteSpace: 'nowrap',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                fontSize: '0.8rem',
-                                                color: 'var(--text-muted)'
-                                            }}
-                                            title={p.compatibility_display || 'Universal / All models'}
-                                        >
-                                            {p.compatibility_display || 'Universal'}
-                                        </div>
-                                    </td>
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan={9} className="table-empty-state">
+                                    <td colSpan={user?.role === 'admin' ? 8 : 7} className="table-empty-state">
                                         No matching products found. Try scanning another part number or clearing filters.
                                     </td>
                                 </tr>
