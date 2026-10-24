@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -33,7 +33,13 @@ export default function Returns() {
     const isStaff = user?.role === 'staff';
 
     // Tabs: 'process' (Process Return & Refund) | 'history' (Return Slip History) | 'direct' (Direct Inventory Adjustment)
-    const [activeTab, setActiveTab] = useState('process');
+    const [searchParams] = useSearchParams();
+    const [activeTab, setActiveTab] = useState(() => {
+        const t = searchParams.get('tab');
+        if (t === 'direct' || t === 'loss' || t === 'warehouse') return 'direct';
+        if (t === 'history') return 'history';
+        return 'process';
+    });
 
     // ==========================================
     // 1. ORDER LOOKUP & PROCESS RETURN STATE
@@ -90,7 +96,12 @@ export default function Returns() {
     const [loadingProducts, setLoadingProducts] = useState(false);
     const [directItemSearch, setDirectItemSearch] = useState('');
     const [directProductId, setDirectProductId] = useState('');
-    const [directType, setDirectType] = useState('DAMAGE');
+    const [directType, setDirectType] = useState(() => {
+        const t = searchParams.get('tab');
+        if (t === 'loss') return 'LOSS';
+        if (t === 'found') return 'FOUND';
+        return 'DAMAGE';
+    });
     const [directQty, setDirectQty] = useState(1);
     const [directRef, setDirectRef] = useState('');
     const [directRemarks, setDirectRemarks] = useState('');
@@ -705,13 +716,23 @@ export default function Returns() {
                     </div>
                 </div>
 
-                <div style={{
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px',
-                    padding: '12px 14px',
-                    borderLeft: '4px solid #9333ea'
-                }}>
+                <div
+                    onClick={() => {
+                        if (!isStaff) {
+                            setActiveTab('direct');
+                            setDirectType('LOSS');
+                        }
+                    }}
+                    style={{
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '8px',
+                        padding: '12px 14px',
+                        borderLeft: '4px solid #9333ea',
+                        cursor: !isStaff ? 'pointer' : 'default'
+                    }}
+                    title={!isStaff ? "Click to open Warehouse Loss / Found form" : "Warehouse Discrepancy (Admin only)"}
+                >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#9333ea', fontSize: '0.85rem' }}>
                         <ArrowDownRight size={16} /> Warehouse: Loss (- Inventory) & Found (+ Inv)
                     </div>
@@ -720,13 +741,23 @@ export default function Returns() {
                     </div>
                 </div>
 
-                <div style={{
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px',
-                    padding: '12px 14px',
-                    borderLeft: '4px solid #d97706'
-                }}>
+                <div
+                    onClick={() => {
+                        if (!isStaff) {
+                            setActiveTab('direct');
+                            setDirectType('RETURN_TO_SUPPLIER');
+                        }
+                    }}
+                    style={{
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '8px',
+                        padding: '12px 14px',
+                        borderLeft: '4px solid #d97706',
+                        cursor: !isStaff ? 'pointer' : 'default'
+                    }}
+                    title={!isStaff ? "Click to open Return to Supplier form" : "Return to Supplier (Admin only)"}
+                >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#d97706', fontSize: '0.85rem' }}>
                         <ArrowDownRight size={16} /> Supplier: Return to Supplier (- Stock)
                     </div>
@@ -808,7 +839,7 @@ export default function Returns() {
                             gap: '6px'
                         }}
                     >
-                        <Package size={16} /> Direct Stock Return to Supplier / Write-off
+                        <Package size={16} /> Warehouse (Loss / Found) & Supplier Return
                     </button>
                 )}
             </div>
