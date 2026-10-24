@@ -34,3 +34,8 @@ Thumbs.db
 .antigravityrules
 scratch/
 screenshots/
+# Data, review CSVs, and database backups
+*.csv
+rollback_aiven_*.sql
+*backup*.sql
+*.dump.sql

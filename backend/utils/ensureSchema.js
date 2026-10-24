@@ -355,7 +355,7 @@ async function ensureSchema() {
       console.warn('[Schema] Failed to check/add markup_percentage to products:', err.message);
     }
 
-    // 12. Ensure serial lot tracking schema and guarded backfill
+    // 12. Ensure serial lot tracking schema (non-destructive DDL only, zero data mutations or process.exit on boot)
     try {
       // 12a. Ensure product_serials.status allows 'inactive'
       const [statusCols] = await db.query("SHOW FULL COLUMNS FROM product_serials LIKE 'status'");
@@ -364,70 +364,27 @@ async function ensureSchema() {
         console.log("[Schema] Altered product_serials.status to ENUM('available', 'sold', 'inactive').");
       }
 
-      // 12b. Safely remove artificial legacy row LEG-0100-003 if it has no sales links
-      await db.query(`
-        DELETE FROM product_serials 
-        WHERE product_id = 114 AND serial_number = 'LEG-0100-003' 
-          AND id NOT IN (SELECT serial_id FROM sale_item_serials)
-      `);
-
-      // 12c. Guarded backfill of quantity column (runs strictly once upon creation)
+      // 12b. Ensure quantity column exists on product_serials
       const [psCols] = await db.query("SHOW COLUMNS FROM product_serials LIKE 'quantity'");
-      const isFirstCreation = psCols.length === 0;
-      if (isFirstCreation) {
-        // Pre-migration invariant check before applying any DDL or data changes
-        const [serializedProducts] = await db.query(`
-          SELECT p.id, p.part_number, p.name, p.stock,
-                 COUNT(CASE WHEN ps.status = 'available' OR ps.status IS NULL THEN 1 END) AS avail_count
-          FROM products p
-          LEFT JOIN product_serials ps ON p.id = ps.product_id
-          WHERE p.is_serialized = 1 AND p.is_active = 1
-          GROUP BY p.id, p.part_number, p.name, p.stock
-          ORDER BY p.id ASC
-        `);
-
-        const mismatches = [];
-        for (const prod of serializedProducts) {
-          const pStock = Number(prod.stock || 0);
-          const sAvail = Number(prod.avail_count || 0);
-          if (pStock !== sAvail) {
-            mismatches.push(`Product #${prod.id} (${prod.part_number} - ${prod.name}): stock = ${pStock}, available serials in DB = ${sAvail}`);
-          }
-        }
-
-        if (mismatches.length > 0) {
-          const errMsg = `[Schema Migration Refusal] Serial lot migration aborted without changing data. Pre-migration stock mismatch detected:\n` +
-            mismatches.map(m => `  - ${m}`).join('\n') +
-            `\nResolve discrepancies in database before deploying the serial quantity migration.`;
-          console.error('⛔ =====================================================');
-          console.error(errMsg);
-          console.error('⛔ =====================================================');
-          process.exit(1);
-        }
-
-        // Pre-migration invariant strictly verified: safe to create column and backfill
+      if (psCols.length === 0) {
         await db.query("ALTER TABLE product_serials ADD COLUMN quantity INT NOT NULL DEFAULT 1 AFTER serial_number");
         console.log('[Schema] Added quantity column to product_serials.');
-
-        await db.query("UPDATE product_serials SET quantity = 0 WHERE status = 'sold'");
-        await db.query("UPDATE product_serials SET quantity = 1 WHERE status = 'available' OR status IS NULL");
       }
 
+      // 12c. Ensure quantity column exists on sale_item_serials
       const [sisCols] = await db.query("SHOW COLUMNS FROM sale_item_serials LIKE 'quantity'");
       if (sisCols.length === 0) {
         await db.query("ALTER TABLE sale_item_serials ADD COLUMN quantity INT NOT NULL DEFAULT 1 AFTER serial_id");
         console.log('[Schema] Added quantity column to sale_item_serials.');
       }
 
+      // 12d. Ensure serial_id column exists on inventory_transactions
       const [itCols] = await db.query("SHOW COLUMNS FROM inventory_transactions LIKE 'serial_id'");
       if (itCols.length === 0) {
         await db.query("ALTER TABLE inventory_transactions ADD COLUMN serial_id INT NULL DEFAULT NULL AFTER product_id, ADD INDEX idx_it_serial_id (serial_id)");
         console.log('[Schema] Added serial_id column to inventory_transactions.');
       }
     } catch (lotErr) {
-      if (lotErr.message && lotErr.message.includes('[Schema Migration Refusal]')) {
-        process.exit(1);
-      }
       console.warn('[Schema] Failed to verify serial lot columns:', lotErr.message);
     }
   } catch (err) {
