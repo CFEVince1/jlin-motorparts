@@ -43,7 +43,11 @@ const Transactions = () => {
     const [refundTarget, setRefundTarget] = useState(null);
 
     // Reporting State
-    const [timeframe, setTimeframe] = useState('Daily');
+    const [timeframe, setTimeframe] = useState(() => {
+        const tf = searchParams.get('timeframe');
+        if (tf && ['Daily', 'Weekly', 'Monthly', 'Yearly', 'All'].includes(tf)) return tf;
+        return 'Daily';
+    });
     const [showPrintModal, setShowPrintModal] = useState(false);
 
     // Status Filter State
@@ -426,11 +430,13 @@ const Transactions = () => {
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                     <select className="input-premium" value={timeframe} onChange={e => setTimeframe(e.target.value)}>
                         <option value="Daily">Daily Report</option>
+                        <option value="Weekly">Weekly Report</option>
                         <option value="Monthly">Monthly Report</option>
                         <option value="Yearly">Yearly Report</option>
+                        <option value="All">All Time Report</option>
                     </select>
                     <button onClick={() => setShowPrintModal(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Printer size={16} /> Print {timeframe} {isStaff ? 'Transaction Records' : 'Transactions'}
+                        <Printer size={16} /> Print {timeframe === 'All' ? 'All' : timeframe} {isStaff ? 'Transaction Records' : 'Transactions'}
                     </button>
                 </div>
             </div>
