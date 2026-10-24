@@ -1,6 +1,6 @@
 import React, { useState, useContext } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { User, KeyRound, ShieldAlert, CheckCircle, Lock, Eye, EyeOff, Check, X, Settings2, Search } from 'lucide-react';
+import { User, KeyRound, ShieldAlert, CheckCircle, Lock, Eye, EyeOff, Check, X, Settings2, Search, Layers } from 'lucide-react';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -190,8 +190,8 @@ export const StaffProfileScreen = () => {
               transition: 'all 0.15s ease'
             }}
           >
-            <Settings2 size={16} />
-            <span>Compatibility Rules</span>
+            <Layers size={16} />
+            <span>Motorcycle Compatibility</span>
           </button>
         )}
       </div>

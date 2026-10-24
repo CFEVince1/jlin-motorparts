@@ -25,4 +25,7 @@ router.post('/groups', adminOnly, compatibilityController.createCompatibilityGro
 router.put('/groups/:id', adminOnly, compatibilityController.updateCompatibilityGroup);
 router.delete('/groups/:id', adminOnly, compatibilityController.deleteCompatibilityGroup);
 
+// Product Motorcycle Compatibility Mapping
+router.put('/products/:id', adminOnly, compatibilityController.updateProductCompatibility);
+
 module.exports = router;

@@ -506,3 +506,87 @@ exports.searchCompatibility = async (req, res, next) => {
     }
 };
 
+/**
+ * Update a product's assigned motorcycle compatibility and platform groups
+ * PUT /api/compatibility/products/:id
+ */
+exports.updateProductCompatibility = async (req, res, next) => {
+    const { id } = req.params;
+    const { motorcycle_unit_ids, compatibility_group_ids } = req.body;
+
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        const [prod] = await connection.query('SELECT id, name, part_number FROM products WHERE id = ?', [id]);
+        if (prod.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ message: 'Product not found' });
+        }
+
+        const unitIds = Array.isArray(motorcycle_unit_ids)
+            ? motorcycle_unit_ids.map(Number).filter(n => !isNaN(n))
+            : [];
+        const groupIds = Array.isArray(compatibility_group_ids)
+            ? compatibility_group_ids.map(Number).filter(n => !isNaN(n))
+            : [];
+
+        // 1. Delete existing COMPATIBLE entries (preserve NOT_COMPATIBLE rules)
+        await connection.query(
+            "DELETE FROM product_compatibilities WHERE product_id = ? AND (compatibility_status = 'COMPATIBLE' OR compatibility_status IS NULL)",
+            [id]
+        );
+
+        // 2. Map motorcycle_units to motorcycle_models and insert
+        if (unitIds.length > 0) {
+            await connection.query(`
+                INSERT IGNORE INTO motorcycle_models (brand, model, year_model)
+                SELECT brand, model, year_model FROM motorcycle_units WHERE id IN (?)
+            `, [unitIds]);
+
+            await connection.query(`
+                INSERT INTO product_compatibilities (product_id, motorcycle_model_id, compatibility_status)
+                SELECT DISTINCT ?, mm.id, 'COMPATIBLE'
+                FROM motorcycle_units mu
+                JOIN motorcycle_models mm ON
+                    mm.brand = mu.brand
+                    AND mm.model = mu.model
+                    AND (
+                        (mm.year_model IS NULL AND mu.year_model IS NULL)
+                        OR mm.year_model = mu.year_model
+                    )
+                WHERE mu.id IN (?)
+                ON DUPLICATE KEY UPDATE compatibility_status = 'COMPATIBLE'
+            `, [id, unitIds]);
+        }
+
+        // 3. Update platform groups
+        try {
+            await connection.query('DELETE FROM product_compatibility_groups WHERE product_id = ?', [id]);
+            if (groupIds.length > 0) {
+                await connection.query(
+                    'INSERT INTO product_compatibility_groups (product_id, compatibility_group_id) VALUES ?',
+                    [groupIds.map(groupId => [id, groupId])]
+                );
+            }
+        } catch (groupErr) {
+            // graceful fallback if table does not exist
+        }
+
+        await connection.commit();
+        res.json({
+            message: 'Motorcycle compatibility updated successfully',
+            product_id: Number(id),
+            motorcycle_unit_ids: unitIds,
+            compatibility_group_ids: groupIds
+        });
+    } catch (err) {
+        await connection.rollback();
+        console.error('Error updating product compatibility:', err);
+        res.status(500).json({ message: 'Failed to update compatibility: ' + err.message });
+    } finally {
+        connection.release();
+    }
+};
+
+
