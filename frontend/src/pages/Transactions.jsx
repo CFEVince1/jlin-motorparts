@@ -10,6 +10,7 @@ import useTableFilter from '../hooks/useTableFilter';
 import { formatCurrency, formatAuditDate } from '../utils/formatters';
 import ReceiptPrint from '../components/ReceiptPrint';
 import PrintTransactionsReportModal from '../components/PrintTransactionsReportModal';
+import PrintReturnsReportModal from '../components/PrintReturnsReportModal';
 import ReturnRefundModal from '../components/ReturnRefundModal';
 
 const Transactions = () => {
@@ -49,6 +50,7 @@ const Transactions = () => {
         return 'Daily';
     });
     const [showPrintModal, setShowPrintModal] = useState(false);
+    const [showReturnsPrintModal, setShowReturnsPrintModal] = useState(false);
 
     // User / Cashier Filter State
     const [userFilter, setUserFilter] = useState(() => {
@@ -461,7 +463,13 @@ const Transactions = () => {
                         <option value="All">All Time Report</option>
                     </select>
                     <button
-                        onClick={() => setShowPrintModal(true)}
+                        onClick={() => {
+                            if (activeTab === 'returns') {
+                                setShowReturnsPrintModal(true);
+                            } else {
+                                setShowPrintModal(true);
+                            }
+                        }}
                         className="btn-primary"
                         style={{
                             display: 'flex',
@@ -473,7 +481,7 @@ const Transactions = () => {
                             padding: '0 16px'
                         }}
                     >
-                        <Printer size={16} /> Print {timeframe === 'All' ? 'All-Time' : timeframe} Report
+                        <Printer size={16} /> Print {timeframe === 'All' ? 'All-Time' : timeframe} {activeTab === 'returns' ? 'Returns' : 'Sales'} Report
                     </button>
                 </div>
             </div>
@@ -896,7 +904,7 @@ const Transactions = () => {
                 <div className="glass-panel" style={{ padding: '24px' }}>
                     {loadingReturns ? <Spinner text="Loading returns & refund records..." /> : (
                         <>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
                             <div>
                                 <h2 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <RotateCcw size={18} color="var(--primary)" /> Processed Return & Refund Ledger
@@ -905,9 +913,26 @@ const Transactions = () => {
                                     Full historical audit log of customer product returns, inventory restocks/outflows, and monetary refunds.
                                 </p>
                             </div>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-                                {returnsPagination.total} Total Return Slip{returnsPagination.total !== 1 ? 's' : ''}
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowReturnsPrintModal(true)}
+                                    className="btn-secondary"
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        padding: '6px 14px',
+                                        fontSize: '0.82rem',
+                                        fontWeight: 600
+                                    }}
+                                >
+                                    <Printer size={15} /> Print {timeframe === 'All' ? 'All-Time' : timeframe} Returns Report
+                                </button>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                                    {returnsPagination.total} Total Return Slip{returnsPagination.total !== 1 ? 's' : ''}
+                                </span>
+                            </div>
                         </div>
 
                         <div className="table-container">
@@ -1236,6 +1261,17 @@ const Transactions = () => {
                 initialTimeframe={timeframe}
                 user={user}
                 transactions={transactions}
+                currentFilterDate={filterDate}
+                currentCashier={userFilter !== 'ALL' ? userFilter : ''}
+                searchQuery={searchQuery}
+            />
+
+            <PrintReturnsReportModal
+                isOpen={showReturnsPrintModal}
+                onClose={() => setShowReturnsPrintModal(false)}
+                initialTimeframe={timeframe}
+                user={user}
+                returns={returnsList}
                 currentFilterDate={filterDate}
                 currentCashier={userFilter !== 'ALL' ? userFilter : ''}
                 searchQuery={searchQuery}

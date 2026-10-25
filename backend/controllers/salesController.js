@@ -1358,6 +1358,16 @@ exports.getReturnsHistory = async (req, res, next) => {
             whereParams.push(req.query.date);
         }
 
+        if (req.query.startDate) {
+            whereClauses.push('DATE(sr.created_at) >= ?');
+            whereParams.push(req.query.startDate);
+        }
+
+        if (req.query.endDate) {
+            whereClauses.push('DATE(sr.created_at) <= ?');
+            whereParams.push(req.query.endDate);
+        }
+
         if (req.query.search && req.query.search.trim()) {
             const pattern = `%${req.query.search.trim()}%`;
             whereClauses.push(`(
