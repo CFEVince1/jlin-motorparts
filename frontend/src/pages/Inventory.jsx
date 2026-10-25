@@ -296,18 +296,6 @@ const Inventory = () => {
                         )}
                     </div>
 
-                    {/* Stock Adjustment Trigger (Admin) */}
-                    {isAdmin && (
-                        <button
-                            type="button"
-                            onClick={() => setAdjustmentTarget({})}
-                            className="btn-secondary"
-                            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', padding: '7px 14px', cursor: 'pointer', color: '#f59e0b' }}
-                            title="Adjust stock for discrepancies (Damage, Loss, Return, Found)"
-                        >
-                            <AlertTriangle size={15} /> Adjust Stock
-                        </button>
-                    )}
 
                     {/* Print Stock Actions (Both Admin and Staff) */}
                     <button
