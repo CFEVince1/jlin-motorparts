@@ -21,6 +21,7 @@ router.post('/returns/damage-to-supplier', salesController.returnDamageToSupplie
 router.get('/', salesController.getSales);
 router.get('/:id', salesController.getSaleById);
 router.post('/:id/refund', salesController.processSaleRefund);
+router.post('/:id/void', salesController.voidAndReopen);
 router.post('/:id/void-and-reopen', salesController.voidAndReopen);
 
 module.exports = router;

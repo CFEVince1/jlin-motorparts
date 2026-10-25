@@ -850,6 +850,11 @@ exports.voidAndReopen = async (req, res, next) => {
             return res.status(422).json({ message: 'This transaction has already been voided' });
         }
 
+        if (sale.status === 'REFUNDED') {
+            await connection.rollback();
+            return res.status(422).json({ message: 'This transaction has already been refunded and cannot be voided' });
+        }
+
         // 2. Fetch all sale items with current product metadata
         const [saleItems] = await connection.query(
             `SELECT si.*, p.name as current_product_name, p.is_serialized, p.cost_price as current_cost_price, p.selling_price, p.retail_price

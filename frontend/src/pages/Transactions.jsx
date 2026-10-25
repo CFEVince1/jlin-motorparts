@@ -3,7 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { History, Receipt, X, Printer, Search, Calendar, RotateCcw, ArrowDownRight, ArrowUpRight, Filter } from 'lucide-react';
+import { History, Receipt, X, Printer, Search, Calendar, RotateCcw, ArrowDownRight, ArrowUpRight, Filter, Ban } from 'lucide-react';
+import { notifyInventoryChange } from '../utils/syncEvents';
 import Spinner from '../components/Spinner';
 import { getProductSnapshotMatch, normalizeSearchText } from '../utils/productFilter';
 import useTableFilter from '../hooks/useTableFilter';
@@ -33,6 +34,11 @@ const Transactions = () => {
         total: 0,
         totalPages: 1
     });
+
+    // Void Modal State
+    const [voidTarget, setVoidTarget] = useState(null);
+    const [voidReason, setVoidReason] = useState('');
+    const [voiding, setVoiding] = useState(false);
 
     // Receipt Modal State
     const [selectedTransaction, setSelectedTransaction] = useState(null);
@@ -238,6 +244,40 @@ const Transactions = () => {
             fetchReturnsHistory(1, returnsPageSize);
         }
     }, [activeTab, debouncedSearchQuery, filterDate, userFilter, returnsPageSize]);
+
+    const handleOpenVoid = (transaction) => {
+        setVoidTarget(transaction);
+        setVoidReason('Cashier Mistake / Error');
+    };
+
+    const handleConfirmVoid = async () => {
+        if (!voidTarget) return;
+        setVoiding(true);
+        try {
+            const res = await api.post(`/sales/${voidTarget.id}/void`, {
+                reason: voidReason.trim() || 'Transaction voided by cashier/admin'
+            });
+            toast.success(res.data?.message || `Order ${voidTarget.order_number || ('SO-' + voidTarget.id)} voided successfully`);
+            notifyInventoryChange('void');
+
+            // Update receiptDetails if currently viewing this receipt
+            if (receiptDetails && (receiptDetails.id === voidTarget.id || receiptDetails.sale_id === voidTarget.id)) {
+                setReceiptDetails(prev => ({
+                    ...prev,
+                    status: 'VOIDED',
+                    void_reason: voidReason.trim() || 'Transaction voided'
+                }));
+            }
+
+            // Refresh transactions list
+            fetchTransactions(pagination.page);
+            setVoidTarget(null);
+        } catch (err) {
+            toast.error(err.response?.data?.message || err.response?.data?.error || 'Failed to void transaction');
+        } finally {
+            setVoiding(false);
+        }
+    };
 
     const handleViewReceipt = async (saleId) => {
         setLoadingReceipt(true);
@@ -1243,10 +1283,33 @@ const Transactions = () => {
                             />
                         </div>
 
-                        <div className="no-print" style={{ marginTop: '20px', display: 'flex', gap: '10px', width: '100%' }}>
+                        <div className="no-print" style={{ marginTop: '20px', display: 'flex', gap: '10px', width: '100%', flexWrap: 'wrap' }}>
                             <button className="btn-primary no-print" style={{ flex: 1, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={handlePrint}>
                                 <Printer size={16} /> Print Receipt
                             </button>
+                            {receiptDetails.status !== 'VOIDED' && receiptDetails.status !== 'REFUNDED' && (
+                                <button
+                                    type="button"
+                                    className="no-print"
+                                    style={{
+                                        padding: '10px 18px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '6px',
+                                        background: '#dc2626',
+                                        color: '#ffffff',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
+                                    }}
+                                    onClick={() => handleOpenVoid(receiptDetails)}
+                                    title="Void this sale and restore all items into inventory stock"
+                                >
+                                    <Ban size={16} /> Void
+                                </button>
+                            )}
                             <button className="btn-secondary no-print" style={{ flex: 1, padding: '10px 14px' }} onClick={closeReceipt}>
                                 Close
                             </button>
@@ -1276,6 +1339,138 @@ const Transactions = () => {
                 currentCashier={userFilter !== 'ALL' ? userFilter : ''}
                 searchQuery={searchQuery}
             />
+
+            {/* VOID CONFIRMATION MODAL */}
+            {voidTarget && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(0, 0, 0, 0.75)',
+                    zIndex: 10001,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '16px'
+                }}>
+                    <div className="glass-panel" style={{
+                        background: 'var(--surface)',
+                        color: 'var(--text-main)',
+                        padding: '24px',
+                        borderRadius: '12px',
+                        maxWidth: '480px',
+                        width: '100%',
+                        border: '1px solid var(--border)',
+                        boxShadow: '0 12px 32px rgba(0, 0, 0, 0.5)'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+                            <div style={{
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: '8px',
+                                background: 'rgba(239, 68, 68, 0.15)',
+                                color: '#ef4444',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                            }}>
+                                <Ban size={22} />
+                            </div>
+                            <div>
+                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>
+                                    Void Transaction {voidTarget.order_number || `SO-${voidTarget.id}`}?
+                                </h3>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                    Total Amount: <strong>{formatCurrency(voidTarget.total_amount)}</strong>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div style={{
+                            background: 'rgba(239, 68, 68, 0.08)',
+                            border: '1px solid rgba(239, 68, 68, 0.25)',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            marginBottom: '16px',
+                            fontSize: '0.82rem',
+                            color: 'var(--text-main)',
+                            lineHeight: '1.4'
+                        }}>
+                            <strong>⚠️ Warning:</strong> Voiding this transaction will cancel the sale and automatically return all sold items and serial numbers back into active inventory stock.
+                        </div>
+
+                        <div style={{ marginBottom: '16px' }}>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--text-muted)' }}>
+                                Reason for Void:
+                            </label>
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                                {['Cashier Mistake / Error', 'Customer Cancelled', 'Wrong Items Scanned', 'Duplicate Entry'].map(preset => (
+                                    <button
+                                        key={preset}
+                                        type="button"
+                                        onClick={() => setVoidReason(preset)}
+                                        style={{
+                                            padding: '3px 8px',
+                                            fontSize: '0.72rem',
+                                            borderRadius: '4px',
+                                            border: '1px solid',
+                                            borderColor: voidReason === preset ? 'var(--primary)' : 'var(--border)',
+                                            background: voidReason === preset ? 'rgba(5, 150, 105, 0.15)' : 'var(--surface-hover)',
+                                            color: voidReason === preset ? 'var(--primary)' : 'var(--text-main)',
+                                            cursor: 'pointer',
+                                            fontWeight: voidReason === preset ? 600 : 400
+                                        }}
+                                    >
+                                        {preset}
+                                    </button>
+                                ))}
+                            </div>
+                            <textarea
+                                className="input-premium"
+                                rows={2}
+                                value={voidReason}
+                                onChange={(e) => setVoidReason(e.target.value)}
+                                placeholder="Enter specific reason for voiding this transaction..."
+                                style={{ width: '100%', resize: 'none', fontSize: '0.84rem' }}
+                            />
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => setVoidTarget(null)}
+                                disabled={voiding}
+                                style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmVoid}
+                                disabled={voiding}
+                                style={{
+                                    padding: '8px 18px',
+                                    fontSize: '0.85rem',
+                                    background: '#dc2626',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    fontWeight: 600,
+                                    cursor: voiding ? 'not-allowed' : 'pointer',
+                                    opacity: voiding ? 0.6 : 1,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                }}
+                            >
+                                <Ban size={15} />
+                                {voiding ? 'Voiding Sale...' : 'Confirm Void'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {refundTarget && (
                 <ReturnRefundModal

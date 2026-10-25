@@ -40,3 +40,6 @@ rollback_aiven_*.sql
 *backup*.sql
 *.dump.sql
 *backup*.json
+
+# Edge browser test profiles
+edge_prof*/
