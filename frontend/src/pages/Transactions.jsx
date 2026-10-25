@@ -1350,22 +1350,44 @@ const Transactions = () => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: '16px'
+                    padding: '16px',
+                    overflowY: 'auto'
                 }}>
                     <div className="glass-panel" style={{
                         background: 'var(--surface)',
                         color: 'var(--text-main)',
-                        padding: '24px',
+                        padding: '20px 22px',
                         borderRadius: '12px',
-                        maxWidth: '480px',
+                        maxWidth: '460px',
                         width: '100%',
+                        maxHeight: '92vh',
+                        overflowY: 'auto',
                         border: '1px solid var(--border)',
-                        boxShadow: '0 12px 32px rgba(0, 0, 0, 0.5)'
+                        boxShadow: '0 12px 32px rgba(0, 0, 0, 0.5)',
+                        position: 'relative'
                     }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+                        <button
+                            type="button"
+                            onClick={() => setVoidTarget(null)}
+                            style={{
+                                position: 'absolute',
+                                top: '14px',
+                                right: '14px',
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--text-muted)',
+                                cursor: 'pointer',
+                                padding: '4px'
+                            }}
+                            title="Close"
+                        >
+                            <X size={18} />
+                        </button>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', paddingRight: '24px' }}>
                             <div style={{
-                                width: '40px',
-                                height: '40px',
+                                width: '38px',
+                                height: '38px',
                                 borderRadius: '8px',
                                 background: 'rgba(239, 68, 68, 0.15)',
                                 color: '#ef4444',
@@ -1374,10 +1396,10 @@ const Transactions = () => {
                                 justifyContent: 'center',
                                 flexShrink: 0
                             }}>
-                                <Ban size={22} />
+                                <Ban size={20} />
                             </div>
                             <div>
-                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>
+                                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>
                                     Void Transaction {voidTarget.order_number || `SO-${voidTarget.id}`}?
                                 </h3>
                                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
@@ -1390,17 +1412,17 @@ const Transactions = () => {
                             background: 'rgba(239, 68, 68, 0.08)',
                             border: '1px solid rgba(239, 68, 68, 0.25)',
                             borderRadius: '8px',
-                            padding: '12px',
-                            marginBottom: '16px',
-                            fontSize: '0.82rem',
+                            padding: '10px 12px',
+                            marginBottom: '12px',
+                            fontSize: '0.8rem',
                             color: 'var(--text-main)',
-                            lineHeight: '1.4'
+                            lineHeight: '1.35'
                         }}>
-                            <strong>⚠️ Warning:</strong> Voiding this transaction will cancel the sale and automatically return all sold items and serial numbers back into active inventory stock.
+                            <strong>⚠️ Warning:</strong> Voiding will cancel this transaction and automatically restore all items and serial numbers back into active stock.
                         </div>
 
-                        <div style={{ marginBottom: '16px' }}>
-                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--text-muted)' }}>
+                        <div style={{ marginBottom: '14px' }}>
+                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '6px', color: 'var(--text-muted)' }}>
                                 Reason for Void:
                             </label>
                             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
@@ -1431,11 +1453,11 @@ const Transactions = () => {
                                 value={voidReason}
                                 onChange={(e) => setVoidReason(e.target.value)}
                                 placeholder="Enter specific reason for voiding this transaction..."
-                                style={{ width: '100%', resize: 'none', fontSize: '0.84rem' }}
+                                style={{ width: '100%', resize: 'none', fontSize: '0.82rem' }}
                             />
                         </div>
 
-                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '4px' }}>
                             <button
                                 type="button"
                                 className="btn-secondary"
