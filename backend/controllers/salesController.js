@@ -575,6 +575,13 @@ exports.getSales = async (req, res, next) => {
 
         const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
+        let orderSQL = 's.sale_date DESC, s.id DESC';
+        if (req.query.sortBy === 'oldest') {
+            orderSQL = 's.sale_date ASC, s.id ASC';
+        } else if (req.query.sortBy === 'highest') {
+            orderSQL = 's.total_amount DESC, s.id DESC';
+        }
+
         // High-performance count query
         const countQuery = `SELECT COUNT(*) AS total FROM sales s ${whereSQL}`;
         const [countRows] = await db.query(countQuery, whereParams);
@@ -598,14 +605,14 @@ exports.getSales = async (req, res, next) => {
                        s.change_due, s.payment_method, s.payment_reference, s.cash_amount, s.gcash_amount, s.status, COALESCE(s.refund_amount, 0.00) as refund_amount, s.sale_date
                 FROM sales s
                 ${whereSQL}
-                ORDER BY s.sale_date DESC, s.id DESC
+                ORDER BY ${orderSQL}
                 LIMIT ? OFFSET ?
             ) s
             JOIN users u ON s.user_id = u.id
             LEFT JOIN sale_items si ON s.id = si.sale_id
             LEFT JOIN products p ON p.id = si.product_id
             GROUP BY s.id, s.order_number, s.total_amount, s.tendered_amount, s.change_due, s.payment_method, s.payment_reference, s.status, s.refund_amount, s.sale_date, u.username
-            ORDER BY s.sale_date DESC, s.id DESC
+            ORDER BY ${orderSQL}
         `;
 
         const [sales] = await db.query(dataQuery, [...whereParams, limit, offset]);

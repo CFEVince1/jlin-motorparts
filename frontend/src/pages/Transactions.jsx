@@ -74,84 +74,50 @@ const Transactions = () => {
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [staffScope, setStaffScope] = useState('all');
 
-    const filterTransactionsFn = useCallback((items, debouncedQuery, filters) => {
-        const normalizedQuery = normalizeSearchText(debouncedQuery);
-        return items.map((transaction, index) => {
-            const snapshotMatch = getProductSnapshotMatch(transaction, normalizedQuery);
-            const orderMatch = String(transaction.id).includes(normalizedQuery) ||
-                normalizeSearchText(transaction.order_number).includes(normalizedQuery);
-            const cashierMatch = normalizeSearchText(transaction.cashier).includes(normalizedQuery);
-            const rank = orderMatch || cashierMatch ? 6 : snapshotMatch.rank;
-
-            return {
-                transaction,
-                index,
-                matchRank: rank
-            };
-        }).filter(({ transaction, matchRank }) => {
-            const matchSearch = !normalizedQuery || Number.isFinite(matchRank);
-            let matchDate = true;
-            if (filters.date) {
-                const tDateStr = new Date(transaction.sale_date);
-                const offset = tDateStr.getTimezoneOffset() * 60000;
-                const localISOTime = (new Date(tDateStr - offset)).toISOString().split('T')[0];
-                matchDate = localISOTime === filters.date;
-            }
-
-            let matchUser = true;
-            if (userFilter !== 'ALL') {
-                const qUser = String(userFilter).toLowerCase();
-                matchUser = String(transaction.cashier || '').toLowerCase() === qUser ||
-                            String(transaction.user_id) === String(userFilter);
-            }
-
-            let matchStatus = true;
-            if (statusFilter !== 'ALL') {
-                if (statusFilter === 'REFUNDED') {
-                    matchStatus = transaction.status === 'REFUNDED' || transaction.status === 'PARTIALLY_REFUNDED';
-                } else {
-                    matchStatus = (statusFilter === 'SOLD' || statusFilter === 'COMPLETED')
-                        ? (transaction.status === 'SOLD' || transaction.status === 'COMPLETED')
-                        : transaction.status === statusFilter;
-                }
-            }
-
-            return matchSearch && matchDate && matchStatus && matchUser;
-        }).sort((a, b) => {
-            if (normalizedQuery && a.matchRank !== b.matchRank) {
-                return a.matchRank - b.matchRank;
-            }
-
-            if (filters.sortBy === 'newest') {
-                return new Date(b.transaction.sale_date) - new Date(a.transaction.sale_date);
-            } else if (filters.sortBy === 'oldest') {
-                return new Date(a.transaction.sale_date) - new Date(b.transaction.sale_date);
-            } else if (filters.sortBy === 'highest') {
-                return Number(b.transaction.total_amount) - Number(a.transaction.total_amount);
-            }
-            return a.index - b.index;
-        }).map(({ transaction }) => transaction);
-    }, [statusFilter, staffScope, userFilter]);
-
     const {
         searchQuery,
         handleSearchChange,
+        debouncedSearchQuery,
         filters,
-        setFilter,
-        filteredItems: filteredTransactions
+        setFilter
     } = useTableFilter({
-        items: transactions,
         initialSearch: searchParams.get('search') || '',
-        initialFilters: { date: searchParams.get('date') || '', sortBy: 'newest' },
-        filterFn: filterTransactionsFn
+        initialFilters: { date: searchParams.get('date') || '', sortBy: 'newest' }
     });
 
     const filterDate = filters.date;
     const sortBy = filters.sortBy;
 
+    // Page size state with localStorage persistence (Default: 10)
+    const [pageSize, setPageSize] = useState(() => {
+        const saved = typeof window !== 'undefined' ? localStorage.getItem('transactions_page_size') : null;
+        return saved ? Number(saved) : 10;
+    });
+
+    const [returnsPageSize, setReturnsPageSize] = useState(() => {
+        const saved = typeof window !== 'undefined' ? localStorage.getItem('returns_page_size') : null;
+        return saved ? Number(saved) : 10;
+    });
+
+    const handlePageSizeChange = useCallback((newSize) => {
+        const size = Number(newSize);
+        setPageSize(size);
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('transactions_page_size', String(size));
+        }
+    }, []);
+
+    const handleReturnsPageSizeChange = useCallback((newSize) => {
+        const size = Number(newSize);
+        setReturnsPageSize(size);
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('returns_page_size', String(size));
+        }
+    }, []);
+
     const [pagination, setPagination] = useState({
         page: 1,
-        limit: 20,
+        limit: pageSize,
         total: 0,
         totalPages: 1
     });
@@ -172,12 +138,16 @@ const Transactions = () => {
         }
     }, [isStaff]);
 
-    const fetchTransactions = async (page = 1) => {
+    const fetchTransactions = useCallback(async (page = 1, limit = pageSize) => {
+        setLoading(true);
         try {
             const res = await api.get('/sales', {
                 params: {
                     page,
-                    limit: 20,
+                    limit,
+                    search: debouncedSearchQuery?.trim() || undefined,
+                    date: filterDate || undefined,
+                    sortBy,
                     status: statusFilter !== 'ALL' ? statusFilter : undefined,
                     selfOnly: (isStaff && staffScope === 'mine') ? 'true' : undefined,
                     user: userFilter !== 'ALL' ? userFilter : undefined
@@ -194,16 +164,16 @@ const Transactions = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [debouncedSearchQuery, filterDate, sortBy, statusFilter, isStaff, staffScope, userFilter, pageSize]);
 
-    const fetchReturnsHistory = async (page = 1) => {
+    const fetchReturnsHistory = useCallback(async (page = 1, limit = returnsPageSize) => {
         setLoadingReturns(true);
         try {
             const res = await api.get('/sales/returns/history', {
                 params: {
                     page,
-                    limit: 20,
-                    search: searchQuery || undefined,
+                    limit,
+                    search: debouncedSearchQuery?.trim() || undefined,
                     date: filterDate || undefined,
                     user: userFilter !== 'ALL' ? userFilter : undefined
                 }
@@ -219,44 +189,53 @@ const Transactions = () => {
         } finally {
             setLoadingReturns(false);
         }
-    };
+    }, [debouncedSearchQuery, filterDate, userFilter, returnsPageSize]);
 
     const handlePageChange = (newPage) => {
         if (newPage >= 1 && newPage <= pagination.totalPages && newPage !== pagination.page) {
-            fetchTransactions(newPage);
+            fetchTransactions(newPage, pageSize);
+            const tableElem = document.querySelector('.table-container');
+            if (tableElem) {
+                tableElem.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
         }
     };
 
     const handleReturnsPageChange = (newPage) => {
         if (newPage >= 1 && newPage <= returnsPagination.totalPages && newPage !== returnsPagination.page) {
-            fetchReturnsHistory(newPage);
+            fetchReturnsHistory(newPage, returnsPageSize);
+            const tableElem = document.querySelector('.table-container');
+            if (tableElem) {
+                tableElem.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
         }
     };
 
-    const getPageNumbers = (curr, total) => {
-        const pages = [];
-        const maxButtons = 5;
-        let start = Math.max(1, curr - 2);
-        let end = Math.min(total, start + maxButtons - 1);
-        if (end - start + 1 < maxButtons) {
-            start = Math.max(1, end - maxButtons + 1);
+    const getPageNumbers = (current, total) => {
+        if (total <= 1) return [1];
+        if (total <= 7) {
+            return Array.from({ length: total }, (_, i) => i + 1);
         }
-        for (let i = start; i <= end; i++) {
-            pages.push(i);
+        if (current <= 4) {
+            return [1, 2, 3, 4, 5, '...', total];
         }
-        return pages;
+        if (current >= total - 3) {
+            return [1, '...', total - 4, total - 3, total - 2, total - 1, total];
+        }
+        return [1, '...', current - 1, current, current + 1, '...', total];
     };
 
     useEffect(() => {
-        fetchTransactions();
-        fetchReturnsHistory();
-    }, [statusFilter, staffScope, userFilter]);
+        if (activeTab === 'sales') {
+            fetchTransactions(1, pageSize);
+        }
+    }, [activeTab, debouncedSearchQuery, filterDate, sortBy, statusFilter, staffScope, userFilter, pageSize]);
 
     useEffect(() => {
         if (activeTab === 'returns') {
-            fetchReturnsHistory(1);
+            fetchReturnsHistory(1, returnsPageSize);
         }
-    }, [activeTab, searchQuery, filterDate, userFilter]);
+    }, [activeTab, debouncedSearchQuery, filterDate, userFilter, returnsPageSize]);
 
     const handleViewReceipt = async (saleId) => {
         setLoadingReceipt(true);
@@ -684,12 +663,12 @@ const Transactions = () => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {filteredTransactions.length === 0 ? (
+                                        {transactions.length === 0 ? (
                                             <tr>
                                                 <td colSpan="9" className="table-empty-state">No transactions match your search.</td>
                                             </tr>
                                         ) : (
-                                            filteredTransactions.map(t => (
+                                            transactions.map(t => (
                                                 <tr key={t.id}>
                                                     <td style={{ fontWeight: 'bold', color: t.status === 'VOIDED' ? 'var(--text-muted)' : 'var(--primary)', fontFamily: 'monospace' }}>
                                                         <div>{t.order_number || `SO-${t.id}`}</div>
@@ -808,41 +787,104 @@ const Transactions = () => {
                                 </table>
                             </div>
 
-                            {pagination.totalPages > 1 && (
-                                <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px', marginTop: '16px', flexWrap: 'wrap' }}>
-                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginRight: '8px' }}>
-                                        Page {pagination.page} of {pagination.totalPages} ({pagination.total} total)
+                            {/* Pagination Controls */}
+                            <div className="no-print" style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                marginTop: '16px',
+                                paddingTop: '14px',
+                                borderTop: '1px solid var(--border)',
+                                flexWrap: 'wrap',
+                                gap: '10px'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                                    <span>
+                                        Showing <strong>{pagination.total > 0 ? ((pagination.page - 1) * pagination.limit) + 1 : 0}</strong> - <strong>{Math.min(pagination.page * pagination.limit, pagination.total)}</strong> of <strong>{pagination.total}</strong> transactions
                                     </span>
-                                    <button
-                                        disabled={pagination.page <= 1}
-                                        onClick={() => handlePageChange(pagination.page - 1)}
-                                        className="btn-secondary"
-                                        style={{ padding: '4px 12px', fontSize: '0.9rem', opacity: pagination.page <= 1 ? 0.5 : 1 }}
+                                    <select
+                                        value={pageSize}
+                                        onChange={(e) => handlePageSizeChange(e.target.value)}
+                                        className="input-premium"
+                                        style={{ padding: '2px 8px', fontSize: '0.78rem', width: 'auto', cursor: 'pointer', height: '30px' }}
+                                        title="Transactions per page"
                                     >
-                                        Prev
-                                    </button>
-
-                                    {getPageNumbers(pagination.page, pagination.totalPages).map(pageNum => (
-                                        <button
-                                            key={pageNum}
-                                            onClick={() => handlePageChange(pageNum)}
-                                            className={pagination.page === pageNum ? "btn-primary" : "btn-secondary"}
-                                            style={{ padding: '4px 12px', fontSize: '0.9rem' }}
-                                        >
-                                            {pageNum}
-                                        </button>
-                                    ))}
-
-                                    <button
-                                        disabled={pagination.page >= pagination.totalPages}
-                                        onClick={() => handlePageChange(pagination.page + 1)}
-                                        className="btn-secondary"
-                                        style={{ padding: '4px 12px', fontSize: '0.9rem', opacity: pagination.page >= pagination.totalPages ? 0.5 : 1 }}
-                                    >
-                                        Next
-                                    </button>
+                                        <option value={10}>10 / page</option>
+                                        <option value={20}>20 / page</option>
+                                        <option value={50}>50 / page</option>
+                                        <option value={100}>100 / page</option>
+                                    </select>
                                 </div>
-                            )}
+
+                                {pagination.totalPages > 1 && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        <button
+                                            type="button"
+                                            disabled={pagination.page <= 1}
+                                            onClick={() => handlePageChange(pagination.page - 1)}
+                                            className="btn-secondary"
+                                            style={{
+                                                padding: '4px 10px',
+                                                fontSize: '0.8rem',
+                                                height: '32px',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                opacity: pagination.page <= 1 ? 0.4 : 1,
+                                                cursor: pagination.page <= 1 ? 'not-allowed' : 'pointer'
+                                            }}
+                                        >
+                                            Prev
+                                        </button>
+
+                                        {getPageNumbers(pagination.page, pagination.totalPages).map((pageNum, idx) => (
+                                            pageNum === '...' ? (
+                                                <span key={`dots-${idx}`} style={{ padding: '0 4px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>...</span>
+                                            ) : (
+                                                <button
+                                                    key={`page-${pageNum}`}
+                                                    type="button"
+                                                    onClick={() => handlePageChange(pageNum)}
+                                                    className={pagination.page === pageNum ? 'btn-primary' : 'btn-secondary'}
+                                                    style={{
+                                                        padding: '4px 10px',
+                                                        fontSize: '0.8rem',
+                                                        minWidth: '32px',
+                                                        height: '32px',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        textAlign: 'center',
+                                                        fontWeight: pagination.page === pageNum ? 700 : 500,
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    {pageNum}
+                                                </button>
+                                            )
+                                        ))}
+
+                                        <button
+                                            type="button"
+                                            disabled={pagination.page >= pagination.totalPages}
+                                            onClick={() => handlePageChange(pagination.page + 1)}
+                                            className="btn-secondary"
+                                            style={{
+                                                padding: '4px 10px',
+                                                fontSize: '0.8rem',
+                                                height: '32px',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                opacity: pagination.page >= pagination.totalPages ? 0.4 : 1,
+                                                cursor: pagination.page >= pagination.totalPages ? 'not-allowed' : 'pointer'
+                                            }}
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                             </>
                         )}
                     </div>
@@ -949,41 +991,104 @@ const Transactions = () => {
                             </table>
                         </div>
 
-                        {returnsPagination.totalPages > 1 && (
-                            <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px', marginTop: '16px', flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginRight: '8px' }}>
-                                    Page {returnsPagination.page} of {returnsPagination.totalPages} ({returnsPagination.total} total)
+                        {/* Returns Pagination Controls */}
+                        <div className="no-print" style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginTop: '16px',
+                            paddingTop: '14px',
+                            borderTop: '1px solid var(--border)',
+                            flexWrap: 'wrap',
+                            gap: '10px'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                                <span>
+                                    Showing <strong>{returnsPagination.total > 0 ? ((returnsPagination.page - 1) * returnsPagination.limit) + 1 : 0}</strong> - <strong>{Math.min(returnsPagination.page * returnsPagination.limit, returnsPagination.total)}</strong> of <strong>{returnsPagination.total}</strong> returns
                                 </span>
-                                <button
-                                    disabled={returnsPagination.page <= 1}
-                                    onClick={() => handleReturnsPageChange(returnsPagination.page - 1)}
-                                    className="btn-secondary"
-                                    style={{ padding: '4px 12px', fontSize: '0.9rem', opacity: returnsPagination.page <= 1 ? 0.5 : 1 }}
+                                <select
+                                    value={returnsPageSize}
+                                    onChange={(e) => handleReturnsPageSizeChange(e.target.value)}
+                                    className="input-premium"
+                                    style={{ padding: '2px 8px', fontSize: '0.78rem', width: 'auto', cursor: 'pointer', height: '30px' }}
+                                    title="Returns per page"
                                 >
-                                    Prev
-                                </button>
-
-                                {getPageNumbers(returnsPagination.page, returnsPagination.totalPages).map(pageNum => (
-                                    <button
-                                        key={pageNum}
-                                        onClick={() => handleReturnsPageChange(pageNum)}
-                                        className={returnsPagination.page === pageNum ? "btn-primary" : "btn-secondary"}
-                                        style={{ padding: '4px 12px', fontSize: '0.9rem' }}
-                                    >
-                                        {pageNum}
-                                    </button>
-                                ))}
-
-                                <button
-                                    disabled={returnsPagination.page >= returnsPagination.totalPages}
-                                    onClick={() => handleReturnsPageChange(returnsPagination.page + 1)}
-                                    className="btn-secondary"
-                                    style={{ padding: '4px 12px', fontSize: '0.9rem', opacity: returnsPagination.page >= returnsPagination.totalPages ? 0.5 : 1 }}
-                                >
-                                    Next
-                                </button>
+                                    <option value={10}>10 / page</option>
+                                    <option value={20}>20 / page</option>
+                                    <option value={50}>50 / page</option>
+                                    <option value={100}>100 / page</option>
+                                </select>
                             </div>
-                        )}
+
+                            {returnsPagination.totalPages > 1 && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                    <button
+                                        type="button"
+                                        disabled={returnsPagination.page <= 1}
+                                        onClick={() => handleReturnsPageChange(returnsPagination.page - 1)}
+                                        className="btn-secondary"
+                                        style={{
+                                            padding: '4px 10px',
+                                            fontSize: '0.8rem',
+                                            height: '32px',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            opacity: returnsPagination.page <= 1 ? 0.4 : 1,
+                                            cursor: returnsPagination.page <= 1 ? 'not-allowed' : 'pointer'
+                                        }}
+                                    >
+                                        Prev
+                                    </button>
+
+                                    {getPageNumbers(returnsPagination.page, returnsPagination.totalPages).map((pageNum, idx) => (
+                                        pageNum === '...' ? (
+                                            <span key={`dots-${idx}`} style={{ padding: '0 4px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>...</span>
+                                        ) : (
+                                            <button
+                                                key={`page-${pageNum}`}
+                                                type="button"
+                                                onClick={() => handleReturnsPageChange(pageNum)}
+                                                className={returnsPagination.page === pageNum ? 'btn-primary' : 'btn-secondary'}
+                                                style={{
+                                                    padding: '4px 10px',
+                                                    fontSize: '0.8rem',
+                                                    minWidth: '32px',
+                                                    height: '32px',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    textAlign: 'center',
+                                                    fontWeight: returnsPagination.page === pageNum ? 700 : 500,
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                {pageNum}
+                                            </button>
+                                        )
+                                    ))}
+
+                                    <button
+                                        type="button"
+                                        disabled={returnsPagination.page >= returnsPagination.totalPages}
+                                        onClick={() => handleReturnsPageChange(returnsPagination.page + 1)}
+                                        className="btn-secondary"
+                                        style={{
+                                            padding: '4px 10px',
+                                            fontSize: '0.8rem',
+                                            height: '32px',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            opacity: returnsPagination.page >= returnsPagination.totalPages ? 0.4 : 1,
+                                            cursor: returnsPagination.page >= returnsPagination.totalPages ? 'not-allowed' : 'pointer'
+                                        }}
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                         </>
                     )}
                 </div>
@@ -1130,7 +1235,7 @@ const Transactions = () => {
                 onClose={() => setShowPrintModal(false)}
                 initialTimeframe={timeframe}
                 user={user}
-                transactions={filteredTransactions}
+                transactions={transactions}
                 currentFilterDate={filterDate}
                 currentCashier={userFilter !== 'ALL' ? userFilter : ''}
                 searchQuery={searchQuery}
