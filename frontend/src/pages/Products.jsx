@@ -576,7 +576,7 @@ const Products = () => {
                                     <th>Size</th>
                                     <th>Measurement</th>
                                     <th>Thread Type</th>
-                                    <th style={{ textAlign: 'right' }}>Stock</th>
+                                    <th style={{ textAlign: 'center', width: '90px' }}>Stock</th>
                                     <th style={{ textAlign: 'right' }}>Cost</th>
                                     <th style={{ textAlign: 'center' }}>Markup %</th>
                                     <th style={{ textAlign: 'right' }}>Selling Price</th>
@@ -652,7 +652,7 @@ const Products = () => {
                                         <td>{p.size || '-'}</td>
                                         <td>{p.measurement || '-'}</td>
                                         <td>{p.thread_type || '-'}</td>
-                                        <td style={{ textAlign: 'right', color: p.stock <= p.reorder_level ? 'var(--danger)' : 'var(--success)', fontWeight: 'bold' }}>
+                                        <td style={{ textAlign: 'center', color: p.stock <= p.reorder_level ? 'var(--danger)' : 'var(--success)', fontWeight: 'bold' }}>
                                             {p.stock}
                                         </td>
                                         <td style={{ textAlign: 'right', color: 'var(--text-muted)', fontSize: '0.85rem' }}>

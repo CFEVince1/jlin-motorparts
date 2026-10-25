@@ -919,7 +919,7 @@ const POS = () => {
                                 <th style={{ width: '95px', whiteSpace: 'nowrap' }}>Serial</th>
                                 <th style={{ width: '65px', whiteSpace: 'nowrap' }}>Brand</th>
                                 <th style={{ width: '60px', whiteSpace: 'nowrap' }}>Size</th>
-                                <th style={{ width: '85px', textAlign: 'right', whiteSpace: 'nowrap' }}>Stock</th>
+                                <th style={{ width: '85px', textAlign: 'center', whiteSpace: 'nowrap' }}>Stock</th>
                                 {user?.role === 'admin' && (
                                     <th style={{ width: '80px', textAlign: 'right', whiteSpace: 'nowrap' }}>Cost Price</th>
                                 )}
@@ -971,7 +971,7 @@ const POS = () => {
                                     </td>
                                     <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{p.brand || '-'}</td>
                                     <td style={{ whiteSpace: 'nowrap' }}>{p.size || '-'}</td>
-                                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                                         {p.is_serialized ? (
                                             <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>
                                                 {p.stock}
