@@ -406,7 +406,7 @@ const Reports = () => {
                                     <th>Rank</th>
                                     <th>Part Number</th>
                                     <th>Product</th>
-                                    <th className="text-right" style={{ whiteSpace: 'nowrap' }}>Units</th>
+                                    <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Units</th>
                                     <th className="text-right" style={{ whiteSpace: 'nowrap' }}>Revenue</th>
                                     <th className="text-right" style={{ whiteSpace: 'nowrap' }}>Profit</th>
                                 </tr>
@@ -422,7 +422,7 @@ const Reports = () => {
                                                 <div>{item.product_name}</div>
                                                 <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{item.brand} | {item.size}</div>
                                             </td>
-                                            <td className="text-right" style={{ fontWeight: 'bold', color: 'var(--primary)', whiteSpace: 'nowrap' }}>{item.total_sold}</td>
+                                            <td style={{ textAlign: 'center', fontWeight: 'bold', color: 'var(--primary)', whiteSpace: 'nowrap' }}>{item.total_sold}</td>
                                             <td className="text-right" style={{ whiteSpace: 'nowrap' }}>{formatCurrency(item.total_revenue)}</td>
                                             <td className="text-right" style={{ whiteSpace: 'nowrap' }}>{formatCurrency(item.total_profit)}</td>
                                         </tr>
@@ -503,7 +503,7 @@ const Reports = () => {
                             <thead>
                                 <tr>
                                     <th>Motorcycle</th>
-                                    <th className="text-right">Units</th>
+                                    <th style={{ textAlign: 'center' }}>Units</th>
                                     <th className="text-right">Revenue</th>
                                 </tr>
                             </thead>
@@ -514,7 +514,7 @@ const Reports = () => {
                                             <div>{row.motorcycle_display || row.motorcycle_model}</div>
                                             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{row.part_numbers || 'No parts'}</div>
                                         </td>
-                                        <td className="text-right" style={{ fontWeight: 'bold' }}>{row.total_sold}</td>
+                                        <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{row.total_sold}</td>
                                         <td className="text-right">{formatCurrency(row.total_revenue)}</td>
                                     </tr>
                                 )) : (

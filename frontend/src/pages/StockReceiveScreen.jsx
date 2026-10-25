@@ -390,7 +390,7 @@ export const StockReceiveScreen = () => {
   };
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Dynamic Print CSS for Receiving Slip */}
       <style>{`
         #printable-receiving-slip {
@@ -431,18 +431,30 @@ export const StockReceiveScreen = () => {
       {/* Screen Title & Top Navigation Tabs */}
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h1 style={{ marginBottom: '4px' }}>Stock Receiving & Delivery Inward</h1>
+          <h1 style={{ margin: 0, marginBottom: '4px' }}>Stock Receiving & Delivery Inward</h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
             Receive supplier deliveries into stock, generate purchase slips, and audit all added inventory.
           </p>
         </div>
 
         {/* View Switcher Tabs */}
-        <div style={{ display: 'flex', gap: '8px', background: 'var(--surface-hover)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', gap: '8px', background: 'var(--surface-hover)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border)', alignItems: 'center' }}>
           <button
             type="button"
             className={activeTab === 'form' ? 'btn-primary' : 'btn-secondary'}
-            style={{ height: '34px', padding: '0 14px', fontSize: '0.8rem', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '6px', border: 'none' }}
+            style={{
+              height: '34px',
+              padding: '0 14px',
+              fontSize: '0.8rem',
+              borderRadius: '6px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 600
+            }}
             onClick={() => setActiveTab('form')}
           >
             <PackagePlus size={15} /> Receive New Stock
@@ -450,7 +462,19 @@ export const StockReceiveScreen = () => {
           <button
             type="button"
             className={activeTab === 'history' ? 'btn-primary' : 'btn-secondary'}
-            style={{ height: '34px', padding: '0 14px', fontSize: '0.8rem', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '6px', border: 'none' }}
+            style={{
+              height: '34px',
+              padding: '0 14px',
+              fontSize: '0.8rem',
+              borderRadius: '6px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 600
+            }}
             onClick={() => {
               setActiveTab('history');
               fetchReceivingHistory();
@@ -472,7 +496,7 @@ export const StockReceiveScreen = () => {
               <Truck size={18} style={{ color: 'var(--primary)' }} /> Delivery Header Information
             </h3>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '14px' }}>
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                   <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)' }}>
