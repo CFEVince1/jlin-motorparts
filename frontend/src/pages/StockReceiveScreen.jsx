@@ -438,20 +438,19 @@ export const StockReceiveScreen = () => {
         </div>
 
         {/* View Switcher Tabs */}
-        <div style={{ display: 'flex', gap: '8px', background: 'var(--surface-hover)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border)', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <button
             type="button"
             className={activeTab === 'form' ? 'btn-primary' : 'btn-secondary'}
             style={{
-              height: '34px',
+              height: '36px',
               padding: '0 14px',
-              fontSize: '0.8rem',
-              borderRadius: '6px',
+              fontSize: '0.82rem',
+              borderRadius: '8px',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '6px',
-              border: 'none',
               cursor: 'pointer',
               fontWeight: 600
             }}
@@ -463,15 +462,14 @@ export const StockReceiveScreen = () => {
             type="button"
             className={activeTab === 'history' ? 'btn-primary' : 'btn-secondary'}
             style={{
-              height: '34px',
+              height: '36px',
               padding: '0 14px',
-              fontSize: '0.8rem',
-              borderRadius: '6px',
+              fontSize: '0.82rem',
+              borderRadius: '8px',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '6px',
-              border: 'none',
               cursor: 'pointer',
               fontWeight: 600
             }}
