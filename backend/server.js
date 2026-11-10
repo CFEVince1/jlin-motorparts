@@ -126,6 +126,16 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', service: 'jlin-inventory-api', timestamp: new Date().toISOString() });
 });
 
+app.get('/health/db', async (req, res) => {
+    try {
+        const db = require('./config/db');
+        const [rows] = await db.query('SELECT 1 as connected, NOW() as server_time');
+        res.json({ status: 'ok', database: 'connected', time: rows[0]?.server_time });
+    } catch (err) {
+        res.status(500).json({ status: 'error', database: 'disconnected', error: err.message, code: err.code });
+    }
+});
+
 // Centralized error handling middleware
 const errorHandler = (err, req, res, next) => {
     if (err.message === 'Not allowed by CORS') {

@@ -498,6 +498,13 @@ async function ensureSchema() {
     } catch (cmErr) {
       console.warn('[Schema] Failed to verify cash_movements table:', cmErr.message);
     }
+
+    try {
+      const syncProductionSchema = require('../scripts/sync_production_db');
+      await syncProductionSchema();
+    } catch (syncErr) {
+      console.warn('[Schema] Sync production schema warning:', syncErr.message);
+    }
 } catch (err) {
     console.warn('[Schema] Auto-migration check completed with note:', err.message);
   }
