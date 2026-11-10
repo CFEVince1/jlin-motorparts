@@ -122,6 +122,8 @@ app.get('/', (req, res) => {
     res.send('JLIN Motorcycle Parts API is running');
 });
 
+let lastServerError = null;
+
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', service: 'jlin-inventory-api', timestamp: new Date().toISOString() });
 });
@@ -136,8 +138,21 @@ app.get('/health/db', async (req, res) => {
     }
 });
 
+app.get('/health/error', (req, res) => {
+    res.json(lastServerError || { message: 'No server error captured' });
+});
+
 // Centralized error handling middleware
 const errorHandler = (err, req, res, next) => {
+    lastServerError = {
+        message: err.message,
+        stack: err.stack,
+        name: err.name,
+        code: err.code,
+        status: err.status || err.statusCode || 500,
+        path: req.originalUrl || req.url,
+        time: new Date().toISOString()
+    };
     if (err.message === 'Not allowed by CORS') {
         return res.status(403).json({
             error: 'Forbidden',
