@@ -648,9 +648,9 @@ exports.getSales = async (req, res, next) => {
                 ? 'COALESCE(s.voided_at, s.sale_date)'
                 : 's.sale_date';
             if (req.query.date.toLowerCase() === 'today') {
-                whereClauses.push(`(DATE(CONVERT_TZ(${dateField}, "+00:00", "+08:00")) = DATE(CONVERT_TZ(NOW(), "+00:00", "+08:00")) OR DATE(${dateField}) = CURDATE())`);
+                whereClauses.push(`(DATE(CONVERT_TZ(${dateField}, '+00:00', '+08:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+08:00')) OR DATE(${dateField}) = CURDATE())`);
             } else {
-                whereClauses.push(`(DATE(CONVERT_TZ(${dateField}, "+00:00", "+08:00")) = ? OR DATE(${dateField}) = ?)`);
+                whereClauses.push(`(DATE(CONVERT_TZ(${dateField}, '+00:00', '+08:00')) = ? OR DATE(${dateField}) = ?)`);
                 whereParams.push(req.query.date, req.query.date);
             }
         }
@@ -659,7 +659,7 @@ exports.getSales = async (req, res, next) => {
             const dateField = (req.query.filterType && ['VOID', 'VOIDED'].includes(req.query.filterType.toUpperCase()))
                 ? 'COALESCE(s.voided_at, s.sale_date)'
                 : 's.sale_date';
-            whereClauses.push(`(DATE(CONVERT_TZ(${dateField}, "+00:00", "+08:00")) >= ? OR DATE(${dateField}) >= ?)`);
+            whereClauses.push(`(DATE(CONVERT_TZ(${dateField}, '+00:00', '+08:00')) >= ? OR DATE(${dateField}) >= ?)`);
             whereParams.push(req.query.startDate, req.query.startDate);
         }
 
@@ -667,7 +667,7 @@ exports.getSales = async (req, res, next) => {
             const dateField = (req.query.filterType && ['VOID', 'VOIDED'].includes(req.query.filterType.toUpperCase()))
                 ? 'COALESCE(s.voided_at, s.sale_date)'
                 : 's.sale_date';
-            whereClauses.push(`(DATE(CONVERT_TZ(${dateField}, "+00:00", "+08:00")) <= ? OR DATE(${dateField}) <= ?)`);
+            whereClauses.push(`(DATE(CONVERT_TZ(${dateField}, '+00:00', '+08:00')) <= ? OR DATE(${dateField}) <= ?)`);
             whereParams.push(req.query.endDate, req.query.endDate);
         }
 
@@ -1768,20 +1768,20 @@ exports.getReturnsHistory = async (req, res, next) => {
 
         if (!req.query.startDate && !req.query.endDate && req.query.date) {
             if (req.query.date.toLowerCase() === 'today') {
-                whereClauses.push('(DATE(CONVERT_TZ(sr.created_at, "+00:00", "+08:00")) = DATE(CONVERT_TZ(NOW(), "+00:00", "+08:00")) OR DATE(sr.created_at) = CURDATE())');
+                whereClauses.push("(DATE(CONVERT_TZ(sr.created_at, '+00:00', '+08:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+08:00')) OR DATE(sr.created_at) = CURDATE())");
             } else {
-                whereClauses.push('(DATE(CONVERT_TZ(sr.created_at, "+00:00", "+08:00")) = ? OR DATE(sr.created_at) = ?)');
+                whereClauses.push("(DATE(CONVERT_TZ(sr.created_at, '+00:00', '+08:00')) = ? OR DATE(sr.created_at) = ?)");
                 whereParams.push(req.query.date, req.query.date);
             }
         }
 
         if (req.query.startDate) {
-            whereClauses.push('(DATE(CONVERT_TZ(sr.created_at, "+00:00", "+08:00")) >= ? OR DATE(sr.created_at) >= ?)');
+            whereClauses.push("(DATE(CONVERT_TZ(sr.created_at, '+00:00', '+08:00')) >= ? OR DATE(sr.created_at) >= ?)");
             whereParams.push(req.query.startDate, req.query.startDate);
         }
 
         if (req.query.endDate) {
-            whereClauses.push('(DATE(CONVERT_TZ(sr.created_at, "+00:00", "+08:00")) <= ? OR DATE(sr.created_at) <= ?)');
+            whereClauses.push("(DATE(CONVERT_TZ(sr.created_at, '+00:00', '+08:00')) <= ? OR DATE(sr.created_at) <= ?)");
             whereParams.push(req.query.endDate, req.query.endDate);
         }
 

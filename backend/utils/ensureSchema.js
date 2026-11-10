@@ -107,6 +107,77 @@ async function ensureSchema() {
       }
     }
 
+    // Ensure all critical sales columns exist
+    const ensureSalesColumns = [
+      { col: 'subtotal_amount', def: 'DECIMAL(10,2) NOT NULL DEFAULT 0.00' },
+      { col: 'discount_amount', def: 'DECIMAL(10,2) NOT NULL DEFAULT 0.00' },
+      { col: 'tax_amount', def: 'DECIMAL(10,2) NOT NULL DEFAULT 0.00' },
+      { col: 'receipt_no', def: 'VARCHAR(100) NULL' },
+      { col: 'cashier_id', def: 'INT NULL' },
+      { col: 'amount_tendered', def: 'DECIMAL(10,2) NULL' },
+      { col: 'change_amount', def: 'DECIMAL(10,2) NULL' },
+      { col: 'gcash_ref_no', def: 'VARCHAR(100) NULL' },
+      { col: 'payment_provider', def: 'VARCHAR(50) NULL' },
+      { col: 'payment_status', def: "VARCHAR(50) DEFAULT 'PAID'" },
+      { col: 'card_type', def: 'VARCHAR(50) NULL' },
+      { col: 'card_last4', def: 'VARCHAR(10) NULL' },
+      { col: 'paid_at', def: 'DATETIME NULL' },
+      { col: 'customer_name', def: 'VARCHAR(150) NULL' },
+      { col: 'customer_id', def: 'INT NULL' },
+      { col: 'customer_phone', def: 'VARCHAR(50) NULL' },
+      { col: 'customer_address', def: 'VARCHAR(255) NULL' }
+    ];
+
+    for (const item of ensureSalesColumns) {
+      try {
+        const [cCheck] = await db.query('SHOW COLUMNS FROM sales LIKE ?', [item.col]);
+        if (cCheck.length === 0) {
+          await db.query(`ALTER TABLE sales ADD COLUMN ${item.col} ${item.def}`);
+          console.log(`[Schema] Added missing sales.${item.col}`);
+        }
+      } catch (err) {
+        console.warn(`[Schema] Check/Add sales.${item.col} failed:`, err.message);
+      }
+    }
+
+    // Ensure sale_items columns
+    const ensureSaleItemsCols = [
+      { col: 'qty_sold', def: 'INT NOT NULL DEFAULT 1' },
+      { col: 'retail_price_snapshot', def: 'DECIMAL(10,2) NULL' },
+      { col: 'unit_cost_snapshot', def: 'DECIMAL(10,2) NULL' }
+    ];
+    for (const item of ensureSaleItemsCols) {
+      try {
+        const [cCheck] = await db.query('SHOW COLUMNS FROM sale_items LIKE ?', [item.col]);
+        if (cCheck.length === 0) {
+          await db.query(`ALTER TABLE sale_items ADD COLUMN ${item.col} ${item.def}`);
+          console.log(`[Schema] Added missing sale_items.${item.col}`);
+        }
+      } catch (err) {
+        console.warn(`[Schema] Check/Add sale_items.${item.col} failed:`, err.message);
+      }
+    }
+
+    // Ensure cash_floats columns
+    const ensureCashFloatCols = [
+      { col: 'shift_code', def: 'VARCHAR(50) NULL' },
+      { col: 'gcash_sales', def: 'DECIMAL(12,2) NOT NULL DEFAULT 0.00' },
+      { col: 'petty_cash_expenses', def: 'DECIMAL(12,2) NOT NULL DEFAULT 0.00' },
+      { col: 'reconciliation_notes', def: 'TEXT NULL' }
+    ];
+    for (const item of ensureCashFloatCols) {
+      try {
+        const [cCheck] = await db.query('SHOW COLUMNS FROM cash_floats LIKE ?', [item.col]);
+        if (cCheck.length === 0) {
+          await db.query(`ALTER TABLE cash_floats ADD COLUMN ${item.col} ${item.def}`);
+          console.log(`[Schema] Added missing cash_floats.${item.col}`);
+        }
+      } catch (err) {
+        console.warn(`[Schema] Check/Add cash_floats.${item.col} failed:`, err.message);
+      }
+    }
+
+
     // 1c. [Path B] sale_items returned_quantity removed for All-Sales-Final architecture
 
     // 1d. Ensure sale_returns and sale_return_items tables
