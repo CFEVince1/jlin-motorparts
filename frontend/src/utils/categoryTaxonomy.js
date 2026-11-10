@@ -122,25 +122,49 @@ export const getShortCategory = (rawCategory) => {
 
 export const MOTORCYCLE_CATEGORIES = [
   'Engine',
+  'Tires',
+  'Wheels & Hubs',
+  'CVT & Pulleys',
+  'Suspension',
+  'Exhaust',
   'Brakes',
-  'Wheels',
-  'CVT',
+  'Chains & Sprockets',
+  'Handlebars & Controls',
+  'Lights & Mirrors',
   'Electrical',
-  'Oils'
+  'Oils & Lubricants',
+  'Bolts & Accessories',
+  'Body & Seats',
+  'Riding Gear & Luggage'
 ];
 
-export const CANONICAL_6_CATEGORIES = [
+export const CANONICAL_CATEGORIES = [
   { code: 'ENG', name: 'Engine', label: 'Engine (ENG)', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.35)' },
+  { code: 'TIRE', name: 'Tires', label: 'Tires (TIRE)', color: '#06b6d4', bg: 'rgba(6, 182, 212, 0.12)', border: 'rgba(6, 182, 212, 0.35)' },
+  { code: 'WHL', name: 'Wheels & Hubs', label: 'Wheels & Hubs (WHL)', color: '#0284c7', bg: 'rgba(2, 132, 199, 0.12)', border: 'rgba(2, 132, 199, 0.35)' },
+  { code: 'CVT', name: 'CVT & Pulleys', label: 'CVT & Pulleys (CVT)', color: '#10b981', bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.35)' },
+  { code: 'SUSP', name: 'Suspension', label: 'Suspension (SUSP)', color: '#14b8a6', bg: 'rgba(20, 184, 166, 0.12)', border: 'rgba(20, 184, 166, 0.35)' },
+  { code: 'EXH', name: 'Exhaust', label: 'Exhaust (EXH)', color: '#f97316', bg: 'rgba(249, 115, 22, 0.12)', border: 'rgba(249, 115, 22, 0.35)' },
   { code: 'BRK', name: 'Brakes', label: 'Brakes (BRK)', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.12)', border: 'rgba(239, 68, 68, 0.35)' },
-  { code: 'CHAS', name: 'Wheels', label: 'Suspension / Wheels (CHAS)', color: '#06b6d4', bg: 'rgba(6, 182, 212, 0.12)', border: 'rgba(6, 182, 212, 0.35)' },
-  { code: 'CVT', name: 'CVT', label: 'CVT / Drive (CVT)', color: '#10b981', bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.35)' },
-  { code: 'ELEC', name: 'Electrical', label: 'Elec (ELEC)', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.12)', border: 'rgba(59, 130, 246, 0.35)' },
-  { code: 'OIL', name: 'Oils', label: 'Oils / Fluids (OIL)', color: '#a855f7', bg: 'rgba(168, 85, 247, 0.12)', border: 'rgba(168, 85, 247, 0.35)' }
+  { code: 'CHN', name: 'Chains & Sprockets', label: 'Chains & Sprockets (CHN)', color: '#84cc16', bg: 'rgba(132, 204, 22, 0.12)', border: 'rgba(132, 204, 22, 0.35)' },
+  { code: 'HNDL', name: 'Handlebars & Controls', label: 'Handlebars & Controls (HNDL)', color: '#6366f1', bg: 'rgba(99, 102, 241, 0.12)', border: 'rgba(99, 102, 241, 0.35)' },
+  { code: 'LGHT', name: 'Lights & Mirrors', label: 'Lights & Mirrors (LGHT)', color: '#eab308', bg: 'rgba(234, 179, 8, 0.12)', border: 'rgba(234, 179, 8, 0.35)' },
+  { code: 'ELEC', name: 'Electrical', label: 'Electrical (ELEC)', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.12)', border: 'rgba(59, 130, 246, 0.35)' },
+  { code: 'OIL', name: 'Oils & Lubricants', label: 'Oils & Lubricants (OIL)', color: '#a855f7', bg: 'rgba(168, 85, 247, 0.12)', border: 'rgba(168, 85, 247, 0.35)' },
+  { code: 'BLT', name: 'Bolts & Accessories', label: 'Bolts & Accessories (BLT)', color: '#ec4899', bg: 'rgba(236, 72, 153, 0.12)', border: 'rgba(236, 72, 153, 0.35)' },
+  { code: 'BODY', name: 'Body & Seats', label: 'Body & Seats (BODY)', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)', border: 'rgba(139, 92, 246, 0.35)' },
+  { code: 'GEAR', name: 'Riding Gear & Luggage', label: 'Riding Gear & Luggage (GEAR)', color: '#64748b', bg: 'rgba(100, 116, 139, 0.12)', border: 'rgba(100, 116, 139, 0.35)' }
 ];
+
+export const CANONICAL_6_CATEGORIES = CANONICAL_CATEGORIES;
 
 export const getCategoryBadgeMeta = (catOrCode) => {
+  if (!catOrCode) return CANONICAL_CATEGORIES[0];
+  const str = String(catOrCode).trim().toLowerCase();
+  const direct = CANONICAL_CATEGORIES.find(c => c.name.toLowerCase() === str || c.code.toLowerCase() === str);
+  if (direct) return direct;
   const code = getLedgerCategoryCode(catOrCode);
-  return CANONICAL_6_CATEGORIES.find(c => c.code === code) || CANONICAL_6_CATEGORIES[0];
+  return CANONICAL_CATEGORIES.find(c => c.code === code) || CANONICAL_CATEGORIES[0];
 };
 
 /**

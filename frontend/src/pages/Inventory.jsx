@@ -53,10 +53,7 @@ import LowStockReorderPanel from '../components/LowStockReorderPanel';
 const STANDARD_CATEGORIES = [
   'All',
   'Engine',
-  'Electrical',
   'Tires',
-  'Oils',
-  'Accessories',
   'Wheels & Hubs',
   'CVT & Pulleys',
   'Suspension',
@@ -65,6 +62,9 @@ const STANDARD_CATEGORIES = [
   'Chains & Sprockets',
   'Handlebars & Controls',
   'Lights & Mirrors',
+  'Electrical',
+  'Oils & Lubricants',
+  'Bolts & Accessories',
   'Body & Seats',
   'Riding Gear & Luggage'
 ];

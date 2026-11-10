@@ -1178,14 +1178,9 @@ exports.getCategories = async (req, res, next) => {
                 COALESCE(SUM(COALESCE(p.stock, p.current_stock, 0)), 0) AS total_units
             FROM categories c
             LEFT JOIN products p ON (
-                p.category = c.category_name 
-                OR p.category = c.category_code 
-                OR (c.category_code = 'ENG' AND p.category IN ('Engine', 'Engine Parts', 'Exhaust', 'Filters'))
-                OR (c.category_code = 'BRK' AND p.category IN ('Brakes', 'Cables'))
-                OR (c.category_code = 'CHAS' AND p.category IN ('Wheels', 'Suspension', 'Wheels & Suspension', 'Tires', 'Chassis'))
-                OR (c.category_code = 'CVT' AND p.category IN ('CVT', 'Drive', 'CVT & Drive', 'Transmission'))
-                OR (c.category_code = 'ELEC' AND p.category IN ('Electrical', 'Electronics', 'Ignition'))
-                OR (c.category_code = 'OIL' AND p.category IN ('Oils', 'Fluids', 'Oils & Fluids', 'Lubricants'))
+                p.category_id = c.category_id 
+                OR p.category = c.category_name 
+                OR p.category = c.category_code
             ) AND p.is_active = 1
             GROUP BY c.category_id, c.category_name, c.category_code, c.scope
             ORDER BY c.category_id ASC

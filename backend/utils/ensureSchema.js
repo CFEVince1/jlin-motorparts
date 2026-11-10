@@ -570,6 +570,55 @@ async function ensureSchema() {
       console.warn('[Schema] Failed to verify cash_movements table:', cmErr.message);
     }
 
+    // 17. Ensure standard 15 motorcycle categories exist
+    try {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS categories (
+          category_id INT AUTO_INCREMENT PRIMARY KEY,
+          category_name VARCHAR(100) NOT NULL UNIQUE,
+          category_code VARCHAR(10) NULL,
+          scope TEXT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+
+      const standardCategories = [
+        { name: 'Engine', code: 'ENG', scope: 'Cylinder Blocks, Heads, Pistons, Camshafts, Valves, Carburetors, Air Filters, Gaskets' },
+        { name: 'Tires', code: 'TIRE', scope: 'Motorcycle Tubeless & Tube Tires, Racing Tires, Inner Tubes, Valves' },
+        { name: 'Wheels & Hubs', code: 'WHL', scope: 'Forged Alloy Mags, Rims, Hubs, Spokes, Wheel Bearings, Spacers' },
+        { name: 'CVT & Pulleys', code: 'CVT', scope: 'Pulley Sets, Flyballs, Roller Weights, Drive Belts, Clutch Springs, Torque Drives' },
+        { name: 'Suspension', code: 'SUSP', scope: 'Rear Shocks, Mono Shocks, Front Fork Springs, Fork Oil, Swing Arms' },
+        { name: 'Exhaust', code: 'EXH', scope: 'Racing Pipes, Power Pipes, Open Pipes, Silencers, Exhaust Manifolds' },
+        { name: 'Brakes', code: 'BRK', scope: 'Radial Calipers, Master Cylinders, Brake Pads, Brake Rotors, Braided Steel Lines' },
+        { name: 'Chains & Sprockets', code: 'CHN', scope: 'Heavy Duty Chains, Front Sprockets, Rear Sprockets, Sprocket Sets' },
+        { name: 'Handlebars & Controls', code: 'HNDL', scope: 'Handlebars, Racing Grips, Throttle Cables, Clutch Levers, Bar Ends' },
+        { name: 'Lights & Mirrors', code: 'LGHT', scope: 'LED Headlights, Bulbs, Signal Lights, Tail Lights, Side Mirrors' },
+        { name: 'Electrical', code: 'ELEC', scope: 'Programmable ECUs, Racing CDIs, Iridium Spark Plugs, Batteries, Horns, Volt Meters' },
+        { name: 'Oils & Lubricants', code: 'OIL', scope: '4T Engine Oils, Fully Synthetic Oils, Scooter Gear Oils, Brake Fluids, Coolants' },
+        { name: 'Bolts & Accessories', code: 'BLT', scope: 'Titanium Bolts, Gold Crankcase Bolts, Disc Bolts, Washers, Dress-up Accessories' },
+        { name: 'Body & Seats', code: 'BODY', scope: 'Custom Seats, Fairings, Fenders, Body Panels, Footrests, Badges' },
+        { name: 'Riding Gear & Luggage', code: 'GEAR', scope: 'Helmets, Riding Gloves, Jackets, Top Boxes, Utility Brackets, Luggage Bags' }
+      ];
+
+      for (const cat of standardCategories) {
+        const [existing] = await db.query('SELECT category_id FROM categories WHERE LOWER(category_name) = LOWER(?)', [cat.name]);
+        if (existing.length === 0) {
+          await db.query(
+            'INSERT INTO categories (category_name, category_code, scope, created_at) VALUES (?, ?, ?, NOW())',
+            [cat.name, cat.code, cat.scope]
+          );
+        } else {
+          await db.query(
+            'UPDATE categories SET category_code = ?, scope = ? WHERE category_id = ?',
+            [cat.code, cat.scope, existing[0].category_id]
+          );
+        }
+      }
+      console.log('[Schema] Verified standard 15 product categories.');
+    } catch (catErr) {
+      console.warn('[Schema] Failed to verify standard categories:', catErr.message);
+    }
+
     try {
       const syncProductionSchema = require('../scripts/sync_production_db');
       await syncProductionSchema();

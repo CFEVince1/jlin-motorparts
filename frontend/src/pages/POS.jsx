@@ -102,11 +102,21 @@ const POS = ({ defaultTab }) => {
     const [cart, setCart] = useState([]);
 
     const CATEGORY_GROUPS = {
-        'Engine': ['Engine', 'Engine Parts'],
+        'Engine': ['Engine', 'Engine Parts', 'Filters'],
+        'Tires': ['Tires'],
+        'Wheels & Hubs': ['Wheels & Hubs', 'Wheels'],
+        'CVT & Pulleys': ['CVT & Pulleys', 'CVT', 'Transmission', 'Drive'],
+        'Suspension': ['Suspension', 'Chassis'],
+        'Exhaust': ['Exhaust'],
+        'Brakes': ['Brakes'],
+        'Chains & Sprockets': ['Chains & Sprockets'],
+        'Handlebars & Controls': ['Handlebars & Controls', 'Cables'],
+        'Lights & Mirrors': ['Lights & Mirrors'],
         'Electrical': ['Electrical', 'Electronics', 'Ignition'],
-        'Tires': ['Tires', 'Wheels'],
-        'Oils': ['Oils', 'Lubricants', 'Fluids'],
-        'Bolts & Accessories': ['Accessories', 'Bolts & Accessories', 'Body & Seats', 'Chassis', 'Parts']
+        'Oils & Lubricants': ['Oils & Lubricants', 'Oils', 'Lubricants', 'Fluids'],
+        'Bolts & Accessories': ['Bolts & Accessories', 'Accessories'],
+        'Body & Seats': ['Body & Seats'],
+        'Riding Gear & Luggage': ['Riding Gear & Luggage']
     };
 
     const filterProductsFn = useCallback((items, query, f) => {
@@ -1732,10 +1742,20 @@ const POS = ({ defaultTab }) => {
                             {[
                                 { label: 'All Categories', value: 'All' },
                                 { label: 'Engine', value: 'Engine' },
-                                { label: 'Electrical', value: 'Electrical' },
                                 { label: 'Tires', value: 'Tires' },
-                                { label: 'Oils', value: 'Oils' },
-                                { label: 'Bolts & Accessories', value: 'Bolts & Accessories' }
+                                { label: 'Wheels & Hubs', value: 'Wheels & Hubs' },
+                                { label: 'CVT & Pulleys', value: 'CVT & Pulleys' },
+                                { label: 'Suspension', value: 'Suspension' },
+                                { label: 'Exhaust', value: 'Exhaust' },
+                                { label: 'Brakes', value: 'Brakes' },
+                                { label: 'Chains & Sprockets', value: 'Chains & Sprockets' },
+                                { label: 'Handlebars & Controls', value: 'Handlebars & Controls' },
+                                { label: 'Lights & Mirrors', value: 'Lights & Mirrors' },
+                                { label: 'Electrical', value: 'Electrical' },
+                                { label: 'Oils & Lubricants', value: 'Oils & Lubricants' },
+                                { label: 'Bolts & Accessories', value: 'Bolts & Accessories' },
+                                { label: 'Body & Seats', value: 'Body & Seats' },
+                                { label: 'Riding Gear & Luggage', value: 'Riding Gear & Luggage' }
                             ].map(cat => {
                                 const isSelected = filters.category === cat.value || (cat.value === 'All' && (!filters.category || filters.category === 'All'));
                                 return (

@@ -43,12 +43,10 @@ const STANDARD_BRANDS = [
 ];
 
 const STANDARD_CATEGORIES = [
-    'Accessories', 'Body & Seats', 'Brakes', 'Cables', 'Chains & Sprockets',
-    'Chassis', 'CVT & Pulleys', 'Drive', 'Electrical', 'Electronics',
-    'Engine', 'Engine Parts', 'Exhaust', 'Filters', 'Fluids',
-    'Handlebars & Controls', 'Ignition', 'Lights & Mirrors', 'Lubricants',
-    'Oils', 'Parts', 'Riding Gear & Luggage', 'Suspension', 'Tires',
-    'Transmission', 'Wheels & Hubs'
+    'Engine', 'Tires', 'Wheels & Hubs', 'CVT & Pulleys', 'Suspension',
+    'Exhaust', 'Brakes', 'Chains & Sprockets', 'Handlebars & Controls',
+    'Lights & Mirrors', 'Electrical', 'Oils & Lubricants', 'Bolts & Accessories',
+    'Body & Seats', 'Riding Gear & Luggage'
 ];
 
 const Products = () => {
