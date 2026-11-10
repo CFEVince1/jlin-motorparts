@@ -1267,8 +1267,8 @@ exports.getBrands = async (req, res, next) => {
     try {
         const [brands] = await db.query(`
             SELECT 
-                COALESCE(b.brand_id, 0) AS brand_id,
-                COALESCE(b.brand_name, TRIM(p.brand)) AS brand_name,
+                b.brand_id,
+                b.brand_name,
                 b.country_origin,
                 b.specialty,
                 COUNT(p.id) AS product_count,
