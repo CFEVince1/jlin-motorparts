@@ -1086,10 +1086,10 @@ exports.getSalesNetProfitReport = async (req, res) => {
         const [soldProductsRows] = await db.query(`
             SELECT 
                 COALESCE(p.id, si.product_id) AS product_id,
-                COALESCE(si.part_number, p.part_number, p.sku, 'N/A') AS part_number,
-                COALESCE(si.product_name, p.name, 'Unknown Part') AS product_name,
-                COALESCE(si.brand, p.brand, 'Unbranded') AS brand,
-                COALESCE(p.category, 'Uncategorized') AS category,
+                MAX(COALESCE(si.part_number, p.part_number, p.sku, 'N/A')) AS part_number,
+                MAX(COALESCE(si.product_name, p.name, 'Unknown Part')) AS product_name,
+                MAX(COALESCE(si.brand, p.brand, 'Unbranded')) AS brand,
+                MAX(COALESCE(p.category, 'Uncategorized')) AS category,
                 COALESCE(SUM(si.quantity), 0) AS total_qty_sold,
                 COALESCE(AVG(COALESCE(NULLIF(si.unit_cost_snapshot, 0), NULLIF(si.cost_price, 0), p.cost_price, 0)), 0) AS avg_unit_cost,
                 COALESCE(AVG(COALESCE(si.price, si.retail_price_snapshot, p.selling_price, 0)), 0) AS avg_unit_price,
@@ -1099,7 +1099,7 @@ exports.getSalesNetProfitReport = async (req, res) => {
             JOIN sales s ON si.sale_id = s.id
             LEFT JOIN products p ON si.product_id = p.id
             WHERE ${salesDateCondition} AND (s.status IS NULL OR s.status != 'VOIDED')
-            GROUP BY COALESCE(p.id, si.product_id), COALESCE(si.part_number, p.part_number, p.sku), COALESCE(si.product_name, p.name), COALESCE(si.brand, p.brand), COALESCE(p.category, 'Uncategorized')
+            GROUP BY COALESCE(p.id, si.product_id)
             ORDER BY total_revenue DESC
             LIMIT 100
         `, salesParams);

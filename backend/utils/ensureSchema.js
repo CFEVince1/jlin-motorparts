@@ -619,6 +619,19 @@ async function ensureSchema() {
       console.warn('[Schema] Failed to verify standard categories:', catErr.message);
     }
 
+    // 18. Align brands and categories table collations with products table
+    try {
+      const [pCol] = await db.query("SHOW FULL COLUMNS FROM products LIKE 'brand'");
+      const prodCollation = pCol[0]?.Collation || 'utf8mb4_0900_ai_ci';
+      await db.query(`ALTER TABLE brands CONVERT TO CHARACTER SET utf8mb4 COLLATE ${prodCollation}`);
+      await db.query(`ALTER TABLE brands MODIFY COLUMN brand_name VARCHAR(100) CHARACTER SET utf8mb4 COLLATE ${prodCollation} NOT NULL`);
+      await db.query(`ALTER TABLE categories CONVERT TO CHARACTER SET utf8mb4 COLLATE ${prodCollation}`);
+      await db.query(`ALTER TABLE categories MODIFY COLUMN category_name VARCHAR(100) CHARACTER SET utf8mb4 COLLATE ${prodCollation} NOT NULL`);
+      console.log('[Schema] Aligned brands and categories table collations.');
+    } catch (collateErr) {
+      console.warn('[Schema] Collation alignment notice:', collateErr.message);
+    }
+
     try {
       const syncProductionSchema = require('../scripts/sync_production_db');
       await syncProductionSchema();
