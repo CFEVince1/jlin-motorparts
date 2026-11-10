@@ -18,17 +18,39 @@ export const ReceiptPrint = ({
   customerAddress = '',
   items = [],
   totalAmount = 0,
+  subtotal = 0,
+  discount = 0,
+  discountAmount = 0,
   paymentMethod = 'CASH',
   amountTendered = 0,
   changeDue = 0,
   gcashReference = '',
   cashAmount = null,
   gcashAmount = null,
+  vatableAmount = null,
+  vatAmount = null,
+  taxAmount = null,
+  vatExemptAmount = 0,
+  zeroRatedAmount = 0,
   width = '80mm', // '58mm' or '80mm'
 }) => {
   const is58mm = width === '58mm';
   const containerWidth = is58mm ? '54mm' : '76mm';
   const fontSize = is58mm ? '10px' : '11px';
+  const effectiveDiscount = Number(discountAmount !== undefined && discountAmount !== null && Number(discountAmount) > 0 ? discountAmount : (discount || 0));
+
+  // Philippine 12% VAT Calculations (Gross VAT-Inclusive Retail Model)
+  const numTotal = Math.max(0, Number(totalAmount || 0));
+  const computedVatable = (vatableAmount !== null && vatableAmount !== undefined)
+    ? Number(vatableAmount)
+    : Math.round((numTotal / 1.12) * 100) / 100;
+
+  const effectiveVat = vatAmount !== null && vatAmount !== undefined
+    ? vatAmount
+    : taxAmount;
+  const computedVat = (effectiveVat !== null && effectiveVat !== undefined)
+    ? Number(effectiveVat)
+    : Math.round((numTotal - computedVatable) * 100) / 100;
 
   return (
     <div id="printable-receipt" className="thermal-receipt-root" style={{
@@ -87,7 +109,15 @@ export const ReceiptPrint = ({
           JLIN MOTORCYCLE PARTS
         </h2>
         <div style={{ fontSize: is58mm ? '9px' : '10px', margin: '1px 0' }}>Calasiao, Pangasinan</div>
-        <div style={{ fontSize: is58mm ? '8px' : '9px', margin: '1px 0' }}>Official Sales Slip</div>
+        <div style={{ fontSize: is58mm ? '8.5px' : '9.5px', margin: '1px 0', fontWeight: 'bold', letterSpacing: '0.5px' }}>
+          VAT REG. TIN: 432-876-109-000
+        </div>
+        <div style={{ fontSize: is58mm ? '8px' : '9px', margin: '1px 0', textTransform: 'uppercase', fontWeight: 600 }}>
+          Official Sales Invoice
+        </div>
+        <div style={{ fontSize: is58mm ? '7.5px' : '8.5px', color: '#444444', fontStyle: 'italic', margin: '1px 0' }}>
+          (Prices are 12% VAT-Inclusive)
+        </div>
       </div>
 
       {/* Order Meta */}
@@ -161,12 +191,56 @@ export const ReceiptPrint = ({
 
       {/* Payment & Totals */}
       <div style={{ padding: '6px 0', borderBottom: '1px dashed #000000', fontSize: is58mm ? '10px' : '11px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: is58mm ? '11px' : '13px', marginBottom: '3px' }}>
-          <span>TOTAL:</span>
-          <span>{formatCurrency(totalAmount)}</span>
+        {effectiveDiscount > 0 && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+              <span>GROSS SUBTOTAL:</span>
+              <span style={{ fontFamily: 'monospace' }}>{formatCurrency(subtotal || (numTotal + effectiveDiscount))}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontWeight: 'bold' }}>
+              <span>DISCOUNT / BAWAS:</span>
+              <span style={{ fontFamily: 'monospace' }}>-{formatCurrency(effectiveDiscount)}</span>
+            </div>
+          </>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: is58mm ? '11px' : '13px', marginBottom: '4px' }}>
+          <span>TOTAL AMOUNT DUE:</span>
+          <span style={{ fontFamily: 'monospace' }}>{formatCurrency(totalAmount)}</span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: is58mm ? '9px' : '10px' }}>
-          <span>Method:</span>
+
+        {/* Philippine 12% VAT Breakdown */}
+        <div style={{
+          margin: '5px 0',
+          padding: '4px 0',
+          borderTop: '1px dotted #666666',
+          borderBottom: '1px dotted #666666',
+          fontSize: is58mm ? '8.5px' : '9.5px',
+          color: '#111111'
+        }}>
+          <div style={{ fontSize: is58mm ? '8px' : '9px', fontWeight: 'bold', color: '#333333', marginBottom: '2px', textTransform: 'uppercase' }}>
+            Tax Breakdown (12% PH VAT):
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1px' }}>
+            <span>VATable Sales:</span>
+            <span style={{ fontFamily: 'monospace' }}>{formatCurrency(computedVatable)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1px' }}>
+            <span style={{ fontWeight: 'bold' }}>12% VAT Amount:</span>
+            <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{formatCurrency(computedVat)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1px', color: '#555555' }}>
+            <span>VAT-Exempt Sales:</span>
+            <span style={{ fontFamily: 'monospace' }}>{formatCurrency(vatExemptAmount || 0)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#555555' }}>
+            <span>Zero-Rated Sales:</span>
+            <span style={{ fontFamily: 'monospace' }}>{formatCurrency(zeroRatedAmount || 0)}</span>
+          </div>
+        </div>
+
+        {/* Payment Details */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: is58mm ? '9px' : '10px', marginTop: '4px' }}>
+          <span>Payment Method:</span>
           <span style={{ fontWeight: 'bold' }}>
             {paymentMethod.toUpperCase() === 'SPLIT' ? 'SPLIT (CASH + GCASH)' : paymentMethod.toUpperCase()}
           </span>
@@ -175,21 +249,21 @@ export const ReceiptPrint = ({
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: is58mm ? '8px' : '9px', paddingLeft: '6px' }}>
               <span>- Cash Part:</span>
-              <span>{formatCurrency(cashAmount || 0)}</span>
+              <span style={{ fontFamily: 'monospace' }}>{formatCurrency(cashAmount || 0)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: is58mm ? '8px' : '9px', paddingLeft: '6px' }}>
               <span>- GCash Part:</span>
-              <span>{formatCurrency(gcashAmount || 0)}</span>
+              <span style={{ fontFamily: 'monospace' }}>{formatCurrency(gcashAmount || 0)}</span>
             </div>
           </>
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: is58mm ? '9px' : '10px' }}>
-          <span>Tendered:</span>
-          <span>{formatCurrency(amountTendered)}</span>
+          <span>Amount Tendered:</span>
+          <span style={{ fontFamily: 'monospace' }}>{formatCurrency(amountTendered)}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: is58mm ? '9px' : '10px', fontWeight: 'bold' }}>
-          <span>Change:</span>
-          <span>{formatCurrency(changeDue)}</span>
+          <span>Change Due:</span>
+          <span style={{ fontFamily: 'monospace' }}>{formatCurrency(changeDue)}</span>
         </div>
         {(paymentMethod.toUpperCase() === 'GCASH' || paymentMethod.toUpperCase() === 'SPLIT') && gcashReference && (
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: is58mm ? '8px' : '9px', marginTop: '2px', color: '#111827' }}>
@@ -202,7 +276,10 @@ export const ReceiptPrint = ({
       {/* Footer */}
       <div style={{ textAlign: 'center', paddingTop: '8px', fontSize: is58mm ? '8px' : '9px' }}>
         <div style={{ textTransform: 'uppercase', fontWeight: 'bold' }}>Thank You For Shopping!</div>
-        <div style={{ color: '#555555', marginTop: '1px' }}>Keep receipt for warranty claims</div>
+        <div style={{ color: '#111111', fontWeight: 'bold', marginTop: '2px', textTransform: 'uppercase' }}>ALL SALES FINAL — INSPECTED UPON RELEASE</div>
+        <div style={{ fontSize: is58mm ? '7.5px' : '8px', color: '#777777', marginTop: '2px', textTransform: 'uppercase' }}>
+          Official Commercial Sales Invoice
+        </div>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Edit2, X, Lock, CheckCircle, Package } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import { CANONICAL_6_CATEGORIES } from '../utils/categoryTaxonomy';
 
 /**
  * ProductEditModal Component
@@ -17,6 +18,7 @@ export const ProductEditModal = ({
   onClose,
   product, // product item object
   onSuccess,
+  asPanel = false,
 }) => {
   const [formData, setFormData] = useState({
     part_number: '',
@@ -70,14 +72,47 @@ export const ProductEditModal = ({
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    const finalVal = name === 'part_number' ? value.toUpperCase().replace(/\s+/g, '-') : value;
+    setFormData(prev => ({ ...prev, [name]: finalVal }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.part_number.trim() || !formData.name.trim()) {
-      toast.error('Part number and Name are required');
+    const partNum = (formData.part_number || '').trim();
+    const prodName = (formData.name || '').trim();
+
+    if (!partNum || !prodName) {
+      toast.error('Part number and Product name are required');
+      return;
+    }
+
+    if (partNum.length < 2) {
+      toast.error('Part number must be at least 2 characters');
+      return;
+    }
+
+    if (partNum.length > 50) {
+      toast.error('Part number cannot exceed 50 characters');
+      return;
+    }
+
+    const regex = /^[A-Z0-9-_./]+$/;
+    if (!regex.test(partNum)) {
+      toast.error('Invalid part number format. Only uppercase letters, numbers, hyphens (-), underscores (_), and dots (.) are allowed.');
+      return;
+    }
+
+    const isSegmented = /^[A-Z0-9]{1,15}([-_./][A-Z0-9]{1,15})+$/.test(partNum);
+    const hasDigits = /\d/.test(partNum) && partNum.length >= 4;
+    if (!isSegmented && !hasDigits) {
+      toast.error('Invalid format. Use standard segmented format (e.g. RCB-CAL-S01, YAM-4T-800) or an OEM code with digits.');
+      return;
+    }
+
+    const parsedReorder = formData.reorder_level !== '' ? Number(formData.reorder_level) : 5;
+    if (isNaN(parsedReorder) || parsedReorder < 1) {
+      toast.error('Reorder level must be a whole number of at least 1');
       return;
     }
 
@@ -94,7 +129,7 @@ export const ProductEditModal = ({
         cost_price: costNum,
         markup_percentage: markupNum,
         selling_price: sellingPrice,
-        reorder_level: formData.reorder_level !== '' ? Number(formData.reorder_level) : 0,
+        reorder_level: Math.max(1, parsedReorder),
       });
 
       toast.success('Product metadata and pricing updated successfully');
@@ -107,40 +142,43 @@ export const ProductEditModal = ({
     }
   };
 
-  return (
-    <div className="receipt-overlay no-print" style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(0,0,0,0.75)',
-      zIndex: 9999,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '16px'
-    }}>
-      <div className="glass-panel" style={{
+  const panelContent = (
+    <div
+      className="glass-panel"
+      style={asPanel ? {
         background: 'var(--surface)',
         padding: '24px',
-        width: '580px',
+        width: '100%',
+        borderRadius: '16px',
+        boxShadow: '0 8px 30px rgba(56, 189, 248, 0.12)',
+        border: '1.5px solid #38bdf8',
+        marginBottom: '24px'
+      } : {
+        background: 'var(--surface)',
+        padding: '24px',
+        width: '620px',
         maxWidth: '100%',
+        maxHeight: '88vh',
+        overflowY: 'auto',
         borderRadius: '12px',
         boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
         border: '1px solid var(--border)'
-      }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Edit2 size={20} style={{ color: 'var(--primary)' }} /> Edit Product Metadata
-            </h2>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-              Update catalogue attributes and pricing
-            </div>
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Edit2 size={20} style={{ color: '#38bdf8' }} /> {asPanel ? 'Edit Product Specifications & Pricing Panel' : 'Edit Product Metadata'}
+          </h2>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+            Updating: <strong style={{ color: 'var(--text-main)' }}>{product.product_name || product.name}</strong> ({product.part_number || 'No Part #'})
           </div>
-          <button onClick={onClose} disabled={submitting} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-            <X size={20} />
-          </button>
         </div>
+        <button onClick={onClose} disabled={submitting} className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+          <X size={16} /> <span>Close</span>
+        </button>
+      </div>
 
         {/* Read-Only Current Stock Badge */}
         <div style={{
@@ -218,6 +256,7 @@ export const ProductEditModal = ({
                 type="text"
                 name="part_number"
                 className="input-premium"
+                style={{ textTransform: 'uppercase' }}
                 value={formData.part_number}
                 onChange={handleChange}
                 required
@@ -253,15 +292,21 @@ export const ProductEditModal = ({
             </div>
             <div>
               <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                Category
+                Category *
               </label>
-              <input
-                type="text"
+              <select
                 name="category"
                 className="input-premium"
                 value={formData.category}
                 onChange={handleChange}
-              />
+                required
+                style={{ width: '100%', height: '36px', fontSize: '0.82rem', cursor: 'pointer' }}
+              >
+                <option value="">Select Category...</option>
+                {CANONICAL_6_CATEGORIES.map(c => (
+                  <option key={c.name} value={c.name}>{c.label}</option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -390,11 +435,12 @@ export const ProductEditModal = ({
 
           <div>
             <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-              Reorder Level (Low Stock Threshold)
+              Reorder Level (Threshold)
             </label>
             <input
               type="number"
-              min="0"
+              min="1"
+              step="1"
               name="reorder_level"
               className="input-premium"
               value={formData.reorder_level}
@@ -427,6 +473,24 @@ export const ProductEditModal = ({
           </div>
         </form>
       </div>
+  );
+
+  if (asPanel) {
+    return panelContent;
+  }
+
+  return (
+    <div className="receipt-overlay no-print" style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,0.75)',
+      zIndex: 9999,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '16px'
+    }}>
+      {panelContent}
     </div>
   );
 };

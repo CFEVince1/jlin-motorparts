@@ -1,44 +1,43 @@
-import { useContext, useState, useEffect } from 'react';
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import React, { useContext } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import {
     LayoutDashboard,
-    Package,
     ShoppingCart,
     Archive,
     TrendingUp,
     Users,
     LogOut,
-    History,
     Sun,
     Moon,
-    Truck,
-    AlertOctagon,
-    UserCircle2,
     Building2,
-    ChevronDown,
-    RotateCcw
+    ChevronLeft,
+    ChevronRight,
+    X,
+    Banknote,
+    ShieldCheck,
+    Truck
 } from 'lucide-react';
 
-const Sidebar = () => {
+const Sidebar = ({
+    isCollapsed = false,
+    onToggleCollapse,
+    isMobileNavOpen = false,
+    onCloseMobile,
+    theme = 'dark',
+    onToggleTheme,
+    onLogout
+}) => {
     const { user, logout } = useContext(AuthContext);
     const navigate = useNavigate();
-    const [theme, setTheme] = useState(() => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('theme')) || localStorage.getItem('theme') || 'dark');
-
-    useEffect(() => {
-        document.documentElement.setAttribute('data-theme', theme);
-        document.documentElement.classList.remove('light', 'dark');
-        document.documentElement.classList.add(theme);
-        localStorage.setItem('theme', theme);
-    }, [theme]);
-
-    const toggleTheme = () => {
-        setTheme(prev => prev === 'dark' ? 'light' : 'dark');
-    };
 
     const handleLogout = async () => {
-        await logout();
-        navigate('/login');
+        if (onLogout) {
+            onLogout();
+        } else {
+            await logout();
+            navigate('/login');
+        }
     };
 
     if (!user) return null;
@@ -51,276 +50,162 @@ const Sidebar = () => {
         }
     })();
 
-    const location = useLocation();
-
-    // Check if current route is part of Inventory group
-    const isStaff = user?.role === 'staff';
-    const inventoryRoutes = isStaff
-        ? ['/inventory', '/transactions', '/products', '/suppliers', '/stock-receive']
-        : ['/inventory', '/products', '/suppliers', '/stock-receive'];
-    const isInventoryRouteActive = inventoryRoutes.includes(location.pathname);
-    const [inventoryOpen, setInventoryOpen] = useState(true);
-
-    // Keep dropdown open if user navigates to an inventory sub-module
-    useEffect(() => {
-        if (isInventoryRouteActive) {
-            setInventoryOpen(true);
-        }
-    }, [location.pathname, isInventoryRouteActive]);
+    const hasRoleAccess = (linkRoles, userRole) => {
+        const r = (userRole || '').toLowerCase();
+        return linkRoles.some(allowed => {
+            const a = allowed.toLowerCase();
+            if (a === r) return true;
+            if (['cashier', 'staff'].includes(a) && ['cashier', 'staff'].includes(r)) return true;
+            return false;
+        });
+    };
 
     const primaryLinks = [
-        { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={20} />, roles: ['admin', 'staff'] },
-        { name: 'Sales (POS)', path: '/pos', icon: <ShoppingCart size={20} />, roles: ['admin', 'staff'] },
-        { name: 'Return / Refund', path: '/returns', icon: <RotateCcw size={20} />, roles: ['admin', 'staff'] },
-    ];
-
-    const inventorySubLinks = [
-        { name: 'Current Stock', path: '/inventory', icon: <Archive size={16} />, roles: ['admin', 'staff'] },
-        { name: 'Transaction', path: '/transactions', icon: <History size={16} />, roles: ['staff'] },
-        { name: 'Product Directory', path: '/products', icon: <Package size={16} />, roles: ['admin'] },
-        { name: 'Suppliers', path: '/suppliers', icon: <Building2 size={16} />, roles: ['admin'] },
-        { name: 'Stock Receive', path: '/stock-receive', icon: <Truck size={16} />, roles: ['admin'] },
+        { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={19} />, roles: ['admin', 'cashier'] },
+        { name: 'Sale (POS)', path: '/pos', icon: <ShoppingCart size={19} />, roles: ['admin', 'cashier'] },
+        { name: 'Inventory', path: '/inventory', icon: <Archive size={19} />, roles: ['admin', 'cashier'] },
+        { name: 'Purchasing', path: '/purchasing', icon: <Truck size={19} />, roles: ['admin'] },
+        { name: 'Receive Delivery', path: '/purchasing?tab=receive_orders', icon: <Truck size={19} />, roles: ['cashier'] },
+        { name: 'Suppliers', path: '/suppliers', icon: <Building2 size={19} />, roles: ['admin'] },
     ];
 
     const secondaryLinks = [
-        { name: 'Transaction History', path: '/transactions', icon: <History size={20} />, roles: ['admin'] },
-        { name: 'Sales Reports', path: '/reports', icon: <TrendingUp size={20} />, roles: ['admin'] },
-        { name: 'Discrepancy Audit', path: '/reports/adjustments', icon: <AlertOctagon size={20} />, roles: ['admin'] },
-        { name: 'Manage Users', path: '/users', icon: <Users size={20} />, roles: ['admin'] },
+        { name: 'Shifts & Cash Drawer', path: '/shifts', icon: <Banknote size={19} />, roles: ['admin'] },
+        { name: 'Reports', path: '/reports', icon: <TrendingUp size={19} />, roles: ['admin'] },
+        { name: 'Staff & Users', path: '/users', icon: <Users size={19} />, roles: ['admin'] },
+        { name: 'Audit Log', path: '/audit-log', icon: <ShieldCheck size={19} />, roles: ['admin'] },
     ];
 
+    const handleLinkClick = () => {
+        if (onCloseMobile) {
+            onCloseMobile();
+        }
+    };
+
     return (
-        <div className="sidebar" style={{
-            width: '260px',
-            display: 'flex',
-            flexDirection: 'column',
-            padding: '24px 0',
-            height: '100%'
-        }}>
-            <div className="sidebar-header" style={{
-                padding: '0 16px',
-                marginBottom: '10px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                position: 'relative',
-                flexShrink: 0
-            }}>
-                <button
-                    onClick={toggleTheme}
-                    style={{
-                        position: 'absolute',
-                        top: 0,
-                        right: '12px',
-                        background: 'var(--surface-hover)',
-                        border: '1px solid var(--border)',
-                        color: 'var(--text-main)',
-                        cursor: 'pointer',
-                        padding: '5px',
-                        borderRadius: '6px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        transition: 'all 0.2s ease'
-                    }}
-                    title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                >
-                    {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-                </button>
-
-                <img
-                    src="/jlin-logo.png"
-                    alt="JLIN Logo"
-                    style={{
-                        width: '70px',
-                        height: '70px',
-                        objectFit: 'contain',
-                        borderRadius: '50%',
-                        border: '2px solid rgba(16, 185, 129, 0.45)',
-                        boxShadow: '0 4px 14px rgba(0, 0, 0, 0.4), 0 0 12px rgba(16, 185, 129, 0.18)',
-                        backgroundColor: '#000000',
-                        marginBottom: '6px'
-                    }}
-                />
-                <div style={{
-                    fontWeight: 800,
-                    fontSize: '0.88rem',
-                    color: 'var(--text-main)',
-                    letterSpacing: '0.5px',
-                    textAlign: 'center',
-                    lineHeight: 1.2
-                }}>
-                    JLIN MOTO PARTS
-                </div>
-                <div style={{
-                    color: 'var(--text-muted)',
-                    fontSize: '0.64rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '1px',
-                    textAlign: 'center',
-                    marginTop: '2px'
-                }}>
-                    Inventory & Sales
-                </div>
-            </div>
-
-            <nav className="sidebar-nav" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', padding: '0 10px', overflowY: 'auto' }}>
-                {primaryLinks.filter(link => link.roles.includes(user.role)).map(link => (
-                    <NavLink
-                        key={link.path}
-                        to={link.path}
-                        end
-                        className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+        <div className={`sidebar ${isCollapsed ? 'collapsed' : 'expanded'}`}>
+            {/* Header: Logo, Branding & Collapse/Close Controls */}
+            <div className="sidebar-header">
+                {/* Mobile Close Button */}
+                {onCloseMobile && (
+                    <button
+                        type="button"
+                        className="mobile-close-btn"
+                        onClick={onCloseMobile}
+                        aria-label="Close Navigation"
+                        title="Close Menu"
                     >
-                        {link.icon} <span className="link-text">{link.name}</span>
-                    </NavLink>
-                ))}
+                        <X size={20} />
+                    </button>
+                )}
 
-                {/* Inventory Expandable Dropdown Module */}
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <div
-                        onClick={() => setInventoryOpen(prev => !prev)}
-                        className={`sidebar-link ${isInventoryRouteActive ? 'active' : ''}`}
-                        style={{ cursor: 'pointer', justifyContent: 'space-between', userSelect: 'none' }}
-                        title="Inventory Management & Related Modules"
+                {/* Desktop Collapse Toggle */}
+                {onToggleCollapse && (
+                    <button
+                        type="button"
+                        className="desktop-collapse-btn"
+                        onClick={onToggleCollapse}
+                        title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+                        aria-label={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
                     >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <Archive size={18} />
-                            <span className="link-text">Inventory</span>
-                        </div>
-                        <ChevronDown
-                            size={15}
-                            style={{
-                                transform: inventoryOpen ? 'rotate(180deg)' : 'none',
-                                transition: 'transform 0.2s ease',
-                                color: 'var(--text-muted)'
-                            }}
-                        />
-                    </div>
+                        {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+                    </button>
+                )}
 
-                    {inventoryOpen && (
-                        <div className="sidebar-submenu">
-                            {inventorySubLinks.filter(sub => sub.roles.includes(user.role)).map(sub => (
-                                <NavLink
-                                    key={sub.path}
-                                    to={sub.path}
-                                    end
-                                    className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
-                                >
-                                    {sub.icon}
-                                    <span>{sub.name}</span>
-                                </NavLink>
-                            ))}
+                {/* Shop Logo & Name */}
+                <div className="sidebar-brand">
+                    <img
+                        src="/jlin-logo.png"
+                        alt="JLIN Logo"
+                        className="sidebar-logo"
+                    />
+                    {!isCollapsed && (
+                        <div className="sidebar-brand-text">
+                            <div className="sidebar-title">JLIN MOTO PARTS</div>
+                            <div className="sidebar-subtitle">Inventory & Sales</div>
                         </div>
                     )}
                 </div>
+            </div>
 
-                {secondaryLinks.filter(link => link.roles.includes(user.role)).map(link => (
-                    <NavLink
-                        key={link.path}
-                        to={link.path}
-                        end
-                        className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-                    >
-                        {link.icon} <span className="link-text">{link.name}</span>
-                    </NavLink>
-                ))}
+            {/* Navigation Links */}
+            <nav className="sidebar-nav">
+                {primaryLinks
+                    .filter(link => hasRoleAccess(link.roles, user?.role))
+                    .map(link => (
+                        <NavLink
+                            key={link.path}
+                            to={link.path}
+                            end
+                            onClick={handleLinkClick}
+                            className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+                            title={isCollapsed ? link.name : undefined}
+                        >
+                            <span className="link-icon">{link.icon}</span>
+                            {!isCollapsed && <span className="link-text">{link.name}</span>}
+                        </NavLink>
+                    ))}
+
+                {secondaryLinks
+                    .filter(link => hasRoleAccess(link.roles, user?.role))
+                    .map(link => (
+                        <NavLink
+                            key={link.path}
+                            to={link.path}
+                            end
+                            onClick={handleLinkClick}
+                            className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+                            title={isCollapsed ? link.name : undefined}
+                        >
+                            <span className="link-icon">{link.icon}</span>
+                            {!isCollapsed && <span className="link-text">{link.name}</span>}
+                        </NavLink>
+                    ))}
             </nav>
 
-            {/* Compact Bottom User Profile & Logout Bar */}
-            <div className="sidebar-user" style={{
-                padding: '8px 12px',
-                borderTop: '1px solid var(--border)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '8px',
-                flexShrink: 0
-            }}>
+            {/* Bottom User Profile & Theme/Logout Bar */}
+            <div className="sidebar-user">
                 <NavLink
                     to="/profile"
-                    title="View & Edit Profile"
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        textDecoration: 'none',
-                        color: 'inherit',
-                        flex: 1,
-                        minWidth: 0,
-                        padding: '4px 6px',
-                        borderRadius: '6px',
-                        transition: 'background-color 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--surface-hover)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    onClick={handleLinkClick}
+                    title={isCollapsed ? `${currentUser.username} (${currentUser.role})` : 'View Profile'}
+                    className="sidebar-user-profile"
                 >
-                    <div
-                        style={{
-                            width: '28px',
-                            height: '28px',
-                            borderRadius: '50%',
-                            background: 'rgba(16, 185, 129, 0.15)',
-                            border: '1px solid rgba(16, 185, 129, 0.35)',
-                            color: 'var(--primary)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0,
-                            fontWeight: '600',
-                            fontSize: '0.78rem'
-                        }}
-                    >
+                    <div className="sidebar-user-avatar">
                         {currentUser.username?.[0]?.toUpperCase() || 'A'}
                     </div>
 
-                    <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
-                        <div
-                            style={{
-                                fontWeight: '600',
-                                fontSize: '0.78rem',
-                                whiteSpace: 'nowrap',
-                                textOverflow: 'ellipsis',
-                                overflow: 'hidden',
-                                color: 'var(--text-main)',
-                                lineHeight: 1.2
-                            }}
-                        >
-                            {currentUser.username || 'admin'}
+                    {!isCollapsed && (
+                        <div className="sidebar-user-info">
+                            <div className="sidebar-username">{currentUser.username || 'admin'}</div>
+                            <div className="sidebar-role">{(currentUser.role || '').toLowerCase() === 'admin' ? 'Owner / Admin' : 'Cashier / Staff'}</div>
                         </div>
-                        <div
-                            style={{
-                                fontSize: '0.66rem',
-                                color: 'var(--text-muted)',
-                                textTransform: 'capitalize'
-                            }}
-                        >
-                            {currentUser.role || 'Admin'}
-                        </div>
-                    </div>
+                    )}
                 </NavLink>
 
-                {/* Compact Logout Button */}
-                <button
-                    onClick={handleLogout}
-                    className="btn-secondary"
-                    title="Logout"
-                    style={{
-                        height: '28px',
-                        padding: '0 8px',
-                        borderRadius: '6px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        fontSize: '0.72rem',
-                        cursor: 'pointer',
-                        flexShrink: 0,
-                        fontWeight: 500
-                    }}
-                >
-                    <LogOut size={13} />
-                    <span>Logout</span>
-                </button>
+                <div className="sidebar-user-actions">
+                    {onToggleTheme && (
+                        <button
+                            type="button"
+                            onClick={onToggleTheme}
+                            className="sidebar-theme-btn"
+                            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                            aria-label={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                        >
+                            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+                        </button>
+                    )}
+
+                    <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="sidebar-logout-btn"
+                        title="Logout"
+                        aria-label="Logout"
+                    >
+                        <LogOut size={15} />
+                    </button>
+                </div>
             </div>
         </div>
     );

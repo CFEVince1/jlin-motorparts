@@ -12,6 +12,9 @@ export const ThermalReceipt = ({
   items = [],
   total = 0,
   totalAmount,
+  subtotal = 0,
+  discount = 0,
+  discountAmount = 0,
   paymentMethod = 'Cash',
   amountTendered = 0,
   change = 0,
@@ -20,6 +23,11 @@ export const ThermalReceipt = ({
   gcashReference = '',
   cashAmount = null,
   gcashAmount = null,
+  vatableAmount = null,
+  vatAmount = null,
+  taxAmount = null,
+  vatExemptAmount = 0,
+  zeroRatedAmount = 0,
 }) => {
   const displayReceiptNo = orderNumber || receiptId || 'PENDING';
   const displayCustomer = customer || customerName || '';
@@ -27,6 +35,20 @@ export const ThermalReceipt = ({
   const displayChange = changeDue !== undefined ? changeDue : change;
   const displayRef = gcashReference || paymentReference || '';
   const isGcash = (paymentMethod || '').toUpperCase() === 'GCASH';
+  const effectiveDiscount = Number(discountAmount !== undefined && discountAmount !== null && Number(discountAmount) > 0 ? discountAmount : (discount || 0));
+
+  // Philippine 12% VAT Calculations (Gross VAT-Inclusive Retail Model)
+  const numTotal = Math.max(0, Number(displayTotal || 0));
+  const computedVatable = (vatableAmount !== null && vatableAmount !== undefined)
+    ? Number(vatableAmount)
+    : Math.round((numTotal / 1.12) * 100) / 100;
+
+  const effectiveVat = vatAmount !== null && vatAmount !== undefined
+    ? vatAmount
+    : taxAmount;
+  const computedVat = (effectiveVat !== null && effectiveVat !== undefined)
+    ? Number(effectiveVat)
+    : Math.round((numTotal - computedVatable) * 100) / 100;
 
   return (
     <div id="printable-receipt" className="printable-receipt thermal-receipt-root" style={{ color: '#000000', padding: '4px', fontSize: '11px', lineHeight: 1.3, width: '76mm', margin: '0 auto', fontFamily: "'Courier New', Courier, monospace" }}>
@@ -34,7 +56,9 @@ export const ThermalReceipt = ({
       <div style={{ textAlign: 'center', paddingBottom: '8px', borderBottom: '1px dashed #000000' }}>
         <h2 style={{ fontSize: '14px', fontWeight: 'bold', margin: '0 0 2px 0', letterSpacing: '-0.025em', textTransform: 'uppercase' }}>JLIN MOTORCYCLE PARTS</h2>
         <p style={{ fontSize: '10px', margin: '2px 0' }}>Calasiao, Pangasinan</p>
-        <p style={{ fontSize: '10px', margin: '2px 0' }}>Official Sales Slip</p>
+        <p style={{ fontSize: '9px', fontWeight: 'bold', margin: '2px 0', letterSpacing: '0.4px' }}>VAT REG. TIN: 432-876-109-000</p>
+        <p style={{ fontSize: '9px', fontWeight: 600, textTransform: 'uppercase', margin: '2px 0' }}>Official Sales Invoice</p>
+        <p style={{ fontSize: '8px', color: '#555555', fontStyle: 'italic', margin: '1px 0' }}>(Prices are 12% VAT-Inclusive)</p>
       </div>
 
       {/* Meta Info */}
@@ -107,11 +131,55 @@ export const ThermalReceipt = ({
 
       {/* Financial Breakdown */}
       <div style={{ padding: '8px 0', borderBottom: '1px dashed #000000', fontFamily: 'monospace', fontSize: '11px' }}>
+        {effectiveDiscount > 0 && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+              <span>GROSS SUBTOTAL:</span>
+              <span>{formatCurrency(subtotal || (numTotal + effectiveDiscount))}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontWeight: 'bold' }}>
+              <span>DISCOUNT / BAWAS:</span>
+              <span>-{formatCurrency(effectiveDiscount)}</span>
+            </div>
+          </>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '12px', marginBottom: '4px' }}>
-          <span>TOTAL:</span>
+          <span>TOTAL AMOUNT DUE:</span>
           <span>{formatCurrency(displayTotal)}</span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginBottom: '2px' }}>
+
+        {/* Philippine 12% VAT Breakdown */}
+        <div style={{
+          margin: '5px 0',
+          padding: '4px 0',
+          borderTop: '1px dotted #555555',
+          borderBottom: '1px dotted #555555',
+          fontSize: '9.5px',
+          color: '#111111'
+        }}>
+          <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#222222', marginBottom: '2px', textTransform: 'uppercase' }}>
+            Tax Breakdown (12% PH VAT):
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1px' }}>
+            <span>VATable Sales:</span>
+            <span>{formatCurrency(computedVatable)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1px' }}>
+            <span style={{ fontWeight: 'bold' }}>12% VAT Amount:</span>
+            <span style={{ fontWeight: 'bold' }}>{formatCurrency(computedVat)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1px', color: '#555555' }}>
+            <span>VAT-Exempt Sales:</span>
+            <span>{formatCurrency(vatExemptAmount || 0)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#555555' }}>
+            <span>Zero-Rated Sales:</span>
+            <span>{formatCurrency(zeroRatedAmount || 0)}</span>
+          </div>
+        </div>
+
+        {/* Payment Details */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginTop: '4px', marginBottom: '2px' }}>
           <span>Payment ({paymentMethod.toUpperCase() === 'SPLIT' ? 'Split Cash+GCash' : paymentMethod}):</span>
           <span>{formatCurrency(amountTendered || displayTotal)}</span>
         </div>
@@ -127,8 +195,8 @@ export const ThermalReceipt = ({
             </div>
           </>
         )}
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}>
-          <span>Change:</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 'bold' }}>
+          <span>Change Due:</span>
           <span>{formatCurrency(displayChange || 0)}</span>
         </div>
         {(isGcash || paymentMethod.toUpperCase() === 'SPLIT' || displayRef) && displayRef && (
@@ -140,9 +208,10 @@ export const ThermalReceipt = ({
       </div>
 
       {/* Footer / Barcode Target */}
-      <div style={{ textAlign: 'center', paddingTop: '12px' }}>
-        <p style={{ fontSize: '9px', letterSpacing: '0.05em', textTransform: 'uppercase', margin: '0 0 2px 0' }}>Thank you for your business!</p>
-        <p style={{ fontSize: '8px', color: '#555555', margin: 0 }}>Official Internal Sales Receipt</p>
+      <div style={{ textAlign: 'center', paddingTop: '10px' }}>
+        <p style={{ fontSize: '9px', letterSpacing: '0.05em', textTransform: 'uppercase', margin: '0 0 2px 0', fontWeight: 'bold' }}>Thank you for your business!</p>
+        <p style={{ fontSize: '8px', color: '#111111', margin: '0 0 2px 0', fontWeight: 'bold', textTransform: 'uppercase' }}>ALL SALES FINAL — INSPECTED UPON RELEASE</p>
+        <p style={{ fontSize: '8px', color: '#777777', margin: 0, textTransform: 'uppercase' }}>Official Commercial Sales Invoice</p>
       </div>
     </div>
   );

@@ -24,14 +24,37 @@ const initialFormState = {
     selling_price: '',
     reorder_level: '',
     stock: '',
+    supplier_id: '',
+    supplier_name: '',
     is_serialized: typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('type') === 'serialized',
     serial_numbers: '',
     motorcycle_unit_ids: [],
     compatibility_group_ids: []
 };
 
+const STANDARD_BRANDS = [
+    'Akrapovic', 'Bando', 'BOSCH', 'Brembo', 'Castrol', 'FAG', 'Faito', 'FDR',
+    'Gates', 'Heng', 'Honda', 'JVT', 'K&N', 'Kawasaki', 'Kitti', 'Kixx',
+    'Koso', 'KTech', 'Maxxis', 'Michelin', 'Morin', 'Motul', 'MTRT', 'Namban',
+    'NGK', 'Nissin', 'Nui Racing', 'OEM Parts', 'Ohlins', 'Option 1', 'Osaki',
+    'Osram', 'Pirelli', 'QTT', 'Racing Boy (RCB)', 'RCB', 'Repsol', 'RS8',
+    'SKF', 'Speedmate', 'SSS', 'Suzuki', 'SWR', 'TDD', 'TTGR', 'Uma Racing',
+    'Yamaha', 'Yamalube', 'YBN', 'YSS', 'Yy Pang', 'Generic / Aftermarket'
+];
+
+const STANDARD_CATEGORIES = [
+    'Accessories', 'Body & Seats', 'Brakes', 'Cables', 'Chains & Sprockets',
+    'Chassis', 'CVT & Pulleys', 'Drive', 'Electrical', 'Electronics',
+    'Engine', 'Engine Parts', 'Exhaust', 'Filters', 'Fluids',
+    'Handlebars & Controls', 'Ignition', 'Lights & Mirrors', 'Lubricants',
+    'Oils', 'Parts', 'Riding Gear & Luggage', 'Suspension', 'Tires',
+    'Transmission', 'Wheels & Hubs'
+];
+
 const Products = () => {
     const [products, setProducts] = useState([]);
+    const [suppliers, setSuppliers] = useState([]);
+    const [supplierSearch, setSupplierSearch] = useState('');
     const [loading, setLoading] = useState(true);
     const { user } = useContext(AuthContext);
 
@@ -89,6 +112,17 @@ const Products = () => {
         }
     };
 
+    const fetchSuppliers = async () => {
+        try {
+            const res = await api.get('/suppliers');
+            if (Array.isArray(res.data)) {
+                setSuppliers(res.data);
+            }
+        } catch (err) {
+            console.error('Failed to load suppliers for dropdown', err);
+        }
+    };
+
     const fetchMotorcycleUnits = async () => {
         try {
             const res = await api.get('/products/motorcycle-units');
@@ -103,6 +137,7 @@ const Products = () => {
 
     useEffect(() => {
         fetchProducts();
+        fetchSuppliers();
     }, []);
 
     const handleSubmit = async (e) => {
@@ -121,6 +156,8 @@ const Products = () => {
                 markup_percentage: topMarkupNum,
                 selling_price: topSellingPrice,
                 reorder_level: Number(formData.reorder_level),
+                supplier_id: formData.supplier_id ? Number(formData.supplier_id) : null,
+                supplier_name: formData.supplier_name || null,
                 is_serialized: formData.is_serialized,
                 motorcycle_unit_ids: formData.motorcycle_unit_ids.map(Number),
                 compatibility_group_ids: formData.compatibility_group_ids.map(Number)
@@ -186,6 +223,8 @@ const Products = () => {
             selling_price: p,
             reorder_level: product.reorder_level || '',
             stock: product.stock,
+            supplier_id: product.supplier_id ? String(product.supplier_id) : '',
+            supplier_name: product.supplier_name || '',
             is_serialized: product.is_serialized === 1 || product.is_serialized === true,
             serial_numbers: '', // We don't allow editing serials directly from here yet
             motorcycle_unit_ids: (product.motorcycle_unit_ids || []).map(Number),
@@ -196,7 +235,17 @@ const Products = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const isAdmin = user.role === 'admin';
+    const isAdmin = String(user?.role || '').toLowerCase() === 'admin';
+
+    const brandOptions = Array.from(new Set([
+        ...STANDARD_BRANDS,
+        ...products.map(p => p.brand).filter(Boolean)
+    ])).filter(Boolean).sort((a, b) => a.localeCompare(b));
+
+    const categoryOptions = Array.from(new Set([
+        ...STANDARD_CATEGORIES,
+        ...products.map(p => p.category).filter(Boolean)
+    ])).filter(Boolean).sort((a, b) => a.localeCompare(b));
 
     const uniqueCategories = ['All', ...new Set(products.map(p => p.category).filter(Boolean))];
     const uniqueBrands = ['All', ...new Set(products.map(p => p.brand).filter(Boolean))];
@@ -265,255 +314,413 @@ const Products = () => {
                         </button>
                     </div>
 
-                    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '10px' }}>
-                            <input
-                                type="text"
-                                name="part_number"
-                                placeholder="Part Number *"
-                                className="input-premium"
-                                required
-                                value={formData.part_number}
-                                onChange={handleChange}
-                                style={{ padding: '7px 11px', fontSize: '0.82rem', height: '35px' }}
-                            />
-                            <input
-                                type="text"
-                                name="name"
-                                placeholder="Product Name *"
-                                className="input-premium"
-                                required
-                                value={formData.name}
-                                onChange={handleChange}
-                                style={{ padding: '7px 11px', fontSize: '0.82rem', height: '35px' }}
-                            />
-                            <input
-                                type="text"
-                                name="brand"
-                                placeholder="Brand"
-                                className="input-premium"
-                                value={formData.brand}
-                                onChange={handleChange}
-                                style={{ padding: '7px 11px', fontSize: '0.82rem', height: '35px' }}
-                            />
-                            <input
-                                type="text"
-                                name="category"
-                                placeholder="Category *"
-                                className="input-premium"
-                                required
-                                value={formData.category}
-                                onChange={handleChange}
-                                style={{ padding: '7px 11px', fontSize: '0.82rem', height: '35px' }}
-                            />
-                            <input
-                                type="text"
-                                name="size"
-                                placeholder="Size"
-                                className="input-premium"
-                                value={formData.size}
-                                onChange={handleChange}
-                                style={{ padding: '7px 11px', fontSize: '0.82rem', height: '35px' }}
-                            />
-                            <input
-                                type="text"
-                                name="measurement"
-                                placeholder="Measurement"
-                                className="input-premium"
-                                value={formData.measurement}
-                                onChange={handleChange}
-                                style={{ padding: '7px 11px', fontSize: '0.82rem', height: '35px' }}
-                            />
-                            <input
-                                type="text"
-                                name="thread_type"
-                                placeholder="Thread Type"
-                                className="input-premium"
-                                value={formData.thread_type}
-                                onChange={handleChange}
-                                style={{ padding: '7px 11px', fontSize: '0.82rem', height: '35px' }}
-                            />
-                            <input
-                                type="number"
-                                name="reorder_level"
-                                placeholder="Reorder Level *"
-                                className="input-premium"
-                                required
-                                min="0"
-                                value={formData.reorder_level}
-                                onChange={handleChange}
-                                style={{ padding: '7px 11px', fontSize: '0.82rem', height: '35px' }}
-                            />
-                            <input
-                                type="number"
-                                name="cost_price"
-                                placeholder="Supplier Cost (₱) *"
-                                className="input-premium"
-                                required
-                                min="0"
-                                step="0.01"
-                                value={formData.cost_price}
-                                onChange={handleChange}
-                                title="Supplier Cost (₱)"
-                                style={{ padding: '7px 11px', fontSize: '0.82rem', height: '35px' }}
-                            />
-                            <input
-                                type="number"
-                                name="markup_percentage"
-                                placeholder="Markup % (e.g. 30) *"
-                                className="input-premium"
-                                required
-                                min="0"
-                                step="0.01"
-                                value={formData.markup_percentage}
-                                onChange={handleChange}
-                                title="Markup percentage on cost"
-                                style={{ padding: '7px 11px', fontSize: '0.82rem', height: '35px' }}
-                            />
-                            <input
-                                type="number"
-                                name="selling_price"
-                                placeholder="Selling Price (₱)"
-                                className="input-premium"
-                                readOnly
-                                disabled
-                                value={topSellingPrice > 0 ? topSellingPrice.toFixed(2) : ''}
-                                style={{
-                                    padding: '7px 11px',
-                                    fontSize: '0.82rem',
-                                    height: '35px',
-                                    fontWeight: 'bold',
-                                    color: 'var(--primary)',
-                                    background: 'var(--surface-hover)',
-                                    cursor: 'not-allowed'
-                                }}
-                                title="Selling Price = Cost + (Cost × Markup %)"
-                            />
-                        </div>
-
-                        {/* Compact Type Selector & Initial Stock Indicator */}
-                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', marginTop: '2px' }}>
-                            <div style={{
-                                display: 'inline-flex',
-                                gap: '12px',
-                                alignItems: 'center',
-                                padding: '4px 12px',
-                                background: 'rgba(255,255,255,0.04)',
-                                border: '1px solid var(--border)',
-                                borderRadius: '6px',
-                                fontSize: '0.8rem'
-                            }}>
-                                <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Type:</span>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: 500 }}>
-                                    <input
-                                        type="radio"
-                                        name="product_type"
-                                        checked={!formData.is_serialized}
-                                        onChange={() => setFormData({ ...formData, is_serialized: false, serial_numbers: '' })}
-                                        style={{ accentColor: 'var(--primary)', width: '14px', height: '14px' }}
-                                        disabled={editingId !== null}
-                                    />
-                                    Non-Serialized
+                    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        {/* Row 1: Part Number *, Product Name *, Brand (Dropdown) */}
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                            gap: '12px'
+                        }}>
+                            <div>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                    Part Number *
                                 </label>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: 500 }}>
-                                    <input
-                                        type="radio"
-                                        name="product_type"
-                                        checked={formData.is_serialized}
-                                        onChange={() => setFormData({ ...formData, is_serialized: true })}
-                                        style={{ accentColor: 'var(--primary)', width: '14px', height: '14px' }}
-                                        disabled={editingId !== null}
-                                    />
-                                    Serialized
-                                </label>
-                            </div>
-
-                            {editingId ? (
                                 <input
                                     type="text"
+                                    name="part_number"
+                                    placeholder="Part Number *"
+                                    className="input-premium"
+                                    required
+                                    value={formData.part_number}
+                                    onChange={handleChange}
+                                    style={{ padding: '7px 11px', fontSize: '0.82rem', height: '36px', width: '100%' }}
+                                />
+                            </div>
+
+                            <div>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                    Product Name *
+                                </label>
+                                <input
+                                    type="text"
+                                    name="name"
+                                    placeholder="Product Name *"
+                                    className="input-premium"
+                                    required
+                                    value={formData.name}
+                                    onChange={handleChange}
+                                    style={{ padding: '7px 11px', fontSize: '0.82rem', height: '36px', width: '100%' }}
+                                />
+                            </div>
+
+                            <div>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                    Brand
+                                </label>
+                                <select
+                                    name="brand"
+                                    className="input-premium"
+                                    value={formData.brand}
+                                    onChange={handleChange}
+                                    style={{ padding: '7px 11px', fontSize: '0.82rem', height: '36px', width: '100%', cursor: 'pointer' }}
+                                >
+                                    <option value="">Select Brand...</option>
+                                    {brandOptions.map(b => (
+                                        <option key={b} value={b}>{b}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Row 2: Category * (Dropdown), Size, Measurement, Thread Type */}
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                            gap: '12px'
+                        }}>
+                            <div>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                    Category *
+                                </label>
+                                <select
+                                    name="category"
+                                    className="input-premium"
+                                    required
+                                    value={formData.category}
+                                    onChange={handleChange}
+                                    style={{ padding: '7px 11px', fontSize: '0.82rem', height: '36px', width: '100%', cursor: 'pointer' }}
+                                >
+                                    <option value="">Select Category *</option>
+                                    {categoryOptions.map(cat => (
+                                        <option key={cat} value={cat}>{cat}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                    Size
+                                </label>
+                                <input
+                                    type="text"
+                                    name="size"
+                                    placeholder="Size (e.g. 14 inch, Standard)"
+                                    className="input-premium"
+                                    value={formData.size}
+                                    onChange={handleChange}
+                                    style={{ padding: '7px 11px', fontSize: '0.82rem', height: '36px', width: '100%' }}
+                                />
+                            </div>
+
+                            <div>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                    Measurement
+                                </label>
+                                <input
+                                    type="text"
+                                    name="measurement"
+                                    placeholder="Measurement (e.g. 260mm, 1L)"
+                                    className="input-premium"
+                                    value={formData.measurement}
+                                    onChange={handleChange}
+                                    style={{ padding: '7px 11px', fontSize: '0.82rem', height: '36px', width: '100%' }}
+                                />
+                            </div>
+
+                            <div>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                    Thread Type
+                                </label>
+                                <input
+                                    type="text"
+                                    name="thread_type"
+                                    placeholder="Thread Type (e.g. M10x1.25)"
+                                    className="input-premium"
+                                    value={formData.thread_type}
+                                    onChange={handleChange}
+                                    style={{ padding: '7px 11px', fontSize: '0.82rem', height: '36px', width: '100%' }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Row 3: Reorder Level *, Supplier Cost (₱) *, Markup % (e.g., 30) *, Selling Price (₱) */}
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                            gap: '12px'
+                        }}>
+                            <div>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                    Reorder Level *
+                                </label>
+                                <input
+                                    type="number"
+                                    name="reorder_level"
+                                    placeholder="Reorder Level *"
+                                    className="input-premium"
+                                    required
+                                    min="0"
+                                    value={formData.reorder_level}
+                                    onChange={handleChange}
+                                    style={{ padding: '7px 11px', fontSize: '0.82rem', height: '36px', width: '100%' }}
+                                />
+                            </div>
+
+                            <div>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                    Supplier Cost (₱) *
+                                </label>
+                                <input
+                                    type="number"
+                                    name="cost_price"
+                                    placeholder="Supplier Cost (₱) *"
+                                    className="input-premium"
+                                    required
+                                    min="0"
+                                    step="0.01"
+                                    value={formData.cost_price}
+                                    onChange={handleChange}
+                                    title="Supplier Cost (₱)"
+                                    style={{ padding: '7px 11px', fontSize: '0.82rem', height: '36px', width: '100%' }}
+                                />
+                            </div>
+
+                            <div>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                    Markup % (e.g., 30) *
+                                </label>
+                                <input
+                                    type="number"
+                                    name="markup_percentage"
+                                    placeholder="Markup % (e.g. 30) *"
+                                    className="input-premium"
+                                    required
+                                    min="0"
+                                    step="0.01"
+                                    value={formData.markup_percentage}
+                                    onChange={handleChange}
+                                    title="Markup percentage on cost"
+                                    style={{ padding: '7px 11px', fontSize: '0.82rem', height: '36px', width: '100%' }}
+                                />
+                            </div>
+
+                            <div>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                    Selling Price (₱)
+                                </label>
+                                <input
+                                    type="number"
+                                    name="selling_price"
+                                    placeholder="Selling Price (₱)"
+                                    className="input-premium"
                                     readOnly
                                     disabled
-                                    value={`Current Stock: ${formData.stock ?? 0} units (Managed via Stock Receive)`}
-                                    className="input-premium"
+                                    value={topSellingPrice > 0 ? topSellingPrice.toFixed(2) : ''}
                                     style={{
-                                        width: '260px',
-                                        height: '32px',
-                                        padding: '4px 10px',
-                                        fontSize: '0.78rem',
-                                        opacity: 0.85,
-                                        cursor: 'not-allowed',
-                                        background: 'var(--surface-hover)'
+                                        padding: '7px 11px',
+                                        fontSize: '0.82rem',
+                                        height: '36px',
+                                        width: '100%',
+                                        fontWeight: 'bold',
+                                        color: 'var(--primary)',
+                                        background: 'var(--surface-hover)',
+                                        cursor: 'not-allowed'
                                     }}
+                                    title="Selling Price = Cost + (Cost × Markup %)"
                                 />
-                            ) : (
-                                <span style={{
-                                    padding: '4px 10px',
+                            </div>
+                        </div>
+
+                        {/* Row 4: Product Type toggle (Non-Serialized vs Serialized) with helper text */}
+                        <div style={{
+                            padding: '12px 14px',
+                            background: 'rgba(255, 255, 255, 0.02)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '8px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text)' }}>
+                                    Product Type *
+                                </span>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                    (Inventory Tracking Mode)
+                                </span>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                                <div style={{
+                                    display: 'inline-flex',
+                                    gap: '14px',
+                                    alignItems: 'center',
+                                    padding: '6px 14px',
+                                    background: 'rgba(0, 0, 0, 0.2)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: '6px',
+                                    fontSize: '0.82rem'
+                                }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: editingId ? 'not-allowed' : 'pointer', fontWeight: 500 }}>
+                                        <input
+                                            type="radio"
+                                            name="product_type"
+                                            checked={!formData.is_serialized}
+                                            onChange={() => setFormData({ ...formData, is_serialized: false, serial_numbers: '' })}
+                                            style={{ accentColor: 'var(--primary)', width: '15px', height: '15px' }}
+                                            disabled={editingId !== null}
+                                        />
+                                        <span>Non-Serialized (Bulk Qty)</span>
+                                    </label>
+
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: editingId ? 'not-allowed' : 'pointer', fontWeight: 500 }}>
+                                        <input
+                                            type="radio"
+                                            name="product_type"
+                                            checked={formData.is_serialized}
+                                            onChange={() => setFormData({ ...formData, is_serialized: true })}
+                                            style={{ accentColor: 'var(--primary)', width: '15px', height: '15px' }}
+                                            disabled={editingId !== null}
+                                        />
+                                        <span>Serialized (Unique Serial / Lot Tracked)</span>
+                                    </label>
+                                </div>
+
+                                <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)', flex: '1 1 250px' }}>
+                                    {formData.is_serialized ? (
+                                        <>💡 <strong>Serialized:</strong> Each item tracked with a unique serial number (e.g. ECU, engine blocks). Stock increases as serials are added.</>
+                                    ) : (
+                                        <>💡 <strong>Non-Serialized:</strong> Tracked in bulk quantity (e.g. spark plugs, brake pads, fluids). Stock replenished via Stock Receive.</>
+                                    )}
+                                </span>
+                            </div>
+
+                            {/* Serial Number Input for Serialized Items */}
+                            {formData.is_serialized && !editingId && (
+                                <div style={{
+                                    marginTop: '6px',
+                                    padding: '10px 12px',
                                     background: 'var(--surface-hover)',
                                     borderRadius: '6px',
                                     border: '1px solid var(--border)',
-                                    fontSize: '0.78rem',
-                                    color: 'var(--text-muted)'
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '6px'
                                 }}>
-                                    {formData.is_serialized ? (
-                                        formData.serial_numbers.trim() ? (
-                                            <>Initial Stock: <strong style={{ color: 'var(--primary)' }}>{formData.serial_numbers.split(/[\n,]+/).map(s => s.trim()).filter(Boolean).length} units</strong> (from serials)</>
-                                        ) : (
-                                            <>Initial Stock: <strong>0 units</strong> (Serials can be entered below or received via <em>Stock Receive</em>)</>
-                                        )
-                                    ) : (
-                                        <>Initial Stock: <strong>0 units</strong> (Receive stock via <em>Stock Receive</em> with supplier receipt)</>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                                        <label style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '0.78rem' }}>
+                                            Serial Number(s)
+                                        </label>
+                                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                            Comma-separated or one per line. Leave blank to receive stock later via Stock Receive.
+                                        </span>
+                                    </div>
+                                    <textarea
+                                        name="serial_numbers"
+                                        placeholder="e.g. SN-001, SN-002, SN-003"
+                                        className="input-premium"
+                                        style={{ height: '52px', resize: 'vertical', fontFamily: 'monospace', fontSize: '0.8rem', padding: '6px 10px' }}
+                                        value={formData.serial_numbers}
+                                        onChange={handleChange}
+                                    />
+                                    {formData.serial_numbers.trim() && (
+                                        <div style={{ fontSize: '0.74rem', color: 'var(--primary)', fontWeight: 600 }}>
+                                            ✓ Initial Stock: {
+                                                formData.serial_numbers
+                                                    .split(/[\n,]+/)
+                                                    .map(s => s.trim())
+                                                    .filter(Boolean).length
+                                            } serialized unit(s) will be added to stock
+                                        </div>
                                     )}
-                                </span>
+                                </div>
                             )}
                         </div>
 
-                        {/* Compact Serial Number Input for Serialized Items */}
-                        {formData.is_serialized && !editingId && (
-                            <div style={{
-                                padding: '10px 12px',
-                                background: 'var(--surface-hover)',
-                                borderRadius: '6px',
-                                border: '1px solid var(--border)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '6px'
-                            }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
-                                    <label style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '0.8rem' }}>
-                                        Serial Number(s)
-                                    </label>
-                                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                                        Comma separated or one per line. Leave blank to receive stock later via Stock Receive.
-                                    </span>
+                        {/* Supplier Selection Field (Right below Row 4 Product Type toggle) */}
+                        <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '5px'
+                        }}>
+                            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block' }}>
+                                Supplier *
+                            </label>
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', maxWidth: '640px' }}>
+                                <div style={{ position: 'relative', width: '220px' }}>
+                                    <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                    <input
+                                        type="text"
+                                        className="input-premium"
+                                        placeholder="Search supplier..."
+                                        value={supplierSearch}
+                                        onChange={(e) => setSupplierSearch(e.target.value)}
+                                        style={{ paddingLeft: '32px', height: '36px', fontSize: '0.82rem', width: '100%' }}
+                                    />
                                 </div>
-                                <textarea
-                                    name="serial_numbers"
-                                    placeholder="e.g. SN-001, SN-002, SN-003"
+                                <select
+                                    name="supplier_id"
                                     className="input-premium"
-                                    style={{ height: '52px', resize: 'vertical', fontFamily: 'monospace', fontSize: '0.8rem', padding: '6px 10px' }}
-                                    value={formData.serial_numbers}
-                                    onChange={handleChange}
-                                />
-                                {formData.serial_numbers.trim() && (
-                                    <div style={{ fontSize: '0.74rem', color: 'var(--primary)', fontWeight: 600 }}>
-                                        ✓ Initial Stock: {
-                                            formData.serial_numbers
-                                                .split(/[\n,]+/)
-                                                .map(s => s.trim())
-                                                .filter(Boolean).length
-                                        } serialized unit(s) will be added to stock
-                                    </div>
-                                )}
+                                    required
+                                    value={formData.supplier_id || ''}
+                                    onChange={(e) => {
+                                        const sId = e.target.value;
+                                        const found = suppliers.find(s => String(s.id) === String(sId));
+                                        setFormData({
+                                            ...formData,
+                                            supplier_id: sId,
+                                            supplier_name: found ? found.name : ''
+                                        });
+                                    }}
+                                    style={{
+                                        flex: '1 1 240px',
+                                        height: '36px',
+                                        fontSize: '0.82rem',
+                                        padding: '7px 11px',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    <option value="">Select Supplier *</option>
+                                    {suppliers
+                                        .filter(s => !supplierSearch || s.name.toLowerCase().includes(supplierSearch.toLowerCase()))
+                                        .map(sup => (
+                                            <option key={sup.id} value={sup.id}>
+                                                {sup.name}
+                                            </option>
+                                        ))}
+                                </select>
                             </div>
-                        )}
+                            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                                Source vendor supplying this part (e.g., Brembo & RCB Online Hub, J-Lin Racing Parts, Maniquez Motor Parts, Outflow Racing PH).
+                            </span>
+                        </div>
 
-                        <div style={{ display: 'flex', gap: '10px', marginTop: '2px' }}>
+                        {/* Action Buttons - aligned bottom left */}
+                        <div style={{
+                            display: 'flex',
+                            gap: '10px',
+                            alignItems: 'center',
+                            justifyContent: 'flex-start',
+                            marginTop: '8px'
+                        }}>
                             <button
                                 type="submit"
                                 className="btn-primary"
-                                style={{ padding: '6px 16px', fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                style={{
+                                    padding: '8px 20px',
+                                    fontSize: '0.84rem',
+                                    fontWeight: 600,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    backgroundColor: '#10b981',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer'
+                                }}
                             >
-                                <Plus size={14} /> {editingId ? 'Save Changes' : 'Add to Catalog'}
+                                <Plus size={16} /> {editingId ? 'Save Changes' : '+ Add to Catalog'}
                             </button>
 
                             <button
@@ -524,7 +731,11 @@ const Products = () => {
                                     resetForm();
                                     setIsAddFormOpen(false);
                                 }}
-                                style={{ padding: '6px 14px', fontSize: '0.82rem' }}
+                                style={{
+                                    padding: '8px 16px',
+                                    fontSize: '0.84rem',
+                                    cursor: 'pointer'
+                                }}
                             >
                                 Cancel
                             </button>

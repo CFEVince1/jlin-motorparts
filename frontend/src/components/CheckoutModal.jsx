@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Banknote, Smartphone, AlertCircle, X, CheckCircle, Split, ArrowLeft } from 'lucide-react';
+import { Banknote, Smartphone, AlertCircle, X, CheckCircle, Split, ArrowLeft, Tag } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
-import { calculatePaymentDetails, roundCurrency } from '../utils/calculations';
+import { calculatePaymentDetails, roundCurrency, calculatePhilippineTax } from '../utils/calculations';
 
 /**
  * Sanitize numeric inputs: disallows negative signs, allows digits and single decimal.
@@ -30,6 +30,8 @@ export const CheckoutModal = ({
   isOpen,
   onClose,
   totalAmount,
+  subtotal = 0,
+  discountAmount = 0,
   cart = [],
   customerName = '',
   customerAddress = '',
@@ -37,6 +39,15 @@ export const CheckoutModal = ({
   onCustomerAddressChange,
   onProcessPayment,
   loading = false,
+  activeCashFloat = null,
+  discountType = 'fixed',
+  discountValue = '',
+  onDiscountTypeChange,
+  onDiscountValueChange,
+  cartGrossSubtotal = 0,
+  cartTotalCost = 0,
+  maxAllowableDiscount = 0,
+  isDiscountExceedingCost = false,
 }) => {
   const [paymentMethod, setPaymentMethod] = useState('Cash'); // 'Cash' | 'GCash' | 'Split'
   const [cashTendered, setCashTendered] = useState('');
@@ -89,6 +100,12 @@ export const CheckoutModal = ({
   const splitChangeDue = Math.max(0, roundCurrency(numSplitCashTendered - numSplitCash));
   const splitCovered = roundCurrency(numSplitCash + numSplitGcash);
 
+  const drawerBalance = Number(activeCashFloat?.current_cash_balance ?? 0);
+  const hasActiveFloat = Boolean(activeCashFloat);
+  const currentChangeDue = isCash ? paymentDetails.changeDue : (isSplit ? splitChangeDue : 0);
+  const isDrawerInsufficient = hasActiveFloat && currentChangeDue > 0 && currentChangeDue > drawerBalance;
+
+
   // Split auto-balancing handlers
   const handleSelectSplit = () => {
     setPaymentMethod('Split');
@@ -123,6 +140,23 @@ export const CheckoutModal = ({
     setSplitCash(String(remaining));
   };
 
+  // Automatically rebalance split amounts when totalAmount changes (e.g. discount applied)
+  useEffect(() => {
+    if (isSplit && isOpen) {
+      const currentCash = parseFloat(splitCash) || 0;
+      if (currentCash > totalAmount) {
+        setSplitCash(String(totalAmount));
+        setSplitGcash('0');
+      } else if (currentCash > 0) {
+        setSplitGcash(String(Math.max(0, roundCurrency(totalAmount - currentCash))));
+      } else {
+        const half = roundCurrency(totalAmount / 2);
+        setSplitCash(String(half));
+        setSplitGcash(String(roundCurrency(totalAmount - half)));
+      }
+    }
+  }, [totalAmount, isSplit, isOpen]);
+
   // Validation rules
   const isCashValid = isCash && cashTendered !== '' && roundCurrency(tenderedNumeric) >= roundCurrency(totalAmount);
   const isGcashValid = isGcash && gcashRef.trim().length >= 6;
@@ -133,7 +167,7 @@ export const CheckoutModal = ({
     numSplitCashTendered >= numSplitCash &&
     splitGcashRef.trim().length >= 6;
 
-  const canSubmit = !loading && (isCashValid || isGcashValid || isSplitValid);
+  const canSubmit = !loading && !isDiscountExceedingCost && (isCashValid || isGcashValid || isSplitValid);
 
   const handleAddCash = (increment) => {
     const current = parseFloat(cashTendered) || 0;
@@ -165,7 +199,7 @@ export const CheckoutModal = ({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || isDiscountExceedingCost) return;
 
     if (isSplit) {
       onProcessPayment({
@@ -222,9 +256,9 @@ export const CheckoutModal = ({
         onClick={(e) => e.stopPropagation()}
         style={{
           background: 'var(--surface)',
-          width: '450px',
+          width: '460px',
           maxWidth: '96vw',
-          maxHeight: 'min(92vh, 560px)',
+          maxHeight: 'min(94vh, 660px)',
           borderRadius: '12px',
           boxShadow: '0 12px 36px rgba(0,0,0,0.4)',
           border: '1px solid var(--border)',
@@ -288,21 +322,51 @@ export const CheckoutModal = ({
             flexDirection: 'column',
             gap: '10px'
           }}>
-            {/* Compact Payable Amount Banner */}
-            <div style={{
-              background: 'rgba(5, 150, 105, 0.08)',
-              padding: '8px 14px',
-              borderRadius: '8px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              border: '1px solid rgba(5, 150, 105, 0.25)'
-            }}>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total Payable:</span>
-              <span style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--primary)' }}>
-                {formatCurrency(totalAmount)}
-              </span>
-            </div>
+            {/* Compact Payable Amount Banner with Philippine 12% VAT */}
+            {(() => {
+              const tax = calculatePhilippineTax(totalAmount);
+              return (
+                <div style={{
+                  background: 'rgba(5, 150, 105, 0.08)',
+                  padding: '9px 14px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                  border: '1px solid rgba(5, 150, 105, 0.25)'
+                }}>
+                  {discountAmount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      <span>Gross Subtotal:</span>
+                      <span style={{ fontFamily: 'monospace' }}>{formatCurrency(cartGrossSubtotal || subtotal || (totalAmount + discountAmount))}</span>
+                    </div>
+                  )}
+                  {discountAmount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: '#10b981', fontWeight: 600 }}>
+                      <span>Discount (Bawas):</span>
+                      <span style={{ fontFamily: 'monospace' }}>-{formatCurrency(discountAmount)}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total Payable:</span>
+                    <span style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--primary)' }}>
+                      {formatCurrency(totalAmount)}
+                    </span>
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontSize: '0.73rem',
+                    color: 'var(--text-muted)',
+                    borderTop: '1px dashed rgba(5, 150, 105, 0.25)',
+                    paddingTop: '3px'
+                  }}>
+                    <span>VATable: <strong style={{ color: 'var(--text-main)' }}>{formatCurrency(tax.vatableSales)}</strong></span>
+                    <span>12% PH VAT: <strong style={{ color: 'var(--primary)' }}>{formatCurrency(tax.vatAmount)}</strong></span>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Compact Payment Method Selector */}
             <div>
@@ -445,7 +509,28 @@ export const CheckoutModal = ({
                   </div>
                 </div>
 
-                {/* Row 3: Status Summary bar */}
+                
+                {/* Split Drawer Insufficient Cash Warning */}
+                {isDrawerInsufficient && (
+                  <div style={{
+                    background: 'rgba(239, 68, 68, 0.14)',
+                    border: '1px solid rgba(239, 68, 68, 0.4)',
+                    borderRadius: '6px',
+                    padding: '8px 10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    color: '#ef4444',
+                    fontSize: '0.74rem'
+                  }}>
+                    <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                    <div style={{ lineHeight: 1.3 }}>
+                      <strong>Drawer Balance Warning:</strong> Change required (<strong>{formatCurrency(currentChangeDue)}</strong>) exceeds available drawer cash (<strong>{formatCurrency(drawerBalance)}</strong>).
+                    </div>
+                  </div>
+                )}
+
+{/* Row 3: Status Summary bar */}
                 <div style={{
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -555,7 +640,28 @@ export const CheckoutModal = ({
                   )}
                 </div>
 
-                {/* Change calculation */}
+                
+                {/* Drawer Insufficient Cash Warning */}
+                {isDrawerInsufficient && (
+                  <div style={{
+                    background: 'rgba(239, 68, 68, 0.14)',
+                    border: '1px solid rgba(239, 68, 68, 0.4)',
+                    borderRadius: '6px',
+                    padding: '8px 10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    color: '#ef4444',
+                    fontSize: '0.74rem'
+                  }}>
+                    <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                    <div style={{ lineHeight: 1.3 }}>
+                      <strong>Drawer Balance Warning:</strong> Change required (<strong>{formatCurrency(currentChangeDue)}</strong>) exceeds available drawer cash (<strong>{formatCurrency(drawerBalance)}</strong>). Please replenish drawer panukli.
+                    </div>
+                  </div>
+                )}
+
+{/* Change calculation */}
                 <div style={{
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -632,6 +738,235 @@ export const CheckoutModal = ({
                 )}
               </div>
             )}
+
+            {/* ============================================================ */}
+            {/* DISCOUNT / TATAWAD SECTION (AT THE BOTTOM OF MODAL BODY)      */}
+            {/* ============================================================ */}
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.025)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              padding: '10px 12px',
+              marginTop: '2px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <Tag size={13} style={{ color: 'var(--primary)' }} />
+                  Discount / Tatawad
+                </span>
+                {/* Toggle ₱ vs % */}
+                <div style={{ display: 'flex', background: 'var(--input-bg)', borderRadius: '6px', border: '1px solid var(--border)', padding: '2px' }}>
+                  <button
+                    type="button"
+                    onClick={() => onDiscountTypeChange && onDiscountTypeChange('fixed')}
+                    style={{
+                      border: 'none',
+                      background: discountType === 'fixed' ? 'var(--primary)' : 'transparent',
+                      color: discountType === 'fixed' ? '#ffffff' : 'var(--text-muted)',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ₱ (Peso)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDiscountTypeChange && onDiscountTypeChange('percent')}
+                    style={{
+                      border: 'none',
+                      background: discountType === 'percent' ? 'var(--primary)' : 'transparent',
+                      color: discountType === 'percent' ? '#ffffff' : 'var(--text-muted)',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    % (Percent)
+                  </button>
+                </div>
+              </div>
+
+              {/* Input Row with quick clear */}
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '6px' }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <span style={{
+                    position: 'absolute',
+                    left: '10px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: 'var(--text-muted)',
+                    fontWeight: 700,
+                    fontSize: '0.85rem'
+                  }}>
+                    {discountType === 'fixed' ? '₱' : '%'}
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step={discountType === 'fixed' ? '1' : '0.5'}
+                    max={discountType === 'fixed' ? (cartGrossSubtotal || subtotal) : 100}
+                    placeholder={discountType === 'fixed' ? "0.00 (e.g. 50)" : "0 (e.g. 10%)"}
+                    value={discountValue}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (!onDiscountValueChange) return;
+                      if (raw === '') {
+                        onDiscountValueChange('');
+                        return;
+                      }
+                      const val = parseFloat(raw);
+                      if (!Number.isFinite(val) || val < 0) return;
+                      const maxVal = cartGrossSubtotal || subtotal;
+                      if (discountType === 'percent' && val > 100) {
+                        onDiscountValueChange('100');
+                        return;
+                      }
+                      if (discountType === 'fixed' && maxVal > 0 && val > maxVal) {
+                        onDiscountValueChange(String(maxVal));
+                        return;
+                      }
+                      onDiscountValueChange(raw);
+                    }}
+                    className="input-premium"
+                    style={{
+                      width: '100%',
+                      padding: '6px 10px 6px 26px',
+                      height: '34px',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+                {discountValue && (
+                  <button
+                    type="button"
+                    onClick={() => onDiscountValueChange && onDiscountValueChange('')}
+                    style={{
+                      border: '1px solid var(--border)',
+                      background: 'rgba(239, 68, 68, 0.12)',
+                      color: '#ef4444',
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '3px',
+                      height: '34px'
+                    }}
+                    title="Clear discount"
+                  >
+                    <X size={13} /> Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                {discountType === 'fixed' ? (
+                  [20, 50, 100, 200].map(amt => {
+                    const maxVal = cartGrossSubtotal || subtotal;
+                    const disabled = maxVal > 0 && amt > maxVal;
+                    return (
+                      <button
+                        key={amt}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => onDiscountValueChange && onDiscountValueChange(String(amt))}
+                        style={{
+                          flex: 1,
+                          padding: '3px 4px',
+                          fontSize: '0.7rem',
+                          fontWeight: 600,
+                          border: '1px solid var(--border)',
+                          borderRadius: '4px',
+                          background: discountValue === String(amt) ? 'rgba(5, 150, 105, 0.25)' : 'var(--input-bg)',
+                          color: discountValue === String(amt) ? 'var(--primary)' : 'var(--text-muted)',
+                          cursor: disabled ? 'not-allowed' : 'pointer',
+                          opacity: disabled ? 0.4 : 1
+                        }}
+                      >
+                        ₱{amt}
+                      </button>
+                    );
+                  })
+                ) : (
+                  [5, 10, 15, 20].map(pct => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => onDiscountValueChange && onDiscountValueChange(String(pct))}
+                      style={{
+                        flex: 1,
+                        padding: '3px 4px',
+                        fontSize: '0.7rem',
+                        fontWeight: 600,
+                        border: '1px solid var(--border)',
+                        borderRadius: '4px',
+                        background: discountValue === String(pct) ? 'rgba(5, 150, 105, 0.25)' : 'var(--input-bg)',
+                        color: discountValue === String(pct) ? 'var(--primary)' : 'var(--text-muted)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {pct}%
+                    </button>
+                  ))
+                )}
+              </div>
+
+              {/* Cost Safeguard Alert */}
+              {isDiscountExceedingCost && (
+                <div
+                  id="pos-discount-cost-error"
+                  style={{
+                    marginTop: '8px',
+                    background: 'rgba(239, 68, 68, 0.14)',
+                    border: '1px solid rgba(239, 68, 68, 0.45)',
+                    borderRadius: '6px',
+                    padding: '8px 10px',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '8px',
+                    color: '#ef4444',
+                    fontSize: '0.74rem',
+                    lineHeight: '1.35'
+                  }}
+                >
+                  <AlertCircle size={15} style={{ flexShrink: 0, marginTop: '1px' }} />
+                  <div>
+                    <div style={{ fontWeight: 700, marginBottom: '2px' }}>
+                      Discount exceeds allowable limit / below cost
+                    </div>
+                    <div>
+                      Final price cannot drop below total item cost (puhunan: <strong>{formatCurrency(cartTotalCost)}</strong>).
+                      Maximum allowable discount is <strong>{formatCurrency(maxAllowableDiscount)}</strong>.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {discountAmount > 0 && !isDiscountExceedingCost && (
+                <div style={{
+                  marginTop: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  fontSize: '0.72rem',
+                  color: '#10b981',
+                  fontWeight: 600
+                }}>
+                  <span>✓ Discount Applied:</span>
+                  <span style={{ fontFamily: 'monospace' }}>-{formatCurrency(discountAmount)}</span>
+                </div>
+              )}
+            </div>
 
             {/* Customer Optional Fields - Collapsible */}
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: '6px' }}>
@@ -712,8 +1047,20 @@ export const CheckoutModal = ({
             <button
               type="submit"
               className="btn-primary"
-              style={{ flex: 1.4, padding: '8px 12px', fontSize: '0.82rem', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
-              disabled={!canSubmit}
+              style={{
+                flex: 1.4,
+                padding: '8px 12px',
+                fontSize: '0.82rem',
+                height: '38px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '5px',
+                opacity: (!canSubmit || isDiscountExceedingCost) ? 0.45 : 1,
+                cursor: (!canSubmit || isDiscountExceedingCost) ? 'not-allowed' : 'pointer'
+              }}
+              disabled={!canSubmit || isDiscountExceedingCost}
+              title={isDiscountExceedingCost ? "Cannot proceed: Discount exceeds allowable limit / below cost" : "Confirm & Pay"}
             >
               {loading ? 'Processing...' : (
                 <>

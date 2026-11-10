@@ -6,22 +6,25 @@ const roleMiddleware = require('../middleware/roleMiddleware');
 
 const adminOnly = roleMiddleware(['admin']);
 
-// All routes require authentication
-router.use(authenticateToken);
+// GET /api/suppliers - View suppliers (any authenticated user can view for dropdowns)
+router.get('/', authenticateToken, supplierController.getSuppliers);
 
-// GET /api/suppliers - View suppliers (staff and admin)
-router.get('/', supplierController.getSuppliers);
+// SECTION 6: SUPPLIER PAYMENT PROOFS & MESSENGER QUOTES (MIDDLE BRANCH)
+router.get('/proofs', authenticateToken, supplierController.getProofs);
+router.post('/proofs', authenticateToken, adminOnly, supplierController.createProof);
+router.delete('/proofs/:id', authenticateToken, adminOnly, supplierController.deleteProof);
+
+// SECTION 6: SUPPLIER LEDGER (FINANCIAL STATEMENTS & BALANCES)
+router.get('/ledger/summary', authenticateToken, supplierController.getGlobalLedgerSummary);
+router.get('/:id/ledger', authenticateToken, supplierController.getSupplierLedger);
+router.post('/:id/payments', authenticateToken, adminOnly, supplierController.recordSupplierPayment);
 
 // GET /api/suppliers/:id - View single supplier
-router.get('/:id', supplierController.getSupplierById);
+router.get('/:id', authenticateToken, supplierController.getSupplierById);
 
-// POST /api/suppliers - Register new supplier (admin only)
-router.post('/', adminOnly, supplierController.createSupplier);
-
-// PUT /api/suppliers/:id - Update supplier (admin only)
-router.put('/:id', adminOnly, supplierController.updateSupplier);
-
-// DELETE /api/suppliers/:id - Deactivate supplier (admin only)
-router.delete('/:id', adminOnly, supplierController.deleteSupplier);
+// Modifying routes require strictly Administrator privileges
+router.post('/', authenticateToken, adminOnly, supplierController.createSupplier);
+router.put('/:id', authenticateToken, adminOnly, supplierController.updateSupplier);
+router.delete('/:id', authenticateToken, adminOnly, supplierController.deleteSupplier);
 
 module.exports = router;

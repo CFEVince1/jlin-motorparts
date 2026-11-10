@@ -1,3 +1,4 @@
+const normalizeRole = (role) => (String(role || '').trim().toLowerCase() === 'admin' ? 'admin' : 'cashier');
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { AuthContext } from './AuthContextValue';
@@ -11,7 +12,7 @@ const decodeToken = (token) => {
             return {
                 id: payload.id,
                 username: payload.username,
-                role: payload.role
+                role: normalizeRole(payload.role)
             };
         }
         return null;
@@ -58,7 +59,7 @@ export const AuthProvider = ({ children }) => {
 
                 try {
                     const res = await api.get('/auth/verify');
-                    setUser(res.data.user);
+                    setUser({ ...res.data.user, role: normalizeRole(res.data.user.role) });
                 } catch (error) {
                     const status = error.response?.status;
                     if (status === 401 || status === 403) {
@@ -81,7 +82,7 @@ export const AuthProvider = ({ children }) => {
     const login = async (username, password) => {
         const res = await api.post('/auth/login', { username, password });
         localStorage.setItem('token', res.data.token);
-        setUser(res.data.user);
+        setUser({ ...res.data.user, role: normalizeRole(res.data.user?.role) });
         return res.data;
     };
 

@@ -28,6 +28,39 @@ const normalizeCompatibilityGroupIds = (ids) => {
     return [...new Set(ids.map(id => Number(id)).filter(Number.isInteger))];
 };
 
+const CANONICAL_CATEGORIES = {
+    'ENG': 'Engine',
+    'ENGINE': 'Engine',
+    'ENGINE PARTS': 'Engine',
+    'EXHAUST': 'Engine',
+    'FILTERS': 'Engine',
+    'BRK': 'Brakes',
+    'BRAKES': 'Brakes',
+    'CABLES': 'Brakes',
+    'CHAS': 'Wheels',
+    'SUSPENSION': 'Wheels',
+    'WHEELS': 'Wheels',
+    'TIRES': 'Wheels',
+    'CHASSIS': 'Wheels',
+    'CVT': 'CVT',
+    'TRANSMISSION': 'CVT',
+    'DRIVE': 'CVT',
+    'ELEC': 'Electrical',
+    'ELECTRICAL': 'Electrical',
+    'ELECTRONICS': 'Electrical',
+    'IGNITION': 'Electrical',
+    'OIL': 'Oils',
+    'OILS': 'Oils',
+    'LUBRICANTS': 'Oils',
+    'FLUIDS': 'Oils'
+};
+
+const normalizeCategory = (cat) => {
+    if (!cat) return 'Engine';
+    const upper = String(cat).trim().toUpperCase();
+    return CANONICAL_CATEGORIES[upper] || 'Engine';
+};
+
 // ==========================================
 // GET ALL ACTIVE PRODUCTS
 // ==========================================
@@ -37,9 +70,11 @@ exports.getAllProducts = async (req, res) => {
             SELECT
                 id, name AS product_name, part_number, brand, category,
                 size, measurement, thread_type, cost_price, markup_percentage, selling_price, selling_price AS price,
+                shelf_location,
                 COALESCE(stock, current_stock, 0) AS stock,
                 COALESCE(stock, current_stock, 0) AS current_stock,
-                reorder_level, is_serialized
+                reorder_level, is_serialized,
+                supplier_id, supplier_name
             FROM products
             WHERE is_active = 1
             ORDER BY created_at DESC
@@ -110,8 +145,16 @@ exports.getAllProducts = async (req, res) => {
             const compatibility = [...new Set([...compatibility_groups, ...directCompatibilityLabels])];
             const effectiveStock = isSerialized ? prodSerials.reduce((sum, s) => sum + Number(s.quantity || 0), 0) : Number(p.stock ?? p.current_stock ?? 0);
 
+            const unitSelling = Number(p.selling_price || p.retail_price || p.price || 0);
+            const unitCost = Number(p.cost_price || 0);
+            const maxDiscount = Math.max(0, Math.round((unitSelling - unitCost) * 100) / 100);
+
             return {
                 ...p,
+                cost_price: unitCost,
+                max_discount: maxDiscount,
+                max_allowable_discount: maxDiscount,
+                shelf_location: p.shelf_location || '',
                 stock: effectiveStock,
                 current_stock: effectiveStock,
                 is_serialized: isSerialized,
@@ -212,6 +255,129 @@ exports.getMotorcycleUnits = async (req, res) => {
 };
 
 // ==========================================
+// VALIDATE PART NUMBER (REAL-TIME AUDIT)
+// ==========================================
+exports.validatePartNumber = async (req, res) => {
+    try {
+        const { part_number, excludeId } = req.query;
+        if (!part_number || !String(part_number).trim()) {
+            return res.json({ valid: false, message: 'Part number is required.' });
+        }
+        const trimmed = String(part_number).trim().toUpperCase();
+
+        if (trimmed.length < 2) {
+            return res.json({ valid: false, message: 'Part number must be at least 2 characters.' });
+        }
+        if (trimmed.length > 50) {
+            return res.json({ valid: false, message: 'Part number cannot exceed 50 characters.' });
+        }
+
+        const partNumberRegex = /^[A-Z0-9-_./]+$/;
+        if (!partNumberRegex.test(trimmed)) {
+            return res.json({
+                valid: false,
+                message: 'Invalid characters. Only uppercase letters, numbers, hyphens (-), underscores (_), dots (.), and slashes (/) are allowed without spaces.'
+            });
+        }
+
+        // Structural format check: must accept OEM motorcycle part number formats like "K59-A11" (alphanumeric, hyphens, dots)
+        const partNumFormatRegex = /^[A-Z0-9]+([-.][A-Z0-9]+)*$/;
+        if (!partNumFormatRegex.test(trimmed)) {
+            return res.json({
+                valid: false,
+                message: 'Please enter a valid part number (e.g., K59-A11).'
+            });
+        }
+
+        let query = 'SELECT id, name, part_number, brand FROM products WHERE (UPPER(part_number) = ? OR UPPER(sku) = ?) AND is_active = true';
+        const params = [trimmed, trimmed];
+        if (excludeId) {
+            query += ' AND id != ?';
+            params.push(Number(excludeId));
+        }
+        query += ' LIMIT 1';
+
+        const [existing] = await db.query(query, params);
+        if (existing.length > 0) {
+            return res.json({
+                valid: false,
+                exists: true,
+                message: `Part Number "${trimmed}" already exists in the catalog (${existing[0].name} [${existing[0].brand || 'Generic'}]). Use Stock Receive / Restock to add stock.`,
+                product: existing[0]
+            });
+        }
+
+        return res.json({ valid: true, exists: false, formatted: trimmed, message: 'Part number is valid and available.' });
+    } catch (err) {
+        console.error('validatePartNumber error:', err);
+        res.status(500).json({ valid: false, message: 'Server error during part number validation' });
+    }
+};
+
+// ==========================================
+// VALIDATE SERIAL NUMBERS (REAL-TIME AUDIT)
+// ==========================================
+exports.validateSerials = async (req, res) => {
+    try {
+        const { serial_numbers } = req.body;
+        const cleaned = normalizeSerialNumbers(serial_numbers).map(s => s.toUpperCase());
+
+        if (cleaned.length === 0) {
+            return res.json({ valid: true, count: 0, serials: [] });
+        }
+
+        const invalidSerials = [];
+        const numericSerialRegex = /^\d{9,15}$/;
+        for (const s of cleaned) {
+            if (!numericSerialRegex.test(s)) {
+                invalidSerials.push(s);
+            }
+        }
+        if (invalidSerials.length > 0) {
+            return res.json({
+                valid: false,
+                message: 'Serial numbers must contain numbers only and be between 9 to 15 digits long (e.g., 10029384751).',
+                invalidSerials
+            });
+        }
+
+        const duplicates = cleaned.filter((item, index) => cleaned.indexOf(item) !== index);
+        const uniqueDuplicates = [...new Set(duplicates)];
+        if (uniqueDuplicates.length > 0) {
+            return res.json({
+                valid: false,
+                message: `Duplicate serial number(s) in entry: ${uniqueDuplicates.join(', ')}`,
+                duplicates: uniqueDuplicates
+            });
+        }
+
+        const [existingRows] = await db.query(
+            'SELECT serial_number FROM product_serials WHERE UPPER(serial_number) IN (?) LIMIT 10',
+            [cleaned]
+        );
+        if (existingRows.length > 0) {
+            const existingList = existingRows.map(r => r.serial_number);
+            return res.json({
+                valid: false,
+                exists: true,
+                message: `Serial number(s) already exist in database: ${existingList.join(', ')}`,
+                existingSerials: existingList
+            });
+        }
+
+        return res.json({
+            valid: true,
+            count: cleaned.length,
+            serials: cleaned,
+            message: `All ${cleaned.length} serial numbers are valid and unique.`
+        });
+    } catch (err) {
+        console.error('validateSerials error:', err);
+        res.status(500).json({ valid: false, message: 'Server error during serial validation' });
+    }
+};
+
+// ==========================================
 // CREATE PRODUCT (Handles Serialized & Non-Serialized)
 // ==========================================
 exports.createProduct = async (req, res) => {
@@ -219,18 +385,23 @@ exports.createProduct = async (req, res) => {
         part_number,
         sku,
         name,
+        part_name,
         brand,
         category,
         size,
         measurement,
         thread_type,
         cost_price,
+        supplier_cost,
         markup_percentage,
         selling_price,
         retail_price,
         reorder_level,
         is_serialized,
+        shelf_location,
         stock,
+        initial_stock,
+        initial_stock_quantity,
         serial_numbers,
         motorcycle_unit_ids
     } = req.body;
@@ -239,6 +410,16 @@ exports.createProduct = async (req, res) => {
     try {
         const resolvedPartNumber = String(part_number || sku || '').trim();
         if (isMissing(resolvedPartNumber)) throw new Error('Part number is required');
+        const trimmedPartNumber = resolvedPartNumber.toUpperCase();
+
+        if (trimmedPartNumber.length < 2 || trimmedPartNumber.length > 50) {
+            throw new Error('Part number must be between 2 and 50 characters');
+        }
+        const partNumberRegex = /^[A-Z0-9]+([-.][A-Z0-9]+)*$/;
+        if (!partNumberRegex.test(trimmedPartNumber)) {
+            throw new Error('Please enter a valid part number (e.g., K59-A11).');
+        }
+
         if (isMissing(name)) throw new Error('Product name is required');
         if (isMissing(category)) throw new Error('Category is required');
         if (isMissing(cost_price)) throw new Error('Cost price is required');
@@ -264,49 +445,93 @@ exports.createProduct = async (req, res) => {
         // Server recomputes selling price using formula: selling price = cost + (cost * percentage / 100)
         const computedSelling = Math.round(parsedCost * (1 + parsedMarkup / 100) * 100) / 100;
         const parsedReorder = Number(reorder_level);
-        if (!Number.isFinite(parsedReorder) || parsedReorder < 0) {
-            throw new Error('Reorder level must be a valid non-negative number');
+        if (!Number.isFinite(parsedReorder) || !Number.isInteger(parsedReorder) || parsedReorder < 1) {
+            throw new Error('Reorder level must be a positive whole number of at least 1 (e.g. 5)');
         }
 
-        const trimmedPartNumber = resolvedPartNumber;
         const trimmedBrand = String(brand || '').trim();
 
         const unitIds = normalizeMotorcycleUnitIds(motorcycle_unit_ids);
         const groupIds = normalizeCompatibilityGroupIds(req.body.compatibility_group_ids);
 
         const serialized = normalizeBoolean(is_serialized);
-        const cleanedSerials = serialized ? normalizeSerialNumbers(serial_numbers) : [];
+        const cleanedSerials = serialized ? normalizeSerialNumbers(serial_numbers).map(s => s.toUpperCase()) : [];
         const uniqueSerials = new Set(cleanedSerials);
 
-        if (serialized && cleanedSerials.length > 0) {
-            if (cleanedSerials.length !== uniqueSerials.size) {
-                return res.status(400).json({ message: 'Duplicate serial numbers within submission not allowed' });
+        if (serialized) {
+            if (cleanedSerials.length > 0) {
+                const invalidSerials = [];
+                const numericSerialRegex = /^\d{9,15}$/;
+                for (const s of cleanedSerials) {
+                    if (!numericSerialRegex.test(s)) {
+                        invalidSerials.push(s);
+                    }
+                }
+                if (invalidSerials.length > 0) {
+                    return res.status(400).json({ 
+                        message: 'Serial numbers must contain numbers only and be between 9 to 15 digits long (e.g., 10029384751).' 
+                    });
+                }
+                if (cleanedSerials.length !== uniqueSerials.size) {
+                    const dupes = [...new Set(cleanedSerials.filter((item, index) => cleanedSerials.indexOf(item) !== index))];
+                    return res.status(400).json({ message: `Duplicate serial number(s) within submission: ${dupes.join(', ')}` });
+                }
             }
         }
 
-        const finalStock = serialized ? cleanedSerials.length : 0;
+        // Determine Initial Stock Quantity
+        const rawInitialStock = initial_stock !== undefined
+            ? initial_stock
+            : (initial_stock_quantity !== undefined ? initial_stock_quantity : stock);
+
+        let finalStock = 0;
+        if (serialized) {
+            finalStock = cleanedSerials.length;
+        } else {
+            if (rawInitialStock === undefined || rawInitialStock === null || rawInitialStock === '') {
+                throw new Error('Initial stock quantity is required');
+            }
+            const parsedStock = Number(rawInitialStock);
+            if (!Number.isFinite(parsedStock) || !Number.isInteger(parsedStock) || parsedStock < 0) {
+                throw new Error('Initial stock quantity must be a non-negative whole number');
+            }
+            finalStock = parsedStock;
+        }
 
         await connection.beginTransaction();
 
-        // Check duplicate part_number/SKU for this brand among active products
+        // Check duplicate part_number/SKU across active products
         const [existing] = await connection.query(
-            'SELECT id FROM products WHERE (part_number = ? OR sku = ?) AND brand = ? AND is_active = true LIMIT 1',
-            [trimmedPartNumber, trimmedPartNumber, trimmedBrand]
+            'SELECT id, name, part_number, brand FROM products WHERE (UPPER(part_number) = ? OR UPPER(sku) = ?) AND is_active = true LIMIT 1',
+            [trimmedPartNumber, trimmedPartNumber]
         );
         if (existing.length > 0) {
             await connection.rollback();
-            return res.status(400).json({ message: `Duplicate part number / SKU "${trimmedPartNumber}" and brand "${trimmedBrand}" detected.` });
+            return res.status(400).json({ 
+                message: `Part Number "${trimmedPartNumber}" already exists in the catalog (Product: "${existing[0].name}" [${existing[0].brand || 'Generic'}]). To add more quantity, please use the Stock Receive or Restock process instead of creating a duplicate.` 
+            });
         }
 
         if (serialized && cleanedSerials.length > 0) {
             const [existingSerials] = await connection.query(
-                'SELECT serial_number FROM product_serials WHERE serial_number IN (?) LIMIT 1',
+                'SELECT serial_number FROM product_serials WHERE UPPER(serial_number) IN (?) LIMIT 5',
                 [cleanedSerials]
             );
             if (existingSerials.length > 0) {
                 await connection.rollback();
-                return res.status(400).json({ message: `Serial number "${existingSerials[0].serial_number}" already exists in the system.` });
+                const dupList = existingSerials.map(r => r.serial_number).join(', ');
+                return res.status(400).json({ message: `Serial number(s) already exist in the database: ${dupList}` });
             }
+        }
+
+        const resolvedPartName = String(name || part_name || '').trim();
+        const resolvedShelfLocation = shelf_location ? String(shelf_location).trim() : null;
+
+        const supplierId = req.body.supplier_id ? Number(req.body.supplier_id) : null;
+        let supplierName = req.body.supplier_name ? String(req.body.supplier_name).trim() : null;
+        if (supplierId && !supplierName) {
+            const [supRow] = await connection.query('SELECT name FROM suppliers WHERE id = ?', [supplierId]);
+            if (supRow.length > 0) supplierName = supRow[0].name;
         }
 
         const [productResult] = await connection.query(
@@ -314,35 +539,46 @@ exports.createProduct = async (req, res) => {
                 part_number,
                 sku,
                 name,
+                part_name,
                 brand,
                 category,
+                shelf_location,
                 size,
                 measurement,
                 thread_type,
                 cost_price,
+                supplier_cost,
                 markup_percentage,
                 selling_price,
                 retail_price,
                 stock,
                 current_stock,
+                sellable_stock,
                 reorder_level,
-                is_serialized
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
+                is_serialized,
+                supplier_id,
+                supplier_name
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?)`,
             [
                 String(part_number).trim(),
                 String(part_number).trim(),
-                String(name).trim(),
+                resolvedPartName,
+                resolvedPartName,
                 trimmedBrand,
-                String(category).trim(),
+                normalizeCategory(category),
+                resolvedShelfLocation,
                 String(size || '').trim(),
                 isMissing(measurement) ? null : String(measurement).trim(),
                 isMissing(thread_type) ? null : String(thread_type).trim(),
+                parsedCost,
                 parsedCost,
                 parsedMarkup,
                 computedSelling,
                 computedSelling,
                 Number(reorder_level),
-                serialized
+                serialized,
+                supplierId,
+                supplierName
             ]
         );
 
@@ -351,7 +587,11 @@ exports.createProduct = async (req, res) => {
         // Fetch DB Date string for reference number
         const [dateRows] = await connection.query(`SELECT DATE_FORMAT(NOW(), '%Y%m%d') as db_date;`);
         const dbDate = dateRows[0]?.db_date || new Date().toISOString().slice(0, 10).replace(/-/g, '');
-        const refNo = `OPENING-${dbDate}`;
+        const [[countRow]] = await connection.query(
+            `SELECT COUNT(*) as cnt FROM inventory_transactions WHERE transaction_type = 'OPENING_BALANCE' AND DATE(created_at) = CURRENT_DATE()`
+        );
+        const seq = String((countRow?.cnt || 0) + 1).padStart(2, '0');
+        const refNo = `OPENING-${dbDate}-${seq}`;
         const userId = req.user?.id || null;
 
         if (serialized && cleanedSerials.length > 0) {
@@ -368,10 +608,12 @@ exports.createProduct = async (req, res) => {
             transactionType: 'OPENING_BALANCE',
             quantityChange: finalStock,
             referenceNo: refNo,
-            unitCost: Number(cost_price || 0),
+            unitCost: parsedCost,
             remarks: finalStock > 0 
-                ? `Initial opening stock (${finalStock} serialized units: ${cleanedSerials.join(', ')}) for ${String(name).trim()}`
-                : `Initial baseline OPENING_BALANCE for new product ${String(name).trim()} (${String(part_number).trim()})`,
+                ? (serialized 
+                    ? `Initial opening stock (${finalStock} serialized units: ${cleanedSerials.join(', ')}) for ${resolvedPartName}`
+                    : `Initial opening stock (${finalStock} units) for ${resolvedPartName}`)
+                : `Initial baseline OPENING_BALANCE for new product ${resolvedPartName} (${trimmedPartNumber})`,
             createdBy: userId
         });
 
@@ -411,7 +653,26 @@ exports.createProduct = async (req, res) => {
         }
 
         await connection.commit();
-        res.status(201).json({ message: 'Product created successfully', productId });
+        const [newProductRows] = await connection.query('SELECT * FROM products WHERE id = ?', [productId]);
+        const createdProduct = newProductRows[0] || {
+            id: productId,
+            name: resolvedPartName,
+            part_number: trimmedPartNumber,
+            brand: trimmedBrand,
+            category: String(category).trim(),
+            cost_price: parsedCost,
+            selling_price: computedSelling,
+            stock: finalStock,
+            current_stock: finalStock,
+            sellable_stock: finalStock,
+            reorder_level: parsedReorder,
+            is_serialized: serialized
+        };
+        res.status(201).json({ 
+            message: 'Product created successfully', 
+            productId,
+            product: createdProduct
+        });
     } catch (err) {
         await connection.rollback();
         console.error('Error creating product:', err);
@@ -449,6 +710,7 @@ exports.updateProduct = async (req, res) => {
         selling_price,
         retail_price,
         reorder_level,
+        shelf_location,
         stock,
         motorcycle_unit_ids
     } = req.body;
@@ -457,6 +719,16 @@ exports.updateProduct = async (req, res) => {
     try {
         const resolvedPartNumber = String(part_number || sku || '').trim();
         if (isMissing(resolvedPartNumber)) throw new Error('Part number is required');
+        const trimmedPartNumber = resolvedPartNumber.toUpperCase();
+
+        if (trimmedPartNumber.length < 2 || trimmedPartNumber.length > 50) {
+            throw new Error('Part number must be between 2 and 50 characters');
+        }
+        const partNumberRegex = /^[A-Z0-9]+([-.][A-Z0-9]+)*$/;
+        if (!partNumberRegex.test(trimmedPartNumber)) {
+            throw new Error('Please enter a valid part number (e.g., K59-A11).');
+        }
+
         if (isMissing(name)) throw new Error('Product name is required');
         if (isMissing(category)) throw new Error('Category is required');
         if (isMissing(cost_price)) throw new Error('Cost price is required');
@@ -481,11 +753,10 @@ exports.updateProduct = async (req, res) => {
         // Server recomputes selling price using formula: selling price = cost + (cost * percentage / 100)
         const computedSelling = Math.round(parsedCost * (1 + parsedMarkup / 100) * 100) / 100;
         const parsedReorder = Number(reorder_level);
-        if (!Number.isFinite(parsedReorder) || parsedReorder < 0) {
-            throw new Error('Reorder level must be a valid non-negative number');
+        if (!Number.isFinite(parsedReorder) || parsedReorder < 1) {
+            throw new Error('Reorder level must be a valid whole number of at least 1');
         }
 
-        const trimmedPartNumber = resolvedPartNumber;
         const trimmedBrand = String(brand || '').trim();
 
         const unitIds = normalizeMotorcycleUnitIds(motorcycle_unit_ids);
@@ -517,6 +788,13 @@ exports.updateProduct = async (req, res) => {
         // Product catalog edits cannot modify stock levels directly.
         // Stock can only be increased via Stock Receive (with supplier receipt) or adjusted via Discrepancy Adjustments.
 
+        const supplierId = req.body.supplier_id !== undefined ? (req.body.supplier_id ? Number(req.body.supplier_id) : null) : (existingProduct.supplier_id || null);
+        let supplierName = req.body.supplier_name !== undefined ? (req.body.supplier_name ? String(req.body.supplier_name).trim() : null) : (existingProduct.supplier_name || null);
+        if (supplierId && !supplierName) {
+            const [supRow] = await connection.query('SELECT name FROM suppliers WHERE id = ?', [supplierId]);
+            if (supRow.length > 0) supplierName = supRow[0].name;
+        }
+
         await connection.query(
             `UPDATE products SET
                 part_number = ?,
@@ -531,14 +809,17 @@ exports.updateProduct = async (req, res) => {
                 markup_percentage = ?,
                 selling_price = ?,
                 retail_price = ?,
-                reorder_level = ?
+                reorder_level = ?,
+                shelf_location = ?,
+                supplier_id = ?,
+                supplier_name = ?
              WHERE id = ? AND is_active = true`,
             [
                 String(part_number).trim(),
                 String(part_number).trim(),
                 String(name).trim(),
                 trimmedBrand,
-                String(category).trim(),
+                normalizeCategory(category),
                 String(size || '').trim(),
                 isMissing(measurement) ? null : String(measurement).trim(),
                 isMissing(thread_type) ? null : String(thread_type).trim(),
@@ -547,6 +828,9 @@ exports.updateProduct = async (req, res) => {
                 computedSelling,
                 computedSelling,
                 Number(reorder_level),
+                String(req.body.shelf_location || req.body.shelfLocation || '').trim(),
+                supplierId,
+                supplierName,
                 id
             ]
         );
@@ -699,3 +983,6 @@ exports.getProductSerials = async (req, res) => {
         res.status(500).json({ message: 'Error fetching serial numbers' });
     }
 };
+
+// ==========================================
+// APPROVE / UPDATE PRICE REVIEW (Admin Only)

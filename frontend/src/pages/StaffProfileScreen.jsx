@@ -1,11 +1,8 @@
 import React, { useState, useContext } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { User, KeyRound, ShieldAlert, CheckCircle, Lock, Eye, EyeOff, Check, X, Settings2, Search, Layers } from 'lucide-react';
+import { User, KeyRound, ShieldAlert, CheckCircle, Lock, Eye, EyeOff, Check, X } from 'lucide-react';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import ManageCompatibility from './ManageCompatibility';
-import CompatibilitySearch from './CompatibilitySearch';
 import RecoveryEmailCard from '../components/RecoveryEmailCard';
 
 /**
@@ -15,30 +12,11 @@ import RecoveryEmailCard from '../components/RecoveryEmailCard';
  * - Update username & password via PATCH /api/staff/profile.
  * - Requires current password verification.
  * - Increments user.token_version, revoking all existing concurrent sessions.
- * - For Admin accounts only: integrates "Compatibility Rules" management.
  */
 export const StaffProfileScreen = () => {
-  const { user, login } = useContext(AuthContext);
-  const [searchParams, setSearchParams] = useSearchParams();
-  const isAdmin = user?.role === 'admin';
+  const { user } = useContext(AuthContext);
+  const isAdmin = (user?.role || '').toLowerCase() === 'admin';
 
-  const [activeTab, setActiveTab] = useState(() => {
-    const tab = searchParams.get('tab');
-    if (tab === 'fitment') return 'fitment';
-    if (isAdmin && tab === 'compatibility') return 'compatibility';
-    return 'account';
-  });
-
-  const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    if (tab === 'compatibility') {
-      setSearchParams({ tab: 'compatibility' });
-    } else if (tab === 'fitment') {
-      setSearchParams({ tab: 'fitment' });
-    } else {
-      setSearchParams({});
-    }
-  };
   const [username, setUsername] = useState(user?.username || '');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -99,9 +77,6 @@ export const StaffProfileScreen = () => {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-
-      // Reload or refresh context
-      window.location.reload();
     } catch (err) {
       toast.error(err.response?.data?.message || err.response?.data?.error || 'Profile update failed');
     } finally {
@@ -110,99 +85,15 @@ export const StaffProfileScreen = () => {
   };
 
   return (
-    <div style={{ maxWidth: activeTab === 'account' ? '650px' : '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div style={{ maxWidth: '650px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div>
         <h1 style={{ marginBottom: '6px' }}>My Account & Security</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
-          Manage your credentials, motorcycle fitment lookups, and system configurations.
+          Manage your login credentials, password, and account security settings.
         </p>
       </div>
 
-      {/* Navigation Tabs */}
-      <div style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '6px',
-        background: 'var(--surface-hover)',
-        padding: '4px',
-        borderRadius: '8px',
-        border: '1px solid var(--border)',
-        width: 'fit-content'
-      }}>
-        <button
-          type="button"
-          onClick={() => handleTabChange('account')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '8px 16px',
-            borderRadius: '6px',
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            border: 'none',
-            cursor: 'pointer',
-            color: activeTab === 'account' ? '#fff' : 'var(--text-muted)',
-            backgroundColor: activeTab === 'account' ? 'var(--primary)' : 'transparent',
-            transition: 'all 0.15s ease'
-          }}
-        >
-          <User size={16} />
-          <span>Account & Security</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => handleTabChange('fitment')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '8px 16px',
-            borderRadius: '6px',
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            border: 'none',
-            cursor: 'pointer',
-            color: activeTab === 'fitment' ? '#fff' : 'var(--text-muted)',
-            backgroundColor: activeTab === 'fitment' ? 'var(--primary)' : 'transparent',
-            transition: 'all 0.15s ease'
-          }}
-        >
-          <Search size={16} />
-          <span>Fitment Search</span>
-        </button>
-        {isAdmin && (
-          <button
-            type="button"
-            onClick={() => handleTabChange('compatibility')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 16px',
-              borderRadius: '6px',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              border: 'none',
-              cursor: 'pointer',
-              color: activeTab === 'compatibility' ? '#fff' : 'var(--text-muted)',
-              backgroundColor: activeTab === 'compatibility' ? 'var(--primary)' : 'transparent',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <Layers size={16} />
-            <span>Motorcycle Compatibility</span>
-          </button>
-        )}
-      </div>
-
-      {/* Render Active Tab Content */}
-      {isAdmin && activeTab === 'compatibility' ? (
-        <ManageCompatibility />
-      ) : activeTab === 'fitment' ? (
-        <CompatibilitySearch />
-      ) : (
-        <div className="glass-panel" style={{ padding: '24px' }}>
+      <div className="glass-panel" style={{ padding: '24px' }}>
         {/* User Badge Info */}
         <div style={{
           padding: '12px 16px',
@@ -233,7 +124,7 @@ export const StaffProfileScreen = () => {
               {user?.username}
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
-              Role: <strong style={{ color: 'var(--primary)' }}>{user?.role}</strong> | Security Token v{user?.token_version || 1}
+              Role: <strong style={{ color: 'var(--primary)' }}>{isAdmin ? 'Owner / Admin' : 'Cashier / Staff'}</strong> | Security Token v{user?.token_version || 1}
             </div>
           </div>
         </div>
@@ -248,18 +139,21 @@ export const StaffProfileScreen = () => {
               className="input-premium"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              required
+              placeholder="Username"
               disabled={submitting}
             />
           </div>
 
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px', marginTop: '4px' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-main)', display: 'block', marginBottom: '10px' }}>
-              Change Password (Leave blank to keep existing)
+            <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', display: 'block', marginBottom: '4px' }}>
+              Change Password (Optional)
+            </span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '12px' }}>
+              Leave blank if you do not want to change your password.
             </span>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ position: 'relative' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
                 <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                   New Password
                 </label>
@@ -292,24 +186,23 @@ export const StaffProfileScreen = () => {
                   </button>
                 </div>
 
-                {newPassword.length > 0 && (
-                  <div style={{ 
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px',
-                    padding: '12px',
-                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    gap: '6px', 
-                    marginTop: '6px', 
-                    fontSize: '0.75rem' 
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: newPassword.length >= 8 ? 'var(--success)' : 'var(--text-muted)' }}>
-                      {newPassword.length >= 8 ? <Check size={12} /> : <X size={12} />} 8+ characters
+                {/* Password Criteria Checklist */}
+                {newPassword && (
+                  <div style={{ marginTop: '8px', padding: '8px', background: 'var(--surface-hover)', borderRadius: '6px', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: newPassword.length >= 8 ? 'var(--primary)' : 'var(--danger)' }}>
+                      {newPassword.length >= 8 ? <Check size={14} /> : <X size={14} />} At least 8 characters
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).*$/.test(newPassword) ? 'var(--success)' : 'var(--text-muted)' }}>
-                      {/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).*$/.test(newPassword) ? <Check size={12} /> : <X size={12} />} Uppercase, lowercase, number & special char
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: /(?=.*[a-z])(?=.*[A-Z])/.test(newPassword) ? 'var(--primary)' : 'var(--danger)' }}>
+                      {/(?=.*[a-z])(?=.*[A-Z])/.test(newPassword) ? <Check size={14} /> : <X size={14} />} Uppercase and lowercase letters
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: /(?=.*\d)/.test(newPassword) ? 'var(--primary)' : 'var(--danger)' }}>
+                      {/(?=.*\d)/.test(newPassword) ? <Check size={14} /> : <X size={14} />} At least one number
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: /(?=.*[\W_])/.test(newPassword) ? 'var(--primary)' : 'var(--danger)' }}>
+                      {/(?=.*[\W_])/.test(newPassword) ? <Check size={14} /> : <X size={14} />} At least one special symbol
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: newPassword.toLowerCase() !== (username.trim() || user?.username || '').toLowerCase() ? 'var(--primary)' : 'var(--danger)' }}>
+                      {newPassword.toLowerCase() !== (username.trim() || user?.username || '').toLowerCase() ? <Check size={14} /> : <X size={14} />} Cannot match username
                     </div>
                   </div>
                 )}
@@ -322,13 +215,9 @@ export const StaffProfileScreen = () => {
                 <div style={{ position: 'relative', width: '100%' }}>
                   <input
                     type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Enter new password again here"
+                    placeholder="Repeat new password"
                     className="input-premium"
-                    style={{ 
-                      width: '100%', 
-                      paddingRight: '40px',
-                      borderColor: confirmPassword && newPassword !== confirmPassword ? 'var(--danger)' : undefined
-                    }}
+                    style={{ width: '100%', paddingRight: '40px' }}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     disabled={submitting}
@@ -411,7 +300,6 @@ export const StaffProfileScreen = () => {
 
         {isAdmin && <RecoveryEmailCard />}
       </div>
-      )}
     </div>
   );
 };

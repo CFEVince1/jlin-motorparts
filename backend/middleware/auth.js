@@ -67,15 +67,16 @@ const authenticateToken = async (req, res, next) => {
         }
 
         // Attach sanitized user object (password is completely stripped)
+        const normalizedRole = (user.role || '').toLowerCase() === 'admin' ? 'admin' : 'staff';
         req.user = {
             id: user.id,
             username: user.username,
-            role: user.role,
+            role: normalizedRole,
             token_version: currentTokenVersion
         };
 
         // Requirement (2): Strip cost_price from every API response for non-admin users
-        if (user.role !== 'admin') {
+        if (normalizedRole !== 'admin') {
             const originalJson = res.json.bind(res);
             res.json = function(data) {
                 return originalJson(stripCostPrice(data));

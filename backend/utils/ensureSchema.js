@@ -107,20 +107,7 @@ async function ensureSchema() {
       }
     }
 
-    // 1c. Check sale_items for returned_quantity
-    const [saleItemCols] = await db.query(
-      `SELECT COLUMN_NAME FROM information_schema.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sale_items'
-         AND COLUMN_NAME = 'returned_quantity'`
-    );
-    if (saleItemCols.length === 0) {
-      try {
-        await db.query('ALTER TABLE sale_items ADD COLUMN returned_quantity INT NOT NULL DEFAULT 0');
-        console.log('[Schema] Added returned_quantity column to sale_items table.');
-      } catch (err) {
-        console.warn('[Schema] Failed to add returned_quantity to sale_items:', err.message);
-      }
-    }
+    // 1c. [Path B] sale_items returned_quantity removed for All-Sales-Final architecture
 
     // 1d. Ensure sale_returns and sale_return_items tables
     await db.query(`
@@ -387,7 +374,131 @@ async function ensureSchema() {
     } catch (lotErr) {
       console.warn('[Schema] Failed to verify serial lot columns:', lotErr.message);
     }
-  } catch (err) {
+  
+    // 13. Ensure products.needs_price_review column exists
+    try {
+      const [nprCols] = await db.query("SHOW COLUMNS FROM products LIKE 'needs_price_review'");
+      if (nprCols.length === 0) {
+        await db.query("ALTER TABLE products ADD COLUMN needs_price_review TINYINT(1) NOT NULL DEFAULT 0 AFTER is_active");
+        console.log('[Schema] Added needs_price_review column to products table.');
+      }
+    } catch (nprErr) {
+      console.warn('[Schema] Failed to check/add needs_price_review to products:', nprErr.message);
+    }
+
+    // 14. Ensure receiving_records inspection and driver return columns exist
+    try {
+      const [recCols] = await db.query("SHOW COLUMNS FROM receiving_records");
+      const recColNames = recCols.map(c => c.Field);
+      if (!recColNames.includes('inspected_by')) {
+        await db.query("ALTER TABLE receiving_records ADD COLUMN inspected_by VARCHAR(100) NULL AFTER received_by");
+      }
+      if (!recColNames.includes('delivery_personnel')) {
+        await db.query("ALTER TABLE receiving_records ADD COLUMN delivery_personnel VARCHAR(150) NULL AFTER inspected_by");
+      }
+      if (!recColNames.includes('courier_service')) {
+        await db.query("ALTER TABLE receiving_records ADD COLUMN courier_service VARCHAR(100) NULL AFTER delivery_personnel");
+      }
+      if (!recColNames.includes('mechanic_name')) {
+        await db.query("ALTER TABLE receiving_records ADD COLUMN mechanic_name VARCHAR(150) NULL AFTER courier_service");
+      }
+      if (!recColNames.includes('receiver_name')) {
+        await db.query("ALTER TABLE receiving_records ADD COLUMN receiver_name VARCHAR(150) NULL AFTER mechanic_name");
+      }
+      if (!recColNames.includes('total_delivered_qty')) {
+        await db.query("ALTER TABLE receiving_records ADD COLUMN total_delivered_qty INT NOT NULL DEFAULT 0 AFTER receiver_name");
+      }
+      if (!recColNames.includes('total_accepted_qty')) {
+        await db.query("ALTER TABLE receiving_records ADD COLUMN total_accepted_qty INT NOT NULL DEFAULT 0 AFTER total_delivered_qty");
+      }
+      if (!recColNames.includes('total_rejected_qty')) {
+        await db.query("ALTER TABLE receiving_records ADD COLUMN total_rejected_qty INT NOT NULL DEFAULT 0 AFTER total_accepted_qty");
+      }
+      if (!recColNames.includes('total_rejected_amount')) {
+        await db.query("ALTER TABLE receiving_records ADD COLUMN total_rejected_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER total_rejected_qty");
+      }
+
+      const [rriCols] = await db.query("SHOW COLUMNS FROM receiving_record_items");
+      const rriColNames = rriCols.map(c => c.Field);
+      if (!rriColNames.includes('delivered_quantity')) {
+        await db.query("ALTER TABLE receiving_record_items ADD COLUMN delivered_quantity INT NOT NULL DEFAULT 0 AFTER quantity");
+      }
+      if (!rriColNames.includes('rejected_quantity')) {
+        await db.query("ALTER TABLE receiving_record_items ADD COLUMN rejected_quantity INT NOT NULL DEFAULT 0 AFTER delivered_quantity");
+      }
+      if (!rriColNames.includes('rejection_reason')) {
+        await db.query("ALTER TABLE receiving_record_items ADD COLUMN rejection_reason VARCHAR(255) NULL AFTER rejected_quantity");
+      }
+      console.log('[Schema] Verified receiving_records and items inspection & return columns.');
+    } catch (inspErr) {
+      console.warn('[Schema] Failed to check/add inspection columns:', inspErr.message);
+    }
+
+    // 15. Ensure cash_floats table exists with per-shift tracking columns
+    try {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS cash_floats (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          staff_id INT NOT NULL,
+          staff_username VARCHAR(50) NOT NULL,
+          assigned_by_id INT NOT NULL,
+          assigned_by_username VARCHAR(50) NOT NULL,
+          total_amount DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+          starting_cash DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+          current_cash_balance DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+          cash_sales DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+          change_given DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+          cash_refunds DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+          expected_cash DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+          actual_cash DECIMAL(12, 2) DEFAULT NULL,
+          shortage_overage DECIMAL(12, 2) DEFAULT NULL,
+          sales_count INT NOT NULL DEFAULT 0,
+          status ENUM('ACTIVE', 'COMPLETED', 'RETURNED') NOT NULL DEFAULT 'ACTIVE',
+          notes TEXT NULL,
+          assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          completed_at DATETIME NULL,
+          returned_at DATETIME NULL,
+          returned_by_id INT NULL,
+          returned_by_username VARCHAR(50) NULL,
+          returned_notes TEXT NULL,
+          reconciliation_notes TEXT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_cf_staff_id (staff_id),
+          INDEX idx_cf_status (status),
+          INDEX idx_cf_assigned_at (assigned_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `);
+      console.log('[Schema] Verified cash_floats table.');
+    } catch (cfErr) {
+      console.warn('[Schema] Failed to verify cash_floats table:', cfErr.message);
+    }
+
+    // 16. Ensure cash_movements ledger table exists
+    try {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS cash_movements (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          cash_float_id INT NOT NULL,
+          staff_id INT NOT NULL,
+          staff_username VARCHAR(50) NOT NULL,
+          movement_type VARCHAR(50) NOT NULL,
+          amount DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+          balance_before DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+          balance_after DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+          reference_id VARCHAR(100) NULL,
+          notes TEXT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_cm_staff (staff_id),
+          INDEX idx_cm_float (cash_float_id),
+          INDEX idx_cm_created_at (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `);
+      console.log('[Schema] Verified cash_movements table.');
+    } catch (cmErr) {
+      console.warn('[Schema] Failed to verify cash_movements table:', cmErr.message);
+    }
+} catch (err) {
     console.warn('[Schema] Auto-migration check completed with note:', err.message);
   }
 }

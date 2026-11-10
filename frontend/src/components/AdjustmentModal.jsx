@@ -7,8 +7,8 @@ import toast from 'react-hot-toast';
  * AdjustmentModal Component
  * 
  * Stock adjustment modal for:
- * - DAMAGE (-), LOSS (-), RETURN_TO_SUPPLIER (-)
- * - FOUND (+) with conditional open-losses dropdown via GET /api/items/:id/open-losses
+ * - DAMAGE (-) : Defective, damaged or broken parts
+ * - RETURN_TO_SUPPLIER (-) : Returning defective units back to supplier
  * - Item/Serial lot picker formatted: "PART - Name (Brand) - SERIAL • Stock: n ★" for serialized lots,
  *   and "PART - Name (Brand) • Stock: n" for non-serialized products.
  * - Mandatory reference number and remarks.
@@ -18,14 +18,12 @@ export const AdjustmentModal = ({
   onClose,
   product, // optional initial target: { id, part_number, name/product_name, stock/current_stock, serial_id }
   onSuccess,
+  asPanel = false,
 }) => {
-  const [movementType, setMovementType] = useState('DAMAGE'); // DAMAGE | LOSS | RETURN_TO_SUPPLIER | FOUND
-  const [quantity, setQuantity] = useState('');
+  const [movementType, setMovementType] = useState('DAMAGE'); // DAMAGE | RETURN_TO_SUPPLIER
+  const [quantity, setQuantity] = useState('1');
   const [referenceNo, setReferenceNo] = useState('');
   const [remarks, setRemarks] = useState('');
-  const [openLosses, setOpenLosses] = useState([]);
-  const [selectedLossId, setSelectedLossId] = useState('');
-  const [loadingLosses, setLoadingLosses] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const [productsList, setProductsList] = useState([]);
@@ -42,10 +40,7 @@ export const AdjustmentModal = ({
     });
   }, [isOpen]);
 
-  // Build options matching specification:
-  // "each serialized product is listed as one option per serial lot (status available or sold with the lot's own quantity),
-  // in the form "PART - Name (Brand) - SERIAL • Stock: n ★", sorted by product and serial."
-  // Non-serialized products stay as a single option.
+  // Build options matching specification
   const adjustmentOptions = useMemo(() => {
     const opts = [];
     const sortedProducts = [...productsList].sort((a, b) => {
@@ -134,49 +129,9 @@ export const AdjustmentModal = ({
   const itemId = activeItem?.productId || product?.id || product?.product_id;
   const currentStock = activeItem ? activeItem.lotStock : (product?.current_stock ?? product?.stock ?? 0);
 
-  // When movementType changes to FOUND, fetch open losses for this item
-  useEffect(() => {
-    if (!isOpen || !itemId) return;
-
-    if (movementType === 'FOUND') {
-      const fetchOpenLosses = async () => {
-        setLoadingLosses(true);
-        try {
-          const res = await api.get(`/items/${itemId}/open-losses`);
-          const losses = res.data || [];
-          setOpenLosses(losses);
-          if (losses.length > 0) {
-            setSelectedLossId(String(losses[0].id || losses[0].loss_transaction_id || ''));
-          } else {
-            setSelectedLossId('');
-          }
-        } catch (err) {
-          console.error('Error fetching open losses:', err);
-          toast.error('Failed to load past loss records for restoration');
-          setOpenLosses([]);
-        } finally {
-          setLoadingLosses(false);
-        }
-      };
-      fetchOpenLosses();
-    } else {
-      setSelectedLossId('');
-    }
-  }, [isOpen, itemId, movementType]);
-
   if (!isOpen) return null;
 
-  const isDeduction = ['DAMAGE', 'LOSS', 'RETURN_TO_SUPPLIER'].includes(movementType);
   const qtyNumber = parseInt(quantity, 10) || 0;
-
-  // Selected open loss details if FOUND
-  const activeLossRecord = openLosses.find(l => 
-    String(l.id || l.loss_transaction_id) === String(selectedLossId) ||
-    l.reference_no === selectedLossId
-  );
-  const maxRestorable = activeLossRecord 
-    ? Number(activeLossRecord.restorable_balance ?? activeLossRecord.unrestored_quantity ?? 0) 
-    : 0;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -191,24 +146,9 @@ export const AdjustmentModal = ({
       return;
     }
 
-    if (isDeduction && qtyNumber > currentStock) {
+    if (qtyNumber > currentStock) {
       toast.error(`Cannot deduct more than available stock in target lot (${currentStock})`);
       return;
-    }
-
-    if (movementType === 'FOUND') {
-      if (openLosses.length === 0) {
-        toast.error('No unresolved loss records exist for this item to restore');
-        return;
-      }
-      if (!activeLossRecord) {
-        toast.error('Please select the prior loss record to link this found stock');
-        return;
-      }
-      if (qtyNumber > maxRestorable) {
-        toast.error(`Cannot restore more than unrestored lost quantity (${maxRestorable})`);
-        return;
-      }
     }
 
     if (!referenceNo.trim()) {
@@ -223,9 +163,6 @@ export const AdjustmentModal = ({
 
     setSubmitting(true);
     try {
-      const lossTxId = activeLossRecord ? (activeLossRecord.id || activeLossRecord.loss_transaction_id) : undefined;
-      const lossRefNo = activeLossRecord?.reference_no || undefined;
-
       await api.post('/inventory/adjustments', {
         item_id: itemId,
         product_id: itemId,
@@ -235,8 +172,6 @@ export const AdjustmentModal = ({
         reference_no: referenceNo.trim(),
         remarks: remarks.trim(),
         serial_id: activeItem.isSerialized && activeItem.serialId ? Number(activeItem.serialId) : undefined,
-        loss_transaction_id: lossTxId,
-        loss_reference_no: lossRefNo,
       });
 
       toast.success(`Inventory adjustment (${movementType}) recorded successfully`);
@@ -249,46 +184,80 @@ export const AdjustmentModal = ({
     }
   };
 
-  return (
-    <div className="receipt-overlay no-print" style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(0,0,0,0.75)',
-      zIndex: 9999,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '16px'
-    }}>
-      <div className="glass-panel" style={{
-        background: 'var(--surface)',
-        padding: '24px',
-        width: '480px',
-        maxWidth: '100%',
-        borderRadius: '12px',
-        boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
-        border: '1px solid var(--border)'
-      }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <AlertTriangle size={20} style={{ color: isDeduction ? 'var(--danger)' : 'var(--success)' }} />
-              Stock Adjustment
-            </h2>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-              Audit ledger adjustment for item discrepancies
-            </div>
-          </div>
-          <button onClick={onClose} disabled={submitting} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-            <X size={20} />
-          </button>
-        </div>
+  if (!isOpen) return null;
 
-        {/* Item / Serial Lot Picker */}
-        <div style={{ marginBottom: '14px' }}>
+  const content = (
+    <div
+      id={asPanel ? 'inline-stock-adjustment-container' : undefined}
+      className="stock-adjustment-panel"
+      style={asPanel ? {
+        width: '100%',
+        backgroundColor: 'var(--surface, #18181b)',
+        border: '1.5px solid #f59e0b',
+        borderRadius: '16px',
+        boxShadow: '0 8px 30px rgba(245, 158, 11, 0.12)',
+        overflow: 'hidden',
+        marginBottom: '24px',
+        padding: '24px'
+      } : {
+        background: 'var(--surface)',
+        borderRadius: '12px',
+        border: '1px solid var(--border)',
+        boxShadow: 'var(--glass-shadow)',
+        width: '100%',
+        maxWidth: '560px',
+        maxHeight: '90vh',
+        overflowY: 'auto',
+        padding: '24px'
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '8px',
+            background: 'rgba(245, 158, 11, 0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#f59e0b'
+          }}>
+            <AlertTriangle size={18} />
+          </div>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 'bold' }}>
+              {asPanel ? 'Stock Count Adjustment Panel' : 'Record Stock Adjustment'}
+            </h3>
+            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              Adjust stock for in-store shelf defects, loss/shrinkage, or surplus found
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={onClose}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '0.8rem',
+            padding: asPanel ? '6px 12px' : '6px',
+            borderRadius: '6px'
+          }}
+          title={asPanel ? 'Close Panel' : 'Cancel'}
+        >
+          <X size={16} />
+          {asPanel && <span>Close Panel</span>}
+        </button>
+      </div>
+
+      {/* Item & Lot Picker */}
+        <div style={{ marginBottom: '16px' }}>
           <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>
-            Select Item / Serial Lot *
+            Choose Product to Adjust *
           </label>
           <select
             className="input-premium"
@@ -297,7 +266,6 @@ export const AdjustmentModal = ({
             disabled={submitting}
             style={{ width: '100%' }}
           >
-            <option value="">-- Choose Item or Serial Lot --</option>
             {adjustmentOptions.map(opt => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
@@ -306,37 +274,38 @@ export const AdjustmentModal = ({
           </select>
         </div>
 
-        {/* Item Info Banner */}
+        {/* Active Item Context Box */}
         {activeItem && (
           <div style={{
-            padding: '10px 14px',
             background: 'var(--surface-hover)',
+            padding: '10px 14px',
             borderRadius: '8px',
-            marginBottom: '16px',
             border: '1px solid var(--border)',
+            marginBottom: '16px',
+            fontSize: '0.82rem',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center'
           }}>
             <div>
-              <div style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-main)' }}>
-                {activeItem.product?.product_name || activeItem.product?.name}
-              </div>
+              <div style={{ fontWeight: 600 }}>{activeItem.product?.product_name || activeItem.product?.name}</div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                Part #: {activeItem.product?.part_number} | {activeItem.product?.brand || 'No Brand'}
+                SKU/Part: <span style={{ fontFamily: 'monospace' }}>{activeItem.product?.part_number || 'N/A'}</span>
                 {activeItem.isSerialized && (
-                  <span style={{ marginLeft: '8px', color: 'var(--primary)', fontWeight: 600 }}>
-                    Serial: {activeItem.serialNumber}
+                  <span style={{ marginLeft: '8px', color: 'var(--primary)' }}>
+                    • Lot SN: <strong>{activeItem.serialNumber}</strong>
                   </span>
                 )}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>
-                {activeItem.isSerialized ? 'Lot Stock' : 'Current Stock'}
-              </span>
-              <span style={{ fontWeight: 'bold', fontSize: '1.1rem', color: currentStock > 0 ? 'var(--primary)' : 'var(--danger)' }}>
-                {currentStock}
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block' }}>Current Stock</span>
+              <span style={{
+                fontSize: '1rem',
+                fontWeight: 'bold',
+                color: currentStock > 0 ? 'var(--text-main)' : 'var(--danger)'
+              }}>
+                {currentStock} units
               </span>
             </div>
           </div>
@@ -346,7 +315,7 @@ export const AdjustmentModal = ({
           {/* Movement Type */}
           <div>
             <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>
-              Adjustment Reason / Type *
+              Reason / Type *
             </label>
             <select
               className="input-premium"
@@ -354,59 +323,11 @@ export const AdjustmentModal = ({
               onChange={(e) => setMovementType(e.target.value)}
               disabled={submitting}
             >
-              <option value="DAMAGE">DAMAGE (Damaged in storage / unusable)</option>
-              <option value="LOSS">LOSS (Missing / Inventory shrinkage)</option>
-              <option value="RETURN_TO_SUPPLIER">RETURN_TO_SUPPLIER (Defective / supplier return)</option>
-              <option value="FOUND">FOUND (Recovered previously lost stock)</option>
+              <option value="DAMAGE">💥 In-Store Defect / Shelf Damage (Deduct from sellable stock, log as shop shrinkage loss)</option>
+              <option value="LOSS">⚠️ Lost / Stolen item (Shrinkage deduction from stock)</option>
+              <option value="FOUND">📦 Found extra stock (Surplus count added to sellable stock)</option>
             </select>
           </div>
-
-          {/* Conditional Open Loss Dropdown for FOUND */}
-          {movementType === 'FOUND' && (
-            <div style={{
-              padding: '12px',
-              borderRadius: '8px',
-              background: 'rgba(5, 150, 105, 0.08)',
-              border: '1px solid rgba(5, 150, 105, 0.25)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px'
-            }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--primary)', display: 'block' }}>
-                Select Prior Loss Entry to Restore *
-              </label>
-              {loadingLosses ? (
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Loading previous loss entries...</div>
-              ) : openLosses.length > 0 ? (
-                <>
-                  <select
-                    className="input-premium"
-                    value={selectedLossId}
-                    onChange={(e) => setSelectedLossId(e.target.value)}
-                    disabled={submitting}
-                  >
-                    {openLosses.map(loss => {
-                      const idVal = String(loss.id || loss.loss_transaction_id);
-                      const lostCount = loss.reported_lost ?? loss.quantity_lost ?? 0;
-                      const restorableCount = loss.restorable_balance ?? loss.unrestored_quantity ?? 0;
-                      return (
-                        <option key={idVal || loss.reference_no} value={idVal}>
-                          Ref: {loss.reference_no || loss.transaction_number || `#${idVal}`} (Lost: {lostCount}, Remaining restorable: {restorableCount})
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Max restorable against this record: <strong style={{ color: 'var(--primary)' }}>{maxRestorable}</strong>
-                  </span>
-                </>
-              ) : (
-                <div style={{ fontSize: '0.8rem', color: 'var(--danger)', fontWeight: '500' }}>
-                  No past unresolved loss entries found for this product. FOUND adjustment requires an open LOSS reference.
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Quantity & Reference No */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -417,7 +338,7 @@ export const AdjustmentModal = ({
               <input
                 type="number"
                 min="1"
-                max={movementType === 'FOUND' ? maxRestorable : (isDeduction ? currentStock : 9999)}
+                max={movementType === 'FOUND' ? 9999 : (currentStock > 0 ? currentStock : 9999)}
                 placeholder="Qty"
                 className="input-premium"
                 value={quantity}
@@ -428,7 +349,7 @@ export const AdjustmentModal = ({
             </div>
             <div>
               <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                Reference Code *
+                Reference / Receipt Code *
               </label>
               <input
                 type="text"
@@ -445,11 +366,11 @@ export const AdjustmentModal = ({
           {/* Remarks */}
           <div>
             <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-              Detailed Audit Remarks *
+              Reason / Notes *
             </label>
             <textarea
               className="input-premium"
-              placeholder="State the verified physical discrepancy reason..."
+              placeholder="Explain what happened (e.g. Broken bracket upon inspection, dropped on shelf)..."
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}
               rows="3"
@@ -475,19 +396,41 @@ export const AdjustmentModal = ({
               className="btn-primary"
               style={{
                 flex: 1.4,
-                backgroundColor: isDeduction ? 'var(--danger)' : 'var(--primary)'
+                backgroundColor: 'var(--danger)'
               }}
-              disabled={submitting || (movementType === 'FOUND' && openLosses.length === 0)}
+              disabled={submitting}
             >
               {submitting ? 'Recording...' : (
                 <>
-                  <CheckCircle size={16} /> Record Adjustment
+                  <CheckCircle size={16} /> Save Stock Adjustment
                 </>
               )}
             </button>
           </div>
         </form>
-      </div>
+    </div>
+  );
+
+  if (asPanel) {
+    return content;
+  }
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.65)',
+      backdropFilter: 'blur(3px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1100,
+      padding: '16px'
+    }}>
+      {content}
     </div>
   );
 };

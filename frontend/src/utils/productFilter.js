@@ -32,7 +32,8 @@ export const getCompatibilityText = (product) => {
 
 export const getStockStatus = (product) => {
     const stock = Number(product?.stock) || 0;
-    const reorderLevel = Number(product?.reorder_level) || 0;
+    const rawReorder = Number(product?.reorder_level);
+    const reorderLevel = !isNaN(rawReorder) && rawReorder >= 1 ? rawReorder : 5;
 
     if (stock === 0) return 'out_of_stock';
     if (stock <= reorderLevel) return 'low_stock';

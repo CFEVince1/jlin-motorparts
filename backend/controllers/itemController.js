@@ -3,6 +3,39 @@ const { applyMovement } = require('../services/inventoryService');
 const { AppValidationError, AppNotFoundError } = require('../utils/errors');
 const inventoryController = require('./inventoryController');
 
+const CANONICAL_CATEGORIES = {
+    'ENG': 'Engine',
+    'ENGINE': 'Engine',
+    'ENGINE PARTS': 'Engine',
+    'EXHAUST': 'Engine',
+    'FILTERS': 'Engine',
+    'BRK': 'Brakes',
+    'BRAKES': 'Brakes',
+    'CABLES': 'Brakes',
+    'CHAS': 'Wheels',
+    'SUSPENSION': 'Wheels',
+    'WHEELS': 'Wheels',
+    'TIRES': 'Wheels',
+    'CHASSIS': 'Wheels',
+    'CVT': 'CVT',
+    'TRANSMISSION': 'CVT',
+    'DRIVE': 'CVT',
+    'ELEC': 'Electrical',
+    'ELECTRICAL': 'Electrical',
+    'ELECTRONICS': 'Electrical',
+    'IGNITION': 'Electrical',
+    'OIL': 'Oils',
+    'OILS': 'Oils',
+    'LUBRICANTS': 'Oils',
+    'FLUIDS': 'Oils'
+};
+
+const normalizeCategory = (cat) => {
+    if (!cat) return 'Engine';
+    const upper = String(cat).trim().toUpperCase();
+    return CANONICAL_CATEGORIES[upper] || 'Engine';
+};
+
 /**
  * GET /api/items
  */
@@ -103,13 +136,27 @@ exports.createItem = async (req, res, next) => {
         retail_price,
         selling_price,
         reorder_level,
-        is_serialized
+        is_serialized,
+        stock,
+        initial_stock,
+        initial_stock_quantity
     } = req.body;
+
+    const rawStock = initial_stock !== undefined
+        ? initial_stock
+        : (initial_stock_quantity !== undefined ? initial_stock_quantity : stock);
+    const resolvedInitialStock = rawStock !== undefined && rawStock !== null && rawStock !== ''
+        ? Math.floor(Number(rawStock))
+        : 0;
+
+    if (!Number.isFinite(resolvedInitialStock) || resolvedInitialStock < 0) {
+        throw new AppValidationError('Initial stock quantity must be a non-negative whole number');
+    }
 
     const resolvedSku = (sku || part_number || '').trim();
     const resolvedName = (name || '').trim();
     const resolvedBrand = (brand || '').trim();
-    const resolvedCategory = (category || '').trim();
+    const resolvedCategory = normalizeCategory(category);
 
     if (!resolvedSku) throw new AppValidationError('SKU / Part Number is required');
     if (!resolvedName) throw new AppValidationError('Item name is required');
@@ -179,16 +226,22 @@ exports.createItem = async (req, res, next) => {
         // Fetch DB Date string for reference number
         const [dateRows] = await connection.query(`SELECT DATE_FORMAT(NOW(), '%Y%m%d') as db_date;`);
         const dbDate = dateRows[0].db_date;
-        const refNo = `OPENING-${dbDate}`;
+        const [[countRow]] = await connection.query(
+            `SELECT COUNT(*) as cnt FROM inventory_transactions WHERE transaction_type = 'OPENING_BALANCE' AND DATE(created_at) = CURRENT_DATE()`
+        );
+        const seq = String((countRow?.cnt || 0) + 1).padStart(2, '0');
+        const refNo = `OPENING-${dbDate}-${seq}`;
 
         // Insert initial OPENING_BALANCE ledger entry in the SAME transaction
         await applyMovement(connection, {
             itemId: newItemId,
             transactionType: 'OPENING_BALANCE',
-            quantityChange: 0,
+            quantityChange: resolvedInitialStock,
             referenceNo: refNo,
             unitCost: resolvedCost,
-            remarks: `Initial baseline OPENING_BALANCE for new item ${resolvedName} (${resolvedSku})`,
+            remarks: resolvedInitialStock > 0
+                ? `Initial opening stock (${resolvedInitialStock} units) for new item ${resolvedName} (${resolvedSku})`
+                : `Initial baseline OPENING_BALANCE for new item ${resolvedName} (${resolvedSku})`,
             createdBy: userId
         });
 
@@ -205,8 +258,8 @@ exports.createItem = async (req, res, next) => {
                 category: resolvedCategory,
                 cost_price: resolvedCost,
                 retail_price: resolvedPrice,
-                current_stock: 0,
-                stock: 0
+                current_stock: resolvedInitialStock,
+                stock: resolvedInitialStock
             }
         });
 
@@ -241,7 +294,8 @@ exports.updateItem = async (req, res, next) => {
         size,
         measurement,
         thread_type,
-        reorder_level
+        reorder_level,
+        shelf_location
     } = req.body;
 
     const connection = await db.getConnection();
@@ -294,10 +348,9 @@ exports.updateItem = async (req, res, next) => {
             values.push(trimmedName);
         }
         if (category !== undefined) {
-            const trimmedCat = category.trim();
-            if (!trimmedCat) throw new AppValidationError('Category cannot be empty');
+            const normalizedCat = normalizeCategory(category);
             updates.push('category = ?');
-            values.push(trimmedCat);
+            values.push(normalizedCat);
         }
         if (cost_price !== undefined || markup_percentage !== undefined) {
             const currentCost = cost_price !== undefined ? Number(cost_price) : Number(currentItem.cost_price || 0);
@@ -345,6 +398,11 @@ exports.updateItem = async (req, res, next) => {
             }
             updates.push('reorder_level = ?');
             values.push(reorder);
+        }
+        if (shelf_location !== undefined || req.body.shelfLocation !== undefined) {
+            const loc = String(shelf_location || req.body.shelfLocation || '').trim();
+            updates.push('shelf_location = ?');
+            values.push(loc);
         }
 
         if (updates.length === 0) {

@@ -33,6 +33,11 @@ exports.login = async (req, res) => {
 
         const user = users[0];
 
+        // Check account status
+        if (user.is_active === 0 || user.is_active === false) {
+            return res.status(403).json({ message: 'This staff account has been deactivated. Please contact the Store Owner/Admin.' });
+        }
+
         // 2. Check password against real hash
         const isMatch = await bcrypt.compare(password, user.password);
 
@@ -47,10 +52,11 @@ exports.login = async (req, res) => {
         }
 
         const tokenVersion = user.token_version !== undefined && user.token_version !== null ? user.token_version : 1;
+        const normalizedRole = (user.role || '').toLowerCase();
         const payload = {
             id: user.id,
             username: user.username,
-            role: user.role,
+            role: normalizedRole === 'admin' ? 'admin' : 'staff',
             tokenVersion
         };
 
@@ -61,7 +67,10 @@ exports.login = async (req, res) => {
             user: {
                 id: user.id,
                 username: user.username,
+                full_name: user.full_name,
                 role: user.role,
+                pin: user.pin,
+                is_active: user.is_active,
                 token_version: tokenVersion
             }
         });
@@ -106,5 +115,5 @@ exports.logout = async (req, res) => {
 
 exports.verify = (req, res) => {
     // If this route is reached, the authMiddleware has already verified the token
-    res.json({ user: req.user, message: 'Token is valid' });
+    res.json({ user: { ...req.user, role: (req.user.role || '').toLowerCase() === 'admin' ? 'admin' : 'staff' }, message: 'Token is valid' });
 };

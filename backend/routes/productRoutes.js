@@ -8,6 +8,8 @@ router.use(authMiddleware);
 
 // All authenticated users can GET products
 router.get('/', productController.getAllProducts);
+router.get('/validate-part-number', productController.validatePartNumber);
+router.post('/validate-serials', productController.validateSerials);
 router.get('/motorcycle-units', productController.getMotorcycleUnits);
 router.get('/compatibility-groups', productController.getCompatibilityGroups);
 

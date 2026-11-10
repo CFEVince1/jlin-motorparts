@@ -141,8 +141,8 @@ async function applyMovement(trx, {
 
     // 5. Update items.current_stock and items.stock cache
     await trx.query(
-        `UPDATE products SET current_stock = ?, stock = ? WHERE id = ?`,
-        [newStock, newStock, resolvedId]
+        `UPDATE products SET current_stock = ?, stock = ?, sellable_stock = ? WHERE id = ?`,
+        [newStock, newStock, newStock, resolvedId]
     );
 
     // 6. Append immutable row to inventory_transactions

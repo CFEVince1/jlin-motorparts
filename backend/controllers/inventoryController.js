@@ -17,12 +17,20 @@ exports.getInventory = async (req, res, next) => {
                 p.name,
                 p.brand,
                 p.category,
+                p.shelf_location,
                 p.size,
                 p.measurement,
                 p.thread_type,
                 p.is_serialized,
                 COALESCE(p.stock, p.current_stock, 0) AS current_stock,
                 p.stock,
+                COALESCE(p.sellable_stock, p.stock, 0) AS sellable_stock,
+                COALESCE(p.damaged_stock, 0) AS damaged_stock,
+                p.supplier_id,
+                COALESCE(s.name, p.supplier_name) AS default_supplier_name,
+                s.fb_page_name AS default_supplier_fb_page,
+                s.messenger_url AS default_supplier_messenger_url,
+                s.facebook_page_url AS default_supplier_facebook_url,
                 p.reorder_level,
                 p.cost_price,
                 p.markup_percentage,
@@ -37,6 +45,7 @@ exports.getInventory = async (req, res, next) => {
                     ''
                 ) AS compatibility_display
             FROM products p
+            LEFT JOIN suppliers s ON s.id = p.supplier_id
             LEFT JOIN product_compatibilities pc ON pc.product_id = p.id AND pc.compatibility_status = 'COMPATIBLE'
             LEFT JOIN motorcycle_models mm ON mm.id = pc.motorcycle_model_id
             WHERE p.is_active = true
@@ -51,8 +60,17 @@ exports.getInventory = async (req, res, next) => {
                 p.measurement,
                 p.thread_type,
                 p.is_serialized,
+                p.shelf_location,
                 p.stock,
                 p.current_stock,
+                p.sellable_stock,
+                p.damaged_stock,
+                p.supplier_id,
+                s.name,
+                p.supplier_name,
+                s.fb_page_name,
+                s.messenger_url,
+                s.facebook_page_url,
                 p.reorder_level,
                 p.cost_price,
                 p.markup_percentage,
@@ -88,8 +106,13 @@ exports.getInventory = async (req, res, next) => {
 
             return {
                 ...p,
+                shelf_location: p.shelf_location || '',
                 stock: effectiveStock,
                 current_stock: effectiveStock,
+                sellable_stock: effectiveStock,
+                damaged_stock: Number(p.damaged_stock || 0),
+                default_facebook_supplier: p.default_supplier_fb_page || p.default_supplier_name || 'Direct Wholesale',
+                supplier_name: p.default_supplier_name || p.supplier_name || 'FB Supplier',
                 is_serialized: isSerialized,
                 serials: prodSerials,
                 available_serials: availableSerials,
@@ -115,34 +138,53 @@ exports.getInventory = async (req, res, next) => {
  * - Insert receiving_record_items and call applyMovement (STOCK_IN) atomically
  */
 exports.receiveStock = async (req, res, next) => {
-    const { supplier_id, supplierId, reference_no, referenceNo, reference_number, deliveryPersonnel, notes, items } = req.body;
-    const finalSupplierId = Number(supplier_id || supplierId);
-    const refNo = (reference_no || referenceNo || reference_number || '').trim();
+    const { 
+        supplier_id, 
+        supplierId, 
+        reference_no, 
+        referenceNo, 
+        reference_number, 
+        deliveryPersonnel, 
+        driver_name,
+        driverName: driverNameField,
+        courier_service,
+        courierService,
+        mechanic_name,
+        mechanicName,
+        receiver_name,
+        receiverName,
+        inspected_by,
+        notes, 
+        items 
+    } = req.body;
+    let finalSupplierId = Number(supplier_id || supplierId);
+    let refNo = (reference_no || referenceNo || reference_number || '').trim();
     const userId = req.user?.id || null;
 
     if (!finalSupplierId) {
-        return res.status(422).json({ 
-            message: 'Supplier ID is required',
-            errors: [{ field: 'supplier_id', message: 'Supplier required' }]
-        });
+        const [dSupp] = await db.query('SELECT id FROM suppliers WHERE is_active = 1 ORDER BY id ASC LIMIT 1');
+        finalSupplierId = dSupp.length > 0 ? dSupp[0].id : 1;
     }
 
     if (!refNo) {
-        return res.status(422).json({ 
-            message: 'Reference number is required and cannot be empty',
-            errors: [{ field: 'reference_no', message: 'Reference number required' }]
-        });
+        const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const rand = Math.floor(100 + Math.random() * 900);
+        refNo = `RCV-${dateStr}-${rand}`;
     }
 
-    const driverName = (deliveryPersonnel || '').trim();
-    if (driverName) {
-        if (/\d/.test(driverName) || !/^[a-zA-Z\s.'-]+$/.test(driverName)) {
+    const driverName = (deliveryPersonnel || driver_name || driverNameField || 'Direct Restock').trim();
+    if (driverName && driverName !== 'Direct Restock') {
+        if (!/^[a-zA-Z\s.'\-()]+$/.test(driverName) || driverName.replace(/[^a-zA-Z]/g, '').length < 2) {
             return res.status(422).json({
-                message: 'Delivery personnel / driver name cannot contain numbers',
-                errors: [{ field: 'deliveryPersonnel', message: 'Driver name must contain only letters and spaces' }]
+                message: 'Delivery personnel / driver name must contain valid letters and spaces',
+                errors: [{ field: 'deliveryPersonnel', message: 'Driver name must contain only letters, spaces, and ()' }]
             });
         }
     }
+
+    const cleanMechanic = (mechanic_name || mechanicName || inspected_by || 'Shop Inspector').trim();
+    const cleanCourier = (courier_service || courierService || 'Direct Intake').trim();
+    const cleanReceiver = (receiver_name || receiverName || req.user?.username || 'Admin').trim();
 
     if (!items || !Array.isArray(items) || items.length === 0) {
         return res.status(422).json({ 
@@ -157,7 +199,7 @@ exports.receiveStock = async (req, res, next) => {
 
         // 1. Verify supplier exists and is active
         const [suppliers] = await connection.query(
-            'SELECT id, name, is_active FROM suppliers WHERE id = ?',
+            'SELECT id, name, fb_page_name, seller_contact_name, phone, messenger_url, is_active FROM suppliers WHERE id = ?',
             [finalSupplierId]
         );
         if (suppliers.length === 0) {
@@ -198,6 +240,11 @@ exports.receiveStock = async (req, res, next) => {
         const productMap = new Map(productRows.map(p => [p.id, p]));
 
         let totalCost = 0;
+        let totalDeliveredQty = 0;
+        let totalAcceptedQty = 0;
+        let totalRejectedQty = 0;
+        let totalRejectedAmount = 0;
+
         const validatedItems = [];
         const seenBatchSerialIds = new Set();
         const seenBatchNewSerials = new Set();
@@ -205,19 +252,35 @@ exports.receiveStock = async (req, res, next) => {
 
         for (const item of sortedItems) {
             const resolvedId = Number(item.itemId || item.item_id || item.product_id);
-            const qty = Number(item.quantity);
+            const rawDelivered = item.delivered_quantity ?? item.deliveredQuantity;
+            const rawRejected = item.rejected_quantity ?? item.rejectedQuantity;
+            const rawAccepted = item.quantity ?? item.accepted_quantity ?? item.acceptedQuantity;
+
+            const rejectedQty = Math.max(0, parseInt(rawRejected || 0, 10));
+            const acceptedQty = Math.max(0, parseInt(rawAccepted !== undefined ? rawAccepted : (rawDelivered !== undefined ? rawDelivered - rejectedQty : 0), 10));
+            const deliveredQty = rawDelivered !== undefined 
+                ? Math.max(0, parseInt(rawDelivered, 10)) 
+                : (acceptedQty + rejectedQty);
+
             const costPrice = Number(item.cost_price ?? item.costPrice ?? 0);
             const prod = productMap.get(resolvedId);
 
             if (!resolvedId || !prod) {
                 throw new AppValidationError(`Invalid item or product not found: ID ${resolvedId}`);
             }
-            if (!Number.isInteger(qty) || qty <= 0) {
-                throw new AppValidationError(`Invalid quantity for "${prod.name}". Must be a positive integer.`);
+            if (!Number.isInteger(deliveredQty) || deliveredQty <= 0) {
+                throw new AppValidationError(`Invalid delivered quantity for "${prod.name}". Delivered count must be greater than 0.`);
+            }
+            if (acceptedQty + rejectedQty !== deliveredQty) {
+                throw new AppValidationError(`Quantity mismatch for "${prod.name}": Accepted (${acceptedQty}) + Rejected (${rejectedQty}) must equal Delivered (${deliveredQty}).`);
             }
             if (isNaN(costPrice) || costPrice < 0) {
                 throw new AppValidationError(`Invalid unit cost for "${prod.name}". Cost cannot be negative.`);
             }
+
+            const rejectionReason = rejectedQty > 0 
+                ? String(item.rejection_reason || item.rejectionReason || 'Damaged / defective on arrival - returned to driver immediately before departure').trim()
+                : null;
 
             const isSerialized = Boolean(prod.is_serialized);
             let targetSerialId = item.serial_id || item.serialId || null;
@@ -231,9 +294,8 @@ exports.receiveStock = async (req, res, next) => {
             }
             let lotIncrement = false;
 
-            if (isSerialized) {
+            if (isSerialized && acceptedQty > 0) {
                 if (targetSerialId) {
-                    // Explicit existing serial ID selected
                     if (seenBatchSerialIds.has(Number(targetSerialId))) {
                         throw new AppValidationError(`Duplicate serial lot ID ${targetSerialId} within delivery batch. Consolidate quantities.`);
                     }
@@ -249,13 +311,11 @@ exports.receiveStock = async (req, res, next) => {
                     targetSerialNum = existingRows[0].serial_number;
                     lotIncrement = true;
                 } else if (targetSerialNum) {
-                    // Single new serial entered - normalize uppercase and trimmed
                     if (seenBatchNewSerials.has(targetSerialNum)) {
                         throw new AppValidationError(`Duplicate serial number "${targetSerialNum}" detected within delivery batch.`);
                     }
                     seenBatchNewSerials.add(targetSerialNum);
 
-                    // Check if serial belongs to another product
                     const [dupes] = await connection.query(
                         'SELECT serial_number FROM product_serials WHERE UPPER(serial_number) = UPPER(?) AND product_id != ?',
                         [targetSerialNum, resolvedId]
@@ -264,7 +324,6 @@ exports.receiveStock = async (req, res, next) => {
                         throw new AppValidationError(`Serial number "${targetSerialNum}" already belongs to another product`);
                     }
 
-                    // Check if already exists for THIS product (treat existing serial as existing lot)
                     const [existingRows] = await connection.query(
                         'SELECT id, serial_number, quantity, status FROM product_serials WHERE UPPER(serial_number) = UPPER(?) AND product_id = ?',
                         [targetSerialNum, resolvedId]
@@ -279,17 +338,26 @@ exports.receiveStock = async (req, res, next) => {
                 } else {
                     throw new AppValidationError(`Product "${prod.name}" is a serialized item. A serial lot or new serial number is required.`);
                 }
-            } else {
+            } else if (!isSerialized) {
                 if (seenBatchNonSerialized.has(resolvedId)) {
                     throw new AppValidationError(`Product duplicate detected for "${prod.name}" (ID ${resolvedId}). Consolidate quantities into a single row.`);
                 }
                 seenBatchNonSerialized.add(resolvedId);
             }
 
-            totalCost += costPrice * qty;
+            totalCost += costPrice * acceptedQty;
+            totalDeliveredQty += deliveredQty;
+            totalAcceptedQty += acceptedQty;
+            totalRejectedQty += rejectedQty;
+            totalRejectedAmount += costPrice * rejectedQty;
+
             validatedItems.push({
                 resolvedId,
-                qty,
+                qty: acceptedQty,
+                acceptedQty,
+                deliveredQty,
+                rejectedQty,
+                rejectionReason,
                 costPrice,
                 prod,
                 isSerialized,
@@ -300,67 +368,112 @@ exports.receiveStock = async (req, res, next) => {
         }
 
         // 5. Create receiving_records header
-        const finalNotes = notes
-            ? (driverName ? `Driver: ${driverName} | ${notes}` : notes)
-            : (driverName ? `Driver: ${driverName}` : null);
+        const combinedInspectedBy = cleanMechanic 
+            ? `Mechanic: ${cleanMechanic} | Receiver: ${cleanReceiver}` 
+            : (inspected_by || `Receiver: ${cleanReceiver}`);
+
+        let finalNotes = notes ? notes.trim() : '';
+        if (driverName) {
+            const driverPart = `Driver: ${driverName} (${cleanCourier})`;
+            finalNotes = finalNotes ? `${driverPart} | ${finalNotes}` : driverPart;
+        }
+        if (totalRejectedQty > 0) {
+            finalNotes += ` [INSPECTION: ${totalRejectedQty} damaged units REJECTED & returned immediately to driver before departure. Deducted ₱${totalRejectedAmount.toFixed(2)}]`;
+        }
+        finalNotes = finalNotes.trim() || null;
 
         const [recResult] = await connection.query(
             `INSERT INTO receiving_records (
-                supplier_id, reference_number, reference_no, received_by, total_cost, status, notes, received_at
-            ) VALUES (?, ?, ?, ?, ?, 'received', ?, NOW())`,
-            [finalSupplierId, refNo, refNo, userId, totalCost, finalNotes]
+                supplier_id, reference_number, reference_no, received_by, inspected_by,
+                delivery_personnel, courier_service, mechanic_name, receiver_name,
+                total_delivered_qty, total_accepted_qty, total_rejected_qty, total_rejected_amount,
+                total_cost, status, notes, received_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received', ?, NOW())`,
+            [
+                finalSupplierId, refNo, refNo, userId, combinedInspectedBy,
+                driverName || null, cleanCourier || null, cleanMechanic || null, cleanReceiver || null,
+                totalDeliveredQty, totalAcceptedQty, totalRejectedQty, totalRejectedAmount,
+                totalCost, finalNotes
+            ]
         );
         const receivingRecordId = recResult.insertId;
 
-        // 6. Insert receiving_record_items and call applyMovement (STOCK_IN) atomically
+        // 6. Insert receiving_record_items and call applyMovement (STOCK_IN) atomically for accepted items
         const processedItems = [];
         for (const item of validatedItems) {
-            const { resolvedId, qty, costPrice, isSerialized, targetSerialId, targetSerialNum, lotIncrement } = item;
-            const subtotal = costPrice * qty;
+            const { 
+                resolvedId, 
+                acceptedQty, 
+                deliveredQty, 
+                rejectedQty, 
+                rejectionReason, 
+                costPrice, 
+                isSerialized, 
+                targetSerialId, 
+                targetSerialNum, 
+                lotIncrement 
+            } = item;
+
+            const subtotal = costPrice * acceptedQty;
             const serialsStr = isSerialized ? (targetSerialNum || null) : null;
 
             await connection.query(
                 `INSERT INTO receiving_record_items (
-                    receiving_record_id, product_id, item_id, quantity, cost_price, subtotal, serials
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [receivingRecordId, resolvedId, resolvedId, qty, costPrice, subtotal, serialsStr]
+                    receiving_record_id, product_id, item_id, quantity, delivered_quantity, 
+                    rejected_quantity, rejection_reason, cost_price, subtotal, serials
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    receivingRecordId, resolvedId, resolvedId, acceptedQty, 
+                    deliveredQty, rejectedQty, rejectionReason, costPrice, subtotal, serialsStr
+                ]
             );
 
-            // If item is serialized, update lot or insert serials
+            // If item has accepted quantity, update inventory stock
             let effectiveSerialId = targetSerialId || null;
-            if (isSerialized) {
-                if (lotIncrement && targetSerialId) {
-                    // Add quantity to existing serial lot and mark status available
-                    await connection.query(
-                        "UPDATE product_serials SET quantity = quantity + ?, status = 'available' WHERE id = ?",
-                        [qty, targetSerialId]
-                    );
-                    effectiveSerialId = targetSerialId;
-                } else if (targetSerialNum) {
-                    // Insert single serial lot with received quantity
-                    const [insertRes] = await connection.query(
-                        "INSERT INTO product_serials (product_id, serial_number, quantity, status, created_at) VALUES (?, ?, ?, 'available', NOW())",
-                        [resolvedId, targetSerialNum, qty]
-                    );
-                    effectiveSerialId = insertRes.insertId;
+            let movement = null;
+
+            if (acceptedQty > 0) {
+                if (isSerialized) {
+                    if (lotIncrement && targetSerialId) {
+                        await connection.query(
+                            "UPDATE product_serials SET quantity = quantity + ?, status = 'available' WHERE id = ?",
+                            [acceptedQty, targetSerialId]
+                        );
+                        effectiveSerialId = targetSerialId;
+                    } else if (targetSerialNum) {
+                        const [insertRes] = await connection.query(
+                            "INSERT INTO product_serials (product_id, serial_number, quantity, status, created_at) VALUES (?, ?, ?, 'available', NOW())",
+                            [resolvedId, targetSerialNum, acceptedQty]
+                        );
+                        effectiveSerialId = insertRes.insertId;
+                    }
                 }
+
+                movement = await applyMovement(connection, {
+                    itemId: resolvedId,
+                    serialId: effectiveSerialId,
+                    transactionType: 'STOCK_IN',
+                    quantityChange: acceptedQty,
+                    referenceNo: refNo,
+                    referenceType: 'RECEIVING_RECORD',
+                    referenceId: receivingRecordId,
+                    unitCost: costPrice,
+                    remarks: finalNotes || `Stock receiving ref: ${refNo}`,
+                    createdBy: userId
+                });
             }
 
-            const movement = await applyMovement(connection, {
-                itemId: resolvedId,
-                serialId: effectiveSerialId,
-                transactionType: 'STOCK_IN',
-                quantityChange: qty,
-                referenceNo: refNo,
-                referenceType: 'RECEIVING_RECORD',
-                referenceId: receivingRecordId,
-                unitCost: costPrice,
-                remarks: notes || `Stock receiving ref: ${refNo}`,
-                createdBy: userId
-            });
+            // Rejected quantity is deducted on the spot and stored in receiving_records / receiving_record_items
 
             processedItems.push({
-                ...movement,
+                product_id: resolvedId,
+                delivered_quantity: deliveredQty,
+                accepted_quantity: acceptedQty,
+                rejected_quantity: rejectedQty,
+                rejection_reason: rejectionReason,
+                cost_price: costPrice,
+                subtotal,
+                movement,
                 serials: serialsStr
             });
         }
@@ -368,12 +481,24 @@ exports.receiveStock = async (req, res, next) => {
         await connection.commit();
 
         res.status(201).json({
-            message: 'Stock received and inventory ledger updated successfully',
+            message: totalRejectedQty > 0 
+                ? `Stock received successfully! ${totalAcceptedQty} good units added to inventory. ${totalRejectedQty} damaged units rejected & returned to driver.`
+                : 'Stock received and inventory ledger updated successfully',
             receiving_record: {
                 id: receivingRecordId,
-                supplier_id,
+                supplier_id: finalSupplierId,
                 supplier_name: suppliers[0].name,
+                fb_page_name: suppliers[0].fb_page_name,
+                messenger_url: suppliers[0].messenger_url,
                 reference_no: refNo,
+                driver_name: driverName,
+                courier_service: cleanCourier,
+                mechanic_name: cleanMechanic,
+                receiver_name: cleanReceiver,
+                total_delivered_qty: totalDeliveredQty,
+                total_accepted_qty: totalAcceptedQty,
+                total_rejected_qty: totalRejectedQty,
+                total_rejected_amount: totalRejectedAmount,
                 total_cost: totalCost,
                 status: 'received',
                 items: processedItems
@@ -447,7 +572,7 @@ exports.recordAdjustment = async (req, res, next) => {
         });
     }
 
-    const ALLOWED_TYPES = ['DAMAGE', 'LOSS', 'RETURN_TO_SUPPLIER', 'FOUND'];
+    const ALLOWED_TYPES = ['DAMAGE', 'LOSS', 'FOUND', 'RETURN_TO_SUPPLIER', 'ADJUSTMENT_ADD', 'ADJUSTMENT_SUB', 'PHYSICAL_AUDIT'];
     if (!ALLOWED_TYPES.includes(resolvedType)) {
         return res.status(422).json({
             message: `Invalid adjustment type "${resolvedType}". Must be one of: ${ALLOWED_TYPES.join(', ')}`,
@@ -499,7 +624,7 @@ exports.recordAdjustment = async (req, res, next) => {
                 return res.status(404).json({ message: `Serial ID ${resolvedSerialId} not found for this product` });
             }
             targetSerialRow = sRows[0];
-            if (resolvedType !== 'FOUND') {
+            if (resolvedType !== 'FOUND' && resolvedType !== 'ADJUSTMENT_ADD') {
                 const availLotQty = Number(targetSerialRow.quantity || 0);
                 if (availLotQty < qty) {
                     await connection.rollback();
@@ -511,88 +636,12 @@ exports.recordAdjustment = async (req, res, next) => {
             }
         }
 
-        // 2. FOUND Restorations Logic
-        if (resolvedType === 'FOUND') {
-            if (!resolvedLossTxId && resolvedLossRef) {
-                const [lossLookup] = await connection.query(
-                    `SELECT id FROM inventory_transactions 
-                     WHERE transaction_type = 'LOSS' 
-                       AND product_id = ? 
-                       AND (reference_no = ? OR transaction_number = ? OR id = ?) 
-                     ORDER BY id DESC LIMIT 1`,
-                    [resolvedId, resolvedLossRef, resolvedLossRef, Number(resolvedLossRef) || 0]
-                );
-                if (lossLookup.length > 0) {
-                    resolvedLossTxId = lossLookup[0].id;
-                }
-            }
-
-            if (!resolvedLossTxId) {
-                await connection.rollback();
-                return res.status(422).json({
-                    message: 'loss_transaction_id or valid loss reference number is required when recording a FOUND restoration',
-                    errors: [{ field: 'loss_transaction_id', message: 'Target loss transaction required' }]
-                });
-            }
-
-            // Validate against targeted LOSS ledger record
-            const [lossRows] = await connection.query(
-                `SELECT 
-                    it.id,
-                    it.product_id,
-                    it.reference_no,
-                    it.transaction_type,
-                    ABS(it.quantity_change) AS reported_lost,
-                    COALESCE((
-                        SELECT SUM(f.quantity_change)
-                        FROM inventory_transactions f
-                        WHERE f.transaction_type = 'FOUND' AND f.loss_transaction_id = it.id
-                    ), 0) AS already_restored
-                 FROM inventory_transactions it
-                 WHERE it.id = ? AND it.transaction_type = 'LOSS'`,
-                [resolvedLossTxId]
-            );
-
-            if (lossRows.length === 0) {
-                await connection.rollback();
-                return res.status(422).json({
-                    message: `Target LOSS transaction with ID ${resolvedLossTxId} not found`,
-                    errors: [{ field: 'loss_transaction_id', message: 'Loss transaction not found' }]
-                });
-            }
-
-            const lossRecord = lossRows[0];
-            if (lossRecord.product_id !== resolvedId) {
-                await connection.rollback();
-                return res.status(422).json({
-                    message: `Target LOSS transaction belongs to product ID ${lossRecord.product_id}, not item ID ${resolvedId}`,
-                    errors: [{ field: 'loss_transaction_id', message: 'Mismatched product ID for loss restoration' }]
-                });
-            }
-
-            const reportedLost = Number(lossRecord.reported_lost);
-            const alreadyRestored = Number(lossRecord.already_restored);
-            const restorableBalance = reportedLost - alreadyRestored;
-
-            if (restorableBalance <= 0) {
-                await connection.rollback();
-                return res.status(422).json({
-                    message: `LOSS record ${resolvedLossTxId} has already been fully restored (Reported: ${reportedLost}, Restored: ${alreadyRestored})`
-                });
-            }
-
-            if (qty > restorableBalance) {
-                await connection.rollback();
-                return res.status(422).json({
-                    message: `Requested restoration quantity (${qty}) exceeds unresolved loss balance (${restorableBalance}) for LOSS record #${resolvedLossTxId}`,
-                    errors: [{ field: 'quantity', message: `Maximum restorable quantity is ${restorableBalance}` }]
-                });
-            }
-
-            // FOUND increases stock
+        // 2. Determine quantity change direction
+        if (resolvedType === 'FOUND' || resolvedType === 'ADJUSTMENT_ADD') {
+            // Surplus / Found increases stock
             quantityChange = qty;
         } else {
-            // Outflows: DAMAGE, LOSS, RETURN_TO_SUPPLIER decrease stock
+            // Outflows: DAMAGE, LOSS, RETURN_TO_SUPPLIER, ADJUSTMENT_SUB decrease stock
             quantityChange = -qty;
         }
 
@@ -717,55 +766,10 @@ exports.recordAdjustment = async (req, res, next) => {
 
 /**
  * GET /api/items/:id/open-losses (and /api/inventory/items/:id/open-losses)
- * Return unresolved LOSS entries with restorable balances (reported_lost - already_restored)
- * to populate the FOUND modal dropdown.
+ * Deprecated / removed in real-world store operations. Always returns empty array.
  */
 exports.getOpenLosses = async (req, res, next) => {
-    try {
-        const itemId = Number(req.params.id);
-        if (!itemId) {
-            return res.status(400).json({ message: 'Invalid item ID' });
-        }
-
-        const [losses] = await db.query(
-            `SELECT 
-                it.id AS loss_transaction_id,
-                it.id,
-                it.id AS loss_id,
-                it.transaction_number,
-                it.reference_no,
-                it.reference_no AS loss_reference_no,
-                ABS(it.quantity_change) AS reported_lost,
-                ABS(it.quantity_change) AS quantity_lost,
-                COALESCE((
-                    SELECT SUM(f.quantity_change) 
-                    FROM inventory_transactions f 
-                    WHERE f.transaction_type = 'FOUND' AND f.loss_transaction_id = it.id
-                ), 0) AS already_restored,
-                (ABS(it.quantity_change) - COALESCE((
-                    SELECT SUM(f.quantity_change) 
-                    FROM inventory_transactions f 
-                    WHERE f.transaction_type = 'FOUND' AND f.loss_transaction_id = it.id
-                ), 0)) AS restorable_balance,
-                (ABS(it.quantity_change) - COALESCE((
-                    SELECT SUM(f.quantity_change) 
-                    FROM inventory_transactions f 
-                    WHERE f.transaction_type = 'FOUND' AND f.loss_transaction_id = it.id
-                ), 0)) AS unrestored_quantity,
-                it.notes,
-                it.remarks,
-                it.created_at
-             FROM inventory_transactions it
-             WHERE it.product_id = ? AND it.transaction_type = 'LOSS'
-             HAVING restorable_balance > 0
-             ORDER BY it.id ASC`,
-            [itemId]
-        );
-
-        res.json(losses);
-    } catch (err) {
-        next(err);
-    }
+    return res.json([]);
 };
 
 /**
@@ -821,6 +825,161 @@ exports.getItemLedger = async (req, res, next) => {
         res.json({
             data: records,
             transactions: records,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+/**
+ * GET /api/inventory/movements
+ * Return paginated stock movements and audit records across all inventory products.
+ */
+exports.getAllMovements = async (req, res, next) => {
+    try {
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.max(1, Math.min(200, parseInt(req.query.limit, 10) || 20));
+        const offset = (page - 1) * limit;
+
+        const whereClauses = [];
+        const whereParams = [];
+
+        if (req.query.productId || req.query.product_id) {
+            whereClauses.push('it.product_id = ?');
+            whereParams.push(Number(req.query.productId || req.query.product_id));
+        }
+
+        if (req.query.type && req.query.type !== 'ALL') {
+            const t = req.query.type.toUpperCase().trim();
+            if (t === 'STOCK_IN' || t === 'IN' || t === 'RECEIVE') {
+                whereClauses.push("it.transaction_type IN ('STOCK_IN', 'IN', 'RECEIVE')");
+            } else if (t === 'SALE' || t === 'OUT') {
+                whereClauses.push("it.transaction_type IN ('SALE', 'OUT')");
+            } else if (t === 'ADJUSTMENT' || t === 'ADJUST') {
+                whereClauses.push("it.transaction_type IN ('ADJUSTMENT', 'ADJUST')");
+            } else if (t === 'RETURN' || t === 'REFUND') {
+                whereClauses.push("it.transaction_type IN ('RETURN', 'REFUND')");
+            } else if (t === 'VOID') {
+                whereClauses.push("it.transaction_type = 'VOID'");
+            } else if (t === 'DAMAGE') {
+                whereClauses.push("it.transaction_type = 'DAMAGE'");
+            } else if (t === 'LOSS') {
+                whereClauses.push("it.transaction_type = 'LOSS'");
+            } else if (t === 'FOUND') {
+                whereClauses.push("it.transaction_type IN ('FOUND', 'SURPLUS', 'ADJUSTMENT_ADD')");
+            } else {
+                whereClauses.push('it.transaction_type = ?');
+                whereParams.push(t);
+            }
+        }
+
+        if (req.query.startDate) {
+            whereClauses.push('DATE(it.created_at) >= ?');
+            whereParams.push(req.query.startDate);
+        }
+
+        if (req.query.endDate) {
+            whereClauses.push('DATE(it.created_at) <= ?');
+            whereParams.push(req.query.endDate);
+        }
+
+        if (req.query.search && req.query.search.trim()) {
+            const rawSearch = req.query.search.trim();
+            const pattern = `%${rawSearch}%`;
+            
+            // Check for shorthand reference aliases (OPN-1103, SO-0111, RET-0094)
+            const opnMatch = rawSearch.match(/^OPN-(\d{2})(\d{2})(?:-(\d+))?/i);
+            const soMatch = rawSearch.match(/^SO-0*(\d+)/i);
+            const retMatch = rawSearch.match(/^RET-0*(\d+)/i);
+
+            let aliasClause = '';
+            const aliasParams = [];
+            if (opnMatch) {
+                aliasClause += ' OR it.reference_no LIKE ?';
+                aliasParams.push(`%OPENING-%${opnMatch[1]}${opnMatch[2]}%`);
+                if (opnMatch[3]) {
+                    aliasClause += ' OR it.id LIKE ?';
+                    aliasParams.push(`%${opnMatch[3]}`);
+                }
+            } else if (soMatch) {
+                aliasClause += ' OR it.reference_no LIKE ?';
+                aliasParams.push(`%SO-%${soMatch[1]}%`);
+            } else if (retMatch) {
+                aliasClause += ' OR it.reference_no LIKE ?';
+                aliasParams.push(`%RET-%${retMatch[1]}%`);
+            }
+
+            whereClauses.push(`(
+                it.reference_no LIKE ?
+                OR it.transaction_number LIKE ?
+                OR p.name LIKE ?
+                OR p.part_number LIKE ?
+                OR p.brand LIKE ?
+                OR it.remarks LIKE ?
+                OR it.notes LIKE ?
+                OR u.username LIKE ?
+                ${aliasClause}
+            )`);
+            whereParams.push(pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern, ...aliasParams);
+        }
+
+        // Filter out zero-quantity baseline opening balance rows (e.g. Change 0, Balance 0->0)
+        whereClauses.push("NOT (it.transaction_type = 'OPENING_BALANCE' AND COALESCE(it.quantity_change, it.quantity, 0) = 0 AND COALESCE(it.balance_after, 0) = 0)");
+
+        const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+        const [countResult] = await db.query(
+            `SELECT COUNT(*) as total FROM inventory_transactions it
+             LEFT JOIN products p ON p.id = it.product_id
+             LEFT JOIN users u ON u.id = it.created_by
+             ${whereSQL}`,
+            whereParams
+        );
+        const total = countResult[0]?.total || 0;
+
+        const [records] = await db.query(
+            `SELECT 
+                it.id,
+                it.transaction_number,
+                it.reference_no,
+                it.product_id,
+                it.product_id AS item_id,
+                p.name AS product_name,
+                p.part_number,
+                p.brand,
+                p.category,
+                p.shelf_location,
+                it.transaction_type,
+                it.quantity,
+                it.quantity_change,
+                it.balance_before,
+                it.balance_after,
+                it.unit_cost,
+                it.reference_type,
+                it.reference_id,
+                it.notes,
+                it.remarks,
+                it.created_by,
+                it.created_at,
+                u.username AS created_by_username
+             FROM inventory_transactions it
+             LEFT JOIN products p ON p.id = it.product_id
+             LEFT JOIN users u ON u.id = it.created_by
+             ${whereSQL}
+             ORDER BY it.id DESC
+             LIMIT ? OFFSET ?`,
+            [...whereParams, limit, offset]
+        );
+
+        res.json({
+            data: records,
+            movements: records,
             pagination: {
                 total,
                 page,
@@ -898,7 +1057,9 @@ exports.getReceivingHistory = async (req, res, next) => {
             SELECT 
                 COUNT(DISTINCT rr.id) AS total_batches,
                 COALESCE(SUM(rri.quantity), 0) AS total_units_received,
-                COALESCE(SUM(rri.subtotal), 0) AS total_received_value
+                COALESCE(SUM(rri.rejected_quantity), 0) AS total_units_rejected,
+                COALESCE(SUM(rri.subtotal), 0) AS total_received_value,
+                COALESCE(SUM(COALESCE(rri.rejected_quantity, 0) * rri.cost_price), 0) AS total_rejected_value
             FROM receiving_records rr
             JOIN suppliers s ON s.id = rr.supplier_id
             LEFT JOIN receiving_record_items rri ON rri.receiving_record_id = rr.id
@@ -913,8 +1074,21 @@ exports.getReceivingHistory = async (req, res, next) => {
                 rr.reference_number,
                 rr.supplier_id,
                 s.name AS supplier_name,
+                s.fb_page_name,
+                s.seller_contact_name,
+                s.phone AS supplier_phone,
+                s.messenger_url,
                 rr.received_by,
                 u.username AS received_by_username,
+                rr.inspected_by,
+                rr.delivery_personnel,
+                rr.courier_service,
+                rr.mechanic_name,
+                rr.receiver_name,
+                rr.total_delivered_qty,
+                rr.total_accepted_qty,
+                rr.total_rejected_qty,
+                rr.total_rejected_amount,
                 rr.total_cost,
                 rr.status,
                 rr.notes,
@@ -945,6 +1119,9 @@ exports.getReceivingHistory = async (req, res, next) => {
                     p.size,
                     p.is_serialized,
                     rri.quantity,
+                    COALESCE(rri.delivered_quantity, rri.quantity) AS delivered_quantity,
+                    COALESCE(rri.rejected_quantity, 0) AS rejected_quantity,
+                    rri.rejection_reason,
                     rri.cost_price,
                     rri.subtotal,
                     rri.serials
@@ -982,5 +1159,276 @@ exports.getReceivingHistory = async (req, res, next) => {
 
     } catch (err) {
         next(err);
+    }
+};
+
+/**
+ * GET /api/inventory/categories
+ * Returns all categories with product counts and total units on shelf.
+ */
+exports.getCategories = async (req, res, next) => {
+    try {
+        const [categories] = await db.query(`
+            SELECT 
+                c.category_id,
+                c.category_name,
+                c.category_code,
+                c.scope,
+                COUNT(p.id) AS product_count,
+                COALESCE(SUM(COALESCE(p.stock, p.current_stock, 0)), 0) AS total_units
+            FROM categories c
+            LEFT JOIN products p ON (
+                p.category = c.category_name 
+                OR p.category = c.category_code 
+                OR (c.category_code = 'ENG' AND p.category IN ('Engine', 'Engine Parts', 'Exhaust', 'Filters'))
+                OR (c.category_code = 'BRK' AND p.category IN ('Brakes', 'Cables'))
+                OR (c.category_code = 'CHAS' AND p.category IN ('Wheels', 'Suspension', 'Wheels & Suspension', 'Tires', 'Chassis'))
+                OR (c.category_code = 'CVT' AND p.category IN ('CVT', 'Drive', 'CVT & Drive', 'Transmission'))
+                OR (c.category_code = 'ELEC' AND p.category IN ('Electrical', 'Electronics', 'Ignition'))
+                OR (c.category_code = 'OIL' AND p.category IN ('Oils', 'Fluids', 'Oils & Fluids', 'Lubricants'))
+            ) AND p.is_active = 1
+            GROUP BY c.category_id, c.category_name, c.category_code, c.scope
+            ORDER BY c.category_id ASC
+        `);
+        res.json(categories);
+    } catch (err) {
+        next(err);
+    }
+};
+
+/**
+ * POST /api/inventory/categories
+ * Creates a new category.
+ */
+exports.createCategory = async (req, res, next) => {
+    try {
+        const name = (req.body.name || req.body.category_name || '').trim();
+        if (!name) {
+            return res.status(422).json({ message: 'Category name is required' });
+        }
+        const [existing] = await db.query('SELECT category_id FROM categories WHERE LOWER(category_name) = LOWER(?)', [name]);
+        if (existing.length > 0) {
+            return res.status(409).json({ message: `Category "${name}" already exists` });
+        }
+        const [result] = await db.query('INSERT INTO categories (category_name, created_at) VALUES (?, NOW())', [name]);
+        res.status(201).json({ message: 'Category created successfully', category_id: result.insertId, category_name: name });
+    } catch (err) {
+        next(err);
+    }
+};
+
+/**
+ * PUT /api/inventory/categories/:id
+ * Renames a category and cascades to products.
+ */
+exports.updateCategory = async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
+        const newName = (req.body.name || req.body.category_name || '').trim();
+        if (!id || !newName) {
+            return res.status(422).json({ message: 'Valid category ID and new name are required' });
+        }
+        const [catRows] = await db.query('SELECT category_name FROM categories WHERE category_id = ?', [id]);
+        if (catRows.length === 0) {
+            return res.status(404).json({ message: 'Category not found' });
+        }
+        const oldName = catRows[0].category_name;
+        await db.query('UPDATE categories SET category_name = ? WHERE category_id = ?', [newName, id]);
+        await db.query('UPDATE products SET category = ? WHERE category = ? OR category_id = ?', [newName, oldName, id]);
+        res.json({ message: `Category renamed to "${newName}" successfully`, old_name: oldName, new_name: newName });
+    } catch (err) {
+        next(err);
+    }
+};
+
+/**
+ * DELETE /api/inventory/categories/:id
+ * Deletes category if no products are assigned.
+ */
+exports.deleteCategory = async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
+        const [catRows] = await db.query('SELECT category_name FROM categories WHERE category_id = ?', [id]);
+        if (catRows.length === 0) {
+            return res.status(404).json({ message: 'Category not found' });
+        }
+        const catName = catRows[0].category_name;
+        const [prods] = await db.query('SELECT COUNT(*) AS cnt FROM products WHERE (category = ? OR category_id = ?) AND is_active = 1', [catName, id]);
+        if (prods[0].cnt > 0) {
+            return res.status(400).json({ message: `Cannot delete category "${catName}" because ${prods[0].cnt} products belong to it.` });
+        }
+        await db.query('DELETE FROM categories WHERE category_id = ?', [id]);
+        res.json({ message: `Category "${catName}" removed successfully` });
+    } catch (err) {
+        next(err);
+    }
+};
+
+/**
+ * GET /api/inventory/brands
+ * Returns all active brands with product count and stock.
+ */
+exports.getBrands = async (req, res, next) => {
+    try {
+        const [brands] = await db.query(`
+            SELECT 
+                COALESCE(b.brand_id, 0) AS brand_id,
+                COALESCE(b.brand_name, TRIM(p.brand)) AS brand_name,
+                b.country_origin,
+                b.specialty,
+                COUNT(p.id) AS product_count,
+                COALESCE(SUM(COALESCE(p.stock, p.current_stock, 0)), 0) AS total_units
+            FROM brands b
+            LEFT JOIN products p ON LOWER(TRIM(p.brand)) = LOWER(TRIM(b.brand_name)) AND p.is_active = 1
+            GROUP BY b.brand_id, b.brand_name, b.country_origin, b.specialty
+            ORDER BY product_count DESC, total_units DESC, b.brand_name ASC
+        `);
+        res.json(brands);
+    } catch (err) {
+        next(err);
+    }
+};
+
+/**
+ * POST /api/inventory/brands
+ * Adds a new brand to the master directory.
+ */
+exports.createBrand = async (req, res, next) => {
+    try {
+        const name = (req.body.name || req.body.brand_name || '').trim();
+        const country = (req.body.country || req.body.country_origin || '').trim() || null;
+        const specialty = (req.body.specialty || '').trim() || null;
+        if (!name) {
+            return res.status(422).json({ message: 'Brand name is required' });
+        }
+        const [existing] = await db.query('SELECT brand_id FROM brands WHERE LOWER(brand_name) = LOWER(?)', [name]);
+        if (existing.length > 0) {
+            return res.status(409).json({ message: `Brand "${name}" already exists` });
+        }
+        const [result] = await db.query('INSERT INTO brands (brand_name, country_origin, specialty, is_racing_brand, created_at) VALUES (?, ?, ?, 1, NOW())', [name, country, specialty]);
+        res.status(201).json({ message: 'Brand created successfully', brand_id: result.insertId, brand_name: name });
+    } catch (err) {
+        next(err);
+    }
+};
+
+/**
+ * DELETE /api/inventory/brands/:id
+ */
+exports.deleteBrand = async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
+        const [brandRows] = await db.query('SELECT brand_name FROM brands WHERE brand_id = ?', [id]);
+        if (brandRows.length === 0) {
+            return res.status(404).json({ message: 'Brand not found' });
+        }
+        const bName = brandRows[0].brand_name;
+        const [prods] = await db.query('SELECT COUNT(*) AS cnt FROM products WHERE TRIM(brand) = ? AND is_active = 1', [bName]);
+        if (prods[0].cnt > 0) {
+            return res.status(400).json({ message: `Cannot delete brand "${bName}" because ${prods[0].cnt} products belong to it.` });
+        }
+        await db.query('DELETE FROM brands WHERE brand_id = ?', [id]);
+        res.json({ message: `Brand "${bName}" removed successfully` });
+    } catch (err) {
+        next(err);
+    }
+};
+
+/**
+ * PUT /api/inventory/brands/rename
+ * Renames a brand across all products.
+ */
+exports.renameBrand = async (req, res, next) => {
+    try {
+        const oldName = (req.body.old_name || req.body.oldName || '').trim();
+        const newName = (req.body.new_name || req.body.newName || '').trim();
+        if (!oldName || !newName) {
+            return res.status(422).json({ message: 'Old brand name and new brand name are required' });
+        }
+        const [result] = await db.query('UPDATE products SET brand = ? WHERE TRIM(brand) = ?', [newName, oldName]);
+        await db.query('UPDATE brands SET brand_name = ? WHERE LOWER(brand_name) = LOWER(?)', [newName, oldName]);
+        res.json({ message: `Brand "${oldName}" renamed to "${newName}" across ${result.affectedRows} products`, affected: result.affectedRows });
+    } catch (err) {
+        next(err);
+    }
+};
+
+/**
+ * POST /api/inventory/physical-audit
+ * Applies batch adjustments for physical inventory count audit.
+ */
+exports.recordPhysicalAudit = async (req, res, next) => {
+    const { audit_title, notes, items } = req.body;
+    const userId = req.user?.id || null;
+    const username = req.user?.username || 'admin';
+
+    if (!Array.isArray(items) || items.length === 0) {
+        return res.status(422).json({ message: 'Audit items list is required' });
+    }
+
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        const auditRef = `AUDIT-${Date.now()}`;
+        const discrepancies = [];
+        let totalAdjustedUnits = 0;
+
+        for (const item of items) {
+            const pId = Number(item.product_id || item.id);
+            const counted = Number(item.actual_count ?? item.counted_stock ?? item.counted);
+            if (!pId || isNaN(counted) || counted < 0) continue;
+
+            const [pRows] = await connection.query(
+                'SELECT id, name, part_number, stock, current_stock, cost_price, is_serialized FROM products WHERE id = ? FOR UPDATE',
+                [pId]
+            );
+            if (pRows.length === 0) continue;
+            const prod = pRows[0];
+            const currentSys = Number(prod.stock ?? prod.current_stock ?? 0);
+            const diff = counted - currentSys;
+
+            if (diff !== 0) {
+                const moveType = diff > 0 ? 'ADJUSTMENT_ADD' : 'ADJUSTMENT_SUB';
+                const movement = await applyMovement(connection, {
+                    itemId: pId,
+                    transactionType: moveType,
+                    quantityChange: diff,
+                    referenceNo: auditRef,
+                    referenceType: 'PHYSICAL_AUDIT',
+                    remarks: `Physical Audit [${audit_title || 'Weekly Count'}]: System was ${currentSys}, Counted ${counted} (Variance: ${diff > 0 ? '+' : ''}${diff}). Notes: ${notes || item.reason || 'Count reconciliation'}`,
+                    createdBy: userId
+                });
+
+                discrepancies.push({
+                    product_id: pId,
+                    part_number: prod.part_number,
+                    product_name: prod.name,
+                    system_stock: currentSys,
+                    counted_stock: counted,
+                    variance: diff,
+                    financial_impact: diff * Number(prod.cost_price || 0),
+                    movement_id: movement.id
+                });
+                totalAdjustedUnits += Math.abs(diff);
+            }
+        }
+
+        await connection.commit();
+
+        res.status(200).json({
+            message: discrepancies.length > 0 
+                ? `Physical Inventory Audit completed! Reconciled ${discrepancies.length} discrepancy items (${totalAdjustedUnits} net units adjusted).`
+                : 'Physical Inventory Audit completed! All physical counts matched system stock (0 discrepancies).',
+            audit_reference: auditRef,
+            discrepancies_count: discrepancies.length,
+            total_adjusted_units: totalAdjustedUnits,
+            discrepancies
+        });
+    } catch (err) {
+        await connection.rollback();
+        next(err);
+    } finally {
+        connection.release();
     }
 };

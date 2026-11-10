@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const { applyMovement } = require('../services/inventoryService');
+const { logCashMovement, closePastDayActiveFloats } = require('../services/cashMovementService');
 const { AppValidationError } = require('../utils/errors');
 
 const normalizeBoolean = (value) => value === true || value === 1 || value === '1' || value === 'true';
@@ -56,6 +57,28 @@ exports.checkout = async (req, res, next) => {
     const connection = await db.getConnection();
     try {
         await connection.beginTransaction();
+
+        // Ensure any unclosed past-day float is auto-closed before checking active shifts
+        await closePastDayActiveFloats(connection);
+
+        // Invariant: Non-admin staff MUST have an active cash float assigned by Admin for today
+        if (req.user && String(req.user.role).toLowerCase() !== 'admin') {
+            const [activeFloats] = await connection.query(
+                `SELECT id, starting_cash, current_cash_balance, cash_sales, change_given, sales_count, expected_cash 
+                 FROM cash_floats 
+                 WHERE staff_id = ? 
+                   AND status = 'ACTIVE' 
+                   AND DATE(CONVERT_TZ(assigned_at, '+00:00', '+08:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+08:00'))
+                 ORDER BY assigned_at DESC LIMIT 1 FOR UPDATE`,
+                [userId]
+            );
+
+            if (activeFloats.length === 0) {
+                throw new AppValidationError(
+                    'Cannot process sales: Starting cash float has not been assigned by Admin for this shift. Starting cash is strictly ₱0.00. Please request the Admin to assign starting cash in Cash Float Management.'
+                );
+            }
+        }
 
         // 1. Group cart lines:
         // - Non-serialized lines with identical product_id are merged.
@@ -202,9 +225,34 @@ exports.checkout = async (req, res, next) => {
             });
         }
 
-        const totalAmount = totalAmountCentavos / 100;
+        // 3. Process Transaction Discount (Flat Amount or Percentage-derived)
+        const rawDiscount = req.body.discount_amount !== undefined 
+            ? req.body.discount_amount 
+            : (req.body.discountAmount !== undefined ? req.body.discountAmount : (req.body.discount !== undefined ? req.body.discount : 0));
+        
+        const grossSubtotalCentavos = totalAmountCentavos;
+        const grossSubtotal = grossSubtotalCentavos / 100;
+        const discountCentavos = Math.min(grossSubtotalCentavos, Math.round(Math.max(0, Number(rawDiscount) || 0) * 100));
 
-        // 3. Enforce Payment Invariants (tally in integer centavos)
+        // Safeguard: Discount cannot exceed profit margin or drop final price below total cost price (puhunan)
+        const totalCostCentavos = validatedItems.reduce(
+            (sum, it) => sum + Math.round(Number(it.cost_price || 0) * it.quantity * 100),
+            0
+        );
+        const maxDiscountCentavos = Math.max(0, grossSubtotalCentavos - totalCostCentavos);
+
+        if (discountCentavos > maxDiscountCentavos) {
+            throw new AppValidationError(
+                `Discount exceeds allowable limit / below cost. Final total cannot drop below item cost (puhunan: ₱${(totalCostCentavos / 100).toFixed(2)}). Maximum allowable discount is ₱${(maxDiscountCentavos / 100).toFixed(2)}.`
+            );
+        }
+
+        const finalTotalCentavos = Math.max(0, grossSubtotalCentavos - discountCentavos);
+        const discountAmount = discountCentavos / 100;
+        const totalAmount = finalTotalCentavos / 100;
+        totalAmountCentavos = finalTotalCentavos; // Invariant: Payment validations evaluate against discounted total amount
+
+        // 4. Enforce Payment Invariants (tally in integer centavos)
         let tenderedCentavos = 0;
         let changeDueCentavos = 0;
         let cashAmountCentavos = null;
@@ -303,16 +351,22 @@ exports.checkout = async (req, res, next) => {
 
         const finalTendered = tenderedCentavos / 100;
         const finalChangeDue = changeDueCentavos / 100;
-        const finalCashAmount = cashAmountCentavos !== null ? (cashAmountCentavos / 100) : null;
-        const finalGcashAmount = gcashAmountCentavos !== null ? (gcashAmountCentavos / 100) : null;
+        const finalCashAmount = method === 'Cash' ? totalAmount : (method === 'Split' && cashAmountCentavos !== null ? (cashAmountCentavos / 100) : 0.00);
+        const finalGcashAmount = method === 'GCash' ? totalAmount : (method === 'Split' && gcashAmountCentavos !== null ? (gcashAmountCentavos / 100) : 0.00);
         const paymentReferenceToSave = (method === 'Cash') ? null : (refNo || null);
 
-        // 4. Insert single source of truth sales record first to obtain atomic auto-increment ID
+        // 5. Philippine 12% Value Added Tax (VAT-Inclusive Retail Model on Final Discounted Total)
+        const vatableAmount = Math.round((totalAmount / 1.12) * 100) / 100;
+        const taxAmount = Math.round((totalAmount - vatableAmount) * 100) / 100;
+        const custName = (req.body.customer_name || req.body.customerName || 'Walk-in Customer').trim();
+        const custAddr = (req.body.customer_address || req.body.customerAddress || '').trim() || null;
+
+        // Insert single source of truth sales record first to obtain atomic auto-increment ID
         const [saleResult] = await connection.query(
             `INSERT INTO sales (
-                user_id, total_amount, tendered_amount, change_due, payment_method, order_number, payment_reference, sale_date, cash_amount, gcash_amount, status
-            ) VALUES (?, ?, ?, ?, ?, NULL, ?, NOW(), ?, ?, 'SOLD')`,
-            [userId, totalAmount, finalTendered, finalChangeDue, method, paymentReferenceToSave, finalCashAmount, finalGcashAmount]
+                user_id, total_amount, subtotal_amount, discount_amount, tax_amount, tendered_amount, change_due, payment_method, order_number, payment_reference, sale_date, cash_amount, gcash_amount, status, customer_name, customer_address
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NOW(), ?, ?, 'SOLD', ?, ?)`,
+            [userId, totalAmount, grossSubtotal, discountAmount, taxAmount, finalTendered, finalChangeDue, method, paymentReferenceToSave, finalCashAmount, finalGcashAmount, custName, custAddr]
         );
         const saleId = saleResult.insertId;
 
@@ -394,6 +448,76 @@ exports.checkout = async (req, res, next) => {
             });
         }
 
+        // ==========================================
+        // CASH FLOAT POS INTEGRATION (REAL-TIME DRAWER BALANCE)
+        // Formula: Current Cash Balance = Previous Balance + Cash Received - Change Given
+        // ==========================================
+        if (userId) {
+            const [activeFloats] = await connection.query(
+                `SELECT id, starting_cash, current_cash_balance, cash_sales, change_given, sales_count, expected_cash 
+                 FROM cash_floats 
+                 WHERE staff_id = ? 
+                   AND status = 'ACTIVE' 
+                   AND DATE(CONVERT_TZ(assigned_at, '+00:00', '+08:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+08:00'))
+                 ORDER BY assigned_at DESC LIMIT 1 FOR UPDATE`,
+                [userId]
+            );
+
+            if (activeFloats.length > 0) {
+                const activeFloat = activeFloats[0];
+                let netCashAdded = 0;
+                let cashSalePortion = 0;
+                let gcashSalePortion = 0;
+                let changeDeducted = 0;
+
+                if (method === 'Cash') {
+                    // Cash Received = finalTendered, Change Given = finalChangeDue
+                    // Net cash retained in drawer = finalTendered - finalChangeDue (= totalAmount)
+                    netCashAdded = finalTendered - finalChangeDue;
+                    cashSalePortion = totalAmount;
+                    changeDeducted = finalChangeDue;
+                } else if (method === 'GCash') {
+                    gcashSalePortion = totalAmount;
+                } else if (method === 'Split') {
+                    // Split payment: Cash part received adds to drawer, change given deducts
+                    const cashPart = finalCashAmount || 0;
+                    changeDeducted = finalChangeDue;
+                    netCashAdded = cashPart;
+                    cashSalePortion = cashPart;
+                    gcashSalePortion = finalGcashAmount || 0;
+                }
+
+                const prevBalance = Number(activeFloat.current_cash_balance || 0);
+                const newBalance = Math.round((prevBalance + netCashAdded) * 100) / 100;
+
+                await connection.query(
+                    `UPDATE cash_floats SET 
+                        current_cash_balance = ?,
+                        expected_cash = ?,
+                        cash_sales = cash_sales + ?,
+                        gcash_sales = COALESCE(gcash_sales, 0) + ?,
+                        change_given = change_given + ?,
+                        sales_count = sales_count + 1
+                     WHERE id = ?`,
+                    [newBalance, newBalance, cashSalePortion, gcashSalePortion, changeDeducted, activeFloat.id]
+                );
+
+                if (netCashAdded !== 0 || changeDeducted > 0) {
+                    await logCashMovement(connection, {
+                        cashFloatId: activeFloat.id,
+                        staffId: userId,
+                        staffUsername: req.user.username,
+                        movementType: 'CASH_SALE',
+                        amount: netCashAdded,
+                        balanceBefore: prevBalance,
+                        balanceAfter: newBalance,
+                        referenceId: orderNo,
+                        notes: `Sale ${orderNo} (${method}): cash received ₱${finalTendered.toFixed(2)}, change given ₱${finalChangeDue.toFixed(2)}`
+                    });
+                }
+            }
+        }
+
         await connection.commit();
 
         const orderSummary = {
@@ -402,12 +526,28 @@ exports.checkout = async (req, res, next) => {
             order_no: orderNo,
             sale_id: saleId,
             payment_method: method,
+            subtotal: grossSubtotal,
+            subtotal_amount: grossSubtotal,
+            discount: discountAmount,
+            discount_amount: discountAmount,
             total_amount: totalAmount,
+            vatable_amount: vatableAmount,
+            tax_amount: taxAmount,
+            vat_amount: taxAmount,
+            vat_rate: '12%',
+            vat_exempt_amount: 0.00,
+            zero_rated_amount: 0.00,
+            customer_name: custName,
+            customer_address: custAddr,
             tendered_amount: finalTendered,
             change_due: finalChangeDue,
             payment_reference: refNo || null,
             cash_amount: finalCashAmount,
             gcash_amount: finalGcashAmount,
+            cashier: req.user?.username || 'Staff',
+            cashier_username: req.user?.username || 'Staff',
+            cashier_name: req.user?.full_name || req.user?.username || 'Staff',
+            cashier_id: userId,
             items: validatedItems
         };
 
@@ -418,12 +558,28 @@ exports.checkout = async (req, res, next) => {
             order_number: orderNo,
             sale_id: saleId,
             payment_method: method,
+            subtotal: grossSubtotal,
+            subtotal_amount: grossSubtotal,
+            discount: discountAmount,
+            discount_amount: discountAmount,
             total_amount: totalAmount,
+            vatable_amount: vatableAmount,
+            tax_amount: taxAmount,
+            vat_amount: taxAmount,
+            vat_rate: '12%',
+            vat_exempt_amount: 0.00,
+            zero_rated_amount: 0.00,
+            customer_name: custName,
+            customer_address: custAddr,
             tendered_amount: finalTendered,
             change_due: finalChangeDue,
             payment_reference: refNo || null,
             cash_amount: finalCashAmount,
             gcash_amount: finalGcashAmount,
+            cashier: req.user?.username || 'Staff',
+            cashier_username: req.user?.username || 'Staff',
+            cashier_name: req.user?.full_name || req.user?.username || 'Staff',
+            cashier_id: userId,
             items: validatedItems,
             order: orderSummary
         });
@@ -463,7 +619,11 @@ exports.getSales = async (req, res, next) => {
         const whereClauses = [];
         const whereParams = [];
 
-        if (role !== 'admin' && req.query.selfOnly === 'true') {
+        const isAdmin = String(req.user?.role || '').toLowerCase() === 'admin';
+        if (!isAdmin) {
+            whereClauses.push('s.user_id = ?');
+            whereParams.push(userId);
+        } else if (req.query.selfOnly === 'true') {
             whereClauses.push('s.user_id = ?');
             whereParams.push(userId);
         } else if (req.query.user && req.query.user !== 'ALL') {
@@ -483,19 +643,32 @@ exports.getSales = async (req, res, next) => {
 
 
 
-        if (req.query.date) {
-            whereClauses.push('DATE(s.sale_date) = ?');
-            whereParams.push(req.query.date);
+        if (!req.query.startDate && !req.query.endDate && req.query.date) {
+            const dateField = (req.query.filterType && ['VOID', 'VOIDED'].includes(req.query.filterType.toUpperCase()))
+                ? 'COALESCE(s.voided_at, s.sale_date)'
+                : 's.sale_date';
+            if (req.query.date.toLowerCase() === 'today') {
+                whereClauses.push(`(DATE(CONVERT_TZ(${dateField}, "+00:00", "+08:00")) = DATE(CONVERT_TZ(NOW(), "+00:00", "+08:00")) OR DATE(${dateField}) = CURDATE())`);
+            } else {
+                whereClauses.push(`(DATE(CONVERT_TZ(${dateField}, "+00:00", "+08:00")) = ? OR DATE(${dateField}) = ?)`);
+                whereParams.push(req.query.date, req.query.date);
+            }
         }
 
         if (req.query.startDate) {
-            whereClauses.push('DATE(s.sale_date) >= ?');
-            whereParams.push(req.query.startDate);
+            const dateField = (req.query.filterType && ['VOID', 'VOIDED'].includes(req.query.filterType.toUpperCase()))
+                ? 'COALESCE(s.voided_at, s.sale_date)'
+                : 's.sale_date';
+            whereClauses.push(`(DATE(CONVERT_TZ(${dateField}, "+00:00", "+08:00")) >= ? OR DATE(${dateField}) >= ?)`);
+            whereParams.push(req.query.startDate, req.query.startDate);
         }
 
         if (req.query.endDate) {
-            whereClauses.push('DATE(s.sale_date) <= ?');
-            whereParams.push(req.query.endDate);
+            const dateField = (req.query.filterType && ['VOID', 'VOIDED'].includes(req.query.filterType.toUpperCase()))
+                ? 'COALESCE(s.voided_at, s.sale_date)'
+                : 's.sale_date';
+            whereClauses.push(`(DATE(CONVERT_TZ(${dateField}, "+00:00", "+08:00")) <= ? OR DATE(${dateField}) <= ?)`);
+            whereParams.push(req.query.endDate, req.query.endDate);
         }
 
         if (req.query.status && req.query.status !== 'ALL') {
@@ -506,6 +679,33 @@ exports.getSales = async (req, res, next) => {
             } else {
                 whereClauses.push("s.status = ?");
                 whereParams.push(req.query.status);
+            }
+        }
+
+        if (req.query.paymentMethod && req.query.paymentMethod !== 'ALL') {
+            const pm = req.query.paymentMethod.toUpperCase();
+            if (pm === 'CASH') {
+                whereClauses.push("(UPPER(s.payment_method) = 'CASH' OR (UPPER(s.payment_method) = 'SPLIT' AND s.cash_amount > 0))");
+            } else if (pm === 'GCASH') {
+                whereClauses.push("(UPPER(s.payment_method) = 'GCASH' OR (UPPER(s.payment_method) = 'SPLIT' AND s.gcash_amount > 0))");
+            } else {
+                whereClauses.push("UPPER(s.payment_method) = ?");
+                whereParams.push(pm);
+            }
+        }
+
+        if (req.query.filterType && req.query.filterType !== 'ALL') {
+            const ft = req.query.filterType.toUpperCase();
+            if (ft === 'CASH') {
+                whereClauses.push("(UPPER(s.payment_method) = 'CASH' OR (UPPER(s.payment_method) = 'SPLIT' AND s.cash_amount > 0))");
+            } else if (ft === 'GCASH') {
+                whereClauses.push("(UPPER(s.payment_method) = 'GCASH' OR (UPPER(s.payment_method) = 'SPLIT' AND s.gcash_amount > 0))");
+            } else if (ft === 'REFUND' || ft === 'REFUNDED') {
+                whereClauses.push("s.status IN ('REFUNDED', 'PARTIALLY_REFUNDED')");
+            } else if (ft === 'VOID' || ft === 'VOIDED') {
+                whereClauses.push("(s.status = 'VOIDED' OR s.status = 'voided' OR s.voided_at IS NOT NULL)");
+            } else if (ft === 'DISCOUNT' || ft === 'DISCOUNTS') {
+                whereClauses.push("COALESCE(s.discount_amount, 0) > 0");
             }
         }
 
@@ -590,19 +790,41 @@ exports.getSales = async (req, res, next) => {
         // Subquery-optimized pagination: paginate sales first, then join users & sale_items
         const dataQuery = `
             SELECT s.id, COALESCE(s.order_number, CONCAT('SO-', s.id)) AS order_number,
-                   s.total_amount, s.tendered_amount, s.change_due, s.payment_method,
-                   s.payment_reference, s.cash_amount, s.gcash_amount, COALESCE(NULLIF(s.status, 'COMPLETED'), 'SOLD') AS status, s.sale_date, u.username as cashier,
+                   s.total_amount, s.subtotal_amount, COALESCE(s.discount_amount, 0.00) AS discount_amount,
+                   s.tendered_amount, s.change_due, s.payment_method,
+                   s.payment_reference, s.cash_amount, s.gcash_amount, COALESCE(NULLIF(s.status, 'COMPLETED'), 'SOLD') AS status, s.sale_date, s.sale_date AS created_at, u.username as cashier,
                    COALESCE(s.refund_amount, 0.00) AS refund_amount,
                    (SELECT COUNT(*) FROM sale_returns sr WHERE sr.sale_id = s.id) AS return_count,
                    (SELECT GROUP_CONCAT(DISTINCT sri.disposition SEPARATOR ', ') FROM sale_return_items sri JOIN sale_returns sr2 ON sr2.id = sri.sale_return_id WHERE sr2.sale_id = s.id) AS return_dispositions,
-                   GROUP_CONCAT(DISTINCT si.product_name ORDER BY si.product_name SEPARATOR ', ') as products_included,
-                   GROUP_CONCAT(DISTINCT COALESCE(NULLIF(si.part_number, ''), p.part_number, p.sku) ORDER BY si.part_number SEPARATOR ', ') as part_numbers,
-                   GROUP_CONCAT(DISTINCT COALESCE(NULLIF(si.part_number, ''), p.part_number, p.sku) ORDER BY si.part_number SEPARATOR ', ') as part_number,
+                   COALESCE(
+                       GROUP_CONCAT(DISTINCT si.product_name ORDER BY si.product_name SEPARATOR ', '),
+                       CASE 
+                           WHEN s.payment_status = 'PENDING_BALANCE' OR s.order_number LIKE '%BAL%' THEN 'Balance Payment'
+                           WHEN s.payment_status = 'PENDING_VERIFICATION' OR s.order_number LIKE '%GC%' THEN 'Balance Payment'
+                           ELSE 'Balance Payment'
+                       END
+                   ) as products_included,
+                   COALESCE(
+                       GROUP_CONCAT(DISTINCT COALESCE(NULLIF(si.part_number, ''), p.part_number, p.sku) ORDER BY si.part_number SEPARATOR ', '),
+                       CASE 
+                           WHEN s.payment_status = 'PENDING_BALANCE' OR s.order_number LIKE '%BAL%' THEN 'BAL-SETTLE'
+                           WHEN s.payment_status = 'PENDING_VERIFICATION' OR s.order_number LIKE '%GC%' THEN 'GCASH-VERIFY'
+                           ELSE 'BAL-PAY'
+                       END
+                   ) as part_numbers,
+                   COALESCE(
+                       GROUP_CONCAT(DISTINCT COALESCE(NULLIF(si.part_number, ''), p.part_number, p.sku) ORDER BY si.part_number SEPARATOR ', '),
+                       CASE 
+                           WHEN s.payment_status = 'PENDING_BALANCE' OR s.order_number LIKE '%BAL%' THEN 'BAL-SETTLE'
+                           WHEN s.payment_status = 'PENDING_VERIFICATION' OR s.order_number LIKE '%GC%' THEN 'GCASH-VERIFY'
+                           ELSE 'BAL-PAY'
+                       END
+                   ) as part_number,
                    GROUP_CONCAT(DISTINCT si.brand ORDER BY si.brand SEPARATOR ', ') as brands,
                    GROUP_CONCAT(DISTINCT si.size ORDER BY si.size SEPARATOR ', ') as sizes
             FROM (
-                SELECT s.id, s.user_id, s.order_number, s.total_amount, s.tendered_amount,
-                       s.change_due, s.payment_method, s.payment_reference, s.cash_amount, s.gcash_amount, s.status, COALESCE(s.refund_amount, 0.00) as refund_amount, s.sale_date
+                SELECT s.id, s.user_id, s.order_number, s.total_amount, s.subtotal_amount, s.discount_amount, s.tendered_amount,
+                       s.change_due, s.payment_method, s.payment_reference, s.payment_status, s.cash_amount, s.gcash_amount, s.status, COALESCE(s.refund_amount, 0.00) as refund_amount, s.sale_date, s.sale_date AS created_at
                 FROM sales s
                 ${whereSQL}
                 ORDER BY ${orderSQL}
@@ -611,16 +833,71 @@ exports.getSales = async (req, res, next) => {
             JOIN users u ON s.user_id = u.id
             LEFT JOIN sale_items si ON s.id = si.sale_id
             LEFT JOIN products p ON p.id = si.product_id
-            GROUP BY s.id, s.order_number, s.total_amount, s.tendered_amount, s.change_due, s.payment_method, s.payment_reference, s.status, s.refund_amount, s.sale_date, u.username
+            GROUP BY s.id, s.order_number, s.total_amount, s.subtotal_amount, s.discount_amount, s.tendered_amount, s.change_due, s.payment_method, s.payment_reference, s.payment_status, s.status, s.refund_amount, s.sale_date, u.username
             ORDER BY ${orderSQL}
         `;
 
         const [sales] = await db.query(dataQuery, [...whereParams, limit, offset]);
 
+        // Payment breakdown totals for current filters (excluding pagination)
+        let summary = {
+            total_revenue: 0,
+            total_count: 0,
+            cash_revenue: 0,
+            cash_count: 0,
+            gcash_revenue: 0,
+            gcash_count: 0
+        };
+        try {
+            const summaryQuery = `
+                SELECT
+                    COALESCE(SUM(s.total_amount), 0) AS total_revenue,
+                    COUNT(s.id) AS total_count,
+                    COALESCE(SUM(
+                        CASE 
+                            WHEN LOWER(s.payment_method) = 'cash' THEN s.total_amount
+                            WHEN LOWER(s.payment_method) = 'split' THEN COALESCE(s.cash_amount, 0)
+                            ELSE 0
+                        END
+                    ), 0) AS cash_revenue,
+                    COUNT(CASE 
+                        WHEN LOWER(s.payment_method) = 'cash' 
+                          OR (LOWER(s.payment_method) = 'split' AND COALESCE(s.cash_amount, 0) >= COALESCE(s.gcash_amount, 0)) 
+                        THEN 1 END) AS cash_count,
+                    COALESCE(SUM(
+                        CASE 
+                            WHEN LOWER(s.payment_method) = 'gcash' THEN s.total_amount
+                            WHEN LOWER(s.payment_method) = 'split' THEN COALESCE(s.gcash_amount, 0)
+                            ELSE 0
+                        END
+                    ), 0) AS gcash_revenue,
+                    COUNT(CASE 
+                        WHEN LOWER(s.payment_method) = 'gcash' 
+                          OR (LOWER(s.payment_method) = 'split' AND COALESCE(s.gcash_amount, 0) > COALESCE(s.cash_amount, 0)) 
+                        THEN 1 END) AS gcash_count
+                FROM sales s
+                ${whereSQL}
+            `;
+            const [summaryRows] = await db.query(summaryQuery, whereParams);
+            if (summaryRows && summaryRows[0]) {
+                summary = {
+                    total_revenue: Number(summaryRows[0].total_revenue || 0),
+                    total_count: Number(summaryRows[0].total_count || 0),
+                    cash_revenue: Number(summaryRows[0].cash_revenue || 0),
+                    cash_count: Number(summaryRows[0].cash_count || 0),
+                    gcash_revenue: Number(summaryRows[0].gcash_revenue || 0),
+                    gcash_count: Number(summaryRows[0].gcash_count || 0)
+                };
+            }
+        } catch (sumErr) {
+            console.error('Error fetching sales summary:', sumErr);
+        }
+
         res.json({
             success: true,
             data: sales,
             sales: sales,
+            summary,
             pagination: {
                 total,
                 page,
@@ -644,7 +921,8 @@ exports.getSaleById = async (req, res, next) => {
     try {
         let query = `
             SELECT s.id, COALESCE(s.order_number, CONCAT('SO-', s.id)) AS order_number,
-                   s.total_amount, s.tendered_amount, s.change_due, s.payment_method,
+                   s.total_amount, s.subtotal_amount, COALESCE(s.discount_amount, 0.00) AS discount_amount, s.tax_amount, s.customer_name, s.customer_address,
+                   s.tendered_amount, s.change_due, s.payment_method,
                    s.payment_reference, s.cash_amount, s.gcash_amount, COALESCE(NULLIF(s.status, 'COMPLETED'), 'SOLD') AS status, s.sale_date, u.username as cashier
             FROM sales s
             JOIN users u ON s.user_id = u.id
@@ -722,7 +1000,18 @@ exports.getSaleById = async (req, res, next) => {
             ret.items = retItems;
         }
 
-        res.json({ ...saleRows[0], items, returns });
+        const sale = saleRows[0];
+        const numTotal = Number(sale.total_amount || 0);
+        const computedVatable = Number(sale.subtotal_amount) || Math.round((numTotal / 1.12) * 100) / 100;
+        const computedVat = Number(sale.tax_amount) || Math.round((numTotal - computedVatable) * 100) / 100;
+
+        sale.vatable_amount = computedVatable;
+        sale.vat_amount = computedVat;
+        sale.tax_amount = computedVat;
+        sale.vat_exempt_amount = 0.00;
+        sale.zero_rated_amount = 0.00;
+
+        res.json({ ...sale, items, returns });
     } catch (err) {
         next(err);
     }
@@ -815,9 +1104,14 @@ exports.voidAndReopen = async (req, res, next) => {
     const saleId = Number(req.params.id);
     const userId = req.user?.id;
     const userRole = req.user?.role;
+    const reason = req.body.reason ? String(req.body.reason).trim() : '';
 
     if (!saleId || !Number.isInteger(saleId) || saleId <= 0) {
         return res.status(400).json({ message: 'Valid sale ID is required' });
+    }
+
+    if (!reason) {
+        return res.status(422).json({ message: 'A mandatory reason note is required to void this sale' });
     }
 
     const connection = await db.getConnection();
@@ -899,12 +1193,47 @@ exports.voidAndReopen = async (req, res, next) => {
             });
         }
 
-        // 4. Mark sale as VOIDED in database
-        const reason = req.body.reason || 'Customer requested additional forgotten items (Reopened into cart)';
+        // 4. Mark sale as VOIDED in database with mandatory reason note
         await connection.query(
             "UPDATE sales SET status = 'VOIDED', voided_at = NOW(), void_reason = ? WHERE id = ?",
             [reason, saleId]
         );
+
+                // Deduct physical cash portion from active drawer if voided sale had cash
+        const voidCash = Number(sale.cash_amount || (sale.payment_method === 'Cash' ? sale.total_amount : 0));
+        if (voidCash > 0 && userId) {
+            const [activeFloats] = await connection.query(
+                `SELECT id, current_cash_balance FROM cash_floats 
+                 WHERE staff_id = ? AND status = 'ACTIVE' 
+                   AND DATE(CONVERT_TZ(assigned_at, '+00:00', '+08:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+08:00'))
+                 ORDER BY assigned_at DESC LIMIT 1 FOR UPDATE`,
+                [userId]
+            );
+            if (activeFloats.length > 0) {
+                const activeFloat = activeFloats[0];
+                const prevBal = Number(activeFloat.current_cash_balance || 0);
+                const newBal = Math.round((prevBal - voidCash) * 100) / 100;
+                await connection.query(
+                    `UPDATE cash_floats SET 
+                        current_cash_balance = ?,
+                        expected_cash = ?,
+                        cash_sales = GREATEST(0, cash_sales - ?)
+                     WHERE id = ?`,
+                    [newBal, newBal, voidCash, activeFloat.id]
+                );
+                await logCashMovement(connection, {
+                    cashFloatId: activeFloat.id,
+                    staffId: userId,
+                    staffUsername: req.user?.username || 'Staff',
+                    movementType: 'SALE_VOID',
+                    amount: voidCash,
+                    balanceBefore: prevBal,
+                    balanceAfter: newBal,
+                    referenceId: `VOID-${saleId}`,
+                    notes: `Voided cash sale #${sale.order_number || saleId}: -₱${voidCash.toFixed(2)}`
+                });
+            }
+        }
 
         await connection.commit();
 
@@ -958,7 +1287,7 @@ exports.processSaleRefund = async (req, res, next) => {
         return res.status(400).json({ message: 'At least one item must be selected for return/refund' });
     }
 
-    const ALLOWED_DISPOSITIONS = ['RESTOCK', 'DAMAGE', 'LOSS', 'FOUND', 'RETURN_TO_SUPPLIER'];
+    const ALLOWED_DISPOSITIONS = ['RESTOCK', 'DAMAGE', 'RETURN_TO_SUPPLIER'];
 
     const connection = await db.getConnection();
     try {
@@ -978,7 +1307,8 @@ exports.processSaleRefund = async (req, res, next) => {
         const sale = sales[0];
 
         // Authorization check: Cashier who created sale or any Admin
-        if (!['admin', 'staff'].includes(userRole)) {
+        const roleLower = String(userRole || '').toLowerCase();
+        if (!['admin', 'staff', 'cashier'].includes(roleLower)) {
             await connection.rollback();
             return res.status(403).json({
                 message: 'Unauthorized: Staff or Administrator authorization required to process a return/refund'
@@ -1025,7 +1355,7 @@ exports.processSaleRefund = async (req, res, next) => {
                 });
             }
 
-            const rawDisp = (it.disposition || 'FOUND').trim().toUpperCase();
+            const rawDisp = (it.disposition || 'RESTOCK').trim().toUpperCase();
             if (!ALLOWED_DISPOSITIONS.includes(rawDisp)) {
                 await connection.rollback();
                 return res.status(422).json({
@@ -1117,11 +1447,11 @@ exports.processSaleRefund = async (req, res, next) => {
                     }
                 }
 
-                // FOUND: Restock to inventory (+ into inventory)
+                // RESTOCK: Restock to inventory (+ into inventory)
                 await applyMovement(connection, {
                     itemId: item.productId,
                     serialId: primarySerialId,
-                    transactionType: 'FOUND',
+                    transactionType: 'RETURN',
                     quantityChange: item.quantity,
                     referenceNo: itemRef,
                     referenceType: 'SALE_RETURN',
@@ -1286,6 +1616,48 @@ exports.processSaleRefund = async (req, res, next) => {
             } catch (histErr) {
                 console.error('Failed to log return_refund_history for refund item:', histErr);
             }
+
+            // Record into customer_returns table for reporting and KPI metrics sync
+            try {
+                const retType = (item.unitRefundPrice === 0 || item.disposition === 'RESTOCK' || item.disposition === 'FOUND') ? 'OPTION_A_REPLACEMENT' : 'OPTION_B_REFUND';
+                const condStatus = item.disposition === 'DAMAGE' ? 'DAMAGED' : 'GOOD';
+                const shopLoss = item.disposition === 'DAMAGE' ? (item.costPrice * item.quantity) : 0;
+                const refundMethod = (refundPaymentMethod === 'GCash') ? 'GCash' : ((item.unitRefundPrice === 0) ? 'None' : 'Cash');
+
+                await connection.query(`
+                    INSERT INTO customer_returns (
+                        return_code, sale_id, sale_item_id, product_id, part_number,
+                        product_name, brand, size, return_type, resolution_type,
+                        condition_status, quantity, qty_returned, refund_amount,
+                        sales_reversal_amount, shop_loss_amount, supplier_cost,
+                        refund_method, reason, damage_reason, processed_by, return_date, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                `, [
+                    returnNumber,
+                    saleId,
+                    item.saleItemId,
+                    item.productId,
+                    item.partNumber || 'N/A',
+                    item.productName || 'Unknown Product',
+                    item.brand || 'Generic',
+                    item.size || 'Unspecified',
+                    retType,
+                    item.disposition,
+                    condStatus,
+                    item.quantity,
+                    item.quantity,
+                    item.subtotalRefund,
+                    item.subtotalRefund,
+                    shopLoss,
+                    item.costPrice,
+                    refundMethod,
+                    reason || 'Customer Return/Refund',
+                    item.disposition === 'DAMAGE' ? (reason || 'Damaged unit') : null,
+                    userId || 1
+                ]);
+            } catch (crErr) {
+                console.error('Failed to log customer_returns row:', crErr);
+            }
         }
 
         // 6. Check if all items in this sale are now completely returned
@@ -1306,6 +1678,42 @@ exports.processSaleRefund = async (req, res, next) => {
              WHERE id = ?`,
             [newStatus, totalRefundAmount, saleId]
         );
+
+                // Deduct physical cash refund from active cash float if refund method is Cash
+        const isCashRefund = String(refundPaymentMethod || sale.payment_method || 'Cash').trim().toLowerCase() === 'cash';
+        if (isCashRefund && userId && totalRefundAmount > 0) {
+            const [activeFloats] = await connection.query(
+                `SELECT id, current_cash_balance FROM cash_floats 
+                 WHERE staff_id = ? AND status = 'ACTIVE' 
+                   AND DATE(CONVERT_TZ(assigned_at, '+00:00', '+08:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+08:00'))
+                 ORDER BY assigned_at DESC LIMIT 1 FOR UPDATE`,
+                [userId]
+            );
+            if (activeFloats.length > 0) {
+                const activeFloat = activeFloats[0];
+                const prevBal = Number(activeFloat.current_cash_balance || 0);
+                const newBal = Math.round((prevBal - totalRefundAmount) * 100) / 100;
+                await connection.query(
+                    `UPDATE cash_floats SET 
+                        current_cash_balance = ?,
+                        expected_cash = ?,
+                        cash_refunds = cash_refunds + ?
+                     WHERE id = ?`,
+                    [newBal, newBal, totalRefundAmount, activeFloat.id]
+                );
+                await logCashMovement(connection, {
+                    cashFloatId: activeFloat.id,
+                    staffId: userId,
+                    staffUsername: req.user?.username || 'Staff',
+                    movementType: 'REFUND_PAYOUT',
+                    amount: totalRefundAmount,
+                    balanceBefore: prevBal,
+                    balanceAfter: newBal,
+                    referenceId: returnNumber,
+                    notes: `Cash refund for ${returnNumber} (Order ${sale.order_number || ('SO-' + sale.id)}): -₱${totalRefundAmount.toFixed(2)}`
+                });
+            }
+        }
 
         await connection.commit();
 
@@ -1358,19 +1766,23 @@ exports.getReturnsHistory = async (req, res, next) => {
             whereParams.push(req.query.cashier);
         }
 
-        if (req.query.date) {
-            whereClauses.push('DATE(sr.created_at) = ?');
-            whereParams.push(req.query.date);
+        if (!req.query.startDate && !req.query.endDate && req.query.date) {
+            if (req.query.date.toLowerCase() === 'today') {
+                whereClauses.push('(DATE(CONVERT_TZ(sr.created_at, "+00:00", "+08:00")) = DATE(CONVERT_TZ(NOW(), "+00:00", "+08:00")) OR DATE(sr.created_at) = CURDATE())');
+            } else {
+                whereClauses.push('(DATE(CONVERT_TZ(sr.created_at, "+00:00", "+08:00")) = ? OR DATE(sr.created_at) = ?)');
+                whereParams.push(req.query.date, req.query.date);
+            }
         }
 
         if (req.query.startDate) {
-            whereClauses.push('DATE(sr.created_at) >= ?');
-            whereParams.push(req.query.startDate);
+            whereClauses.push('(DATE(CONVERT_TZ(sr.created_at, "+00:00", "+08:00")) >= ? OR DATE(sr.created_at) >= ?)');
+            whereParams.push(req.query.startDate, req.query.startDate);
         }
 
         if (req.query.endDate) {
-            whereClauses.push('DATE(sr.created_at) <= ?');
-            whereParams.push(req.query.endDate);
+            whereClauses.push('(DATE(CONVERT_TZ(sr.created_at, "+00:00", "+08:00")) <= ? OR DATE(sr.created_at) <= ?)');
+            whereParams.push(req.query.endDate, req.query.endDate);
         }
 
         if (req.query.search && req.query.search.trim()) {
@@ -1448,6 +1860,56 @@ exports.getReturnsHistory = async (req, res, next) => {
 
 
 /**
+ * GET /api/sales/returns/metrics
+ * Returns the 4 top-level KPI metrics for Return & Refund:
+ * - total_returns: Total count of customer returns processed
+ * - total_sales_reversal: Total gross sales value refunded to customers (₱)
+ * - total_shop_return_losses: Total net cost absorbed by shop on damaged returns (₱)
+ * - total_swaps: Total Option A replacement swaps processed (count)
+ */
+exports.getReturnSummaryMetrics = async (req, res, next) => {
+    try {
+        let totalReturns = 0;
+        let totalSalesReversal = 0;
+        let totalShopLosses = 0;
+        let totalSwaps = 0;
+
+        // Query customer_returns table (the primary ground truth for returns & defect analytics)
+        try {
+            const [crRows] = await db.query(`
+                SELECT 
+                    COUNT(*) AS total_returns,
+                    COALESCE(SUM(COALESCE(sales_reversal_amount, refund_amount, 0)), 0) AS total_sales_reversal,
+                    COALESCE(SUM(COALESCE(shop_loss_amount, supplier_cost * quantity, 0)), 0) AS total_shop_return_losses,
+                    COALESCE(SUM(CASE WHEN return_type = 'OPTION_A_REPLACEMENT' THEN quantity ELSE 0 END), 0) AS total_swaps
+                FROM customer_returns
+            `);
+            if (crRows && crRows.length > 0) {
+                totalReturns = Number(crRows[0].total_returns || 0);
+                totalSalesReversal = Number(crRows[0].total_sales_reversal || 0);
+                totalShopLosses = Number(crRows[0].total_shop_return_losses || 0);
+                totalSwaps = Number(crRows[0].total_swaps || 0);
+            }
+        } catch (crErr) {
+            console.warn('customer_returns metric query error:', crErr.message);
+        }
+
+        res.json({
+            success: true,
+            data: {
+                total_returns: totalReturns,
+                total_sales_reversal: totalSalesReversal,
+                total_shop_return_losses: totalShopLosses,
+                total_swaps: totalSwaps
+            }
+        });
+    } catch (err) {
+        console.error('getReturnSummaryMetrics error:', err);
+        next(err);
+    }
+};
+
+/**
  * GET /api/sales/returns/audit-history
  * Returns the complete Return / Refund & Stock Adjustment History Table
  * showing both Inventory Balance and Damage Balance side-by-side.
@@ -1477,9 +1939,21 @@ exports.getReturnRefundAuditHistory = async (req, res, next) => {
         }
 
         if (search && search.trim()) {
-            whereClauses.push("(reference_no LIKE ? OR product_name LIKE ? OR part_number LIKE ? OR remarks LIKE ?)");
             const s = `%${search.trim()}%`;
-            params.push(s, s, s, s);
+            whereClauses.push(`(
+                reference_no LIKE ? 
+                OR product_name LIKE ? 
+                OR part_number LIKE ? 
+                OR remarks LIKE ?
+                OR processed_by LIKE ?
+                OR supplier_name LIKE ?
+                OR status LIKE ?
+                OR flow_path LIKE ?
+                OR movement_type LIKE ?
+                OR CAST(order_id AS CHAR) LIKE ?
+                OR CONCAT('SO-', order_id) LIKE ?
+            )`);
+            params.push(s, s, s, s, s, s, s, s, s, s, s);
         }
 
         if (date && date.trim()) {

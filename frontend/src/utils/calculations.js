@@ -32,7 +32,31 @@ export const calculateItemSubtotal = (quantity, unitPrice) => {
 };
 
 /**
- * Calculate totals for a shopping cart with optional discount.
+ * Calculate Philippine 12% Value Added Tax (VAT) breakdown.
+ * In Philippine retail, prices displayed on items are VAT-inclusive (Gross).
+ * - VATable Sales = Total Gross / 1.12
+ * - VAT Amount (12% Output Tax) = Total Gross - VATable Sales
+ * - VAT-Exempt Sales = 0.00
+ * - Zero-Rated Sales = 0.00
+ */
+export const calculatePhilippineTax = (grossTotal = 0) => {
+    const total = Math.max(0, safeNumber(grossTotal));
+    const vatableSales = roundCurrency(total / 1.12);
+    const vatAmount = roundCurrency(total - vatableSales);
+    return {
+        totalAmount: total,
+        vatableSales,
+        vatAmount,
+        taxAmount: vatAmount,
+        vatRate: 0.12,
+        vatPercent: '12%',
+        vatExemptSales: 0.00,
+        zeroRatedSales: 0.00
+    };
+};
+
+/**
+ * Calculate totals for a shopping cart with optional discount and Philippine 12% VAT.
  * @param {Array} cart - Array of items with quantity, price, and subtotal
  * @param {number} discount - Optional flat discount amount
  */
@@ -43,7 +67,14 @@ export const calculateCartTotals = (cart = [], discount = 0) => {
             totalQuantity: 0,
             subtotal: 0,
             discount: 0,
-            totalAmount: 0
+            totalAmount: 0,
+            vatableSales: 0,
+            vatAmount: 0,
+            taxAmount: 0,
+            vatRate: 0.12,
+            vatPercent: '12%',
+            vatExemptSales: 0,
+            zeroRatedSales: 0
         };
     }
 
@@ -57,13 +88,21 @@ export const calculateCartTotals = (cart = [], discount = 0) => {
 
     const safeDiscount = Math.min(subtotal, Math.max(0, safeNumber(discount)));
     const totalAmount = Math.max(0, subtotal - safeDiscount);
+    const tax = calculatePhilippineTax(totalAmount);
 
     return {
         itemCount: cart.length,
         totalQuantity,
         subtotal: roundCurrency(subtotal),
         discount: roundCurrency(safeDiscount),
-        totalAmount: roundCurrency(totalAmount)
+        totalAmount: roundCurrency(totalAmount),
+        vatableSales: tax.vatableSales,
+        vatAmount: tax.vatAmount,
+        taxAmount: tax.vatAmount,
+        vatRate: tax.vatRate,
+        vatPercent: tax.vatPercent,
+        vatExemptSales: tax.vatExemptSales,
+        zeroRatedSales: tax.zeroRatedSales
     };
 };
 

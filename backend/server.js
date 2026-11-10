@@ -33,8 +33,15 @@ const allowedCustomOrigins = process.env.FRONTEND_URL
 
 // Exact allowed frontend URLs and verified project previews
 const isAllowedExactOrigin = (origin) => {
-  // 1. Allow local development
-  if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+  // 1. Allow local development & LAN network devices (tablets, other laptops on Wi-Fi)
+  if (
+    origin.startsWith('http://localhost:') || 
+    origin.startsWith('http://127.0.0.1:') ||
+    /^https?:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(origin) ||
+    /^https?:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(origin) ||
+    /^https?:\/\/172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(origin) ||
+    /^https?:\/\/.*\.local(:\d+)?$/.test(origin)
+  ) {
     return true;
   }
 
@@ -98,10 +105,17 @@ app.use('/api/products', require('./routes/productRoutes'));
 app.use('/api/items', require('./routes/itemRoutes'));
 app.use('/api/inventory', require('./routes/inventoryRoutes'));
 app.use('/api/sales', require('./routes/salesRoutes'));
+app.use('/api/returns', require('./routes/returnRoutes'));
 app.use('/api/reports', require('./routes/reportRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/compatibility', require('./routes/compatibilityRoutes'));
 app.use('/api/suppliers', require('./routes/supplierRoutes'));
+app.use('/api/purchasing', require('./routes/purchasingRoutes'));
+app.use('/api/restock-requests', require('./routes/restockRequestRoutes'));
+app.use('/api/cash-float', require('./routes/cashFloatRoutes'));
+app.use('/api/approvals', require('./routes/approvalRoutes'));
+app.use('/api/customers', require('./routes/customerRoutes'));
+app.use('/api/audit-logs', require('./routes/auditLogRoutes'));
 
 // Basic health check
 app.get('/', (req, res) => {

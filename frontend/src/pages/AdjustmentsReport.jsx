@@ -177,7 +177,7 @@ export const AdjustmentsReport = () => {
         <div>
           <h1 style={{ marginBottom: '4px' }}>Inventory Discrepancy & Adjustment Audit</h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
-            Audit log of all non-sales stock movements: damages, shrinkage/losses, returns, and recovered stock.
+            Audit log of all non-sales stock movements: damages, shrinkage/losses, and recovered stock.
           </p>
         </div>
         <div className="no-print" style={{ display: 'flex', gap: '10px' }}>
@@ -191,7 +191,7 @@ export const AdjustmentsReport = () => {
       </div>
 
       {/* KPI Cards (Click to quick-filter by type) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
         <div
           className="glass-panel"
           style={{
@@ -232,11 +232,11 @@ export const AdjustmentsReport = () => {
             transition: 'all 0.2s ease'
           }}
           onClick={() => toggleCardType('LOSS')}
-          title="Click to filter by Loss"
+          title="Click to filter by Lost / Stolen"
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Total Lost (Shrinkage)
+              Lost / Shrinkage Units
             </span>
             {selectedType === 'LOSS' && (
               <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: '#ef4444', color: '#fff', fontWeight: 700 }}>
@@ -248,67 +248,7 @@ export const AdjustmentsReport = () => {
             {data.summary?.LOSS || 0}
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-            Unaccounted physical losses
-          </div>
-        </div>
-
-        <div
-          className="glass-panel"
-          style={{
-            padding: '16px',
-            cursor: 'pointer',
-            border: selectedType === 'RETURN_TO_SUPPLIER' ? '2px solid #6366f1' : '1px solid var(--border)',
-            background: selectedType === 'RETURN_TO_SUPPLIER' ? 'rgba(99, 102, 241, 0.08)' : 'var(--surface)',
-            transition: 'all 0.2s ease'
-          }}
-          onClick={() => toggleCardType('RETURN_TO_SUPPLIER')}
-          title="Click to filter by Return to Supplier"
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Returned to Supplier
-            </span>
-            {selectedType === 'RETURN_TO_SUPPLIER' && (
-              <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: '#6366f1', color: '#fff', fontWeight: 700 }}>
-                ACTIVE FILTER
-              </span>
-            )}
-          </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: '#6366f1', marginTop: '6px' }}>
-            {data.summary?.RETURN_TO_SUPPLIER || 0}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-            RMA & supplier warranty returns
-          </div>
-        </div>
-
-        <div
-          className="glass-panel"
-          style={{
-            padding: '16px',
-            cursor: 'pointer',
-            border: selectedType === 'FOUND' ? '2px solid #10b981' : '1px solid var(--border)',
-            background: selectedType === 'FOUND' ? 'rgba(16, 185, 129, 0.08)' : 'var(--surface)',
-            transition: 'all 0.2s ease'
-          }}
-          onClick={() => toggleCardType('FOUND')}
-          title="Click to filter by Found / Recovered"
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Recovered / Found
-            </span>
-            {selectedType === 'FOUND' && (
-              <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: '#10b981', color: '#000', fontWeight: 700 }}>
-                ACTIVE FILTER
-              </span>
-            )}
-          </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: '#10b981', marginTop: '6px' }}>
-            {data.summary?.FOUND || 0}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-            Restored from prior loss entries
+            Lost, stolen, or shrinkage discrepancy
           </div>
         </div>
       </div>
@@ -411,9 +351,10 @@ export const AdjustmentsReport = () => {
             >
               <option value="ALL">All Types</option>
               <option value="DAMAGE">DAMAGE</option>
-              <option value="LOSS">LOSS</option>
-              <option value="RETURN_TO_SUPPLIER">RETURN_TO_SUPPLIER</option>
-              <option value="FOUND">FOUND</option>
+              
+              <option value="LOSS">LOSS / SHRINKAGE</option>
+              <option value="FOUND">FOUND EXTRA</option>
+              
             </select>
           </div>
 
