@@ -375,9 +375,9 @@ export const ItemSwap = () => {
         const repSummary = replacementCart.map(r => `${r.name} x${r.qty}`).join(', ');
         let confirmMsg = '';
         if (isUpgrade) {
-            confirmMsg = `Confirm Upgrade Swap:\n\nReturned Item: ${returnedProduct.name} (Credit: ₱${oldPricePaid.toFixed(2)})\nNew Replacement Items (${replacementCart.length}): ${repSummary} (Total: ₱${newReplacementPrice.toFixed(2)})\n\nCustomer must PAY +₱${topUpDue.toFixed(2)} (${paymentMethod}).\n\nStock Impact:\n+1 ${returnedProduct.name} to Sellable Stock\n-Deduct replacement parts from Sellable Stock\n\nProceed?`;
+            confirmMsg = `Confirm Upgrade Swap:\n\nReturned Item: ${returnedProduct?.name || 'Item'} (Credit: ₱${oldPricePaid.toFixed(2)})\nNew Replacement Items (${replacementCart.length}): ${repSummary} (Total: ₱${newReplacementPrice.toFixed(2)})\n\nCustomer must PAY +₱${topUpDue.toFixed(2)} (${paymentMethod}).\n\nStock Impact:\n+1 ${returnedProduct?.name || 'Item'} to Sellable Stock\n-Deduct replacement parts from Sellable Stock\n\nProceed?`;
         } else {
-            confirmMsg = `Confirm Equal-Value Swap:\n\nReturned Item: ${returnedProduct.name} (₱${oldPricePaid.toFixed(2)})\nNew Replacement Items (${replacementCart.length}): ${repSummary} (Total: ₱${newReplacementPrice.toFixed(2)})\n\nNo money exchanged (₱0.00).\n\nStock Impact:\n+1 ${returnedProduct.name} to Sellable Stock\n-Deduct replacement parts from Sellable Stock\n\nProceed?`;
+            confirmMsg = `Confirm Equal-Value Swap:\n\nReturned Item: ${returnedProduct?.name || 'Item'} (₱${oldPricePaid.toFixed(2)})\nNew Replacement Items (${replacementCart.length}): ${repSummary} (Total: ₱${newReplacementPrice.toFixed(2)})\n\nNo money exchanged (₱0.00).\n\nStock Impact:\n+1 ${returnedProduct?.name || 'Item'} to Sellable Stock\n-Deduct replacement parts from Sellable Stock\n\nProceed?`;
         }
 
         if (!window.confirm(confirmMsg)) return;
@@ -389,7 +389,7 @@ export const ItemSwap = () => {
                 sale_item_id: selectedSaleItem?.sale_item_id || selectedSaleItem?.id || null,
                 order_number: foundSale?.order_number || null,
                 customer_name: customerName.trim() || 'Walk-in Customer',
-                returned_product_id: returnedProduct.id,
+                returned_product_id: returnedProduct?.id,
                 returned_qty: 1,
                 returned_unit_price: oldPricePaid,
                 counter_condition_verified: true,
@@ -710,8 +710,9 @@ export const ItemSwap = () => {
                                             setFoundSale(null);
                                             setSelectedSaleItem(null);
                                             setReturnedProduct(null);
+                                            setReturnedUnitPrice(0);
                                             setCounterConditionVerified(false);
-                                            setSelectedReplacement(null);
+                                            setReplacementCart([]);
                                         }}
                                         style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.76rem', fontWeight: 700 }}
                                     >
@@ -857,10 +858,10 @@ export const ItemSwap = () => {
                                 }}>
                                     <div>
                                         <div style={{ fontSize: '0.94rem', fontWeight: 800, color: 'var(--text-main)' }}>
-                                            {returnedProduct.name}
+                                            {returnedProduct?.name}
                                         </div>
                                         <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                            SKU: {returnedProduct.part_number || 'N/A'} • Brand: {returnedProduct.brand || 'Generic'} • Quantity: 1 unit
+                                            SKU: {returnedProduct?.part_number || 'N/A'} • Brand: {returnedProduct?.brand || 'Generic'} • Quantity: 1 unit
                                         </div>
                                     </div>
                                     <div style={{ textAlign: 'right' }}>
@@ -1291,7 +1292,11 @@ export const ItemSwap = () => {
                             )}
                         </div>
 
-                        {replacementCart.length === 0 ? (
+                        {!returnedProduct ? (
+                            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                                Please select and verify a returned item in <strong>Step 1 &amp; 2</strong> above to proceed.
+                            </div>
+                        ) : replacementCart.length === 0 ? (
                             <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
                                 Select replacement parts in <strong>Step 3</strong> above to proceed with the swap transaction.
                             </div>
@@ -1313,10 +1318,10 @@ export const ItemSwap = () => {
                                             Returned Part (Trade-In Credit)
                                         </div>
                                         <div style={{ fontSize: '0.96rem', fontWeight: 800, color: 'var(--text-main)' }}>
-                                            {returnedProduct.name}
+                                            {returnedProduct?.name}
                                         </div>
                                         <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                            SKU: {returnedProduct.part_number || 'N/A'} • Brand: {returnedProduct.brand || 'Generic'}
+                                            SKU: {returnedProduct?.part_number || 'N/A'} • Brand: {returnedProduct?.brand || 'Generic'}
                                         </div>
                                         <div style={{ fontSize: '1.25rem', fontFamily: 'monospace', fontWeight: 900, color: 'var(--danger)', marginTop: '6px' }}>
                                             Credit: {formatCurrency(oldPricePaid)}
@@ -1333,8 +1338,8 @@ export const ItemSwap = () => {
                                         </div>
                                         <div style={{ fontSize: '0.96rem', fontWeight: 800, color: 'var(--text-main)' }}>
                                             {replacementCart.length === 1
-                                                ? replacementCart[0].name
-                                                : `${replacementCart[0].name} (+${replacementCart.length - 1} more)`}
+                                                ? replacementCart[0]?.name
+                                                : `${replacementCart[0]?.name} (+${replacementCart.length - 1} more)`}
                                         </div>
                                         <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                                             {replacementCart.map(r => `${r.name} x${r.qty}`).join(', ')}
