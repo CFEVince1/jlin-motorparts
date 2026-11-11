@@ -920,21 +920,22 @@ const Inventory = () => {
             />
           </div>
 
-          {/* Category Filter Dropdown */}
+          {/* Category Dropdown Filter */}
           <div style={{ width: '100%' }}>
             <select
               className="input-premium"
               value={categoryFilter}
               onChange={(e) => setFilter('category', e.target.value)}
               style={{ width: '100%', height: '38px', cursor: 'pointer', fontSize: '0.84rem' }}
-              title="Filter by Category"
+              title="Filter by product category"
             >
-              <option value="All">All Categories ({products.length})</option>
-              {STANDARD_TAXONOMY_KEYS.map(cat => {
-                const count = categoryCounts[cat] || 0;
+              <option value="All">All Categories ({categoryCounts.All || products.length})</option>
+              {activeCategories.map(catKey => {
+                const conf = SHORT_TAXONOMY[catKey] || getShortCategory(catKey);
+                const count = categoryCounts[catKey] || 0;
                 return (
-                  <option key={cat} value={cat}>
-                    {cat} {count > 0 ? `(${count})` : ''}
+                  <option key={catKey} value={catKey}>
+                    {conf.label || catKey} ({count})
                   </option>
                 );
               })}
@@ -958,28 +959,6 @@ const Inventory = () => {
               <option value="price_desc">Sort: Retail Price (High-Low)</option>
               <option value="stock_asc">Sort: Stock Level (Low-High)</option>
               <option value="stock_desc">Sort: Stock Level (High-Low)</option>
-            </select>
-          </div>
-
-          {/* Category Dropdown Filter */}
-          <div style={{ width: '100%' }}>
-            <select
-              className="input-premium"
-              value={categoryFilter}
-              onChange={(e) => setFilter('category', e.target.value)}
-              style={{ width: '100%', height: '38px', cursor: 'pointer', fontSize: '0.84rem' }}
-              title="Filter by product category"
-            >
-              <option value="All">All Categories ({categoryCounts.All || products.length})</option>
-              {activeCategories.map(catKey => {
-                const conf = SHORT_TAXONOMY[catKey] || getShortCategory(catKey);
-                const count = categoryCounts[catKey] || 0;
-                return (
-                  <option key={catKey} value={catKey}>
-                    {conf.label || catKey} ({count})
-                  </option>
-                );
-              })}
             </select>
           </div>
 
@@ -1031,11 +1010,9 @@ const Inventory = () => {
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '8px',
-          overflowX: 'auto',
-          paddingBottom: '8px',
-          marginBottom: '14px',
-          scrollbarWidth: 'thin'
+          flexWrap: 'wrap',
+          gap: '6px 8px',
+          marginBottom: '14px'
         }}>
           {/* All Pill */}
           <button
