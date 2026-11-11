@@ -144,7 +144,6 @@ export const Reports = () => {
             await api.post('/reports/expenses', expenseForm);
             toast.success(`Expense "${expenseForm.title}" recorded!`);
             setActiveTab('cashflow_report');
-            fetchData();
             setExpenseForm({
                 expense_date: new Date().toISOString().slice(0, 10),
                 category: 'Shop Rent',
@@ -233,20 +232,33 @@ export const Reports = () => {
 
     if (!isAdmin) {
         return (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-8 text-center max-w-lg mx-auto my-12 space-y-3">
-                <div className="w-12 h-12 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center mx-auto border border-red-500/20">
-                    <Lock size={22} />
+            <div className="glass-panel" style={{ maxWidth: '480px', margin: '48px auto', padding: '36px 24px', textAlign: 'center', borderRadius: '16px' }}>
+                <div style={{
+                    width: '52px',
+                    height: '52px',
+                    borderRadius: '50%',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    color: 'var(--danger)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 16px auto',
+                    border: '1px solid rgba(239, 68, 68, 0.2)'
+                }}>
+                    <Lock size={24} />
                 </div>
-                <h2 className="text-base font-bold text-zinc-100">Admin Access Required</h2>
-                <p className="text-xs text-zinc-400">
-                    Financial and inventory reports are restricted to Owner/Admin accounts.
+                <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '8px' }}>
+                    Admin Access Required
+                </h2>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                    Financial statements, sales velocity classifications, and store cash flow reports are restricted to Owner / Admin accounts.
                 </p>
             </div>
         );
     }
 
     return (
-        <div className="flex flex-col gap-5 pb-12" style={{ maxWidth: '1440px', margin: '0 auto', padding: '16px' }}>
+        <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '20px 24px' }}>
             {/* Print Stylesheet */}
             <style>{`
                 @media print {
@@ -258,43 +270,87 @@ export const Reports = () => {
             `}</style>
 
             {/* Top Bar Header */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 no-print">
+            <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '20px',
+                flexWrap: 'wrap',
+                gap: '16px'
+            }} className="no-print">
                 <div>
-                    <h1 className="text-lg font-bold text-zinc-100 flex items-center gap-2">
-                        <TrendingUp size={20} className="text-emerald-400" />
+                    <h1 style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        margin: 0,
+                        fontSize: '1.4rem',
+                        fontWeight: 800,
+                        color: 'var(--text-main)'
+                    }}>
+                        <TrendingUp size={24} color="var(--primary)" />
                         <span>Financial, Inventory & Cash Flow Reports</span>
                     </h1>
-                    <p className="text-xs text-zinc-400 mt-0.5">
-                        Gives the store owner complete financial statements, sales velocity classifications, and cash flow tracking to make smart buying and pricing decisions.
+                    <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        Complete financial statements, sales velocity classifications, and cash flow tracking for smart buying and pricing decisions.
                     </p>
                 </div>
 
                 {/* Print & Export Actions */}
-                <div className="flex items-center gap-2 shrink-0">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                     <button
                         type="button"
                         onClick={handleExportCSV}
-                        className="px-4 py-2 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold flex items-center gap-2 transition-colors border border-zinc-700 shadow-sm"
+                        className="btn-secondary"
+                        style={{
+                            height: '38px',
+                            padding: '0 16px',
+                            borderRadius: '8px',
+                            fontSize: '0.85rem',
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            cursor: 'pointer'
+                        }}
                         title="Export Active Report to Excel / CSV"
                     >
-                        <FileSpreadsheet size={15} className="text-emerald-400" />
+                        <FileSpreadsheet size={16} color="var(--primary)" />
                         <span>Export CSV / Excel</span>
                     </button>
 
                     <button
                         type="button"
                         onClick={() => window.print()}
-                        className="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-2 transition-colors shadow-sm"
+                        className="btn-primary"
+                        style={{
+                            height: '38px',
+                            padding: '0 16px',
+                            borderRadius: '8px',
+                            fontSize: '0.85rem',
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            cursor: 'pointer'
+                        }}
                         title="Print or Save Report as PDF"
                     >
-                        <Printer size={15} />
+                        <Printer size={16} />
                         <span>Print / PDF</span>
                     </button>
                 </div>
             </div>
 
-            {/* Top Toggle Tabs (The 4 Modules of Section 9) */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-1.5 flex flex-wrap gap-2 shadow-sm no-print">
+            {/* Top Toggle Tabs */}
+            <div style={{
+                display: 'flex',
+                gap: '8px',
+                borderBottom: '1px solid var(--border)',
+                paddingBottom: '12px',
+                marginBottom: '20px',
+                overflowX: 'auto'
+            }} className="no-print">
                 {TABS.map((tab) => {
                     const Icon = tab.icon;
                     const isActive = activeTab === tab.id;
@@ -302,14 +358,26 @@ export const Reports = () => {
                         <button
                             key={tab.id}
                             type="button"
+                            className={isActive ? 'btn-primary' : 'btn-secondary'}
+                            style={{
+                                height: '38px',
+                                padding: '0 16px',
+                                borderRadius: '8px',
+                                fontSize: '0.85rem',
+                                cursor: 'pointer',
+                                fontWeight: 700,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                whiteSpace: 'nowrap',
+                                background: isActive ? 'var(--primary)' : 'var(--surface)',
+                                color: isActive ? '#ffffff' : 'var(--text-muted)',
+                                border: isActive ? 'none' : '1.5px solid var(--border)',
+                                boxShadow: isActive ? '0 2px 6px rgba(16, 185, 129, 0.25)' : 'none'
+                            }}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex-1 min-w-[190px] px-4 py-2.5 rounded-md text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
-                                isActive
-                                    ? 'bg-emerald-600 text-white shadow-sm font-bold'
-                                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
-                            }`}
                         >
-                            <Icon size={15} />
+                            <Icon size={16} />
                             <span>{tab.name}</span>
                         </button>
                     );
@@ -317,11 +385,19 @@ export const Reports = () => {
             </div>
 
             {/* Date Range Filters Bar */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 flex flex-wrap items-center justify-between gap-3 shadow-sm no-print">
-                <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[11px] font-semibold text-zinc-400 flex items-center gap-1 mr-1">
-                        <Calendar size={13} className="text-emerald-400" />
-                        <span>Timeframe:</span>
+            <div className="glass-panel no-print" style={{
+                padding: '14px 20px',
+                borderRadius: '12px',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px'
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginRight: '4px' }}>
+                        <Calendar size={16} color="var(--primary)" /> Timeframe:
                     </span>
 
                     {[
@@ -330,42 +406,55 @@ export const Reports = () => {
                         { id: 'month', label: 'This Month' },
                         { id: 'all', label: 'All-Time' },
                         { id: 'custom', label: 'Custom' }
-                    ].map((btn) => (
-                        <button
-                            key={btn.id}
-                            type="button"
-                            onClick={() => handleSetTimeframe(btn.id)}
-                            className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
-                                timeframe === btn.id
-                                    ? 'bg-emerald-600 text-white font-bold'
-                                    : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
-                            }`}
-                        >
-                            {btn.label}
-                        </button>
-                    ))}
+                    ].map((btn) => {
+                        const active = timeframe === btn.id;
+                        return (
+                            <button
+                                key={btn.id}
+                                type="button"
+                                onClick={() => handleSetTimeframe(btn.id)}
+                                style={{
+                                    padding: '6px 14px',
+                                    fontSize: '0.82rem',
+                                    fontWeight: active ? 700 : 500,
+                                    borderRadius: '8px',
+                                    border: active ? 'none' : '1px solid var(--border)',
+                                    background: active ? 'var(--primary)' : 'var(--surface)',
+                                    color: active ? '#ffffff' : 'var(--text-main)',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease',
+                                    boxShadow: active ? '0 2px 8px rgba(16, 185, 129, 0.3)' : 'none'
+                                }}
+                            >
+                                {btn.label}
+                            </button>
+                        );
+                    })}
                 </div>
 
                 {/* Custom Date Pickers */}
                 {timeframe === 'custom' && (
-                    <div className="flex items-center gap-2">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <input
                             type="date"
                             value={startDate}
                             onChange={(e) => setStartDate(e.target.value)}
-                            className="bg-zinc-950 border border-zinc-700 rounded px-2.5 py-1 text-xs text-zinc-200 font-mono"
+                            className="input-premium"
+                            style={{ height: '34px', padding: '4px 10px', fontSize: '0.82rem', fontFamily: 'monospace' }}
                         />
-                        <span className="text-zinc-500 text-xs">to</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>to</span>
                         <input
                             type="date"
                             value={endDate}
                             onChange={(e) => setEndDate(e.target.value)}
-                            className="bg-zinc-950 border border-zinc-700 rounded px-2.5 py-1 text-xs text-zinc-200 font-mono"
+                            className="input-premium"
+                            style={{ height: '34px', padding: '4px 10px', fontSize: '0.82rem', fontFamily: 'monospace' }}
                         />
                         <button
                             type="button"
                             onClick={fetchActiveReport}
-                            className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-200 rounded border border-zinc-700"
+                            className="btn-secondary"
+                            style={{ height: '34px', padding: '0 14px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}
                         >
                             Filter
                         </button>
@@ -376,9 +465,9 @@ export const Reports = () => {
             {/* Main Report Container */}
             <div id="report-print-container">
                 {loading ? (
-                    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-12 text-center text-zinc-400">
-                        <RefreshCw size={24} className="animate-spin mx-auto text-emerald-400 mb-2" />
-                        <span>Compiling financial and inventory ledger reports...</span>
+                    <div className="glass-panel" style={{ padding: '60px 20px', textAlign: 'center', borderRadius: '14px', color: 'var(--text-muted)' }}>
+                        <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 12px auto', color: 'var(--primary)' }} />
+                        <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-main)' }}>Compiling financial and inventory ledger reports...</div>
                     </div>
                 ) : (
                     <>
@@ -386,26 +475,40 @@ export const Reports = () => {
                         {/* 0. ADD STORE OPERATING EXPENSE INLINE FORM                */}
                         {/* ========================================================= */}
                         {activeTab === 'add_expense' && (
-                            <div className="max-w-xl mx-auto my-4 bg-zinc-900 border border-zinc-700 rounded-xl p-6 shadow-xl">
-                                <div className="flex items-center gap-3 mb-5 border-b border-zinc-800 pb-4">
-                                    <div className="p-2.5 bg-rose-500/20 text-rose-400 rounded-lg">
+                            <div className="glass-panel" style={{ maxWidth: '580px', margin: '16px auto', padding: '24px', borderRadius: '16px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
+                                    <div style={{
+                                        width: '42px',
+                                        height: '42px',
+                                        borderRadius: '10px',
+                                        background: 'rgba(239, 68, 68, 0.1)',
+                                        color: 'var(--danger)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                    }}>
                                         <Truck size={22} />
                                     </div>
                                     <div>
-                                        <h2 className="text-base font-bold text-zinc-100">Record Store Operating Expense</h2>
-                                        <p className="text-xs text-zinc-400">
+                                        <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                                            Record Store Operating Expense
+                                        </h2>
+                                        <p style={{ margin: '3px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                                             Track shop rent, electricity, courier, packaging, and store supplies in the P&L ledger.
                                         </p>
                                     </div>
                                 </div>
 
-                                <form onSubmit={handleRecordExpense} className="space-y-4">
+                                <form onSubmit={handleRecordExpense} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                     <div>
-                                        <label className="block text-xs font-semibold text-zinc-300 mb-1">Expense Category *:</label>
+                                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
+                                            Expense Category *
+                                        </label>
                                         <select
                                             value={expenseForm.category}
                                             onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })}
-                                            className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-200"
+                                            className="input-premium"
+                                            style={{ width: '100%', height: '38px', fontSize: '0.85rem' }}
                                         >
                                             <option value="Shop Rent">Shop Rent (Space Lease)</option>
                                             <option value="Electricity / Utilities">Electricity / Utilities</option>
@@ -418,20 +521,25 @@ export const Reports = () => {
                                     </div>
 
                                     <div>
-                                        <label className="block text-xs font-semibold text-zinc-300 mb-1">Expense Title / Item *:</label>
+                                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
+                                            Expense Title / Item *
+                                        </label>
                                         <input
                                             type="text"
                                             placeholder="e.g. Meralco Electricity Bill Oct 2026 / J&T Restock Shipping"
                                             value={expenseForm.title}
                                             onChange={(e) => setExpenseForm({ ...expenseForm, title: e.target.value })}
-                                            className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-200"
+                                            className="input-premium"
+                                            style={{ width: '100%', height: '38px', fontSize: '0.85rem' }}
                                             required
                                         />
                                     </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
                                         <div>
-                                            <label className="block text-xs font-semibold text-zinc-300 mb-1">Amount (₱) *:</label>
+                                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
+                                                Amount (₱) *
+                                            </label>
                                             <input
                                                 type="number"
                                                 step="0.01"
@@ -439,17 +547,21 @@ export const Reports = () => {
                                                 placeholder="0.00"
                                                 value={expenseForm.amount}
                                                 onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
-                                                className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono font-bold text-zinc-100"
+                                                className="input-premium"
+                                                style={{ width: '100%', height: '38px', fontSize: '0.95rem', fontWeight: 800, fontFamily: 'monospace' }}
                                                 required
                                             />
                                         </div>
 
                                         <div>
-                                            <label className="block text-xs font-semibold text-zinc-300 mb-1">Paid From *:</label>
+                                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
+                                                Paid From *
+                                            </label>
                                             <select
                                                 value={expenseForm.payment_source}
                                                 onChange={(e) => setExpenseForm({ ...expenseForm, payment_source: e.target.value })}
-                                                className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-200"
+                                                className="input-premium"
+                                                style={{ width: '100%', height: '38px', fontSize: '0.85rem' }}
                                             >
                                                 <option value="cash_drawer">Cash Drawer (Petty Cash)</option>
                                                 <option value="gcash_bank">GCash / Bank Transfer</option>
@@ -458,49 +570,46 @@ export const Reports = () => {
                                     </div>
 
                                     <div>
-                                        <label className="block text-xs font-semibold text-zinc-300 mb-1">Expense Date:</label>
+                                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
+                                            Expense Date *
+                                        </label>
                                         <input
                                             type="date"
                                             value={expenseForm.expense_date}
                                             onChange={(e) => setExpenseForm({ ...expenseForm, expense_date: e.target.value })}
-                                            className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-200 font-mono"
+                                            className="input-premium"
+                                            style={{ width: '100%', height: '38px', fontSize: '0.85rem', fontFamily: 'monospace' }}
                                         />
                                     </div>
 
                                     <div>
-                                        <label className="block text-xs font-semibold text-zinc-300 mb-1">Notes / Official Receipt #:</label>
+                                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
+                                            Notes / Official Receipt #
+                                        </label>
                                         <textarea
                                             rows="2"
                                             placeholder="Reference receipt number or details..."
                                             value={expenseForm.notes}
                                             onChange={(e) => setExpenseForm({ ...expenseForm, notes: e.target.value })}
-                                            className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-200"
+                                            className="input-premium"
+                                            style={{ width: '100%', padding: '8px 12px', fontSize: '0.85rem' }}
                                         />
                                     </div>
 
-                                    <div className="flex justify-end gap-3 pt-3 border-t border-zinc-800">
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
                                         <button
                                             type="button"
                                             onClick={() => setActiveTab('cashflow_report')}
-                                            className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs font-semibold"
-                                            style={{ cursor: 'pointer' }}
+                                            className="btn-secondary"
+                                            style={{ height: '38px', padding: '0 18px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
                                         >
                                             Cancel
                                         </button>
                                         <button
                                             type="submit"
                                             disabled={submittingExpense}
-                                            style={{
-                                                backgroundColor: '#10b981',
-                                                color: '#ffffff',
-                                                fontWeight: 800,
-                                                fontSize: '13px',
-                                                padding: '9px 24px',
-                                                borderRadius: '8px',
-                                                border: 'none',
-                                                cursor: submittingExpense ? 'not-allowed' : 'pointer',
-                                                boxShadow: '0 2px 10px rgba(16, 185, 129, 0.4)'
-                                            }}
+                                            className="btn-primary"
+                                            style={{ height: '38px', padding: '0 22px', fontSize: '0.85rem', fontWeight: 700, cursor: submittingExpense ? 'not-allowed' : 'pointer' }}
                                         >
                                             {submittingExpense ? 'Recording...' : 'Record Store Expense'}
                                         </button>
@@ -513,71 +622,112 @@ export const Reports = () => {
                         {/* 1. PROFIT REPORT (INCOME STATEMENT WATERFALL)             */}
                         {/* ========================================================= */}
                         {activeTab === 'profit_report' && (
-                            <div className="flex flex-col gap-5">
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                                 {/* 4 Main Financial KPI Cards */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 shadow-sm">
-                                        <div className="text-[11px] font-semibold text-zinc-400 flex items-center justify-between">
-                                            <span>Gross Retail Sales</span>
-                                            <DollarSign size={16} className="text-emerald-400" />
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
+                                    {/* 1. Gross Retail Sales */}
+                                    <div className="glass-panel" style={{ padding: '18px 20px', borderRadius: '12px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                                Gross Retail Sales
+                                            </span>
+                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <DollarSign size={16} />
+                                            </div>
                                         </div>
-                                        <div className="text-2xl font-extrabold text-zinc-100 mt-2 font-mono">
+                                        <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-main)', marginTop: '8px', fontFamily: 'monospace' }}>
                                             {formatCurrency(salesProfitData?.financials?.gross_revenue || 0)}
                                         </div>
-                                        <div className="text-[11px] text-zinc-500 mt-1">
+                                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                                             Total checkout counter earnings
                                         </div>
                                     </div>
 
-                                    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 shadow-sm">
-                                        <div className="text-[11px] font-semibold text-zinc-400 flex items-center justify-between">
-                                            <span>Active COGS (Puhunan)</span>
-                                            <Boxes size={16} className="text-blue-400" />
+                                    {/* 2. Active COGS (Puhunan) */}
+                                    <div className="glass-panel" style={{ padding: '18px 20px', borderRadius: '12px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                                Active COGS (Puhunan)
+                                            </span>
+                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(37, 99, 235, 0.1)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <Boxes size={16} />
+                                            </div>
                                         </div>
-                                        <div className="text-2xl font-extrabold text-blue-400 mt-2 font-mono">
+                                        <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#3b82f6', marginTop: '8px', fontFamily: 'monospace' }}>
                                             {formatCurrency(salesProfitData?.financials?.cost_of_goods_sold || 0)}
                                         </div>
-                                        <div className="text-[11px] text-zinc-500 mt-1">
+                                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                                             Supplier cost of kept sales
                                         </div>
                                     </div>
 
-                                    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 shadow-sm">
-                                        <div className="text-[11px] font-semibold text-zinc-400 flex items-center justify-between">
-                                            <span>Operating Expenses</span>
-                                            <Truck size={16} className="text-amber-400" />
+                                    {/* 3. Operating Expenses */}
+                                    <div className="glass-panel" style={{ padding: '18px 20px', borderRadius: '12px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                                Operating Expenses
+                                            </span>
+                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <Truck size={16} />
+                                            </div>
                                         </div>
-                                        <div className="text-2xl font-extrabold text-amber-400 mt-2 font-mono">
+                                        <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f59e0b', marginTop: '8px', fontFamily: 'monospace' }}>
                                             {formatCurrency(salesProfitData?.financials?.total_operating_expenses || 0)}
                                         </div>
-                                        <div className="text-[11px] text-zinc-500 mt-1">
+                                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                                             Rent, electric, packaging & shipping
                                         </div>
                                     </div>
 
+                                    {/* 4. True Net Profit */}
                                     {(() => {
                                         const netProfit = Number(salesProfitData?.financials?.true_net_profit || 0);
                                         const isNegative = netProfit < 0;
                                         return (
-                                            <div className={`bg-zinc-900 rounded-lg p-5 shadow-sm border ring-1 ${
-                                                isNegative
-                                                    ? 'border-red-500/40 ring-red-500/20 text-red-500'
-                                                    : 'border-emerald-500/40 ring-emerald-500/20'
-                                            }`}>
-                                                <div className={`text-[11px] font-bold flex items-center justify-between ${
-                                                    isNegative ? 'text-red-400' : 'text-emerald-400'
-                                                }`}>
-                                                    <span>True Net Profit</span>
-                                                    <TrendingUp size={16} className={isNegative ? 'text-red-400 rotate-180' : 'text-emerald-400'} />
+                                            <div className="glass-panel" style={{
+                                                padding: '18px 20px',
+                                                borderRadius: '12px',
+                                                border: isNegative ? '1.5px solid rgba(239, 68, 68, 0.4)' : '1.5px solid rgba(16, 185, 129, 0.4)',
+                                                boxShadow: isNegative ? '0 4px 14px rgba(239, 68, 68, 0.12)' : '0 4px 14px rgba(16, 185, 129, 0.12)'
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                                    <span style={{
+                                                        fontSize: '0.78rem',
+                                                        fontWeight: 700,
+                                                        color: isNegative ? 'var(--danger)' : 'var(--primary)',
+                                                        textTransform: 'uppercase',
+                                                        letterSpacing: '0.4px'
+                                                    }}>
+                                                        True Net Profit
+                                                    </span>
+                                                    <div style={{
+                                                        width: '32px',
+                                                        height: '32px',
+                                                        borderRadius: '8px',
+                                                        background: isNegative ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                                        color: isNegative ? 'var(--danger)' : 'var(--primary)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center'
+                                                    }}>
+                                                        <TrendingUp size={16} style={{ transform: isNegative ? 'rotate(180deg)' : 'none' }} />
+                                                    </div>
                                                 </div>
-                                                <div className={`text-2xl font-black mt-2 font-mono ${
-                                                    isNegative ? 'text-red-500' : 'text-emerald-400'
-                                                }`}>
+                                                <div style={{
+                                                    fontSize: '1.75rem',
+                                                    fontWeight: 900,
+                                                    color: isNegative ? 'var(--danger)' : 'var(--primary)',
+                                                    marginTop: '8px',
+                                                    fontFamily: 'monospace'
+                                                }}>
                                                     {formatCurrency(netProfit)}
                                                 </div>
-                                                <div className={`text-[11px] mt-1 font-medium ${
-                                                    isNegative ? 'text-red-400' : 'text-emerald-500/80'
-                                                }`}>
+                                                <div style={{
+                                                    fontSize: '0.74rem',
+                                                    fontWeight: 600,
+                                                    color: isNegative ? 'var(--danger)' : 'var(--primary)',
+                                                    marginTop: '4px'
+                                                }}>
                                                     Margin: {salesProfitData?.financials?.profit_margin_pct || 0}%
                                                 </div>
                                             </div>
@@ -586,68 +736,103 @@ export const Reports = () => {
                                 </div>
 
                                 {/* Step-by-Step Income Statement Waterfall & Operating Expense Breakdown */}
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '20px', alignItems: 'start' }}>
                                     {/* Detailed Income Statement Waterfall */}
-                                    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 shadow-sm">
-                                        <div className="flex items-center gap-2 mb-4">
-                                            <DollarSign size={16} className="text-emerald-400" />
-                                            <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-200">
+                                    <div className="glass-panel" style={{ padding: '20px', borderRadius: '12px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                                            <DollarSign size={18} color="var(--primary)" />
+                                            <h3 style={{ fontSize: '0.88rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-main)', margin: 0 }}>
                                                 Detailed Income Statement (P&L Waterfall)
                                             </h3>
                                         </div>
 
-                                        <div className="space-y-2 border border-zinc-800/80 rounded-lg px-4 py-3 bg-zinc-950/40 text-xs">
-                                            <div className="flex justify-between py-2 px-2 border-b border-zinc-800/60 text-zinc-200">
-                                                <span className="font-semibold">Gross Retail Sales:</span>
-                                                <span className="font-mono font-bold text-zinc-100">
+                                        <div style={{
+                                            border: '1px solid var(--border)',
+                                            borderRadius: '10px',
+                                            padding: '12px 16px',
+                                            background: 'var(--surface-hover)',
+                                            fontSize: '0.83rem',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: '8px'
+                                        }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', color: 'var(--text-main)' }}>
+                                                <span style={{ fontWeight: 600 }}>Gross Retail Sales:</span>
+                                                <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--text-main)' }}>
                                                     {formatCurrency(salesProfitData?.financials?.gross_revenue || 0)}
                                                 </span>
                                             </div>
-                                            <div className="flex justify-between py-2 px-2 border-b border-zinc-800/60 text-purple-400">
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', color: '#a855f7' }}>
                                                 <span>Less: Voided / Cancelled Sales:</span>
-                                                <span className="font-mono font-bold">
+                                                <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>
                                                     -{formatCurrency(salesProfitData?.financials?.sales_reversals || 0)}
                                                 </span>
                                             </div>
-                                            <div className="flex justify-between py-2 px-2 border-b border-zinc-800/60 text-purple-400">
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', color: '#a855f7' }}>
                                                 <span>Less: Approved Cashier Discounts:</span>
-                                                <span className="font-mono font-bold">
+                                                <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>
                                                     -{formatCurrency(salesProfitData?.financials?.discounts || 0)}
                                                 </span>
                                             </div>
-                                            <div className="flex justify-between py-2 px-2 border-b border-zinc-800 font-bold bg-zinc-900/60 text-emerald-400 rounded">
+                                            <div style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                padding: '8px 10px',
+                                                borderRadius: '6px',
+                                                background: 'rgba(16, 185, 129, 0.08)',
+                                                fontWeight: 800,
+                                                color: 'var(--primary)'
+                                            }}>
                                                 <span>= Net Retail Sales:</span>
-                                                <span className="font-mono">
+                                                <span style={{ fontFamily: 'monospace' }}>
                                                     {formatCurrency(salesProfitData?.financials?.net_retail_sales || 0)}
                                                 </span>
                                             </div>
-                                            <div className="flex justify-between py-2 px-2 border-b border-zinc-800/60 text-blue-400">
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', color: '#3b82f6' }}>
                                                 <span>Less: Active COGS (Cost of Kept Sales):</span>
-                                                <span className="font-mono font-bold">
+                                                <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>
                                                     -{formatCurrency(salesProfitData?.financials?.cost_of_goods_sold || 0)}
                                                 </span>
                                             </div>
-                                            <div className="flex justify-between py-2 px-2 border-b border-zinc-800 font-bold bg-zinc-900/60 text-cyan-400 rounded">
+                                            <div style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                padding: '8px 10px',
+                                                borderRadius: '6px',
+                                                background: 'rgba(6, 182, 212, 0.08)',
+                                                fontWeight: 800,
+                                                color: '#06b6d4'
+                                            }}>
                                                 <span>= Gross Margin:</span>
-                                                <span className="font-mono">
+                                                <span style={{ fontFamily: 'monospace' }}>
                                                     {formatCurrency(salesProfitData?.financials?.gross_margin || 0)}
                                                 </span>
                                             </div>
-                                            <div className="flex justify-between py-2 px-2 border-b border-zinc-800/60 text-rose-400">
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', color: 'var(--danger)' }}>
                                                 <span>Less: In-Store Damaged Stock & Shrinkage Losses:</span>
-                                                <span className="font-mono font-bold">
+                                                <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>
                                                     -{formatCurrency(salesProfitData?.financials?.combined_shop_losses || salesProfitData?.financials?.shop_return_losses || 0)}
                                                 </span>
                                             </div>
-                                            <div className="flex justify-between py-2 px-2 border-b border-zinc-800/60 text-amber-400">
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', color: '#f59e0b' }}>
                                                 <span>Less: Operating Expenses (Rent, power, courier, bags):</span>
-                                                <span className="font-mono font-bold">
+                                                <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>
                                                     -{formatCurrency(salesProfitData?.financials?.total_operating_expenses || 0)}
                                                 </span>
                                             </div>
-                                            <div className="flex justify-between py-3 px-3 border-t-2 border-emerald-500 bg-emerald-950/20 text-emerald-400 text-sm font-black rounded">
-                                                <span className="text-emerald-300">= True Net Profit (Malinis na Kita):</span>
-                                                <span className="font-mono text-base">
+                                            <div style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                padding: '12px 14px',
+                                                borderRadius: '8px',
+                                                border: '1.5px solid var(--primary)',
+                                                background: 'rgba(16, 185, 129, 0.12)',
+                                                color: 'var(--primary)',
+                                                fontWeight: 900
+                                            }}>
+                                                <span style={{ fontSize: '0.88rem' }}>= True Net Profit (Malinis na Kita):</span>
+                                                <span style={{ fontFamily: 'monospace', fontSize: '1.05rem' }}>
                                                     {formatCurrency(salesProfitData?.financials?.true_net_profit || 0)}
                                                 </span>
                                             </div>
@@ -655,21 +840,22 @@ export const Reports = () => {
                                     </div>
 
                                     {/* Right Side: Operating Expense Breakdown & Payment Channels */}
-                                    <div className="space-y-4">
-                                        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 shadow-sm">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <div className="flex items-center gap-2">
-                                                    <Truck size={16} className="text-amber-400" />
-                                                    <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-200">
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                        {/* Operating Expenses Breakdown Card */}
+                                        <div className="glass-panel" style={{ padding: '20px', borderRadius: '12px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <Truck size={18} color="#f59e0b" />
+                                                    <h3 style={{ fontSize: '0.88rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-main)', margin: 0 }}>
                                                         Operating Expenses Breakdown
                                                     </h3>
                                                 </div>
-                                                <span className="text-xs font-mono font-bold text-amber-400">
+                                                <span style={{ fontSize: '0.82rem', fontFamily: 'monospace', fontWeight: 700, color: '#f59e0b' }}>
                                                     Total: {formatCurrency(salesProfitData?.financials?.total_operating_expenses || 0)}
                                                 </span>
                                             </div>
 
-                                            <div className="space-y-2 text-xs">
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.82rem' }}>
                                                 {[
                                                     { label: 'Shop Rent (Prorated Monthly Lease)', val: salesProfitData?.financials?.expense_breakdown?.rent || 0 },
                                                     { label: 'Electricity & Shop Utilities', val: salesProfitData?.financials?.expense_breakdown?.electricity || 0 },
@@ -678,38 +864,58 @@ export const Reports = () => {
                                                     { label: 'Staff Snacks & Allowances', val: salesProfitData?.financials?.expense_breakdown?.staff_allowance || 0 },
                                                     { label: 'Store Maintenance & Upkeep', val: salesProfitData?.financials?.expense_breakdown?.maintenance || 0 }
                                                 ].map(item => (
-                                                    <div key={item.label} className="flex justify-between py-1.5 px-3 bg-zinc-950 rounded border border-zinc-800/60">
-                                                        <span className="text-zinc-400">{item.label}:</span>
-                                                        <span className="font-mono font-bold text-zinc-200">{formatCurrency(item.val)}</span>
+                                                    <div key={item.label} style={{
+                                                        display: 'flex',
+                                                        justifyContent: 'space-between',
+                                                        alignItems: 'center',
+                                                        padding: '8px 12px',
+                                                        background: 'var(--surface-hover)',
+                                                        borderRadius: '8px',
+                                                        border: '1px solid var(--border)'
+                                                    }}>
+                                                        <span style={{ color: 'var(--text-muted)' }}>{item.label}:</span>
+                                                        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--text-main)' }}>
+                                                            {formatCurrency(item.val)}
+                                                        </span>
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
 
                                         {/* Payment Channels (Cash vs GCash) */}
-                                        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 shadow-sm">
-                                            <div className="flex items-center gap-2 mb-3">
-                                                <CreditCard size={16} className="text-emerald-400" />
-                                                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-200">
+                                        <div className="glass-panel" style={{ padding: '20px', borderRadius: '12px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                                                <CreditCard size={18} color="var(--primary)" />
+                                                <h3 style={{ fontSize: '0.88rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-main)', margin: 0 }}>
                                                     Payment Channels (Cash vs. GCash)
                                                 </h3>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div className="bg-zinc-950 p-3 rounded border border-zinc-800">
-                                                    <div className="text-[11px] text-zinc-400">Cash Drawer</div>
-                                                    <div className="text-base font-bold font-mono text-emerald-400 mt-1">
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '14px' }}>
+                                                <div style={{
+                                                    padding: '14px',
+                                                    borderRadius: '10px',
+                                                    background: 'var(--surface-hover)',
+                                                    border: '1px solid var(--border)'
+                                                }}>
+                                                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>Cash Drawer</div>
+                                                    <div style={{ fontSize: '1.25rem', fontWeight: 800, fontFamily: 'monospace', color: 'var(--primary)', marginTop: '4px' }}>
                                                         {formatCurrency(salesProfitData?.payment_channels?.cash?.amount || 0)}
                                                     </div>
-                                                    <div className="text-[10px] text-zinc-500 mt-1">
+                                                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                                                         {salesProfitData?.payment_channels?.cash?.count || 0} orders ({salesProfitData?.payment_channels?.cash?.percentage || 0}%)
                                                     </div>
                                                 </div>
-                                                <div className="bg-zinc-950 p-3 rounded border border-zinc-800">
-                                                    <div className="text-[11px] text-zinc-400">GCash Wallet</div>
-                                                    <div className="text-base font-bold font-mono text-blue-400 mt-1">
+                                                <div style={{
+                                                    padding: '14px',
+                                                    borderRadius: '10px',
+                                                    background: 'var(--surface-hover)',
+                                                    border: '1px solid var(--border)'
+                                                }}>
+                                                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>GCash Wallet</div>
+                                                    <div style={{ fontSize: '1.25rem', fontWeight: 800, fontFamily: 'monospace', color: '#3b82f6', marginTop: '4px' }}>
                                                         {formatCurrency(salesProfitData?.payment_channels?.gcash?.amount || 0)}
                                                     </div>
-                                                    <div className="text-[10px] text-zinc-500 mt-1">
+                                                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                                                         {salesProfitData?.payment_channels?.gcash?.count || 0} orders ({salesProfitData?.payment_channels?.gcash?.percentage || 0}%)
                                                     </div>
                                                 </div>
@@ -724,42 +930,56 @@ export const Reports = () => {
                         {/* 2. SALES REPORT (BY CATEGORY, BRAND, CASHIER, RECEIPTS)  */}
                         {/* ========================================================= */}
                         {activeTab === 'sales_report' && (
-                            <div className="flex flex-col gap-6">
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                                 {/* Cashier Performance Ranking */}
-                                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 shadow-sm">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="flex items-center gap-2">
-                                            <UsersIcon size={16} className="text-emerald-400" />
-                                            <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-200">
-                                                Cashier Performance & Sales Volume
-                                            </h3>
-                                        </div>
+                                <div className="glass-panel" style={{ padding: '20px', borderRadius: '12px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                                        <UsersIcon size={18} color="var(--primary)" />
+                                        <h3 style={{ fontSize: '0.88rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-main)', margin: 0 }}>
+                                            Cashier Performance & Sales Volume
+                                        </h3>
                                     </div>
 
-                                    <div className="overflow-x-auto border border-zinc-800/80 rounded-lg">
-                                        <table className="w-full text-left text-xs border-collapse">
+                                    <div className="table-container" style={{ margin: 0, borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                                        <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                                             <thead>
-                                                <tr className="border-b border-zinc-800 bg-zinc-950 text-[11px] text-zinc-400 uppercase">
-                                                    <th className="px-4 py-3">Cashier</th>
-                                                    <th className="px-4 py-3 text-center">Transactions</th>
-                                                    <th className="px-4 py-3 text-right">Cash Collected</th>
-                                                    <th className="px-4 py-3 text-right">GCash Collected</th>
-                                                    <th className="px-4 py-3 text-right">Total Sales Issued</th>
-                                                    <th className="px-4 py-3 text-center">Status</th>
+                                                <tr>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'left' }}>Cashier</th>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'center' }}>Transactions</th>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'right' }}>Cash Collected</th>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'right' }}>GCash Collected</th>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'right' }}>Total Sales Issued</th>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'center' }}>Status</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-zinc-800/60 font-mono">
+                                            <tbody>
                                                 {salesProfitData?.cashier_shifts?.map((c) => (
-                                                    <tr key={c.cashier_id} className="hover:bg-zinc-800/30">
-                                                        <td className="px-4 py-3 font-sans font-semibold text-zinc-100">
-                                                            {c.cashier_name} <span className="text-[10px] text-zinc-500 font-normal">({c.role})</span>
+                                                    <tr key={c.cashier_id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                        <td style={{ padding: '12px 14px', fontWeight: 700, color: 'var(--text-main)' }}>
+                                                            {c.cashier_name} <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 400 }}>({c.role})</span>
                                                         </td>
-                                                        <td className="px-4 py-3 text-center font-bold text-zinc-200">{c.transaction_count}</td>
-                                                        <td className="px-4 py-3 text-right text-emerald-400">{formatCurrency(c.cash_collected)}</td>
-                                                        <td className="px-4 py-3 text-right text-blue-400">{formatCurrency(c.gcash_collected)}</td>
-                                                        <td className="px-4 py-3 text-right font-bold text-zinc-100">{formatCurrency(c.total_sales)}</td>
-                                                        <td className="px-4 py-3 text-center font-sans">
-                                                            <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
+                                                        <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 700, color: 'var(--text-main)', fontFamily: 'monospace' }}>
+                                                            {c.transaction_count}
+                                                        </td>
+                                                        <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--primary)', fontWeight: 700, fontFamily: 'monospace' }}>
+                                                            {formatCurrency(c.cash_collected)}
+                                                        </td>
+                                                        <td style={{ padding: '12px 14px', textAlign: 'right', color: '#3b82f6', fontWeight: 700, fontFamily: 'monospace' }}>
+                                                            {formatCurrency(c.gcash_collected)}
+                                                        </td>
+                                                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 800, color: 'var(--text-main)', fontFamily: 'monospace' }}>
+                                                            {formatCurrency(c.total_sales)}
+                                                        </td>
+                                                        <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                                                            <span style={{
+                                                                fontSize: '0.72rem',
+                                                                padding: '3px 8px',
+                                                                borderRadius: '6px',
+                                                                background: 'rgba(16, 185, 129, 0.1)',
+                                                                color: 'var(--primary)',
+                                                                border: '1px solid rgba(16, 185, 129, 0.25)',
+                                                                fontWeight: 700
+                                                            }}>
                                                                 Balanced
                                                             </span>
                                                         </td>
@@ -771,22 +991,27 @@ export const Reports = () => {
                                 </div>
 
                                 {/* Category Performance */}
-                                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 shadow-sm">
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <Layers size={16} className="text-emerald-400" />
-                                        <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-200">
+                                <div className="glass-panel" style={{ padding: '20px', borderRadius: '12px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                                        <Layers size={18} color="var(--primary)" />
+                                        <h3 style={{ fontSize: '0.88rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-main)', margin: 0 }}>
                                             Sales by Category & Profit Margins
                                         </h3>
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
                                         {salesProfitData?.category_sales?.map(cat => (
-                                            <div key={cat.category} className="bg-zinc-950 p-4 rounded-lg border border-zinc-800">
-                                                <div className="text-xs font-bold text-zinc-200">{cat.category}</div>
-                                                <div className="text-lg font-mono font-bold text-emerald-400 mt-1">
+                                            <div key={cat.category} style={{
+                                                padding: '14px 16px',
+                                                borderRadius: '10px',
+                                                background: 'var(--surface-hover)',
+                                                border: '1px solid var(--border)'
+                                            }}>
+                                                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)' }}>{cat.category}</div>
+                                                <div style={{ fontSize: '1.25rem', fontFamily: 'monospace', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>
                                                     {formatCurrency(cat.total_revenue)}
                                                 </div>
-                                                <div className="text-[11px] text-zinc-400 mt-1">
-                                                    {cat.total_qty_sold} units sold • Margin: <strong className="text-emerald-400">{cat.margin_pct}%</strong>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                                    {cat.total_qty_sold} units sold • Margin: <strong style={{ color: 'var(--primary)' }}>{cat.margin_pct}%</strong>
                                                 </div>
                                             </div>
                                         ))}
@@ -794,55 +1019,67 @@ export const Reports = () => {
                                 </div>
 
                                 {/* Itemized Sold Parts Table */}
-                                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 shadow-sm">
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                                        <div className="flex items-center gap-2">
-                                            <Package size={16} className="text-emerald-400" />
-                                            <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-200">
+                                <div className="glass-panel" style={{ padding: '20px', borderRadius: '12px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', marginBottom: '16px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <Package size={18} color="var(--primary)" />
+                                            <h3 style={{ fontSize: '0.88rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-main)', margin: 0 }}>
                                                 Itemized Motorparts Sold ({filteredSoldProducts.length} items)
                                             </h3>
                                         </div>
-                                        <input
-                                            type="text"
-                                            placeholder="Search by part name, brand, or SKU..."
-                                            value={productSalesSearch}
-                                            onChange={(e) => setProductSalesSearch(e.target.value)}
-                                            className="bg-zinc-950 border border-zinc-700 rounded px-3 py-1.5 text-xs text-zinc-200 w-full sm:w-72"
-                                        />
+                                        <div style={{ position: 'relative', width: '280px' }}>
+                                            <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                            <input
+                                                type="text"
+                                                placeholder="Search part name, brand, or SKU..."
+                                                value={productSalesSearch}
+                                                onChange={(e) => setProductSalesSearch(e.target.value)}
+                                                className="input-premium"
+                                                style={{ width: '100%', height: '34px', paddingLeft: '32px', fontSize: '0.82rem' }}
+                                            />
+                                        </div>
                                     </div>
 
-                                    <div className="overflow-x-auto border border-zinc-800/80 rounded-lg">
-                                        <table className="w-full text-left text-xs border-collapse">
+                                    <div className="table-container" style={{ margin: 0, borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                                        <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                                             <thead>
-                                                <tr className="border-b border-zinc-800 bg-zinc-950 text-[11px] text-zinc-400 uppercase">
-                                                    <th className="px-4 py-3">Item Code</th>
-                                                    <th className="px-4 py-3">Part Name & Brand</th>
-                                                    <th className="px-4 py-3">Category</th>
-                                                    <th className="px-4 py-3 text-center">Qty Sold</th>
-                                                    <th className="px-4 py-3 text-right">Avg Cost</th>
-                                                    <th className="px-4 py-3 text-right">Avg Retail</th>
-                                                    <th className="px-4 py-3 text-right">Revenue</th>
-                                                    <th className="px-4 py-3 text-right">Gross Profit</th>
-                                                    <th className="px-4 py-3 text-center">Margin</th>
+                                                <tr>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'left' }}>Item Code</th>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'left' }}>Part Name & Brand</th>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'left' }}>Category</th>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'center' }}>Qty Sold</th>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'right' }}>Avg Cost</th>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'right' }}>Avg Retail</th>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'right' }}>Revenue</th>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'right' }}>Gross Profit</th>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'center' }}>Margin</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-zinc-800/60 font-mono">
-                                                {filteredSoldProducts.map(p => (
-                                                    <tr key={p.product_id} className="hover:bg-zinc-800/30">
-                                                        <td className="px-4 py-3 text-zinc-400">{p.part_number}</td>
-                                                        <td className="px-4 py-3 font-sans">
-                                                            <div className="font-semibold text-zinc-100">{p.product_name}</div>
-                                                            <div className="text-[10px] text-zinc-500">{p.brand}</div>
+                                            <tbody>
+                                                {filteredSoldProducts.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={9} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                                            No motorparts sales found for this filter criteria.
                                                         </td>
-                                                        <td className="px-4 py-3 font-sans text-zinc-400">{p.category}</td>
-                                                        <td className="px-4 py-3 text-center font-bold text-zinc-200">{p.total_qty_sold}</td>
-                                                        <td className="px-4 py-3 text-right text-zinc-400">{formatCurrency(p.avg_unit_cost)}</td>
-                                                        <td className="px-4 py-3 text-right text-zinc-200">{formatCurrency(p.avg_unit_price)}</td>
-                                                        <td className="px-4 py-3 text-right text-emerald-400 font-bold">{formatCurrency(p.total_revenue)}</td>
-                                                        <td className="px-4 py-3 text-right text-zinc-100 font-bold">{formatCurrency(p.total_gross_profit)}</td>
-                                                        <td className="px-4 py-3 text-center font-bold text-emerald-400">{p.margin_pct}%</td>
                                                     </tr>
-                                                ))}
+                                                ) : (
+                                                    filteredSoldProducts.map(p => (
+                                                        <tr key={p.product_id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                            <td style={{ padding: '10px 14px', fontFamily: 'monospace', color: 'var(--text-muted)' }}>{p.part_number}</td>
+                                                            <td style={{ padding: '10px 14px' }}>
+                                                                <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{p.product_name}</div>
+                                                                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{p.brand}</div>
+                                                            </td>
+                                                            <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{p.category}</td>
+                                                            <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 800, fontFamily: 'monospace', color: 'var(--text-main)' }}>{p.total_qty_sold}</td>
+                                                            <td style={{ padding: '10px 14px', textAlign: 'right', fontFamily: 'monospace', color: 'var(--text-muted)' }}>{formatCurrency(p.avg_unit_cost)}</td>
+                                                            <td style={{ padding: '10px 14px', textAlign: 'right', fontFamily: 'monospace', color: 'var(--text-main)' }}>{formatCurrency(p.avg_unit_price)}</td>
+                                                            <td style={{ padding: '10px 14px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: 'var(--primary)' }}>{formatCurrency(p.total_revenue)}</td>
+                                                            <td style={{ padding: '10px 14px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: 'var(--text-main)' }}>{formatCurrency(p.total_gross_profit)}</td>
+                                                            <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 800, color: 'var(--primary)' }}>{p.margin_pct}%</td>
+                                                        </tr>
+                                                    ))
+                                                )}
                                             </tbody>
                                         </table>
                                     </div>
@@ -854,91 +1091,127 @@ export const Reports = () => {
                         {/* 3. INVENTORY REPORT (FAST, SLOW, DEAD STOCK)              */}
                         {/* ========================================================= */}
                         {activeTab === 'inventory_report' && (
-                            <div className="space-y-5">
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                                 {/* Velocity Summary Alert */}
-                                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 flex flex-wrap items-center justify-between gap-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                                            <AlertOctagon size={24} />
+                                <div className="glass-panel" style={{
+                                    padding: '18px 20px',
+                                    borderRadius: '12px',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    flexWrap: 'wrap',
+                                    gap: '14px'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <div style={{
+                                            width: '40px',
+                                            height: '40px',
+                                            borderRadius: '10px',
+                                            background: 'rgba(245, 158, 11, 0.1)',
+                                            color: '#f59e0b',
+                                            border: '1px solid rgba(245, 158, 11, 0.25)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}>
+                                            <AlertOctagon size={22} />
                                         </div>
                                         <div>
-                                            <h3 className="text-sm font-bold text-zinc-100">
+                                            <h3 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
                                                 Inventory Velocity & Shelf Capital Analysis
                                             </h3>
-                                            <p className="text-xs text-zinc-400 mt-0.5">
-                                                Dead stock tied-up capital: <strong className="font-mono text-amber-300">{formatCurrency(fastDeadStockData?.dead_stock?.total_capital_tied_up || 0)}</strong> across <strong className="font-mono text-amber-300">{fastDeadStockData?.dead_stock?.total_units || 0}</strong> unsold shelf units.
+                                            <p style={{ margin: '3px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                                Dead stock tied-up capital: <strong style={{ color: '#f59e0b', fontFamily: 'monospace' }}>{formatCurrency(fastDeadStockData?.dead_stock?.total_capital_tied_up || 0)}</strong> across <strong style={{ color: '#f59e0b', fontFamily: 'monospace' }}>{fastDeadStockData?.dead_stock?.total_units || 0}</strong> unsold shelf units.
                                             </p>
                                         </div>
                                     </div>
 
                                     {/* Velocity Filter Buttons */}
-                                    <div className="flex gap-2">
+                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                         {[
                                             { id: 'ALL', label: 'All Items' },
                                             { id: 'FAST', label: `🚀 Fast-Moving (${fastDeadStockData?.fast_moving?.count || 0})` },
                                             { id: 'SLOW', label: `🐢 Slow-Moving (${fastDeadStockData?.slow_moving?.count || 0})` },
                                             { id: 'DEAD', label: `🛑 Dead Stock (${fastDeadStockData?.dead_stock?.count || 0})` },
-                                        ].map(btn => (
-                                            <button
-                                                key={btn.id}
-                                                type="button"
-                                                onClick={() => setVelocityFilter(btn.id)}
-                                                className={`px-3 py-1.5 text-xs rounded-md font-semibold transition-colors ${
-                                                    velocityFilter === btn.id
-                                                        ? 'bg-emerald-600 text-white'
-                                                        : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
-                                                }`}
-                                            >
-                                                {btn.label}
-                                            </button>
-                                        ))}
+                                        ].map(btn => {
+                                            const active = velocityFilter === btn.id;
+                                            return (
+                                                <button
+                                                    key={btn.id}
+                                                    type="button"
+                                                    onClick={() => setVelocityFilter(btn.id)}
+                                                    style={{
+                                                        padding: '6px 14px',
+                                                        fontSize: '0.82rem',
+                                                        fontWeight: active ? 700 : 500,
+                                                        borderRadius: '8px',
+                                                        border: active ? 'none' : '1px solid var(--border)',
+                                                        background: active ? 'var(--primary)' : 'var(--surface)',
+                                                        color: active ? '#ffffff' : 'var(--text-main)',
+                                                        cursor: 'pointer',
+                                                        transition: 'all 0.15s ease',
+                                                        boxShadow: active ? '0 2px 8px rgba(16, 185, 129, 0.3)' : 'none'
+                                                    }}
+                                                >
+                                                    {btn.label}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 </div>
 
                                 {/* Fast-Moving Stock Section */}
                                 {(velocityFilter === 'ALL' || velocityFilter === 'FAST') && (
-                                    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 shadow-sm">
-                                        <div className="flex items-center justify-between mb-3 border-b border-zinc-800 pb-2">
-                                            <div className="flex items-center gap-2">
-                                                <TrendingUp size={16} className="text-emerald-400" />
-                                                <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                                    <div className="glass-panel" style={{ padding: '20px', borderRadius: '12px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <TrendingUp size={18} color="var(--primary)" />
+                                                <h3 style={{ fontSize: '0.88rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--primary)', margin: 0 }}>
                                                     Fast-Moving Stock (High Weekly Turnover • Never Run Out)
                                                 </h3>
                                             </div>
-                                            <span className="text-xs font-mono text-zinc-400">
+                                            <span style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: 'var(--text-muted)' }}>
                                                 {fastDeadStockData?.fast_moving?.count || 0} Parts
                                             </span>
                                         </div>
 
-                                        <div className="overflow-x-auto border border-zinc-800/80 rounded-lg">
-                                            <table className="w-full text-left text-xs border-collapse">
+                                        <div className="table-container" style={{ margin: 0, borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                                            <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                                                 <thead>
-                                                    <tr className="border-b border-zinc-800 bg-zinc-950 text-[11px] text-zinc-400 uppercase">
-                                                        <th className="px-4 py-2.5">Rank</th>
-                                                        <th className="px-4 py-2.5">Part Name & SKU</th>
-                                                        <th className="px-4 py-2.5">Category</th>
-                                                        <th className="px-4 py-2.5 text-center">Net Sold</th>
-                                                        <th className="px-4 py-2.5 text-center">Sellable Stock</th>
-                                                        <th className="px-4 py-2.5 text-right">Revenue</th>
-                                                        <th className="px-4 py-2.5 text-right">Profit</th>
-                                                        <th className="px-4 py-2.5">Restock Action Advice</th>
+                                                    <tr>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'left' }}>Rank</th>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'left' }}>Part Name & SKU</th>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'left' }}>Category</th>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'center' }}>Net Sold</th>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'center' }}>Sellable Stock</th>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'right' }}>Revenue</th>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'right' }}>Profit</th>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'left' }}>Restock Action Advice</th>
                                                     </tr>
                                                 </thead>
-                                                <tbody className="divide-y divide-zinc-800/60 font-mono">
+                                                <tbody>
                                                     {fastDeadStockData?.fast_moving?.items?.map(p => (
-                                                        <tr key={p.product_id} className="hover:bg-zinc-800/30">
-                                                            <td className="px-4 py-3 font-bold text-emerald-400">#{p.rank}</td>
-                                                            <td className="px-4 py-3 font-sans">
-                                                                <div className="font-semibold text-zinc-100">{p.part_name}</div>
-                                                                <div className="text-[10px] text-zinc-500">{p.sku} • {p.brand}</div>
+                                                        <tr key={p.product_id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                            <td style={{ padding: '10px 14px', fontWeight: 800, color: 'var(--primary)' }}>#{p.rank}</td>
+                                                            <td style={{ padding: '10px 14px' }}>
+                                                                <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{p.part_name}</div>
+                                                                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{p.sku} • {p.brand}</div>
                                                             </td>
-                                                            <td className="px-4 py-3 font-sans text-zinc-400">{p.category}</td>
-                                                            <td className="px-4 py-3 text-center font-bold text-emerald-400">{p.net_qty_sold}</td>
-                                                            <td className="px-4 py-3 text-center font-bold text-zinc-200">{p.sellable_stock}</td>
-                                                            <td className="px-4 py-3 text-right font-bold text-zinc-100">{formatCurrency(p.revenue_generated)}</td>
-                                                            <td className="px-4 py-3 text-right font-bold text-emerald-400">{formatCurrency(p.estimated_profit)}</td>
-                                                            <td className="px-4 py-3 font-sans">
-                                                                <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
+                                                            <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{p.category}</td>
+                                                            <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace' }}>{p.net_qty_sold}</td>
+                                                            <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 700, color: 'var(--text-main)', fontFamily: 'monospace' }}>{p.sellable_stock}</td>
+                                                            <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, color: 'var(--text-main)', fontFamily: 'monospace' }}>{formatCurrency(p.revenue_generated)}</td>
+                                                            <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace' }}>{formatCurrency(p.estimated_profit)}</td>
+                                                            <td style={{ padding: '10px 14px' }}>
+                                                                <span style={{
+                                                                    fontSize: '0.72rem',
+                                                                    padding: '3px 8px',
+                                                                    borderRadius: '6px',
+                                                                    background: 'rgba(16, 185, 129, 0.1)',
+                                                                    color: 'var(--primary)',
+                                                                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                                                                    fontWeight: 700
+                                                                }}>
                                                                     {p.action_advice}
                                                                 </span>
                                                             </td>
@@ -952,46 +1225,54 @@ export const Reports = () => {
 
                                 {/* Slow-Moving Stock Section */}
                                 {(velocityFilter === 'ALL' || velocityFilter === 'SLOW') && (
-                                    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 shadow-sm">
-                                        <div className="flex items-center justify-between mb-3 border-b border-zinc-800 pb-2">
-                                            <div className="flex items-center gap-2">
-                                                <Clock size={16} className="text-amber-400" />
-                                                <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400">
+                                    <div className="glass-panel" style={{ padding: '20px', borderRadius: '12px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <Clock size={18} color="#f59e0b" />
+                                                <h3 style={{ fontSize: '0.88rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#f59e0b', margin: 0 }}>
                                                     Slow-Moving Stock (Sold only 1–2 times in last 30–60 days)
                                                 </h3>
                                             </div>
-                                            <span className="text-xs font-mono text-zinc-400">
+                                            <span style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: 'var(--text-muted)' }}>
                                                 {fastDeadStockData?.slow_moving?.count || 0} Parts
                                             </span>
                                         </div>
 
-                                        <div className="overflow-x-auto border border-zinc-800/80 rounded-lg">
-                                            <table className="w-full text-left text-xs border-collapse">
+                                        <div className="table-container" style={{ margin: 0, borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                                            <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                                                 <thead>
-                                                    <tr className="border-b border-zinc-800 bg-zinc-950 text-[11px] text-zinc-400 uppercase">
-                                                        <th className="px-4 py-2.5">Part Name & SKU</th>
-                                                        <th className="px-4 py-2.5">Category</th>
-                                                        <th className="px-4 py-2.5 text-center">Net Sold</th>
-                                                        <th className="px-4 py-2.5 text-center">Shelf Stock</th>
-                                                        <th className="px-4 py-2.5 text-right">Supplier Cost</th>
-                                                        <th className="px-4 py-2.5 text-right">Retail Price</th>
-                                                        <th className="px-4 py-2.5">Action Advice</th>
+                                                    <tr>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'left' }}>Part Name & SKU</th>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'left' }}>Category</th>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'center' }}>Net Sold</th>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'center' }}>Shelf Stock</th>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'right' }}>Supplier Cost</th>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'right' }}>Retail Price</th>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'left' }}>Action Advice</th>
                                                     </tr>
                                                 </thead>
-                                                <tbody className="divide-y divide-zinc-800/60 font-mono">
+                                                <tbody>
                                                     {fastDeadStockData?.slow_moving?.items?.map(p => (
-                                                        <tr key={p.product_id} className="hover:bg-zinc-800/30">
-                                                            <td className="px-4 py-3 font-sans">
-                                                                <div className="font-semibold text-zinc-100">{p.part_name}</div>
-                                                                <div className="text-[10px] text-zinc-500">{p.sku} • {p.brand}</div>
+                                                        <tr key={p.product_id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                            <td style={{ padding: '10px 14px' }}>
+                                                                <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{p.part_name}</div>
+                                                                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{p.sku} • {p.brand}</div>
                                                             </td>
-                                                            <td className="px-4 py-3 font-sans text-zinc-400">{p.category}</td>
-                                                            <td className="px-4 py-3 text-center font-bold text-amber-400">{p.net_qty_sold}</td>
-                                                            <td className="px-4 py-3 text-center font-bold text-zinc-200">{p.sellable_stock}</td>
-                                                            <td className="px-4 py-3 text-right text-zinc-400">{formatCurrency(p.supplier_cost)}</td>
-                                                            <td className="px-4 py-3 text-right text-zinc-200">{formatCurrency(p.retail_price)}</td>
-                                                            <td className="px-4 py-3 font-sans">
-                                                                <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold">
+                                                            <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{p.category}</td>
+                                                            <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 800, color: '#f59e0b', fontFamily: 'monospace' }}>{p.net_qty_sold}</td>
+                                                            <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 700, color: 'var(--text-main)', fontFamily: 'monospace' }}>{p.sellable_stock}</td>
+                                                            <td style={{ padding: '10px 14px', textAlign: 'right', fontFamily: 'monospace', color: 'var(--text-muted)' }}>{formatCurrency(p.supplier_cost)}</td>
+                                                            <td style={{ padding: '10px 14px', textAlign: 'right', fontFamily: 'monospace', color: 'var(--text-main)' }}>{formatCurrency(p.retail_price)}</td>
+                                                            <td style={{ padding: '10px 14px' }}>
+                                                                <span style={{
+                                                                    fontSize: '0.72rem',
+                                                                    padding: '3px 8px',
+                                                                    borderRadius: '6px',
+                                                                    background: 'rgba(245, 158, 11, 0.1)',
+                                                                    color: '#f59e0b',
+                                                                    border: '1px solid rgba(245, 158, 11, 0.25)',
+                                                                    fontWeight: 700
+                                                                }}>
                                                                     {p.action_advice}
                                                                 </span>
                                                             </td>
@@ -1005,45 +1286,45 @@ export const Reports = () => {
 
                                 {/* Dead Stock Section */}
                                 {(velocityFilter === 'ALL' || velocityFilter === 'DEAD') && (
-                                    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 shadow-sm">
-                                        <div className="flex items-center justify-between mb-3 border-b border-zinc-800 pb-2">
-                                            <div className="flex items-center gap-2">
-                                                <AlertOctagon size={16} className="text-rose-400" />
-                                                <h3 className="text-xs font-bold uppercase tracking-wider text-rose-400">
+                                    <div className="glass-panel" style={{ padding: '20px', borderRadius: '12px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <AlertOctagon size={18} color="var(--danger)" />
+                                                <h3 style={{ fontSize: '0.88rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--danger)', margin: 0 }}>
                                                     Dead Stock (Zero Sales in 90+ Days • Puhunan Tied Up)
                                                 </h3>
                                             </div>
-                                            <span className="text-xs font-mono font-bold text-rose-400">
+                                            <span style={{ fontSize: '0.82rem', fontFamily: 'monospace', fontWeight: 800, color: 'var(--danger)' }}>
                                                 Tied Up: {formatCurrency(fastDeadStockData?.dead_stock?.total_capital_tied_up || 0)}
                                             </span>
                                         </div>
 
-                                        <div className="overflow-x-auto border border-zinc-800/80 rounded-lg">
-                                            <table className="w-full text-left text-xs border-collapse">
+                                        <div className="table-container" style={{ margin: 0, borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                                            <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                                                 <thead>
-                                                    <tr className="border-b border-zinc-800 bg-zinc-950 text-[11px] text-zinc-400 uppercase">
-                                                        <th className="px-4 py-2.5">Part Name & SKU</th>
-                                                        <th className="px-4 py-2.5">Category</th>
-                                                        <th className="px-4 py-2.5 text-center">Unsold Units</th>
-                                                        <th className="px-4 py-2.5 text-right">Supplier Cost (Puhunan)</th>
-                                                        <th className="px-4 py-2.5 text-right">Capital Tied Up</th>
-                                                        <th className="px-4 py-2.5 text-center">Days Inactive</th>
-                                                        <th className="px-4 py-2.5">Clearance Recommendation</th>
+                                                    <tr>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'left' }}>Part Name & SKU</th>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'left' }}>Category</th>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'center' }}>Unsold Units</th>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'right' }}>Supplier Cost (Puhunan)</th>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'right' }}>Capital Tied Up</th>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'center' }}>Days Inactive</th>
+                                                        <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'left' }}>Clearance Recommendation</th>
                                                     </tr>
                                                 </thead>
-                                                <tbody className="divide-y divide-zinc-800/60 font-mono">
+                                                <tbody>
                                                     {fastDeadStockData?.dead_stock?.items?.map(p => (
-                                                        <tr key={p.product_id} className="hover:bg-zinc-800/30">
-                                                            <td className="px-4 py-3 font-sans">
-                                                                <div className="font-semibold text-zinc-100">{p.part_name}</div>
-                                                                <div className="text-[10px] text-zinc-500">{p.sku} • {p.brand}</div>
+                                                        <tr key={p.product_id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                            <td style={{ padding: '10px 14px' }}>
+                                                                <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{p.part_name}</div>
+                                                                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{p.sku} • {p.brand}</div>
                                                             </td>
-                                                            <td className="px-4 py-3 font-sans text-zinc-400">{p.category}</td>
-                                                            <td className="px-4 py-3 text-center font-bold text-rose-400">{p.sellable_stock}</td>
-                                                            <td className="px-4 py-3 text-right text-zinc-400">{formatCurrency(p.supplier_cost)}</td>
-                                                            <td className="px-4 py-3 text-right font-bold text-rose-400">{formatCurrency(p.capital_tied_up)}</td>
-                                                            <td className="px-4 py-3 text-center text-zinc-400">{p.days_inactive} days</td>
-                                                            <td className="px-4 py-3 font-sans text-amber-300 text-[11px]">
+                                                            <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{p.category}</td>
+                                                            <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 800, color: 'var(--danger)', fontFamily: 'monospace' }}>{p.sellable_stock}</td>
+                                                            <td style={{ padding: '10px 14px', textAlign: 'right', fontFamily: 'monospace', color: 'var(--text-muted)' }}>{formatCurrency(p.supplier_cost)}</td>
+                                                            <td style={{ padding: '10px 14px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: 'var(--danger)' }}>{formatCurrency(p.capital_tied_up)}</td>
+                                                            <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'monospace', color: 'var(--text-muted)' }}>{p.days_inactive} days</td>
+                                                            <td style={{ padding: '10px 14px', fontSize: '0.78rem', color: '#f59e0b', fontWeight: 600 }}>
                                                                 {p.clearance_recommendation}
                                                             </td>
                                                         </tr>
@@ -1060,27 +1341,39 @@ export const Reports = () => {
                         {/* 4. EXPENSES & CASH FLOW REPORT                             */}
                         {/* ========================================================= */}
                         {activeTab === 'cashflow_report' && (
-                            <div className="space-y-6">
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                                 {/* Cash Flow Comparison Cards */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
                                     {/* Cash Drawer Flow */}
-                                    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 shadow-sm">
-                                        <div className="flex items-center justify-between text-xs text-zinc-400 font-semibold mb-2">
-                                            <span>Cash Drawer Flow</span>
-                                            <Wallet size={16} className="text-emerald-400" />
+                                    <div className="glass-panel" style={{ padding: '18px 20px', borderRadius: '12px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                                Cash Drawer Flow
+                                            </span>
+                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <Wallet size={16} />
+                                            </div>
                                         </div>
-                                        <div className="space-y-1.5 text-xs font-mono">
-                                            <div className="flex justify-between text-emerald-400">
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.82rem', fontFamily: 'monospace' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--primary)' }}>
                                                 <span>Total Cash In:</span>
-                                                <span className="font-bold">+{formatCurrency(cashflowData?.cash_flow?.drawer?.cash_in || 0)}</span>
+                                                <span style={{ fontWeight: 700 }}>+{formatCurrency(cashflowData?.cash_flow?.drawer?.cash_in || 0)}</span>
                                             </div>
-                                            <div className="flex justify-between text-rose-400">
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--danger)' }}>
                                                 <span>Total Cash Out:</span>
-                                                <span className="font-bold">-{formatCurrency(cashflowData?.cash_flow?.drawer?.cash_out || 0)}</span>
+                                                <span style={{ fontWeight: 700 }}>-{formatCurrency(cashflowData?.cash_flow?.drawer?.cash_out || 0)}</span>
                                             </div>
-                                            <div className="border-t border-zinc-800 pt-2 flex justify-between font-bold text-sm text-zinc-100">
-                                                <span>Net Drawer Flow:</span>
-                                                <span className={Number(cashflowData?.cash_flow?.drawer?.net_flow || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                                            <div style={{
+                                                borderTop: '1px solid var(--border)',
+                                                paddingTop: '8px',
+                                                marginTop: '4px',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                fontWeight: 800,
+                                                fontSize: '0.92rem'
+                                            }}>
+                                                <span style={{ color: 'var(--text-main)', fontFamily: 'sans-serif' }}>Net Drawer Flow:</span>
+                                                <span style={{ color: Number(cashflowData?.cash_flow?.drawer?.net_flow || 0) >= 0 ? 'var(--primary)' : 'var(--danger)' }}>
                                                     {formatCurrency(cashflowData?.cash_flow?.drawer?.net_flow || 0)}
                                                 </span>
                                             </div>
@@ -1088,23 +1381,35 @@ export const Reports = () => {
                                     </div>
 
                                     {/* GCash / Bank Flow */}
-                                    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 shadow-sm">
-                                        <div className="flex items-center justify-between text-xs text-zinc-400 font-semibold mb-2">
-                                            <span>GCash / Bank Flow</span>
-                                            <Landmark size={16} className="text-blue-400" />
+                                    <div className="glass-panel" style={{ padding: '18px 20px', borderRadius: '12px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                                GCash / Bank Flow
+                                            </span>
+                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(37, 99, 235, 0.1)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <Landmark size={16} />
+                                            </div>
                                         </div>
-                                        <div className="space-y-1.5 text-xs font-mono">
-                                            <div className="flex justify-between text-blue-400">
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.82rem', fontFamily: 'monospace' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#3b82f6' }}>
                                                 <span>Total GCash In:</span>
-                                                <span className="font-bold">+{formatCurrency(cashflowData?.cash_flow?.gcash_bank?.cash_in || 0)}</span>
+                                                <span style={{ fontWeight: 700 }}>+{formatCurrency(cashflowData?.cash_flow?.gcash_bank?.cash_in || 0)}</span>
                                             </div>
-                                            <div className="flex justify-between text-rose-400">
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--danger)' }}>
                                                 <span>Total GCash Out:</span>
-                                                <span className="font-bold">-{formatCurrency(cashflowData?.cash_flow?.gcash_bank?.cash_out || 0)}</span>
+                                                <span style={{ fontWeight: 700 }}>-{formatCurrency(cashflowData?.cash_flow?.gcash_bank?.cash_out || 0)}</span>
                                             </div>
-                                            <div className="border-t border-zinc-800 pt-2 flex justify-between font-bold text-sm text-zinc-100">
-                                                <span>Net GCash Flow:</span>
-                                                <span className={Number(cashflowData?.cash_flow?.gcash_bank?.net_flow || 0) >= 0 ? 'text-blue-400' : 'text-rose-400'}>
+                                            <div style={{
+                                                borderTop: '1px solid var(--border)',
+                                                paddingTop: '8px',
+                                                marginTop: '4px',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                fontWeight: 800,
+                                                fontSize: '0.92rem'
+                                            }}>
+                                                <span style={{ color: 'var(--text-main)', fontFamily: 'sans-serif' }}>Net GCash Flow:</span>
+                                                <span style={{ color: Number(cashflowData?.cash_flow?.gcash_bank?.net_flow || 0) >= 0 ? '#3b82f6' : 'var(--danger)' }}>
                                                     {formatCurrency(cashflowData?.cash_flow?.gcash_bank?.net_flow || 0)}
                                                 </span>
                                             </div>
@@ -1112,23 +1417,35 @@ export const Reports = () => {
                                     </div>
 
                                     {/* Overall Store Net Cash Flow */}
-                                    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 shadow-sm">
-                                        <div className="flex items-center justify-between text-xs text-zinc-400 font-semibold mb-2">
-                                            <span>Combined Business Net Flow</span>
-                                            <TrendingUp size={16} className="text-cyan-400" />
+                                    <div className="glass-panel" style={{ padding: '18px 20px', borderRadius: '12px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                                Combined Business Net Flow
+                                            </span>
+                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(6, 182, 212, 0.1)', color: '#06b6d4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <TrendingUp size={16} />
+                                            </div>
                                         </div>
-                                        <div className="space-y-1.5 text-xs font-mono">
-                                            <div className="flex justify-between text-zinc-300">
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.82rem', fontFamily: 'monospace' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-main)' }}>
                                                 <span>Total In (All Channels):</span>
-                                                <span className="font-bold">+{formatCurrency(cashflowData?.cash_flow?.combined?.total_in || 0)}</span>
+                                                <span style={{ fontWeight: 700 }}>+{formatCurrency(cashflowData?.cash_flow?.combined?.total_in || 0)}</span>
                                             </div>
-                                            <div className="flex justify-between text-rose-400">
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--danger)' }}>
                                                 <span>Total Out (All Channels):</span>
-                                                <span className="font-bold">-{formatCurrency(cashflowData?.cash_flow?.combined?.total_out || 0)}</span>
+                                                <span style={{ fontWeight: 700 }}>-{formatCurrency(cashflowData?.cash_flow?.combined?.total_out || 0)}</span>
                                             </div>
-                                            <div className="border-t border-zinc-800 pt-2 flex justify-between font-bold text-sm">
-                                                <span className="text-zinc-200">Total Net Cash Flow:</span>
-                                                <span className={Number(cashflowData?.cash_flow?.combined?.net_flow || 0) >= 0 ? 'text-emerald-400 font-extrabold' : 'text-rose-400 font-extrabold'}>
+                                            <div style={{
+                                                borderTop: '1px solid var(--border)',
+                                                paddingTop: '8px',
+                                                marginTop: '4px',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                fontWeight: 800,
+                                                fontSize: '0.92rem'
+                                            }}>
+                                                <span style={{ color: 'var(--text-main)', fontFamily: 'sans-serif' }}>Total Net Cash Flow:</span>
+                                                <span style={{ color: Number(cashflowData?.cash_flow?.combined?.net_flow || 0) >= 0 ? 'var(--primary)' : 'var(--danger)', fontWeight: 900 }}>
                                                     {formatCurrency(cashflowData?.cash_flow?.combined?.net_flow || 0)}
                                                 </span>
                                             </div>
@@ -1137,84 +1454,93 @@ export const Reports = () => {
                                 </div>
 
                                 {/* Operating Expenses Ledger Table */}
-                                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 shadow-sm">
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                                        <div className="flex items-center gap-2">
-                                            <Truck size={16} className="text-amber-400" />
-                                            <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-200">
+                                <div className="glass-panel" style={{ padding: '20px', borderRadius: '12px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', marginBottom: '16px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <Truck size={18} color="#f59e0b" />
+                                            <h3 style={{ fontSize: '0.88rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-main)', margin: 0 }}>
                                                 Store Operating Expenses Ledger
                                             </h3>
                                         </div>
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-xs font-mono font-bold text-amber-400">
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                            <span style={{ fontSize: '0.82rem', fontFamily: 'monospace', fontWeight: 700, color: '#f59e0b' }}>
                                                 Total: {formatCurrency(cashflowData?.expenses?.total_amount || 0)}
                                             </span>
                                             <button
                                                 type="button"
                                                 onClick={() => setActiveTab('add_expense')}
+                                                className="btn-primary"
                                                 style={{
-                                                    display: 'flex', alignItems: 'center', gap: '6px',
-                                                    backgroundColor: '#10b981', color: '#ffffff',
-                                                    fontSize: '11px', fontWeight: 'bold',
-                                                    padding: '6px 14px', borderRadius: '6px',
-                                                    border: 'none', cursor: 'pointer',
-                                                    boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)'
+                                                    height: '34px',
+                                                    padding: '0 14px',
+                                                    borderRadius: '8px',
+                                                    fontSize: '0.82rem',
+                                                    fontWeight: 700,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                    cursor: 'pointer'
                                                 }}
                                             >
-                                                <Plus size={14} />
+                                                <Plus size={15} />
                                                 <span>+ Add Store Expense</span>
                                             </button>
                                         </div>
                                     </div>
 
-                                    <div className="overflow-x-auto border border-zinc-800/80 rounded-lg">
-                                        <table className="w-full text-left text-xs border-collapse">
+                                    <div className="table-container" style={{ margin: 0, borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                                        <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                                             <thead>
-                                                <tr className="border-b border-zinc-800 bg-zinc-950 text-[11px] text-zinc-400 uppercase">
-                                                    <th className="px-4 py-3">Date</th>
-                                                    <th className="px-4 py-3">Category</th>
-                                                    <th className="px-4 py-3">Expense Title / Item</th>
-                                                    <th className="px-4 py-3">Payment Source</th>
-                                                    <th className="px-4 py-3 text-right">Amount</th>
-                                                    <th className="px-4 py-3">Recorded By</th>
-                                                    <th className="px-4 py-3">Notes</th>
+                                                <tr>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'left' }}>Date</th>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'left' }}>Category</th>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'left' }}>Expense Title / Item</th>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'left' }}>Payment Source</th>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'right' }}>Amount</th>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'left' }}>Recorded By</th>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '10px 14px', textAlign: 'left' }}>Notes</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-zinc-800/60 font-mono">
+                                            <tbody>
                                                 {(!cashflowData?.expenses?.items || cashflowData.expenses.items.length === 0) ? (
                                                     <tr>
-                                                        <td colSpan={7} className="px-4 py-8 text-center text-zinc-500 font-sans">
+                                                        <td colSpan={7} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
                                                             No operating expenses recorded in this period.
                                                         </td>
                                                     </tr>
                                                 ) : (
                                                     cashflowData.expenses.items.map(e => (
-                                                        <tr key={e.id} className="hover:bg-zinc-800/30">
-                                                            <td className="px-4 py-3 font-sans text-zinc-300 text-[11px]">
+                                                        <tr key={e.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                            <td style={{ padding: '10px 14px', fontFamily: 'monospace', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
                                                                 {e.expense_date}
                                                             </td>
-                                                            <td className="px-4 py-3 font-sans font-semibold text-zinc-200">
+                                                            <td style={{ padding: '10px 14px', fontWeight: 600, color: 'var(--text-main)' }}>
                                                                 {e.category}
                                                             </td>
-                                                            <td className="px-4 py-3 font-sans font-bold text-zinc-100">
+                                                            <td style={{ padding: '10px 14px', fontWeight: 700, color: 'var(--text-main)' }}>
                                                                 {e.title}
                                                             </td>
-                                                            <td className="px-4 py-3 font-sans">
-                                                                <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
-                                                                    e.payment_source === 'cash_drawer'
-                                                                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                                                        : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                                                                }`}>
+                                                            <td style={{ padding: '10px 14px' }}>
+                                                                <span style={{
+                                                                    fontSize: '0.72rem',
+                                                                    padding: '3px 8px',
+                                                                    borderRadius: '6px',
+                                                                    fontWeight: 700,
+                                                                    textTransform: 'uppercase',
+                                                                    background: e.payment_source === 'cash_drawer' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(37, 99, 235, 0.1)',
+                                                                    color: e.payment_source === 'cash_drawer' ? 'var(--primary)' : '#3b82f6',
+                                                                    border: e.payment_source === 'cash_drawer' ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(37, 99, 235, 0.25)'
+                                                                }}>
                                                                     {e.payment_source === 'cash_drawer' ? 'Cash Drawer' : 'GCash / Bank'}
                                                                 </span>
                                                             </td>
-                                                            <td className="px-4 py-3 text-right font-bold text-rose-400">
+                                                            <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, color: 'var(--danger)', fontFamily: 'monospace' }}>
                                                                 {formatCurrency(e.amount)}
                                                             </td>
-                                                            <td className="px-4 py-3 font-sans text-zinc-400">
+                                                            <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>
                                                                 {e.recorded_by}
                                                             </td>
-                                                            <td className="px-4 py-3 font-sans text-zinc-400 text-[11px]">
+                                                            <td style={{ padding: '10px 14px', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
                                                                 {e.notes || '—'}
                                                             </td>
                                                         </tr>
