@@ -175,7 +175,7 @@ export const Reports = () => {
             csvContent += `Less: Voided / Cancelled Sales Reversals,-${salesProfitData?.financials?.sales_reversals || 0}\n`;
             csvContent += `Less: Approved Discounts,-${salesProfitData?.financials?.discounts || 0}\n`;
             csvContent += `= Net Retail Sales,${salesProfitData?.financials?.net_retail_sales || 0}\n`;
-            csvContent += `Less: Active COGS (Cost of Kept Sales),-${salesProfitData?.financials?.cost_of_goods_sold || 0}\n`;
+            csvContent += `Less: Total Puhunan (Supplier Cost of Items Sold),-${salesProfitData?.financials?.cost_of_goods_sold || 0}\n`;
             csvContent += `= Gross Margin,${salesProfitData?.financials?.gross_margin || 0}\n`;
             csvContent += `Less: In-Store Damaged Stock & Shrinkage Losses,-${salesProfitData?.financials?.shop_return_losses || 0}\n`;
             csvContent += `Less: Inventory Shrinkage Losses,-${salesProfitData?.financials?.shrinkage_losses || 0}\n`;
@@ -649,11 +649,11 @@ export const Reports = () => {
                                         </div>
                                     </div>
 
-                                    {/* 2. Active COGS (Puhunan) */}
+                                    {/* 2. Total Puhunan (Product Cost) */}
                                     <div className="glass-panel" style={{ padding: '16px 18px', borderRadius: '12px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                                             <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                                                Active COGS (Puhunan)
+                                                Total Puhunan (Cost)
                                             </span>
                                             <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(37, 99, 235, 0.1)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                 <Boxes size={15} />
@@ -663,7 +663,7 @@ export const Reports = () => {
                                             {formatCurrency(salesProfitData?.financials?.cost_of_goods_sold || 0)}
                                         </div>
                                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '3px' }}>
-                                            Supplier cost of kept sales
+                                            Original supplier cost of sold parts
                                         </div>
                                     </div>
 
@@ -795,7 +795,7 @@ export const Reports = () => {
                                                 </span>
                                             </div>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', color: '#3b82f6' }}>
-                                                <span>Less: Active COGS (Cost of Kept Sales):</span>
+                                                <span>Less: Total Puhunan (Supplier Cost of Items Sold):</span>
                                                 <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>
                                                     -{formatCurrency(salesProfitData?.financials?.cost_of_goods_sold || 0)}
                                                 </span>

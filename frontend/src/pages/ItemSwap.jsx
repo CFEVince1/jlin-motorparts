@@ -1122,7 +1122,7 @@ export const ItemSwap = () => {
                                                 Scenario A: Equal-Value Swap (₱0.00)
                                             </div>
                                             <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                                No money exchanged. Shift drawer unchanged. Active COGS adjusted by unit cost difference.
+                                                No money exchanged. Shift drawer unchanged. Product cost (puhunan) difference recorded in ledger.
                                             </div>
                                         </div>
                                         <div style={{ fontSize: '1.5rem', fontFamily: 'monospace', fontWeight: 900, color: 'var(--primary)' }}>
@@ -1379,13 +1379,13 @@ export const ItemSwap = () => {
 
                         <div className="glass-panel" style={{ padding: '16px 18px', borderRadius: '12px' }}>
                             <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase' }}>
-                                Net COGS Adjustment
+                                Net Puhunan Adjustment
                             </div>
                             <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#f59e0b', marginTop: '4px' }}>
                                 {formatCurrency(swapSummary.total_cogs_adjustment || 0)}
                             </div>
                             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                True Profit accuracy tracking
+                                Supplier cost difference logged
                             </div>
                         </div>
                     </div>

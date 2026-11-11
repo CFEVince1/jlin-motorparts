@@ -567,7 +567,7 @@ exports.processSwap = async (req, res) => {
             success: true,
             message: customerTopUpPaid > 0
                 ? `Upgrade Swap successful! Customer paid ₱${customerTopUpPaid.toFixed(2)} top-up.`
-                : 'Even Swap successful! ₱0.00 exchanged, stock and COGS updated.',
+                : 'Even Swap successful! ₱0.00 exchanged, stock and puhunan ledger updated.',
             swap: {
                 id: insertResult.insertId,
                 swap_code: swapCode,
