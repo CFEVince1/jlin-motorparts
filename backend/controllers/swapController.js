@@ -20,7 +20,7 @@ exports.lookupOrder = async (req, res) => {
 
         // Query sales using flexible matching
         const [sales] = await db.query(
-            `SELECT id, order_number, receipt_no, customer_name, total_amount, payment_method, created_at, status
+            `SELECT id, order_number, receipt_no, customer_name, total_amount, payment_method, COALESCE(sale_date, paid_at) as created_at, sale_date, status
              FROM sales
              WHERE order_number = ?
                 OR receipt_no = ?
@@ -58,9 +58,9 @@ exports.lookupOrder = async (req, res) => {
         // Fetch items for the primary sale with swappable cap
         const [items] = await db.query(
             `SELECT si.id as sale_item_id, si.product_id, si.product_name, si.part_number,
-                    si.brand, si.quantity, si.qty_sold, COALESCE(si.qty_swapped, 0) as qty_swapped,
+                    si.brand, si.quantity, COALESCE(si.qty_sold, si.quantity, 1) as qty_sold, COALESCE(si.qty_swapped, 0) as qty_swapped,
                     si.price, si.cost_price, si.subtotal,
-                    p.stock, p.category, p.image_url
+                    p.stock, p.category
              FROM sale_items si
              LEFT JOIN products p ON si.product_id = p.id
              WHERE si.sale_id = ?`,
@@ -109,7 +109,7 @@ exports.lookupOrder = async (req, res) => {
 exports.getRecentSales = async (req, res) => {
     try {
         const [sales] = await db.query(
-            `SELECT id, order_number, receipt_no, customer_name, total_amount, payment_method, created_at, status
+            `SELECT id, order_number, receipt_no, customer_name, total_amount, payment_method, COALESCE(sale_date, paid_at) as created_at, sale_date, status
              FROM sales
              WHERE status != 'CANCELLED' AND status != 'VOIDED'
              ORDER BY id DESC
@@ -123,9 +123,9 @@ exports.getRecentSales = async (req, res) => {
         const saleIds = sales.map(s => s.id);
         const [items] = await db.query(
             `SELECT si.sale_id, si.id as sale_item_id, si.product_id, si.product_name, si.part_number,
-                    si.brand, si.quantity, si.qty_sold, COALESCE(si.qty_swapped, 0) as qty_swapped,
+                    si.brand, si.quantity, COALESCE(si.qty_sold, si.quantity, 1) as qty_sold, COALESCE(si.qty_swapped, 0) as qty_swapped,
                     si.price, si.cost_price, si.subtotal,
-                    p.stock, p.category, p.image_url
+                    p.stock, p.category
              FROM sale_items si
              LEFT JOIN products p ON si.product_id = p.id
              WHERE si.sale_id IN (?)`,
