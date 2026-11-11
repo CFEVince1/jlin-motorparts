@@ -63,12 +63,15 @@ export const ItemSwap = () => {
     const [searchingRet, setSearchingRet] = useState(false);
 
     // ==========================================
-    // 3. STEP 3: REPLACEMENT PART SELECTOR & PRICE LOCK
+    // 3. STEP 3: REPLACEMENT PART SELECTOR & CART
     // ==========================================
-    const [selectedReplacement, setSelectedReplacement] = useState(null);
+    const [replacementCart, setReplacementCart] = useState([]);
     const [newSearchQuery, setNewSearchQuery] = useState('');
     const [catalogProducts, setCatalogProducts] = useState([]);
     const [loadingCatalog, setLoadingCatalog] = useState(false);
+
+    // Backwards compatibility helper
+    const selectedReplacement = replacementCart[0] || null;
 
     // ==========================================
     // 4. STEP 4: CHECKOUT & PAYMENT
@@ -100,11 +103,20 @@ export const ItemSwap = () => {
     // EXACT ACCOUNTING MATH
     // ==========================================
     const oldPricePaid = Number(returnedUnitPrice) || 0;
-    const newReplacementPrice = selectedReplacement ? Number(selectedReplacement.selling_price || selectedReplacement.price || 0) : 0;
+    const newReplacementPrice = useMemo(() => {
+        return replacementCart.reduce((sum, it) => {
+            const p = Number(it.selling_price || it.price || 0);
+            const q = Number(it.qty || 1);
+            return sum + (p * q);
+        }, 0);
+    }, [replacementCart]);
+
     const priceDifference = Math.round((newReplacementPrice - oldPricePaid) * 100) / 100;
-    const isUpgrade = priceDifference > 0;
-    const isEven = priceDifference === 0;
-    const isDowngrade = selectedReplacement && priceDifference < 0;
+    const isEven = replacementCart.length > 0 && Math.abs(priceDifference) < 0.01;
+    const isUpgrade = priceDifference > 0.01;
+    const isUnderCredit = replacementCart.length > 0 && priceDifference < -0.01;
+    const remainingNeeded = isUnderCredit ? Math.abs(priceDifference) : 0;
+    const isDowngrade = isUnderCredit;
 
     const topUpDue = isUpgrade ? priceDifference : 0;
 
@@ -133,7 +145,7 @@ export const ItemSwap = () => {
                 setReturnedProduct(null);
                 setReturnedUnitPrice(0);
                 setCounterConditionVerified(false);
-                setSelectedReplacement(null);
+                setReplacementCart([]);
                 toast.success(`Found Receipt #${s.order_number}`);
             }
         } catch (err) {
@@ -178,7 +190,7 @@ export const ItemSwap = () => {
         setReturnedProduct(null);
         setReturnedUnitPrice(0);
         setCounterConditionVerified(false);
-        setSelectedReplacement(null);
+        setReplacementCart([]);
         setShowRecentModal(false);
         toast.success(`Selected Receipt #${sale.order_number}`);
     };
@@ -200,7 +212,7 @@ export const ItemSwap = () => {
         });
         setReturnedUnitPrice(Number(item.price || 0));
         setCounterConditionVerified(false);
-        setSelectedReplacement(null);
+        setReplacementCart([]);
         toast.success(`Selected "${item.product_name}" (Cap: ${cap} units remaining)`);
     };
 
@@ -233,7 +245,7 @@ export const ItemSwap = () => {
         });
         setReturnedUnitPrice(Number(prod.selling_price || prod.price || 0));
         setCounterConditionVerified(false);
-        setSelectedReplacement(null);
+        setReplacementCart([]);
         setRetSearchQuery('');
         setRetSearchResults([]);
         setShowDirectReturnSearch(false);
@@ -249,7 +261,7 @@ export const ItemSwap = () => {
             const res = await api.get('/products', {
                 params: {
                     search: searchQuery.trim(),
-                    limit: 30
+                    limit: 40
                 }
             });
             const prods = res.data.products || res.data || [];
@@ -267,29 +279,71 @@ export const ItemSwap = () => {
         }
     }, [counterConditionVerified, newSearchQuery, fetchCatalog]);
 
-    // Handle replacement selection with PRICE LOCK validation
-    const handleSelectReplacement = (prod) => {
-        const prodPrice = Number(prod.selling_price || prod.price || 0);
-        const oldPrice = Number(returnedUnitPrice) || 0;
-
+    // Handle adding replacement items to the swap cart (supports lower-priced & multiple items)
+    const handleAddToCart = (prod) => {
         if (Number(prod.stock || 0) <= 0) {
             return toast.error(`"${prod.name}" is OUT OF STOCK.`);
         }
+        setReplacementCart(prev => {
+            const existingIndex = prev.findIndex(item => (item.id || item.product_id) === prod.id);
+            if (existingIndex > -1) {
+                const currentQty = prev[existingIndex].qty || 1;
+                if (currentQty >= Number(prod.stock)) {
+                    toast.error(`Only ${prod.stock} units available in stock for "${prod.name}"`);
+                    return prev;
+                }
+                const updated = [...prev];
+                updated[existingIndex] = {
+                    ...updated[existingIndex],
+                    qty: currentQty + 1
+                };
+                toast.success(`Increased "${prod.name}" quantity to ${currentQty + 1}`);
+                return updated;
+            } else {
+                toast.success(`Added "${prod.name}" to swap cart`);
+                return [...prev, {
+                    ...prod,
+                    product_id: prod.id,
+                    qty: 1
+                }];
+            }
+        });
+    };
 
-        if (prodPrice < oldPrice) {
-            return toast.error(`Lower Price Blocked: Replacement item price (₱${prodPrice.toFixed(2)}) is lower than what the customer paid (₱${oldPrice.toFixed(2)}). Under our Zero Cash Refund Policy, cash cannot be returned.`);
+    const handleUpdateCartQty = (productId, newQty) => {
+        const parsed = parseInt(newQty, 10);
+        if (isNaN(parsed) || parsed <= 0) {
+            handleRemoveFromCart(productId);
+            return;
         }
+        setReplacementCart(prev => {
+            return prev.map(item => {
+                if ((item.id || item.product_id) === productId) {
+                    const maxStock = Number(item.stock || 9999);
+                    if (parsed > maxStock) {
+                        toast.error(`Only ${maxStock} units available for "${item.name}"`);
+                        return { ...item, qty: maxStock };
+                    }
+                    return { ...item, qty: parsed };
+                }
+                return item;
+            });
+        });
+    };
 
-        setSelectedReplacement(prod);
-        if (prodPrice > oldPrice) {
-            const diff = prodPrice - oldPrice;
-            setAmountTendered(String(diff));
-            toast.success(`Selected Upgrade: ${prod.name} (+₱${diff.toFixed(2)} Top-Up Due)`);
+    const handleRemoveFromCart = (productId) => {
+        setReplacementCart(prev => prev.filter(item => (item.id || item.product_id) !== productId));
+        toast.success('Removed item from swap cart');
+    };
+
+    // Auto-update amount tendered when upgrade topUpDue changes
+    useEffect(() => {
+        if (isUpgrade) {
+            setAmountTendered(String(topUpDue));
         } else {
             setAmountTendered('0');
-            toast.success(`Selected Even Swap: ${prod.name} (₱0.00 Difference)`);
         }
-    };
+    }, [isUpgrade, topUpDue]);
 
     // ==========================================
     // PROCESS ITEM SWAP SUBMIT
@@ -303,13 +357,12 @@ export const ItemSwap = () => {
         if (!counterConditionVerified) {
             return toast.error('Mandatory Counter Condition Check must be verified in Step 2');
         }
-        if (!selectedReplacement) {
-            return toast.error('Please select a valid replacement part in Step 3');
+        if (replacementCart.length === 0) {
+            return toast.error('Please select at least one replacement part in Step 3');
         }
 
-        const prodPrice = Number(selectedReplacement.selling_price || selectedReplacement.price || 0);
-        if (prodPrice < oldPricePaid) {
-            return toast.error('Lower Price Blocked: Replacement item price cannot be lower than the original price paid.');
+        if (isUnderCredit) {
+            return toast.error(`Zero Cash Refund Policy: Replacement total (₱${newReplacementPrice.toFixed(2)}) is lower than returned credit (₱${oldPricePaid.toFixed(2)}). Please add at least ₱${remainingNeeded.toFixed(2)} more in replacement items.`);
         }
 
         if (isUpgrade && paymentMethod === 'Cash') {
@@ -319,11 +372,12 @@ export const ItemSwap = () => {
             }
         }
 
+        const repSummary = replacementCart.map(r => `${r.name} x${r.qty}`).join(', ');
         let confirmMsg = '';
         if (isUpgrade) {
-            confirmMsg = `Confirm Upgrade Swap:\n\nReturned Item: ${returnedProduct.name} (Credit: ₱${oldPricePaid.toFixed(2)})\nNew Replacement: ${selectedReplacement.name} (Price: ₱${prodPrice.toFixed(2)})\n\nCustomer must PAY +₱${topUpDue.toFixed(2)} (${paymentMethod}).\n\nStock Impact:\n+1 ${returnedProduct.name} to Sellable Stock\n-1 ${selectedReplacement.name} from Sellable Stock\n\nProceed?`;
+            confirmMsg = `Confirm Upgrade Swap:\n\nReturned Item: ${returnedProduct.name} (Credit: ₱${oldPricePaid.toFixed(2)})\nNew Replacement Items (${replacementCart.length}): ${repSummary} (Total: ₱${newReplacementPrice.toFixed(2)})\n\nCustomer must PAY +₱${topUpDue.toFixed(2)} (${paymentMethod}).\n\nStock Impact:\n+1 ${returnedProduct.name} to Sellable Stock\n-Deduct replacement parts from Sellable Stock\n\nProceed?`;
         } else {
-            confirmMsg = `Confirm Equal-Value Swap:\n\nReturned Item: ${returnedProduct.name} (₱${oldPricePaid.toFixed(2)})\nNew Replacement: ${selectedReplacement.name} (₱${prodPrice.toFixed(2)})\n\nNo money exchanged (₱0.00).\n\nStock Impact:\n+1 ${returnedProduct.name} to Sellable Stock\n-1 ${selectedReplacement.name} from Sellable Stock\n\nProceed?`;
+            confirmMsg = `Confirm Equal-Value Swap:\n\nReturned Item: ${returnedProduct.name} (₱${oldPricePaid.toFixed(2)})\nNew Replacement Items (${replacementCart.length}): ${repSummary} (Total: ₱${newReplacementPrice.toFixed(2)})\n\nNo money exchanged (₱0.00).\n\nStock Impact:\n+1 ${returnedProduct.name} to Sellable Stock\n-Deduct replacement parts from Sellable Stock\n\nProceed?`;
         }
 
         if (!window.confirm(confirmMsg)) return;
@@ -339,8 +393,12 @@ export const ItemSwap = () => {
                 returned_qty: 1,
                 returned_unit_price: oldPricePaid,
                 counter_condition_verified: true,
-                new_product_id: selectedReplacement.id,
-                new_qty: 1,
+                replacement_items: replacementCart.map(item => ({
+                    product_id: item.id || item.product_id,
+                    qty: Number(item.qty || 1)
+                })),
+                new_product_id: replacementCart[0]?.id || replacementCart[0]?.product_id,
+                new_qty: replacementCart.reduce((s, it) => s + Number(it.qty || 1), 0),
                 payment_method: isUpgrade ? paymentMethod : 'None',
                 amount_tendered: isUpgrade ? (paymentMethod === 'Cash' ? (Number(amountTendered) || topUpDue) : topUpDue) : 0,
                 reason: swapReason,
@@ -359,7 +417,7 @@ export const ItemSwap = () => {
                 setReturnedProduct(null);
                 setReturnedUnitPrice(0);
                 setCounterConditionVerified(false);
-                setSelectedReplacement(null);
+                setReplacementCart([]);
                 setLookupQuery('');
                 setAmountTendered('');
                 setSwapNotes('');
@@ -832,7 +890,7 @@ export const ItemSwap = () => {
                                         checked={counterConditionVerified}
                                         onChange={(e) => {
                                             setCounterConditionVerified(e.target.checked);
-                                            if (!e.target.checked) setSelectedReplacement(null);
+                                            if (!e.target.checked) setReplacementCart([]);
                                         }}
                                         style={{ width: '18px', height: '18px', marginTop: '2px', cursor: 'pointer', accentColor: '#10b981' }}
                                     />
@@ -853,12 +911,12 @@ export const ItemSwap = () => {
                     </div>
 
                     {/* ========================================================= */}
-                    {/* STEP 3: REPLACEMENT PART SELECTOR & STRICT PRICE LOCK     */}
+                    {/* STEP 3: REPLACEMENT PART SELECTOR & SWAP CART             */}
                     {/* ========================================================= */}
                     <div className="glass-panel" style={{
                         padding: '20px',
                         borderRadius: '14px',
-                        border: selectedReplacement ? '1.5px solid rgba(16, 185, 129, 0.4)' : '1px solid var(--border)',
+                        border: replacementCart.length > 0 ? '1.5px solid rgba(16, 185, 129, 0.4)' : '1px solid var(--border)',
                         opacity: counterConditionVerified ? 1 : 0.5
                     }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
@@ -877,11 +935,11 @@ export const ItemSwap = () => {
                                     3
                                 </div>
                                 <h3 style={{ fontSize: '0.88rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-main)', margin: 0 }}>
-                                    Step 3: Replacement Part Selector & Price Lock
+                                    Step 3: Replacement Part Selector & Cart
                                 </h3>
                             </div>
                             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                Strict Price Lock: Parts priced below ₱{oldPricePaid.toFixed(2)} are blocked (Zero-Cash Policy)
+                                Target Swap Value: <strong style={{ color: 'var(--primary)' }}>₱{oldPricePaid.toFixed(2)}</strong> (Lower prices allowed; total cart must reach or exceed target)
                             </span>
                         </div>
 
@@ -897,7 +955,7 @@ export const ItemSwap = () => {
                                     <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                                     <input
                                         type="text"
-                                        placeholder={`Search replacement parts in Sellable Stock (minimum retail price: ₱${oldPricePaid.toFixed(2)})...`}
+                                        placeholder={`Search replacement parts in Sellable Stock (by part #, name, brand)...`}
                                         value={newSearchQuery}
                                         onChange={(e) => setNewSearchQuery(e.target.value)}
                                         className="input-premium"
@@ -905,7 +963,7 @@ export const ItemSwap = () => {
                                     />
                                 </div>
 
-                                {/* Catalog Table with Price Lock Tags */}
+                                {/* Catalog Table (Lower priced parts are NOT blocked; cashier can select them!) */}
                                 {loadingCatalog ? (
                                     <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
                                         <RefreshCw size={20} className="animate-spin" style={{ margin: '0 auto 8px auto', color: 'var(--primary)' }} />
@@ -916,7 +974,7 @@ export const ItemSwap = () => {
                                         No products found in catalog matching your search.
                                     </div>
                                 ) : (
-                                    <div className="table-container" style={{ margin: 0, borderRadius: '8px', border: '1px solid var(--border)', maxHeight: '320px', overflowY: 'auto' }}>
+                                    <div className="table-container" style={{ margin: 0, borderRadius: '8px', border: '1px solid var(--border)', maxHeight: '300px', overflowY: 'auto' }}>
                                         <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                                             <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                                                 <tr>
@@ -924,7 +982,7 @@ export const ItemSwap = () => {
                                                     <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '8px 12px', textAlign: 'left' }}>Brand & SKU</th>
                                                     <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '8px 12px', textAlign: 'center' }}>Stock</th>
                                                     <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '8px 12px', textAlign: 'right' }}>Retail Price</th>
-                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '8px 12px', textAlign: 'center' }}>Price Rule / Lock</th>
+                                                    <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '8px 12px', textAlign: 'center' }}>Swap Status</th>
                                                     <th style={{ background: 'var(--th-bg)', color: 'var(--th-color)', padding: '8px 12px', textAlign: 'center' }}>Action</th>
                                                 </tr>
                                             </thead>
@@ -932,16 +990,16 @@ export const ItemSwap = () => {
                                                 {catalogProducts.map(prod => {
                                                     const prodPrice = Number(prod.selling_price || prod.price || 0);
                                                     const inStock = Number(prod.stock || 0) > 0;
-                                                    const isSelected = selectedReplacement?.id === prod.id;
-                                                    const isLower = prodPrice < oldPricePaid;
+                                                    const itemInCart = replacementCart.find(it => (it.id || it.product_id) === prod.id);
+                                                    const inCartQty = itemInCart?.qty || 0;
                                                     const isExact = prodPrice === oldPricePaid;
-                                                    const diff = prodPrice - oldPricePaid;
+                                                    const isHigher = prodPrice > oldPricePaid;
 
                                                     return (
                                                         <tr key={prod.id} style={{
                                                             borderBottom: '1px solid var(--border)',
-                                                            background: isSelected ? 'rgba(16, 185, 129, 0.12)' : isLower ? 'rgba(239, 68, 68, 0.03)' : 'transparent',
-                                                            opacity: isLower || !inStock ? 0.6 : 1
+                                                            background: inCartQty > 0 ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
+                                                            opacity: !inStock ? 0.5 : 1
                                                         }}>
                                                             <td style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-main)' }}>
                                                                 {prod.name}
@@ -960,39 +1018,67 @@ export const ItemSwap = () => {
                                                                     <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', fontWeight: 700 }}>
                                                                         Out of Stock
                                                                     </span>
-                                                                ) : isLower ? (
-                                                                    <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)', fontWeight: 800 }}>
-                                                                        ⛔ Lower Price Blocked
+                                                                ) : inCartQty > 0 ? (
+                                                                    <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.15)', color: 'var(--primary)', fontWeight: 800 }}>
+                                                                        ✓ In Swap Cart (x{inCartQty})
                                                                     </span>
                                                                 ) : isExact ? (
                                                                     <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.15)', color: 'var(--primary)', fontWeight: 800 }}>
-                                                                        🟢 Equal Value (₱0.00)
+                                                                        🟢 Exact Match (₱0.00)
+                                                                    </span>
+                                                                ) : isHigher ? (
+                                                                    <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', fontWeight: 800 }}>
+                                                                        ⬆ Upgrade (+₱{(prodPrice - oldPricePaid).toFixed(2)})
                                                                     </span>
                                                                 ) : (
-                                                                    <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', fontWeight: 800 }}>
-                                                                        ⬆ Upgrade (+₱{diff.toFixed(2)})
+                                                                    <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(234, 179, 8, 0.12)', color: '#eab308', fontWeight: 700 }}>
+                                                                        Available (₱{prodPrice.toFixed(2)})
                                                                     </span>
                                                                 )}
                                                             </td>
                                                             <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                                                                {!inStock || isLower ? (
+                                                                {!inStock ? (
                                                                     <button
                                                                         type="button"
                                                                         disabled
                                                                         className="btn-secondary"
                                                                         style={{ height: '26px', padding: '0 8px', fontSize: '0.72rem', cursor: 'not-allowed', opacity: 0.4 }}
-                                                                        title={isLower ? `Blocked: Price is ₱${prodPrice} (< ₱${oldPricePaid})` : 'Out of stock'}
                                                                     >
-                                                                        Blocked
+                                                                        Out of Stock
                                                                     </button>
+                                                                ) : inCartQty > 0 ? (
+                                                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleUpdateCartQty(prod.id, inCartQty - 1)}
+                                                                            className="btn-secondary"
+                                                                            style={{ width: '24px', height: '24px', padding: 0, fontSize: '0.78rem', fontWeight: 800 }}
+                                                                            title="Decrease quantity"
+                                                                        >
+                                                                            -
+                                                                        </button>
+                                                                        <span style={{ minWidth: '18px', textAlign: 'center', fontWeight: 800, fontSize: '0.78rem' }}>
+                                                                            {inCartQty}
+                                                                        </span>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleAddToCart(prod)}
+                                                                            disabled={inCartQty >= Number(prod.stock)}
+                                                                            className="btn-primary"
+                                                                            style={{ width: '24px', height: '24px', padding: 0, fontSize: '0.78rem', fontWeight: 800 }}
+                                                                            title="Add one more"
+                                                                        >
+                                                                            +
+                                                                        </button>
+                                                                    </div>
                                                                 ) : (
                                                                     <button
                                                                         type="button"
-                                                                        onClick={() => handleSelectReplacement(prod)}
-                                                                        className={isSelected ? 'btn-secondary' : 'btn-primary'}
+                                                                        onClick={() => handleAddToCart(prod)}
+                                                                        className="btn-primary"
                                                                         style={{ height: '26px', padding: '0 10px', fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer' }}
                                                                     >
-                                                                        {isSelected ? '✓ Selected' : isExact ? 'Select Even' : 'Select Upgrade'}
+                                                                        + Add to Swap
                                                                     </button>
                                                                 )}
                                                             </td>
@@ -1001,6 +1087,156 @@ export const ItemSwap = () => {
                                                 })}
                                             </tbody>
                                         </table>
+                                    </div>
+                                )}
+
+                                {/* Selected Replacement Items Cart & Live Target Progress */}
+                                {replacementCart.length > 0 && (
+                                    <div style={{
+                                        marginTop: '6px',
+                                        padding: '14px 16px',
+                                        borderRadius: '10px',
+                                        background: 'var(--surface-hover)',
+                                        border: '1.5px solid var(--border)'
+                                    }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                            <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-main)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <Package size={16} color="var(--primary)" />
+                                                Selected Replacement Items ({replacementCart.length} {replacementCart.length === 1 ? 'part' : 'parts'})
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setReplacementCart([])}
+                                                style={{ background: 'transparent', border: 'none', color: 'var(--danger)', fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer' }}
+                                            >
+                                                Clear Cart
+                                            </button>
+                                        </div>
+
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', marginBottom: '12px' }}>
+                                            <thead>
+                                                <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                                                    <th style={{ textAlign: 'left', padding: '6px 8px' }}>Item Name</th>
+                                                    <th style={{ textAlign: 'right', padding: '6px 8px' }}>Unit Price</th>
+                                                    <th style={{ textAlign: 'center', padding: '6px 8px' }}>Qty</th>
+                                                    <th style={{ textAlign: 'right', padding: '6px 8px' }}>Subtotal</th>
+                                                    <th style={{ textAlign: 'center', padding: '6px 8px', width: '36px' }}></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {replacementCart.map(it => {
+                                                    const price = Number(it.selling_price || it.price || 0);
+                                                    const qty = Number(it.qty || 1);
+                                                    const subtotal = price * qty;
+                                                    return (
+                                                        <tr key={it.id || it.product_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                            <td style={{ padding: '6px 8px', fontWeight: 600 }}>
+                                                                {it.name} <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>({it.brand || 'Generic'})</span>
+                                                            </td>
+                                                            <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'monospace' }}>
+                                                                {formatCurrency(price)}
+                                                            </td>
+                                                            <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                                                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleUpdateCartQty(it.id || it.product_id, qty - 1)}
+                                                                        className="btn-secondary"
+                                                                        style={{ width: '22px', height: '22px', padding: 0, fontSize: '0.74rem', fontWeight: 800 }}
+                                                                    >
+                                                                        -
+                                                                    </button>
+                                                                    <input
+                                                                        type="number"
+                                                                        min="1"
+                                                                        max={it.stock}
+                                                                        value={qty}
+                                                                        onChange={(e) => handleUpdateCartQty(it.id || it.product_id, e.target.value)}
+                                                                        style={{ width: '38px', height: '22px', textAlign: 'center', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '4px', fontSize: '0.76rem', fontWeight: 700 }}
+                                                                    />
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleAddToCart(it)}
+                                                                        disabled={qty >= Number(it.stock)}
+                                                                        className="btn-primary"
+                                                                        style={{ width: '22px', height: '22px', padding: 0, fontSize: '0.74rem', fontWeight: 800 }}
+                                                                    >
+                                                                        +
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                            <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: 'var(--primary)' }}>
+                                                                {formatCurrency(subtotal)}
+                                                            </td>
+                                                            <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleRemoveFromCart(it.id || it.product_id)}
+                                                                    style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '2px 4px' }}
+                                                                    title="Remove item"
+                                                                >
+                                                                    <X size={14} />
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+
+                                        {/* Live Balance / Policy Target Status */}
+                                        <div style={{
+                                            padding: '12px 14px',
+                                            borderRadius: '8px',
+                                            background: isUnderCredit
+                                                ? 'rgba(234, 179, 8, 0.12)'
+                                                : isEven
+                                                    ? 'rgba(16, 185, 129, 0.12)'
+                                                    : 'rgba(59, 130, 246, 0.12)',
+                                            border: isUnderCredit
+                                                ? '1px solid rgba(234, 179, 8, 0.4)'
+                                                : isEven
+                                                    ? '1px solid rgba(16, 185, 129, 0.4)'
+                                                    : '1px solid rgba(59, 130, 246, 0.4)',
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            flexWrap: 'wrap',
+                                            gap: '8px'
+                                        }}>
+                                            <div>
+                                                <div style={{
+                                                    fontSize: '0.84rem',
+                                                    fontWeight: 800,
+                                                    color: isUnderCredit ? '#eab308' : isEven ? 'var(--primary)' : '#3b82f6'
+                                                }}>
+                                                    {isUnderCredit
+                                                        ? `⚠️ Lacking ₱${remainingNeeded.toFixed(2)} to reach returned product value`
+                                                        : isEven
+                                                            ? '🟢 Exact Value Match (₱0.00 Difference)'
+                                                            : `⬆️ Upgrade Swap (+₱${topUpDue.toFixed(2)} Top-Up Due)`}
+                                                </div>
+                                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                                    {isUnderCredit
+                                                        ? `Customer returned ₱${oldPricePaid.toFixed(2)} credit. Please add ₱${remainingNeeded.toFixed(2)} more in parts or quantity (No cash refund allowed).`
+                                                        : isEven
+                                                            ? 'Selected replacement parts match the credit exactly. No cash exchanged.'
+                                                            : `Replacement parts exceed credit by ₱${topUpDue.toFixed(2)}. Customer pays difference at checkout.`}
+                                                </div>
+                                            </div>
+
+                                            <div style={{ textAlign: 'right' }}>
+                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Replacement Total</div>
+                                                <div style={{
+                                                    fontSize: '1.25rem',
+                                                    fontFamily: 'monospace',
+                                                    fontWeight: 900,
+                                                    color: isUnderCredit ? '#eab308' : isEven ? 'var(--primary)' : '#3b82f6'
+                                                }}>
+                                                    {formatCurrency(newReplacementPrice)}
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -1013,8 +1249,10 @@ export const ItemSwap = () => {
                     <div className="glass-panel" style={{
                         padding: '22px',
                         borderRadius: '14px',
-                        border: selectedReplacement ? '1.5px solid var(--primary)' : '1px solid var(--border)',
-                        opacity: selectedReplacement ? 1 : 0.5
+                        border: replacementCart.length > 0
+                            ? (isUnderCredit ? '1.5px solid rgba(234, 179, 8, 0.4)' : '1.5px solid var(--primary)')
+                            : '1px solid var(--border)',
+                        opacity: replacementCart.length > 0 ? 1 : 0.5
                     }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1022,8 +1260,8 @@ export const ItemSwap = () => {
                                     width: '28px',
                                     height: '28px',
                                     borderRadius: '6px',
-                                    background: selectedReplacement ? 'rgba(16, 185, 129, 0.15)' : 'rgba(100, 100, 100, 0.15)',
-                                    color: selectedReplacement ? 'var(--primary)' : 'var(--text-muted)',
+                                    background: replacementCart.length > 0 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(100, 100, 100, 0.15)',
+                                    color: replacementCart.length > 0 ? 'var(--primary)' : 'var(--text-muted)',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
@@ -1035,27 +1273,31 @@ export const ItemSwap = () => {
                                     Step 4: Zero-Cash or Top-Up Checkout
                                 </h3>
                             </div>
-                            {selectedReplacement && (
+                            {replacementCart.length > 0 && (
                                 <span style={{
                                     fontSize: '0.74rem',
                                     padding: '3px 10px',
                                     borderRadius: '6px',
-                                    background: isEven ? 'rgba(16, 185, 129, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                                    color: isEven ? 'var(--primary)' : '#3b82f6',
+                                    background: isUnderCredit
+                                        ? 'rgba(234, 179, 8, 0.15)'
+                                        : isEven
+                                            ? 'rgba(16, 185, 129, 0.15)'
+                                            : 'rgba(59, 130, 246, 0.15)',
+                                    color: isUnderCredit ? '#eab308' : isEven ? 'var(--primary)' : '#3b82f6',
                                     fontWeight: 800
                                 }}>
-                                    {isEven ? 'Scenario A: Equal-Value Swap' : 'Scenario B: Upgrade Swap'}
+                                    {isUnderCredit ? `Lacking ₱${remainingNeeded.toFixed(2)}` : isEven ? 'Scenario A: Equal-Value Swap' : 'Scenario B: Upgrade Swap'}
                                 </span>
                             )}
                         </div>
 
-                        {!selectedReplacement ? (
+                        {replacementCart.length === 0 ? (
                             <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                                Select a replacement part in <strong>Step 3</strong> above to proceed with the swap transaction.
+                                Select replacement parts in <strong>Step 3</strong> above to proceed with the swap transaction.
                             </div>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                                {/* Comparison Card: Old Item vs New Item */}
+                                {/* Comparison Card: Old Item vs New Items */}
                                 <div style={{
                                     display: 'grid',
                                     gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
@@ -1084,28 +1326,53 @@ export const ItemSwap = () => {
                                         </div>
                                     </div>
 
-                                    {/* Right: New Replacement Item */}
+                                    {/* Right: New Replacement Items */}
                                     <div>
                                         <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', marginBottom: '4px' }}>
-                                            New Replacement Part
+                                            New Replacement Items ({replacementCart.length} {replacementCart.length === 1 ? 'part' : 'parts'})
                                         </div>
                                         <div style={{ fontSize: '0.96rem', fontWeight: 800, color: 'var(--text-main)' }}>
-                                            {selectedReplacement.name}
+                                            {replacementCart.length === 1
+                                                ? replacementCart[0].name
+                                                : `${replacementCart[0].name} (+${replacementCart.length - 1} more)`}
                                         </div>
                                         <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                            SKU: {selectedReplacement.part_number || 'N/A'} • Brand: {selectedReplacement.brand || 'Generic'}
+                                            {replacementCart.map(r => `${r.name} x${r.qty}`).join(', ')}
                                         </div>
                                         <div style={{ fontSize: '1.25rem', fontFamily: 'monospace', fontWeight: 900, color: 'var(--primary)', marginTop: '6px' }}>
-                                            Retail: {formatCurrency(newReplacementPrice)}
+                                            Total: {formatCurrency(newReplacementPrice)}
                                         </div>
                                         <div style={{ fontSize: '0.72rem', color: 'var(--danger)', marginTop: '4px', fontWeight: 700 }}>
-                                            -1 from Sellable Stock
+                                            -Deduct replacement units from Sellable Stock
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Math Breakdown Banner */}
-                                {isEven ? (
+                                {isUnderCredit ? (
+                                    <div style={{
+                                        padding: '14px 18px',
+                                        borderRadius: '10px',
+                                        background: 'rgba(239, 68, 68, 0.1)',
+                                        border: '1.5px solid rgba(239, 68, 68, 0.4)',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '6px'
+                                    }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                                            <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <AlertTriangle size={16} />
+                                                Strict Zero Cash Refund Policy: Lacking ₱{remainingNeeded.toFixed(2)}
+                                            </div>
+                                            <div style={{ fontSize: '1.3rem', fontFamily: 'monospace', fontWeight: 900, color: 'var(--danger)' }}>
+                                                -₱{remainingNeeded.toFixed(2)}
+                                            </div>
+                                        </div>
+                                        <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                                            The customer's returned credit is {formatCurrency(oldPricePaid)}, but the replacement cart only totals {formatCurrency(newReplacementPrice)}. Under store policy, cash cannot be refunded. Please add ₱{remainingNeeded.toFixed(2)} more in items in Step 3 to reach or exceed the credit before checkout.
+                                        </div>
+                                    </div>
+                                ) : isEven ? (
                                     <div style={{
                                         padding: '14px 18px',
                                         borderRadius: '10px',
@@ -1293,7 +1560,7 @@ export const ItemSwap = () => {
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            setSelectedReplacement(null);
+                                            setReplacementCart([]);
                                             setAmountTendered('');
                                         }}
                                         className="btn-secondary"
@@ -1305,26 +1572,30 @@ export const ItemSwap = () => {
                                     <button
                                         type="button"
                                         onClick={handleProcessSwap}
-                                        disabled={processingSwap || !selectedReplacement}
+                                        disabled={processingSwap || replacementCart.length === 0 || isUnderCredit}
                                         className="btn-primary"
                                         style={{
                                             height: '40px',
                                             padding: '0 24px',
                                             fontSize: '0.86rem',
                                             fontWeight: 800,
-                                            cursor: processingSwap || !selectedReplacement ? 'not-allowed' : 'pointer',
+                                            cursor: processingSwap || replacementCart.length === 0 || isUnderCredit ? 'not-allowed' : 'pointer',
+                                            opacity: processingSwap || replacementCart.length === 0 || isUnderCredit ? 0.5 : 1,
                                             display: 'flex',
                                             alignItems: 'center',
-                                            gap: '8px'
+                                            gap: '8px',
+                                            background: isUnderCredit ? '#71717a' : undefined
                                         }}
                                     >
                                         <Check size={16} />
                                         <span>
                                             {processingSwap
                                                 ? 'Processing Swap...'
-                                                : isUpgrade
-                                                    ? `Confirm Upgrade Swap & Collect +${formatCurrency(topUpDue)}`
-                                                    : `Confirm Even Swap (₱0.00)`}
+                                                : isUnderCredit
+                                                    ? `Add ₱${remainingNeeded.toFixed(2)} More to Reach Swap Value`
+                                                    : isUpgrade
+                                                        ? `Confirm Upgrade Swap & Collect +${formatCurrency(topUpDue)}`
+                                                        : `Confirm Even Swap (₱0.00)`}
                                         </span>
                                     </button>
                                 </div>
@@ -1710,17 +1981,34 @@ export const ItemSwap = () => {
                                     </div>
                                 </div>
 
-                                {/* Replacement Item */}
+                                {/* Replacement Item(s) */}
                                 <div style={{ borderTop: '1px dashed var(--border)', paddingTop: '8px' }}>
                                     <div style={{ color: 'var(--primary)', fontWeight: 800, fontSize: '0.72rem', textTransform: 'uppercase', marginBottom: '4px' }}>
-                                        Replacement Part Issued:
+                                        Replacement Parts Issued ({Array.isArray(completedSwap.replacement_items) ? completedSwap.replacement_items.length : 1}):
                                     </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-main)', fontSize: '0.78rem', fontWeight: 600 }}>
-                                        <span>{completedSwap.new_product_name}</span>
-                                        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--primary)' }}>
-                                            +{formatCurrency(completedSwap.new_total_price || completedSwap.new_unit_price)}
-                                        </span>
-                                    </div>
+                                    {Array.isArray(completedSwap.replacement_items) && completedSwap.replacement_items.length > 0 ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            {completedSwap.replacement_items.map((rep, rIdx) => (
+                                                <div key={rIdx} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-main)', fontSize: '0.76rem' }}>
+                                                    <span>{rep.name} <strong style={{ color: 'var(--text-muted)' }}>x{rep.qty}</strong></span>
+                                                    <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>
+                                                        +{formatCurrency(rep.total_price || rep.unit_price * rep.qty)}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--primary)', fontWeight: 800, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '4px', marginTop: '2px' }}>
+                                                <span>Total Replacement:</span>
+                                                <span style={{ fontFamily: 'monospace' }}>+{formatCurrency(completedSwap.new_total_price)}</span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-main)', fontSize: '0.78rem', fontWeight: 600 }}>
+                                            <span>{completedSwap.new_product_name}</span>
+                                            <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--primary)' }}>
+                                                +{formatCurrency(completedSwap.new_total_price || completedSwap.new_unit_price)}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
