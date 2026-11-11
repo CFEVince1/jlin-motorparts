@@ -8,6 +8,9 @@ router.use(authenticateToken);
 // Look up past sale by order/receipt number
 router.get('/lookup-order', swapController.lookupOrder);
 
+// Quick recent sales list for easy receipt selection
+router.get('/recent-sales', swapController.getRecentSales);
+
 // Get list of swaps & summary metrics
 router.get('/', swapController.getSwaps);
 
