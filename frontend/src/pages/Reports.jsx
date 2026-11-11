@@ -38,11 +38,11 @@ import {
 import { formatCurrency, formatAuditDate } from '../utils/formatters';
 
 const TABS = [
-    { id: 'profit_report', name: 'Profit Report (P&L Income Statement)', icon: DollarSign },
-    { id: 'sales_report', name: 'Sales Report & Breakdown', icon: TrendingUp },
-    { id: 'inventory_report', name: 'Inventory Report (Fast, Slow, Dead Stock)', icon: Package },
-    { id: 'cashflow_report', name: 'Expenses & Cash Flow', icon: Wallet },
-    { id: 'add_expense', name: 'Add Store Expense', icon: Plus },
+    { id: 'profit_report', name: 'Profit & Loss (P&L)', icon: DollarSign },
+    { id: 'sales_report', name: 'Sales Breakdown', icon: TrendingUp },
+    { id: 'inventory_report', name: 'Inventory Velocity', icon: Package },
+    { id: 'cashflow_report', name: 'Cash Flow & Expenses', icon: Wallet },
+    { id: 'add_expense', name: '+ Add Store Expense', icon: Plus },
 ];
 
 export const Reports = () => {
@@ -258,7 +258,7 @@ export const Reports = () => {
     }
 
     return (
-        <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '20px 24px' }}>
+        <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingBottom: '30px' }}>
             {/* Print Stylesheet */}
             <style>{`
                 @media print {
@@ -274,49 +274,50 @@ export const Reports = () => {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: '20px',
+                marginBottom: '18px',
                 flexWrap: 'wrap',
-                gap: '16px'
+                gap: '14px',
+                width: '100%'
             }} className="no-print">
-                <div>
+                <div style={{ minWidth: 0, flex: 1 }}>
                     <h1 style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: '10px',
                         margin: 0,
-                        fontSize: '1.4rem',
+                        fontSize: '1.35rem',
                         fontWeight: 800,
                         color: 'var(--text-main)'
                     }}>
                         <TrendingUp size={24} color="var(--primary)" />
                         <span>Financial, Inventory & Cash Flow Reports</span>
                     </h1>
-                    <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '0.84rem', color: 'var(--text-muted)' }}>
                         Complete financial statements, sales velocity classifications, and cash flow tracking for smart buying and pricing decisions.
                     </p>
                 </div>
 
                 {/* Print & Export Actions */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', flexShrink: 0 }}>
                     <button
                         type="button"
                         onClick={handleExportCSV}
                         className="btn-secondary"
                         style={{
-                            height: '38px',
-                            padding: '0 16px',
+                            height: '36px',
+                            padding: '0 14px',
                             borderRadius: '8px',
-                            fontSize: '0.85rem',
+                            fontSize: '0.82rem',
                             fontWeight: 700,
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '8px',
+                            gap: '7px',
                             cursor: 'pointer'
                         }}
                         title="Export Active Report to Excel / CSV"
                     >
-                        <FileSpreadsheet size={16} color="var(--primary)" />
-                        <span>Export CSV / Excel</span>
+                        <FileSpreadsheet size={15} color="var(--primary)" />
+                        <span>Export CSV</span>
                     </button>
 
                     <button
@@ -324,19 +325,19 @@ export const Reports = () => {
                         onClick={() => window.print()}
                         className="btn-primary"
                         style={{
-                            height: '38px',
-                            padding: '0 16px',
+                            height: '36px',
+                            padding: '0 14px',
                             borderRadius: '8px',
-                            fontSize: '0.85rem',
+                            fontSize: '0.82rem',
                             fontWeight: 700,
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '8px',
+                            gap: '7px',
                             cursor: 'pointer'
                         }}
                         title="Print or Save Report as PDF"
                     >
-                        <Printer size={16} />
+                        <Printer size={15} />
                         <span>Print / PDF</span>
                     </button>
                 </div>
@@ -348,8 +349,10 @@ export const Reports = () => {
                 gap: '8px',
                 borderBottom: '1px solid var(--border)',
                 paddingBottom: '12px',
-                marginBottom: '20px',
-                overflowX: 'auto'
+                marginBottom: '18px',
+                overflowX: 'auto',
+                width: '100%',
+                minWidth: 0
             }} className="no-print">
                 {TABS.map((tab) => {
                     const Icon = tab.icon;
@@ -360,15 +363,16 @@ export const Reports = () => {
                             type="button"
                             className={isActive ? 'btn-primary' : 'btn-secondary'}
                             style={{
-                                height: '38px',
-                                padding: '0 16px',
+                                height: '36px',
+                                padding: '0 14px',
                                 borderRadius: '8px',
-                                fontSize: '0.85rem',
+                                fontSize: '0.82rem',
                                 cursor: 'pointer',
                                 fontWeight: 700,
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '8px',
+                                gap: '7px',
+                                flexShrink: 0,
                                 whiteSpace: 'nowrap',
                                 background: isActive ? 'var(--primary)' : 'var(--surface)',
                                 color: isActive ? '#ffffff' : 'var(--text-muted)',
@@ -377,7 +381,7 @@ export const Reports = () => {
                             }}
                             onClick={() => setActiveTab(tab.id)}
                         >
-                            <Icon size={16} />
+                            <Icon size={15} />
                             <span>{tab.name}</span>
                         </button>
                     );
@@ -386,14 +390,16 @@ export const Reports = () => {
 
             {/* Date Range Filters Bar */}
             <div className="glass-panel no-print" style={{
-                padding: '14px 20px',
+                padding: '12px 16px',
                 borderRadius: '12px',
-                marginBottom: '20px',
+                marginBottom: '18px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 flexWrap: 'wrap',
-                gap: '12px'
+                gap: '12px',
+                width: '100%',
+                minWidth: 0
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginRight: '4px' }}>
@@ -622,59 +628,59 @@ export const Reports = () => {
                         {/* 1. PROFIT REPORT (INCOME STATEMENT WATERFALL)             */}
                         {/* ========================================================= */}
                         {activeTab === 'profit_report' && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', width: '100%', minWidth: 0 }}>
                                 {/* 4 Main Financial KPI Cards */}
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px', width: '100%', minWidth: 0 }}>
                                     {/* 1. Gross Retail Sales */}
-                                    <div className="glass-panel" style={{ padding: '18px 20px', borderRadius: '12px' }}>
+                                    <div className="glass-panel" style={{ padding: '16px 18px', borderRadius: '12px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                            <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                                                 Gross Retail Sales
                                             </span>
-                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                <DollarSign size={16} />
+                                            <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <DollarSign size={15} />
                                             </div>
                                         </div>
-                                        <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-main)', marginTop: '8px', fontFamily: 'monospace' }}>
+                                        <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-main)', marginTop: '6px', fontFamily: 'monospace' }}>
                                             {formatCurrency(salesProfitData?.financials?.gross_revenue || 0)}
                                         </div>
-                                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '3px' }}>
                                             Total checkout counter earnings
                                         </div>
                                     </div>
 
                                     {/* 2. Active COGS (Puhunan) */}
-                                    <div className="glass-panel" style={{ padding: '18px 20px', borderRadius: '12px' }}>
+                                    <div className="glass-panel" style={{ padding: '16px 18px', borderRadius: '12px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                            <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                                                 Active COGS (Puhunan)
                                             </span>
-                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(37, 99, 235, 0.1)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                <Boxes size={16} />
+                                            <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(37, 99, 235, 0.1)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <Boxes size={15} />
                                             </div>
                                         </div>
-                                        <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#3b82f6', marginTop: '8px', fontFamily: 'monospace' }}>
+                                        <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#3b82f6', marginTop: '6px', fontFamily: 'monospace' }}>
                                             {formatCurrency(salesProfitData?.financials?.cost_of_goods_sold || 0)}
                                         </div>
-                                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '3px' }}>
                                             Supplier cost of kept sales
                                         </div>
                                     </div>
 
                                     {/* 3. Operating Expenses */}
-                                    <div className="glass-panel" style={{ padding: '18px 20px', borderRadius: '12px' }}>
+                                    <div className="glass-panel" style={{ padding: '16px 18px', borderRadius: '12px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                            <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                                                 Operating Expenses
                                             </span>
-                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                <Truck size={16} />
+                                            <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <Truck size={15} />
                                             </div>
                                         </div>
-                                        <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f59e0b', marginTop: '8px', fontFamily: 'monospace' }}>
+                                        <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#f59e0b', marginTop: '6px', fontFamily: 'monospace' }}>
                                             {formatCurrency(salesProfitData?.financials?.total_operating_expenses || 0)}
                                         </div>
-                                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '3px' }}>
                                             Rent, electric, packaging & shipping
                                         </div>
                                     </div>
@@ -685,14 +691,14 @@ export const Reports = () => {
                                         const isNegative = netProfit < 0;
                                         return (
                                             <div className="glass-panel" style={{
-                                                padding: '18px 20px',
+                                                padding: '16px 18px',
                                                 borderRadius: '12px',
                                                 border: isNegative ? '1.5px solid rgba(239, 68, 68, 0.4)' : '1.5px solid rgba(16, 185, 129, 0.4)',
                                                 boxShadow: isNegative ? '0 4px 14px rgba(239, 68, 68, 0.12)' : '0 4px 14px rgba(16, 185, 129, 0.12)'
                                             }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                                                     <span style={{
-                                                        fontSize: '0.78rem',
+                                                        fontSize: '0.76rem',
                                                         fontWeight: 700,
                                                         color: isNegative ? 'var(--danger)' : 'var(--primary)',
                                                         textTransform: 'uppercase',
@@ -701,8 +707,8 @@ export const Reports = () => {
                                                         True Net Profit
                                                     </span>
                                                     <div style={{
-                                                        width: '32px',
-                                                        height: '32px',
+                                                        width: '30px',
+                                                        height: '30px',
                                                         borderRadius: '8px',
                                                         background: isNegative ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
                                                         color: isNegative ? 'var(--danger)' : 'var(--primary)',
@@ -710,23 +716,23 @@ export const Reports = () => {
                                                         alignItems: 'center',
                                                         justifyContent: 'center'
                                                     }}>
-                                                        <TrendingUp size={16} style={{ transform: isNegative ? 'rotate(180deg)' : 'none' }} />
+                                                        <TrendingUp size={15} style={{ transform: isNegative ? 'rotate(180deg)' : 'none' }} />
                                                     </div>
                                                 </div>
                                                 <div style={{
-                                                    fontSize: '1.75rem',
+                                                    fontSize: '1.6rem',
                                                     fontWeight: 900,
                                                     color: isNegative ? 'var(--danger)' : 'var(--primary)',
-                                                    marginTop: '8px',
+                                                    marginTop: '6px',
                                                     fontFamily: 'monospace'
                                                 }}>
                                                     {formatCurrency(netProfit)}
                                                 </div>
                                                 <div style={{
-                                                    fontSize: '0.74rem',
+                                                    fontSize: '0.72rem',
                                                     fontWeight: 600,
                                                     color: isNegative ? 'var(--danger)' : 'var(--primary)',
-                                                    marginTop: '4px'
+                                                    marginTop: '3px'
                                                 }}>
                                                     Margin: {salesProfitData?.financials?.profit_margin_pct || 0}%
                                                 </div>
@@ -736,7 +742,7 @@ export const Reports = () => {
                                 </div>
 
                                 {/* Step-by-Step Income Statement Waterfall & Operating Expense Breakdown */}
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '20px', alignItems: 'start' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '16px', alignItems: 'start', width: '100%', minWidth: 0 }}>
                                     {/* Detailed Income Statement Waterfall */}
                                     <div className="glass-panel" style={{ padding: '20px', borderRadius: '12px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
@@ -1341,9 +1347,9 @@ export const Reports = () => {
                         {/* 4. EXPENSES & CASH FLOW REPORT                             */}
                         {/* ========================================================= */}
                         {activeTab === 'cashflow_report' && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', width: '100%', minWidth: 0 }}>
                                 {/* Cash Flow Comparison Cards */}
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', width: '100%', minWidth: 0 }}>
                                     {/* Cash Drawer Flow */}
                                     <div className="glass-panel" style={{ padding: '18px 20px', borderRadius: '12px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
