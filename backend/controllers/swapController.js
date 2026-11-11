@@ -489,14 +489,19 @@ exports.processSwap = async (req, res) => {
         let activeShiftId = null;
         const currentUserId = req.user?.id || 1;
 
-        const [activeShifts] = await conn.query(
-            `SELECT id FROM cash_floats 
-             WHERE status = 'OPEN' AND (user_id = ? OR id = (SELECT id FROM (SELECT id FROM cash_floats WHERE status = 'OPEN' ORDER BY id DESC LIMIT 1) as t))
-             ORDER BY id DESC LIMIT 1`,
-            [currentUserId]
-        );
-        if (activeShifts.length > 0) {
-            activeShiftId = activeShifts[0].id;
+        try {
+            const [activeShifts] = await conn.query(
+                `SELECT id FROM cash_floats 
+                 WHERE status IN ('ACTIVE', 'OPEN') 
+                   AND (staff_id = ? OR id = (SELECT id FROM (SELECT id FROM cash_floats WHERE status IN ('ACTIVE', 'OPEN') ORDER BY id DESC LIMIT 1) as t))
+                 ORDER BY id DESC LIMIT 1`,
+                [currentUserId]
+            );
+            if (activeShifts.length > 0) {
+                activeShiftId = activeShifts[0].id;
+            }
+        } catch (shiftErr) {
+            console.warn('Could not determine active shift ID for swap:', shiftErr.message);
         }
 
         if (customerTopUpPaid > 0 && activeShiftId) {
@@ -548,10 +553,11 @@ exports.processSwap = async (req, res) => {
                 returned_qty, returned_unit_price, returned_credit_total, old_cost_price, returned_disposition,
                 new_product_id, new_product_name, new_part_number, new_brand,
                 new_qty, new_unit_price, new_total_price, new_cost_price, cogs_adjustment,
+                replacement_items_json,
                 price_difference, customer_top_up_paid, cash_refund_given,
                 payment_method, shift_id, cashier_id, amount_tendered, change_amount,
                 reason, notes, processed_by, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'RESTOCK', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'RESTOCK', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
             [
                 swapCode,
                 sale_id || null,
@@ -575,6 +581,7 @@ exports.processSwap = async (req, res) => {
                 totalNewRetailPrice,
                 firstRep.cost_price,
                 cogsAdjustment,
+                JSON.stringify(validatedReplacements),
                 rawDiff,
                 customerTopUpPaid,
                 finalPaymentMethod,
