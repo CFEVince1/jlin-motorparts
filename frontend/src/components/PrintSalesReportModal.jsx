@@ -408,8 +408,8 @@ export default function PrintSalesReportModal({
                 </div>
                 <div style={{ width: '220px', textAlign: 'center' }}>
                   <div style={{ borderBottom: '1px solid #111827', height: '36px' }}></div>
-                  <div style={{ fontSize: '10px', fontWeight: 600, marginTop: '4px' }}>Approved By: Store Manager</div>
-                  <div style={{ fontSize: '9px', color: '#6b7280' }}>Manager / Owner Signature</div>
+                  <div style={{ fontSize: '10px', fontWeight: 600, marginTop: '4px' }}>Approved By: Owner / Admin</div>
+                  <div style={{ fontSize: '9px', color: '#6b7280' }}>Owner / Admin Signature</div>
                 </div>
               </div>
             </div>
@@ -634,8 +634,8 @@ export default function PrintSalesReportModal({
           </div>
           <div style={{ width: '200px', textAlign: 'center' }}>
             <div style={{ borderBottom: '1px solid #000000', height: '30px' }}></div>
-            <div style={{ fontSize: '9px', fontWeight: 'bold', marginTop: '3px' }}>Approved By: Store Manager</div>
-            <div style={{ fontSize: '8px', color: '#555555' }}>Manager / Owner Signature</div>
+            <div style={{ fontSize: '9px', fontWeight: 'bold', marginTop: '3px' }}>Approved By: Owner / Admin</div>
+            <div style={{ fontSize: '8px', color: '#555555' }}>Owner / Admin Signature</div>
           </div>
         </div>
       </div>,

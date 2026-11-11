@@ -264,13 +264,13 @@ const AuditLog = () => {
 
                 <div style={{ background: 'var(--surface)', border: '1.5px solid rgba(234, 179, 8, 0.4)', borderRadius: '12px', padding: '16px 20px', boxShadow: 'var(--glass-shadow)' }}>
                     <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#eab308', textTransform: 'uppercase' }}>
-                        Price & Stock Overrides
+                        Price & Stock Adjustments
                     </div>
                     <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#eab308', marginTop: '4px' }}>
                         {summary?.price_stock_changes || 0}
                     </div>
                     <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                        Retail prices & shelf stock alterations
+                        Retail price & shelf stock adjustments
                     </div>
                 </div>
 
@@ -282,7 +282,7 @@ const AuditLog = () => {
                         {summary?.approval_events || 0}
                     </div>
                     <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                        Manager PIN authorizations
+                        Admin authorizations
                     </div>
                 </div>
 

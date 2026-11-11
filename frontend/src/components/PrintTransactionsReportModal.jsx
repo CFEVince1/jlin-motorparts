@@ -451,7 +451,7 @@ export default function PrintTransactionsReportModal({
                 <div style={{ width: '220px' }}>
                   <div style={{ borderBottom: '1px solid #000', height: '35px' }}></div>
                   <div style={{ marginTop: '4px', textAlign: 'center', fontWeight: 'bold' }}>
-                    Verified By / Store Manager
+                    Verified By / Owner & Admin
                   </div>
                   <div style={{ textAlign: 'center', color: '#666', fontSize: '9px' }}>
                     Authorized Signature
@@ -610,7 +610,7 @@ export default function PrintTransactionsReportModal({
           <div style={{ width: '220px' }}>
             <div style={{ borderBottom: '1px solid #000000', height: '32px' }}></div>
             <div style={{ marginTop: '4px', textAlign: 'center', fontWeight: 'bold' }}>
-              Verified By / Store Manager
+              Verified By / Owner & Admin
             </div>
             <div style={{ textAlign: 'center', color: '#666666', fontSize: '8.5px' }}>
               Authorized Signature
