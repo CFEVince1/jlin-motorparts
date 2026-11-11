@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useContext, useRef, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { History, Receipt, X, Printer, Search, Calendar, RotateCcw, ArrowDownRight, ArrowUpRight, Filter, Ban, ChevronDown } from 'lucide-react';
+import { History, Receipt, X, Printer, Search, Calendar, RotateCcw, ArrowDownRight, ArrowUpRight, Filter, Ban, ChevronDown, ArrowLeftRight } from 'lucide-react';
 import { notifyInventoryChange } from '../utils/syncEvents';
 import Spinner from '../components/Spinner';
 import { getProductSnapshotMatch, normalizeSearchText } from '../utils/productFilter';
@@ -25,6 +25,7 @@ export const formatShortOrderNo = (raw) => {
 
 const Transactions = ({ embedded = false, defaultTab }) => {
     const { user } = useContext(AuthContext);
+    const navigate = useNavigate();
     const isStaff = user?.role === 'staff';
 
     // Tab: Sales Transactions
@@ -1525,6 +1526,17 @@ const Transactions = ({ embedded = false, defaultTab }) => {
                                                                 >
                                                                     <Printer size={13} /> Print
                                                                 </button>
+
+                                                                {!isVoid && (
+                                                                    <button
+                                                                        onClick={() => navigate(`/item-swap?receipt=${encodeURIComponent(t.order_number || t.id)}`)}
+                                                                        className="btn-secondary"
+                                                                        style={{ padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.74rem', color: 'var(--primary)', borderColor: 'rgba(16, 185, 129, 0.4)', whiteSpace: 'nowrap' }}
+                                                                        title="Swap Item from this Sale"
+                                                                    >
+                                                                        <ArrowLeftRight size={13} /> Swap Item
+                                                                    </button>
+                                                                )}
 
                                                                 {!isVoid && (
                                                                     <button

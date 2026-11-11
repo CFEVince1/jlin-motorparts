@@ -460,9 +460,8 @@ const Inventory = () => {
   }, [products]);
 
   const activeCategories = useMemo(() => {
-    const withCount = STANDARD_TAXONOMY_KEYS.filter(k => (categoryCounts[k] || 0) > 0);
-    const zeroCount = STANDARD_TAXONOMY_KEYS.filter(k => (categoryCounts[k] || 0) === 0);
-    return [...withCount, ...zeroCount];
+    // Only show categories that currently have products in inventory to avoid cluttering the filter bar
+    return STANDARD_TAXONOMY_KEYS.filter(k => (categoryCounts[k] || 0) > 0);
   }, [categoryCounts]);
 
   const fetchInventory = async () => {
@@ -959,6 +958,28 @@ const Inventory = () => {
               <option value="price_desc">Sort: Retail Price (High-Low)</option>
               <option value="stock_asc">Sort: Stock Level (Low-High)</option>
               <option value="stock_desc">Sort: Stock Level (High-Low)</option>
+            </select>
+          </div>
+
+          {/* Category Dropdown Filter */}
+          <div style={{ width: '100%' }}>
+            <select
+              className="input-premium"
+              value={categoryFilter}
+              onChange={(e) => setFilter('category', e.target.value)}
+              style={{ width: '100%', height: '38px', cursor: 'pointer', fontSize: '0.84rem' }}
+              title="Filter by product category"
+            >
+              <option value="All">All Categories ({categoryCounts.All || products.length})</option>
+              {activeCategories.map(catKey => {
+                const conf = SHORT_TAXONOMY[catKey] || getShortCategory(catKey);
+                const count = categoryCounts[catKey] || 0;
+                return (
+                  <option key={catKey} value={catKey}>
+                    {conf.label || catKey} ({count})
+                  </option>
+                );
+              })}
             </select>
           </div>
 

@@ -4,6 +4,7 @@ const { applyMovement } = require('../services/inventoryService');
 /**
  * GET /api/swaps/lookup-order
  * Searches original sale by order_number, receipt_no, id, or customer name
+ * Computes Swappable Cap (qty_sold - qty_swapped) for each line item
  */
 exports.lookupOrder = async (req, res) => {
     try {
@@ -54,10 +55,11 @@ exports.lookupOrder = async (req, res) => {
 
         const primarySale = sales[0];
 
-        // Fetch items for the primary sale
+        // Fetch items for the primary sale with swappable cap
         const [items] = await db.query(
             `SELECT si.id as sale_item_id, si.product_id, si.product_name, si.part_number,
-                    si.brand, si.quantity, si.price, si.subtotal,
+                    si.brand, si.quantity, si.qty_sold, COALESCE(si.qty_swapped, 0) as qty_swapped,
+                    si.price, si.cost_price, si.subtotal,
                     p.stock, p.category, p.image_url
              FROM sale_items si
              LEFT JOIN products p ON si.product_id = p.id
@@ -65,11 +67,24 @@ exports.lookupOrder = async (req, res) => {
             [primarySale.id]
         );
 
+        const itemsWithCap = items.map(it => {
+            const sold = Number(it.qty_sold ?? it.quantity ?? 1);
+            const swapped = Number(it.qty_swapped || 0);
+            const cap = Math.max(0, sold - swapped);
+            return {
+                ...it,
+                qty_sold: sold,
+                qty_swapped: swapped,
+                swappable_cap: cap,
+                is_locked: cap <= 0
+            };
+        });
+
         return res.json({
             success: true,
             sale: {
                 ...primarySale,
-                items
+                items: itemsWithCap
             },
             matches: sales.map(s => ({
                 id: s.id,
@@ -89,7 +104,7 @@ exports.lookupOrder = async (req, res) => {
 
 /**
  * GET /api/swaps/recent-sales
- * Returns recent sales for quick receipt selection
+ * Returns recent sales for quick receipt selection with swappable cap
  */
 exports.getRecentSales = async (req, res) => {
     try {
@@ -108,7 +123,8 @@ exports.getRecentSales = async (req, res) => {
         const saleIds = sales.map(s => s.id);
         const [items] = await db.query(
             `SELECT si.sale_id, si.id as sale_item_id, si.product_id, si.product_name, si.part_number,
-                    si.brand, si.quantity, si.price, si.subtotal,
+                    si.brand, si.quantity, si.qty_sold, COALESCE(si.qty_swapped, 0) as qty_swapped,
+                    si.price, si.cost_price, si.subtotal,
                     p.stock, p.category, p.image_url
              FROM sale_items si
              LEFT JOIN products p ON si.product_id = p.id
@@ -119,7 +135,16 @@ exports.getRecentSales = async (req, res) => {
         const itemsBySale = {};
         items.forEach(it => {
             if (!itemsBySale[it.sale_id]) itemsBySale[it.sale_id] = [];
-            itemsBySale[it.sale_id].push(it);
+            const sold = Number(it.qty_sold ?? it.quantity ?? 1);
+            const swapped = Number(it.qty_swapped || 0);
+            const cap = Math.max(0, sold - swapped);
+            itemsBySale[it.sale_id].push({
+                ...it,
+                qty_sold: sold,
+                qty_swapped: swapped,
+                swappable_cap: cap,
+                is_locked: cap <= 0
+            });
         });
 
         const result = sales.map(s => ({
@@ -188,38 +213,13 @@ exports.getSwaps = async (req, res) => {
                 COUNT(*) as total_swaps,
                 COALESCE(SUM(customer_top_up_paid), 0) as total_top_ups_collected,
                 COALESCE(SUM(CASE WHEN returned_disposition = 'RESTOCK' THEN returned_qty ELSE 0 END), 0) as items_restocked,
-                COALESCE(SUM(CASE WHEN returned_disposition = 'DAMAGED' THEN returned_qty ELSE 0 END), 0) as items_damaged
+                COALESCE(SUM(cogs_adjustment), 0) as total_cogs_adjustment
             FROM item_swaps
         `);
 
-        const processedRows = rows.map(r => {
-            let replacementItems = null;
-            if (r.replacement_items_json) {
-                try {
-                    replacementItems = JSON.parse(r.replacement_items_json);
-                } catch (e) {
-                    replacementItems = null;
-                }
-            }
-            return {
-                ...r,
-                replacement_items: replacementItems || [
-                    {
-                        product_id: r.new_product_id,
-                        name: r.new_product_name,
-                        part_number: r.new_part_number,
-                        brand: r.new_brand,
-                        qty: r.new_qty,
-                        unit_price: r.new_unit_price,
-                        subtotal: r.new_total_price
-                    }
-                ]
-            };
-        });
-
         return res.json({
             success: true,
-            swaps: processedRows,
+            swaps: rows,
             pagination: {
                 total,
                 page,
@@ -230,7 +230,7 @@ exports.getSwaps = async (req, res) => {
                 total_swaps: Number(metricRows[0]?.total_swaps || 0),
                 total_top_ups_collected: Number(metricRows[0]?.total_top_ups_collected || 0),
                 items_restocked: Number(metricRows[0]?.items_restocked || 0),
-                items_damaged: Number(metricRows[0]?.items_damaged || 0)
+                total_cogs_adjustment: Number(metricRows[0]?.total_cogs_adjustment || 0)
             }
         });
     } catch (err) {
@@ -241,11 +241,14 @@ exports.getSwaps = async (req, res) => {
 
 /**
  * POST /api/swaps
- * Process an item swap
- * Rules:
- * - Supports 1 returned item for 1 or MULTIPLE replacement items ("they can add more")
- * - NO CASH REFUND ("it cannot exchange into money")
- * - If replacement total is more expensive, customer adds top-up ("they can add more for pricey product")
+ * Process an Item Swap strictly adhering to:
+ * - Scenario A: Equal-Value Swap (New Price == Old Price) -> ₱0.00 cash/GCash paid
+ * - Scenario B: Upgrade Swap (New Price > Old Price) -> +Top-Up Difference paid
+ * - BLOCKS any replacement item where New Price < Old Price (Zero Cash Refund Policy)
+ * - Updates Sellable Stock (+1 old item, -1 new item)
+ * - Enforces per-line swappable cap (qty_sold - qty_swapped)
+ * - Tracks COGS adjustment (New Unit Cost - Old Unit Cost)
+ * - Adds top-up to active shift cash float
  */
 exports.processSwap = async (req, res) => {
     const conn = await db.getConnection();
@@ -254,121 +257,138 @@ exports.processSwap = async (req, res) => {
     try {
         const {
             sale_id,
+            sale_item_id,
             order_number,
             customer_name = 'Walk-in Customer',
             returned_product_id,
             returned_qty = 1,
             returned_unit_price,
-            returned_disposition = 'RESTOCK', // 'RESTOCK' | 'DAMAGED'
-            new_items, // Array of { product_id, qty, unit_price }
-            new_product_id, // Backward compat fallback
+            counter_condition_verified, // Mandatory true!
+            new_product_id,
             new_qty = 1,
-            new_unit_price,
             payment_method = 'None', // 'Cash' | 'GCash' | 'None'
             amount_tendered = 0,
-            reason = 'Wrong fitment / size',
+            reason = 'Customer exchange',
             notes = ''
         } = req.body;
 
+        // 1. Mandatory Counter Condition Check verification
+        if (!counter_condition_verified) {
+            await conn.rollback();
+            return res.status(400).json({
+                success: false,
+                message: 'Counter Condition Verification is required: returned part must be confirmed unused, unmounted, and in original packaging.'
+            });
+        }
+
+        let effectiveNewProductId = new_product_id;
+        let effectiveNewQty = Math.max(1, parseInt(new_qty, 10) || 1);
+        if (!effectiveNewProductId && Array.isArray(req.body.new_items) && req.body.new_items.length > 0) {
+            effectiveNewProductId = req.body.new_items[0].product_id;
+            effectiveNewQty = Math.max(1, parseInt(req.body.new_items[0].qty, 10) || 1);
+        }
+
         const retQty = Math.max(1, parseInt(returned_qty, 10) || 1);
+        const reqNewQty = effectiveNewQty;
 
         if (!returned_product_id) {
             await conn.rollback();
             return res.status(400).json({ success: false, message: 'Returned product is required' });
         }
-
-        // Build list of replacement items
-        let itemsList = [];
-        if (Array.isArray(new_items) && new_items.length > 0) {
-            itemsList = new_items.map(it => ({
-                product_id: Number(it.product_id || it.id),
-                qty: Math.max(1, parseInt(it.qty || it.quantity, 10) || 1),
-                unit_price: Number(it.unit_price ?? it.price ?? it.selling_price ?? 0)
-            }));
-        } else if (new_product_id) {
-            itemsList = [{
-                product_id: Number(new_product_id),
-                qty: Math.max(1, parseInt(new_qty, 10) || 1),
-                unit_price: Number(new_unit_price || 0)
-            }];
-        }
-
-        if (itemsList.length === 0) {
+        if (!effectiveNewProductId) {
             await conn.rollback();
-            return res.status(400).json({ success: false, message: 'At least one replacement product must be selected' });
+            return res.status(400).json({ success: false, message: 'Replacement product is required' });
         }
 
-        // 1. Fetch returned product
+        // 2. Enforce Swappable Cap if sale_item_id is provided
+        if (sale_item_id) {
+            const [saleItemRows] = await conn.query(
+                'SELECT id, quantity, qty_sold, COALESCE(qty_swapped, 0) as qty_swapped FROM sale_items WHERE id = ? FOR UPDATE',
+                [sale_item_id]
+            );
+            if (saleItemRows.length === 0) {
+                await conn.rollback();
+                return res.status(404).json({ success: false, message: 'Receipt line item not found' });
+            }
+            const si = saleItemRows[0];
+            const sold = Number(si.qty_sold ?? si.quantity ?? 1);
+            const swapped = Number(si.qty_swapped || 0);
+            const cap = Math.max(0, sold - swapped);
+
+            if (cap <= 0) {
+                await conn.rollback();
+                return res.status(400).json({ success: false, message: 'This item has already been fully swapped (Cap: 0).' });
+            }
+            if (retQty > cap) {
+                await conn.rollback();
+                return res.status(400).json({ success: false, message: `Requested quantity (${retQty}) exceeds swappable cap (${cap}).` });
+            }
+        }
+
+        // 3. Fetch Returned Product (Old Item)
         const [retProducts] = await conn.query(
-            'SELECT id, name, part_number, brand, cost_price, selling_price, stock, damaged_stock FROM products WHERE id = ? FOR UPDATE',
+            'SELECT id, name, part_number, brand, cost_price, selling_price, stock FROM products WHERE id = ? FOR UPDATE',
             [returned_product_id]
         );
         if (retProducts.length === 0) {
             await conn.rollback();
-            return res.status(404).json({ success: false, message: 'Returned product not found' });
+            return res.status(404).json({ success: false, message: 'Returned product not found in catalog' });
         }
         const returnedProduct = retProducts[0];
 
-        // 2. Fetch all replacement products
-        const replacementProductIds = itemsList.map(it => it.product_id);
-        const [dbReplacements] = await conn.query(
-            'SELECT id, name, part_number, brand, cost_price, selling_price, stock FROM products WHERE id IN (?) FOR UPDATE',
-            [replacementProductIds]
+        // 4. Fetch Replacement Product (New Item)
+        const [newProducts] = await conn.query(
+            'SELECT id, name, part_number, brand, cost_price, selling_price, stock FROM products WHERE id = ? FOR UPDATE',
+            [effectiveNewProductId]
         );
+        if (newProducts.length === 0) {
+            await conn.rollback();
+            return res.status(404).json({ success: false, message: 'Replacement product not found in catalog' });
+        }
+        const newProduct = newProducts[0];
 
-        const prodMap = new Map();
-        dbReplacements.forEach(p => prodMap.set(p.id, p));
-
-        // Validate stock and compute item totals
-        let detailedNewItems = [];
-        let newTotalPrice = 0;
-        let totalNewQty = 0;
-
-        for (const it of itemsList) {
-            const p = prodMap.get(it.product_id);
-            if (!p) {
-                await conn.rollback();
-                return res.status(404).json({ success: false, message: `Replacement product #${it.product_id} not found` });
-            }
-            if (Number(p.stock) < it.qty) {
-                await conn.rollback();
-                return res.status(400).json({
-                    success: false,
-                    message: `Insufficient stock for "${p.name}". Available: ${p.stock}, Requested: ${it.qty}`
-                });
-            }
-            const unitPrice = it.unit_price > 0 ? it.unit_price : Number(p.selling_price || 0);
-            const lineTotal = Math.round(unitPrice * it.qty * 100) / 100;
-            newTotalPrice += lineTotal;
-            totalNewQty += it.qty;
-
-            detailedNewItems.push({
-                product_id: p.id,
-                name: p.name,
-                part_number: p.part_number,
-                brand: p.brand,
-                qty: it.qty,
-                unit_price: unitPrice,
-                subtotal: lineTotal
+        // Check new item stock
+        if (Number(newProduct.stock) < reqNewQty) {
+            await conn.rollback();
+            return res.status(400).json({
+                success: false,
+                message: `Insufficient stock for "${newProduct.name}". Available: ${newProduct.stock}, Requested: ${reqNewQty}`
             });
         }
-        newTotalPrice = Math.round(newTotalPrice * 100) / 100;
 
-        // 3. Price Calculations
-        // Returned item trade-in credit:
+        // 5. Price Calculations & STRICT PRICE LOCK ENFORCEMENT
+        // Old item unit credit:
         const unitCredit = returned_unit_price !== undefined && Number(returned_unit_price) >= 0
             ? Number(returned_unit_price)
             : Number(returnedProduct.selling_price || 0);
         const returnedCreditTotal = Math.round(unitCredit * retQty * 100) / 100;
 
-        // Difference:
+        // New item unit retail price:
+        const newUnitPrice = Number(newProduct.selling_price || 0);
+        const newTotalPrice = Math.round(newUnitPrice * reqNewQty * 100) / 100;
+
+        // STRICT POLICY: New Item Price CANNOT be lower than Old Price Paid (New Price < Old Price is BLOCKED)
+        if (newTotalPrice < returnedCreditTotal) {
+            await conn.rollback();
+            return res.status(400).json({
+                success: false,
+                message: `Lower Price Blocked: Replacement item price (₱${newTotalPrice.toFixed(2)}) is lower than returned item credit (₱${returnedCreditTotal.toFixed(2)}). Under our Zero Cash Refund Policy, cash cannot be refunded.`
+            });
+        }
+
+        // COGS & Profit Adjustment Calculation:
+        const oldUnitCost = Number(returnedProduct.cost_price || 0);
+        const newUnitCost = Number(newProduct.cost_price || 0);
+        const cogsAdjustment = Math.round((newUnitCost - oldUnitCost) * reqNewQty * 100) / 100;
+
+        // Top-Up Amount:
         const rawDiff = Math.round((newTotalPrice - returnedCreditTotal) * 100) / 100;
         let customerTopUpPaid = 0;
         let changeAmount = 0;
         let finalPaymentMethod = 'None';
 
         if (rawDiff > 0) {
-            // New items cost MORE: Customer must add cash/GCash!
+            // Scenario B: Upgrade Swap (New Price > Old Price)
             customerTopUpPaid = rawDiff;
             finalPaymentMethod = (payment_method || 'Cash').trim();
             if (!['Cash', 'GCash'].includes(finalPaymentMethod)) {
@@ -381,89 +401,83 @@ exports.processSwap = async (req, res) => {
                     await conn.rollback();
                     return res.status(400).json({
                         success: false,
-                        message: `Customer must add ₱${customerTopUpPaid.toFixed(2)}. Amount tendered (₱${tendered.toFixed(2)}) is insufficient.`
+                        message: `Customer must add ₱${customerTopUpPaid.toFixed(2)}. Tendered amount (₱${tendered.toFixed(2)}) is insufficient.`
                     });
                 }
                 changeAmount = Math.max(0, Math.round((tendered - customerTopUpPaid) * 100) / 100);
             }
         } else {
-            // New items cost SAME OR LESS:
-            // STRICT STORE POLICY: "it cannot exchange into money" -> Cash refund is ALWAYS 0.00!
+            // Scenario A: Equal-Value Swap (New Price == Old Price)
             customerTopUpPaid = 0.00;
             changeAmount = 0.00;
             finalPaymentMethod = 'None';
         }
 
-        // 4. Generate unique swap code
+        // 6. Generate unique swap code
         const phtNow = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date()).replace(/-/g, '');
         const [seqRows] = await conn.query("SELECT COUNT(*) as count FROM item_swaps WHERE swap_code LIKE CONCAT('SWAP-', ?, '%')", [phtNow]);
         const seq = (seqRows[0]?.count || 0) + 1;
         const swapCode = `SWAP-${phtNow}-${String(seq).padStart(3, '0')}`;
 
-        // 5. Update Inventory for Returned Product
-        const cleanDisposition = (returned_disposition || 'RESTOCK').trim().toUpperCase() === 'DAMAGED' ? 'DAMAGED' : 'RESTOCK';
+        // 7. Inventory Count Updates:
+        // Old Item: +retQty to Sellable Stock (after counter verification)
+        await applyMovement(conn, {
+            itemId: returned_product_id,
+            transactionType: 'RETURN',
+            quantityChange: retQty,
+            referenceNo: swapCode,
+            remarks: `Item Swap Restock: Customer swapped for ${newProduct.name}`,
+            createdBy: req.user?.id || 1
+        });
 
-        if (cleanDisposition === 'RESTOCK') {
-            await applyMovement(conn, {
-                itemId: returned_product_id,
-                transactionType: 'RETURN',
-                quantityChange: retQty,
-                referenceNo: swapCode,
-                remarks: `Item Swap Restock: Customer swapped for ${detailedNewItems[0].name}`,
-                createdBy: req.user?.id || 1
-            });
-        } else {
-            await applyMovement(conn, {
-                itemId: returned_product_id,
-                transactionType: 'RETURN',
-                quantityChange: retQty,
-                referenceNo: swapCode,
-                remarks: `Item Swap Defective Return: ${swapCode}`,
-                createdBy: req.user?.id || 1
-            });
-            await applyMovement(conn, {
-                itemId: returned_product_id,
-                transactionType: 'DAMAGE',
-                quantityChange: -retQty,
-                referenceNo: `${swapCode}-DMG`,
-                remarks: `Item Swap Damaged Stock: ${reason}`,
-                createdBy: req.user?.id || 1
-            });
-            await conn.query('UPDATE products SET damaged_stock = damaged_stock + ? WHERE id = ?', [retQty, returned_product_id]);
+        // New Item: -reqNewQty from Sellable Stock
+        await applyMovement(conn, {
+            itemId: effectiveNewProductId,
+            transactionType: 'SALE',
+            quantityChange: -reqNewQty,
+            referenceNo: swapCode,
+            remarks: `Item Swap Replacement Issued: ${swapCode}`,
+            createdBy: req.user?.id || 1
+        });
+
+        // 8. Update sale_items swappable cap
+        if (sale_item_id) {
+            await conn.query(
+                'UPDATE sale_items SET qty_swapped = qty_swapped + ? WHERE id = ?',
+                [retQty, sale_item_id]
+            );
         }
 
-        // 6. Update Inventory for ALL New Replacement Products
-        for (const item of detailedNewItems) {
-            await applyMovement(conn, {
-                itemId: item.product_id,
-                transactionType: 'SALE',
-                quantityChange: -item.qty,
-                referenceNo: swapCode,
-                remarks: `Item Swap Replacement Issued: ${swapCode}`,
-                createdBy: req.user?.id || 1
-            });
-        }
-
-        // 7. Update Shift Cash Float if customer paid a top-up
+        // 9. Update Active Shift Cash Float & Net Sales (if top-up paid)
+        let activeShiftId = null;
         const currentUserId = req.user?.id || 1;
-        if (customerTopUpPaid > 0) {
+
+        const [activeShifts] = await conn.query(
+            `SELECT id FROM cash_floats 
+             WHERE status = 'OPEN' AND (user_id = ? OR id = (SELECT id FROM (SELECT id FROM cash_floats WHERE status = 'OPEN' ORDER BY id DESC LIMIT 1) as t))
+             ORDER BY id DESC LIMIT 1`,
+            [currentUserId]
+        );
+        if (activeShifts.length > 0) {
+            activeShiftId = activeShifts[0].id;
+        }
+
+        if (customerTopUpPaid > 0 && activeShiftId) {
             try {
                 if (finalPaymentMethod === 'Cash') {
                     await conn.query(
                         `UPDATE cash_floats 
                          SET cash_sales = cash_sales + ?, 
                              current_cash_balance = current_cash_balance + ?
-                         WHERE status = 'OPEN' AND (user_id = ? OR id = (SELECT id FROM (SELECT id FROM cash_floats WHERE status = 'OPEN' ORDER BY id DESC LIMIT 1) as t))
-                         LIMIT 1`,
-                        [customerTopUpPaid, customerTopUpPaid, currentUserId]
+                         WHERE id = ?`,
+                        [customerTopUpPaid, customerTopUpPaid, activeShiftId]
                     );
                 } else if (finalPaymentMethod === 'GCash') {
                     await conn.query(
                         `UPDATE cash_floats 
                          SET gcash_sales = COALESCE(gcash_sales, 0) + ?
-                         WHERE status = 'OPEN' AND (user_id = ? OR id = (SELECT id FROM (SELECT id FROM cash_floats WHERE status = 'OPEN' ORDER BY id DESC LIMIT 1) as t))
-                         LIMIT 1`,
-                        [customerTopUpPaid, currentUserId]
+                         WHERE id = ?`,
+                        [customerTopUpPaid, activeShiftId]
                     );
                 }
             } catch (floatErr) {
@@ -471,26 +485,34 @@ exports.processSwap = async (req, res) => {
             }
         }
 
-        // 8. Record in item_swaps
-        const primaryNew = detailedNewItems[0];
-        const newSummaryName = detailedNewItems.length === 1
-            ? primaryNew.name
-            : `${primaryNew.name} (+${detailedNewItems.length - 1} other item${detailedNewItems.length > 2 ? 's' : ''})`;
+        // Update sales table total_amount if top-up was paid
+        if (customerTopUpPaid > 0 && sale_id) {
+            try {
+                await conn.query(
+                    'UPDATE sales SET total_amount = total_amount + ? WHERE id = ?',
+                    [customerTopUpPaid, sale_id]
+                );
+            } catch (salesErr) {
+                console.warn('Failed to update sale total for swap top-up:', salesErr.message);
+            }
+        }
 
+        // 10. Record in item_swaps
         const [insertResult] = await conn.query(
             `INSERT INTO item_swaps (
-                swap_code, sale_id, order_number, customer_name,
+                swap_code, sale_id, sale_item_id, order_number, customer_name,
                 returned_product_id, returned_product_name, returned_part_number, returned_brand,
-                returned_qty, returned_unit_price, returned_credit_total, returned_disposition,
+                returned_qty, returned_unit_price, returned_credit_total, old_cost_price, returned_disposition,
                 new_product_id, new_product_name, new_part_number, new_brand,
-                new_qty, new_unit_price, new_total_price, replacement_items_json,
+                new_qty, new_unit_price, new_total_price, new_cost_price, cogs_adjustment,
                 price_difference, customer_top_up_paid, cash_refund_given,
-                payment_method, amount_tendered, change_amount,
+                payment_method, shift_id, cashier_id, amount_tendered, change_amount,
                 reason, notes, processed_by, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, ?, ?, ?, ?, ?, ?, NOW())`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'RESTOCK', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
             [
                 swapCode,
                 sale_id || null,
+                sale_item_id || null,
                 order_number || null,
                 customer_name || 'Walk-in Customer',
                 returned_product_id,
@@ -500,27 +522,30 @@ exports.processSwap = async (req, res) => {
                 retQty,
                 unitCredit,
                 returnedCreditTotal,
-                cleanDisposition,
-                primaryNew.product_id,
-                newSummaryName,
-                primaryNew.part_number,
-                primaryNew.brand,
-                totalNewQty,
-                primaryNew.unit_price,
+                oldUnitCost,
+                effectiveNewProductId,
+                newProduct.name,
+                newProduct.part_number,
+                newProduct.brand,
+                reqNewQty,
+                newUnitPrice,
                 newTotalPrice,
-                JSON.stringify(detailedNewItems),
+                newUnitCost,
+                cogsAdjustment,
                 rawDiff,
                 customerTopUpPaid,
                 finalPaymentMethod,
+                activeShiftId || null,
+                currentUserId,
                 Number(amount_tendered || 0),
                 changeAmount,
-                reason || 'Wrong fitment / size',
+                reason || 'Customer exchange',
                 notes || '',
                 req.user?.username || 'Staff'
             ]
         );
 
-        // 9. Write to audit_logs
+        // 11. Write to audit_logs
         try {
             await conn.query(
                 `INSERT INTO audit_logs (
@@ -529,7 +554,7 @@ exports.processSwap = async (req, res) => {
                 [
                     currentUserId,
                     req.user?.username || 'Staff',
-                    `Swapped [${returnedProduct.name} x${retQty}] for [${detailedNewItems.map(i => `${i.name} x${i.qty}`).join(', ')}]. Top-up: ₱${customerTopUpPaid.toFixed(2)} (${finalPaymentMethod}). Ref: ${swapCode}`
+                    `Swapped [${returnedProduct.name} x${retQty}] for [${newProduct.name} x${reqNewQty}]. Top-up: ₱${customerTopUpPaid.toFixed(2)} (${finalPaymentMethod}). COGS shift: ₱${cogsAdjustment.toFixed(2)}. Ref: ${swapCode}`
                 ]
             );
         } catch (auditErr) {
@@ -541,11 +566,13 @@ exports.processSwap = async (req, res) => {
         return res.json({
             success: true,
             message: customerTopUpPaid > 0
-                ? `Item Swap successful! Customer added ₱${customerTopUpPaid.toFixed(2)} top-up for replacement items.`
-                : 'Item Swap successful! 1-to-1 even swap processed with zero cash exchange.',
+                ? `Upgrade Swap successful! Customer paid ₱${customerTopUpPaid.toFixed(2)} top-up.`
+                : 'Even Swap successful! ₱0.00 exchanged, stock and COGS updated.',
             swap: {
                 id: insertResult.insertId,
                 swap_code: swapCode,
+                sale_id: sale_id || null,
+                sale_item_id: sale_item_id || null,
                 order_number: order_number || null,
                 customer_name: customer_name || 'Walk-in Customer',
                 returned_product_name: returnedProduct.name,
@@ -554,14 +581,16 @@ exports.processSwap = async (req, res) => {
                 returned_qty: retQty,
                 returned_unit_price: unitCredit,
                 returned_credit_total: returnedCreditTotal,
-                returned_disposition: cleanDisposition,
-                new_product_name: newSummaryName,
-                new_part_number: primaryNew.part_number,
-                new_brand: primaryNew.brand,
-                new_qty: totalNewQty,
-                new_unit_price: primaryNew.unit_price,
+                old_cost_price: oldUnitCost,
+                returned_disposition: 'RESTOCK',
+                new_product_name: newProduct.name,
+                new_part_number: newProduct.part_number,
+                new_brand: newProduct.brand,
+                new_qty: reqNewQty,
+                new_unit_price: newUnitPrice,
                 new_total_price: newTotalPrice,
-                replacement_items: detailedNewItems,
+                new_cost_price: newUnitCost,
+                cogs_adjustment: cogsAdjustment,
                 price_difference: rawDiff,
                 customer_top_up_paid: customerTopUpPaid,
                 cash_refund_given: 0.00,
