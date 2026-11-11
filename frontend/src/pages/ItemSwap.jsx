@@ -39,8 +39,8 @@ export const ItemSwap = () => {
     const [foundSale, setFoundSale] = useState(null);
     const [selectedSaleItem, setSelectedSaleItem] = useState(null);
 
-    // Recent receipts modal
-    const [showRecentModal, setShowRecentModal] = useState(false);
+    // Recent receipts inline panel
+    const [showRecentPanel, setShowRecentPanel] = useState(false);
     const [recentSales, setRecentSales] = useState([]);
     const [loadingRecent, setLoadingRecent] = useState(false);
 
@@ -165,9 +165,13 @@ export const ItemSwap = () => {
         }
     }, [searchParams, handleLookupOrder]);
 
-    // Open recent sales modal
-    const handleOpenRecentModal = async () => {
-        setShowRecentModal(true);
+    // Toggle recent sales inline panel
+    const handleToggleRecentPanel = async () => {
+        if (showRecentPanel) {
+            setShowRecentPanel(false);
+            return;
+        }
+        setShowRecentPanel(true);
         setLoadingRecent(true);
         try {
             const res = await api.get('/swaps/recent-sales');
@@ -182,7 +186,7 @@ export const ItemSwap = () => {
         }
     };
 
-    const handleSelectSaleFromModal = (sale) => {
+    const handleSelectSaleFromRecent = (sale) => {
         setFoundSale(sale);
         setLookupQuery(sale.order_number || '');
         setCustomerName(sale.customer_name || 'Walk-in Customer');
@@ -191,7 +195,7 @@ export const ItemSwap = () => {
         setReturnedUnitPrice(0);
         setCounterConditionVerified(false);
         setReplacementCart([]);
-        setShowRecentModal(false);
+        setShowRecentPanel(false);
         toast.success(`Selected Receipt #${sale.order_number}`);
     };
 
@@ -264,7 +268,22 @@ export const ItemSwap = () => {
                     limit: 40
                 }
             });
-            const prods = res.data.products || res.data || [];
+            const rawProds = res.data.products || res.data || [];
+            const prods = rawProds.map(p => {
+                const pName = p.product_name || p.name || 'Motorcycle Part';
+                return {
+                    ...p,
+                    id: p.id,
+                    product_id: p.id,
+                    name: pName,
+                    product_name: pName,
+                    part_number: p.part_number || '',
+                    brand: p.brand || '',
+                    selling_price: Number(p.selling_price || p.price || 0),
+                    cost_price: Number(p.cost_price || 0),
+                    stock: Number(p.stock ?? p.current_stock ?? 0)
+                };
+            });
             setCatalogProducts(prods);
         } catch (err) {
             console.error('Failed to load catalog products:', err);
@@ -281,15 +300,16 @@ export const ItemSwap = () => {
 
     // Handle adding replacement items to the swap cart (supports lower-priced & multiple items)
     const handleAddToCart = (prod) => {
+        const prodName = prod.name || prod.product_name || 'Motorcycle Part';
         if (Number(prod.stock || 0) <= 0) {
-            return toast.error(`"${prod.name}" is OUT OF STOCK.`);
+            return toast.error(`"${prodName}" is OUT OF STOCK.`);
         }
         setReplacementCart(prev => {
             const existingIndex = prev.findIndex(item => (item.id || item.product_id) === prod.id);
             if (existingIndex > -1) {
                 const currentQty = prev[existingIndex].qty || 1;
                 if (currentQty >= Number(prod.stock)) {
-                    toast.error(`Only ${prod.stock} units available in stock for "${prod.name}"`);
+                    toast.error(`Only ${prod.stock} units available in stock for "${prodName}"`);
                     return prev;
                 }
                 const updated = [...prev];
@@ -297,13 +317,21 @@ export const ItemSwap = () => {
                     ...updated[existingIndex],
                     qty: currentQty + 1
                 };
-                toast.success(`Increased "${prod.name}" quantity to ${currentQty + 1}`);
+                toast.success(`Increased "${prodName}" quantity to ${currentQty + 1}`);
                 return updated;
             } else {
-                toast.success(`Added "${prod.name}" to swap cart`);
+                toast.success(`Added "${prodName}" to swap cart`);
                 return [...prev, {
                     ...prod,
+                    id: prod.id,
                     product_id: prod.id,
+                    name: prodName,
+                    product_name: prodName,
+                    part_number: prod.part_number || '',
+                    brand: prod.brand || '',
+                    selling_price: Number(prod.selling_price || prod.price || 0),
+                    cost_price: Number(prod.cost_price || 0),
+                    stock: Number(prod.stock || 0),
                     qty: 1
                 }];
             }
@@ -371,16 +399,6 @@ export const ItemSwap = () => {
                 return toast.error(`Customer must add ₱${topUpDue.toFixed(2)}. Tendered amount (₱${tendered.toFixed(2)}) is insufficient.`);
             }
         }
-
-        const repSummary = replacementCart.map(r => `${r.name} x${r.qty}`).join(', ');
-        let confirmMsg = '';
-        if (isUpgrade) {
-            confirmMsg = `Confirm Upgrade Swap:\n\nReturned Item: ${returnedProduct?.name || 'Item'} (Credit: ₱${oldPricePaid.toFixed(2)})\nNew Replacement Items (${replacementCart.length}): ${repSummary} (Total: ₱${newReplacementPrice.toFixed(2)})\n\nCustomer must PAY +₱${topUpDue.toFixed(2)} (${paymentMethod}).\n\nStock Impact:\n+1 ${returnedProduct?.name || 'Item'} to Sellable Stock\n-Deduct replacement parts from Sellable Stock\n\nProceed?`;
-        } else {
-            confirmMsg = `Confirm Equal-Value Swap:\n\nReturned Item: ${returnedProduct?.name || 'Item'} (₱${oldPricePaid.toFixed(2)})\nNew Replacement Items (${replacementCart.length}): ${repSummary} (Total: ₱${newReplacementPrice.toFixed(2)})\n\nNo money exchanged (₱0.00).\n\nStock Impact:\n+1 ${returnedProduct?.name || 'Item'} to Sellable Stock\n-Deduct replacement parts from Sellable Stock\n\nProceed?`;
-        }
-
-        if (!window.confirm(confirmMsg)) return;
 
         setProcessingSwap(true);
         try {
@@ -620,12 +638,12 @@ export const ItemSwap = () => {
                             </button>
                             <button
                                 type="button"
-                                onClick={handleOpenRecentModal}
-                                className="btn-secondary"
+                                onClick={handleToggleRecentPanel}
+                                className={showRecentPanel ? "btn-primary" : "btn-secondary"}
                                 style={{ height: '38px', padding: '0 14px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
                             >
-                                <Clock size={14} color="var(--primary)" />
-                                <span>Recent Receipts</span>
+                                <Clock size={14} color={showRecentPanel ? "#ffffff" : "var(--primary)"} />
+                                <span>{showRecentPanel ? 'Hide Recent' : 'Recent Receipts'}</span>
                             </button>
                             <button
                                 type="button"
@@ -637,6 +655,97 @@ export const ItemSwap = () => {
                                 No Receipt Walk-in
                             </button>
                         </form>
+
+                        {/* Inline Recent Completed Sales Receipts (NO MODAL, NO GLASS PANEL POPUP) */}
+                        {showRecentPanel && !foundSale && (
+                            <div style={{
+                                padding: '14px 16px',
+                                borderRadius: '10px',
+                                background: 'var(--surface-hover)',
+                                border: '1px solid var(--border)',
+                                marginBottom: '14px'
+                            }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <Clock size={16} color="var(--primary)" />
+                                        <span style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                                            Recent Completed Sales Receipts
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowRecentPanel(false)}
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            color: 'var(--text-muted)',
+                                            cursor: 'pointer',
+                                            fontSize: '0.78rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '4px'
+                                        }}
+                                    >
+                                        <X size={15} /> Close
+                                    </button>
+                                </div>
+
+                                {loadingRecent ? (
+                                    <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                        <RefreshCw size={20} className="animate-spin" style={{ margin: '0 auto 6px auto', color: 'var(--primary)' }} />
+                                        <div style={{ fontSize: '0.8rem' }}>Loading recent sales...</div>
+                                    </div>
+                                ) : recentSales.length === 0 ? (
+                                    <div style={{ padding: '20px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                                        No recent completed sales found.
+                                    </div>
+                                ) : (
+                                    <div style={{ maxHeight: '250px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {recentSales.map(sale => (
+                                            <div
+                                                key={sale.id}
+                                                style={{
+                                                    padding: '10px 12px',
+                                                    borderRadius: '8px',
+                                                    background: 'var(--surface)',
+                                                    border: '1px solid var(--border)',
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'center',
+                                                    gap: '10px'
+                                                }}
+                                            >
+                                                <div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <span style={{ fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace', fontSize: '0.84rem' }}>
+                                                            #{sale.order_number}
+                                                        </span>
+                                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: 600 }}>
+                                                            {sale.customer_name}
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                                        {formatAuditDate(sale.created_at)} • {sale.items?.length || 0} line item(s) • Total: {formatCurrency(sale.total_amount)}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '1px' }}>
+                                                        Items: {sale.items?.map(it => `${it.product_name || it.name} (cap: ${it.swappable_cap})`).join(', ')}
+                                                    </div>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleSelectSaleFromRecent(sale)}
+                                                    className="btn-primary"
+                                                    style={{ height: '30px', padding: '0 12px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}
+                                                >
+                                                    Select Receipt
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Direct Walk-in Product Search (No Receipt) */}
                         {showDirectReturnSearch && !foundSale && (
@@ -1003,7 +1112,7 @@ export const ItemSwap = () => {
                                                             opacity: !inStock ? 0.5 : 1
                                                         }}>
                                                             <td style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-main)' }}>
-                                                                {prod.name}
+                                                                {prod.name || prod.product_name || 'Part'}
                                                             </td>
                                                             <td style={{ padding: '8px 12px', color: 'var(--text-muted)' }}>
                                                                 {prod.brand || 'Generic'} • <span style={{ fontFamily: 'monospace' }}>{prod.part_number || '—'}</span>
@@ -1132,7 +1241,7 @@ export const ItemSwap = () => {
                                                     return (
                                                         <tr key={it.id || it.product_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                                             <td style={{ padding: '6px 8px', fontWeight: 600 }}>
-                                                                {it.name} <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>({it.brand || 'Generic'})</span>
+                                                                {it.name || it.product_name || 'Part'} <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>({it.brand || 'Generic'})</span>
                                                             </td>
                                                             <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'monospace' }}>
                                                                 {formatCurrency(price)}
@@ -1338,11 +1447,11 @@ export const ItemSwap = () => {
                                         </div>
                                         <div style={{ fontSize: '0.96rem', fontWeight: 800, color: 'var(--text-main)' }}>
                                             {replacementCart.length === 1
-                                                ? replacementCart[0]?.name
-                                                : `${replacementCart[0]?.name} (+${replacementCart.length - 1} more)`}
+                                                ? (replacementCart[0]?.name || replacementCart[0]?.product_name || 'Part')
+                                                : `${replacementCart[0]?.name || replacementCart[0]?.product_name || 'Part'} (+${replacementCart.length - 1} more)`}
                                         </div>
                                         <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                            {replacementCart.map(r => `${r.name} x${r.qty}`).join(', ')}
+                                            {replacementCart.map(r => `${r.name || r.product_name || 'Part'} x${r.qty}`).join(', ')}
                                         </div>
                                         <div style={{ fontSize: '1.25rem', fontFamily: 'monospace', fontWeight: 900, color: 'var(--primary)', marginTop: '6px' }}>
                                             Total: {formatCurrency(newReplacementPrice)}
@@ -1787,114 +1896,7 @@ export const ItemSwap = () => {
                 </div>
             )}
 
-            {/* ========================================================= */}
-            {/* RECENT SALES MODAL (FOR EASY RECEIPT PICKING)             */}
-            {/* ========================================================= */}
-            {showRecentModal && (
-                <div style={{
-                    position: 'fixed',
-                    inset: 0,
-                    zIndex: 9999,
-                    background: 'rgba(0,0,0,0.65)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '16px'
-                }}>
-                    <div className="glass-panel" style={{
-                        maxWidth: '680px',
-                        width: '100%',
-                        borderRadius: '16px',
-                        padding: '24px',
-                        position: 'relative',
-                        maxHeight: '85vh',
-                        display: 'flex',
-                        flexDirection: 'column'
-                    }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <Clock size={20} color="var(--primary)" />
-                                <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-                                    Recent Completed Sales Receipts
-                                </h2>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setShowRecentModal(false)}
-                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
 
-                        {loadingRecent ? (
-                            <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                                <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 8px auto', color: 'var(--primary)' }} />
-                                <div>Loading recent sales...</div>
-                            </div>
-                        ) : recentSales.length === 0 ? (
-                            <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                                No recent sales found.
-                            </div>
-                        ) : (
-                            <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                {recentSales.map(sale => (
-                                    <div
-                                        key={sale.id}
-                                        style={{
-                                            padding: '12px 14px',
-                                            borderRadius: '8px',
-                                            background: 'var(--surface-hover)',
-                                            border: '1px solid var(--border)',
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
-                                            gap: '12px'
-                                        }}
-                                    >
-                                        <div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <span style={{ fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace' }}>
-                                                    #{sale.order_number}
-                                                </span>
-                                                <span style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: 600 }}>
-                                                    {sale.customer_name}
-                                                </span>
-                                            </div>
-                                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '3px' }}>
-                                                {formatAuditDate(sale.created_at)} • {sale.items?.length || 0} line item(s) • Total: {formatCurrency(sale.total_amount)}
-                                            </div>
-                                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                                Items: {sale.items?.map(it => `${it.product_name} (cap: ${it.swappable_cap})`).join(', ')}
-                                            </div>
-                                        </div>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => handleSelectSaleFromModal(sale)}
-                                            className="btn-primary"
-                                            style={{ height: '32px', padding: '0 14px', fontSize: '0.76rem', fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}
-                                        >
-                                            Select Receipt
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
-                            <button
-                                type="button"
-                                onClick={() => setShowRecentModal(false)}
-                                className="btn-secondary"
-                                style={{ height: '34px', padding: '0 16px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
-                            >
-                                Close
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* ========================================================= */}
             {/* THERMAL PRINTABLE ITEM SWAP SLIP MODAL                   */}
@@ -1995,7 +1997,7 @@ export const ItemSwap = () => {
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                             {completedSwap.replacement_items.map((rep, rIdx) => (
                                                 <div key={rIdx} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-main)', fontSize: '0.76rem' }}>
-                                                    <span>{rep.name} <strong style={{ color: 'var(--text-muted)' }}>x{rep.qty}</strong></span>
+                                                    <span>{rep.name || rep.product_name || 'Part'} <strong style={{ color: 'var(--text-muted)' }}>x{rep.qty}</strong></span>
                                                     <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>
                                                         +{formatCurrency(rep.total_price || rep.unit_price * rep.qty)}
                                                     </span>
