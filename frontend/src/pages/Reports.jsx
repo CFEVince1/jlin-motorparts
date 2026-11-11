@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -95,6 +96,26 @@ export const Reports = () => {
         if (endDate) p.append('endDate', endDate);
         return p.toString();
     }, [timeframe, startDate, endDate]);
+
+    const activeTimeframeLabel = useMemo(() => {
+        if (timeframe === 'today') return 'Today (' + new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date()) + ')';
+        if (timeframe === 'week') return 'This Week';
+        if (timeframe === 'month') return 'This Month';
+        if (timeframe === 'all') return 'All-Time Records';
+        if (timeframe === 'custom') return `${startDate || 'Start'} to ${endDate || 'End'}`;
+        return 'Active Period';
+    }, [timeframe, startDate, endDate]);
+
+    const printCurrentDate = useMemo(() => {
+        return new Intl.DateTimeFormat('en-PH', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'Asia/Manila'
+        }).format(new Date());
+    }, []);
 
     // Data Fetchers
     const fetchActiveReport = useCallback(async () => {
@@ -259,13 +280,47 @@ export const Reports = () => {
 
     return (
         <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingBottom: '30px' }}>
-            {/* Print Stylesheet */}
+            {/* Professional Paper Print Stylesheet */}
             <style>{`
+                #printable-financial-report {
+                    display: none;
+                }
                 @media print {
-                    body * { visibility: hidden !important; }
-                    #report-print-container, #report-print-container * { visibility: visible !important; }
-                    #report-print-container { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; background: #ffffff !important; color: #000000 !important; }
-                    .no-print { display: none !important; }
+                    @page {
+                        size: A4 portrait;
+                        margin: 10mm 10mm;
+                    }
+                    #root {
+                        display: none !important;
+                        height: 0 !important;
+                        overflow: hidden !important;
+                    }
+                    body {
+                        background: #ffffff !important;
+                        color: #000000 !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                    }
+                    #printable-financial-report,
+                    #printable-financial-report * {
+                        visibility: visible !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
+                    #printable-financial-report {
+                        display: block !important;
+                        position: static !important;
+                        width: 100% !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        background: #ffffff !important;
+                        color: #000000 !important;
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+                        font-size: 11px !important;
+                    }
+                    .no-print {
+                        display: none !important;
+                    }
                 }
             `}</style>
 
@@ -1561,6 +1616,405 @@ export const Reports = () => {
                     </>
                 )}
             </div>
+
+            {/* =========================================================================
+                DEDICATED A4 PAPER PRINTABLE SHEET (Rendered via portal into body)
+               ========================================================================= */}
+            {typeof document !== 'undefined' && createPortal(
+                <div id="printable-financial-report">
+                    {/* Store Header */}
+                    <div style={{ borderBottom: '2px solid #000000', paddingBottom: '10px', marginBottom: '14px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <img
+                                    src="/jlin-logo.png"
+                                    alt="JLIN Logo"
+                                    style={{
+                                        width: '46px',
+                                        height: '46px',
+                                        objectFit: 'contain',
+                                        borderRadius: '50%',
+                                        border: '1.5px solid #000000',
+                                        flexShrink: 0
+                                    }}
+                                />
+                                <div>
+                                    <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 2px 0', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#000000' }}>
+                                        JLIN MOTO PARTS & ACCESSORIES
+                                    </h1>
+                                    <div style={{ fontSize: '11px', color: '#444444' }}>
+                                        Inventory, Sales & Financial Management System
+                                    </div>
+                                </div>
+                            </div>
+                            <div style={{ textAlign: 'right', fontSize: '10px', color: '#333333', lineHeight: '1.4' }}>
+                                <div><strong>Date & Time:</strong> {printCurrentDate}</div>
+                                <div><strong>Generated By:</strong> {user?.username || 'Admin'} ({user?.role || 'Admin'})</div>
+                                <div><strong>Timeframe:</strong> {activeTimeframeLabel}</div>
+                            </div>
+                        </div>
+
+                        <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed #666666', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase', color: '#000000' }}>
+                                {activeTab === 'profit_report' && 'FINANCIAL STATEMENT & PROFIT & LOSS (P&L) REPORT'}
+                                {activeTab === 'sales_report' && 'DETAILED PRODUCT SALES & PROFIT MARGIN REPORT'}
+                                {activeTab === 'inventory_report' && 'INVENTORY VELOCITY REPORT (FAST, SLOW, DEAD STOCK)'}
+                                {activeTab === 'cashflow_report' && 'OPERATING EXPENSES & CASH FLOW STATEMENT'}
+                                {activeTab === 'add_expense' && 'STORE FINANCIAL STATEMENT'}
+                            </span>
+                            <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#16a34a' }}>
+                                OFFICIAL STORE REPORT • CONFIDENTIAL
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* 4 Top KPI Summary Cards (Ink-Saving White Paper Boxes) */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '16px' }}>
+                        <div style={{ border: '1px solid #cccccc', borderRadius: '6px', padding: '10px', background: '#fafafa' }}>
+                            <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#555555', textTransform: 'uppercase' }}>
+                                Gross Retail Sales
+                            </div>
+                            <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#000000', marginTop: '2px', fontFamily: 'monospace' }}>
+                                {formatCurrency(salesProfitData?.financials?.gross_revenue || 0)}
+                            </div>
+                            <div style={{ fontSize: '8px', color: '#777777', marginTop: '2px' }}>Total checkout counter earnings</div>
+                        </div>
+
+                        <div style={{ border: '1px solid #cccccc', borderRadius: '6px', padding: '10px', background: '#fafafa' }}>
+                            <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#555555', textTransform: 'uppercase' }}>
+                                Total Puhunan (Cost)
+                            </div>
+                            <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#2563eb', marginTop: '2px', fontFamily: 'monospace' }}>
+                                {formatCurrency(salesProfitData?.financials?.cost_of_goods_sold || 0)}
+                            </div>
+                            <div style={{ fontSize: '8px', color: '#777777', marginTop: '2px' }}>Original supplier cost of sold parts</div>
+                        </div>
+
+                        <div style={{ border: '1px solid #cccccc', borderRadius: '6px', padding: '10px', background: '#fafafa' }}>
+                            <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#555555', textTransform: 'uppercase' }}>
+                                Operating Expenses
+                            </div>
+                            <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#d97706', marginTop: '2px', fontFamily: 'monospace' }}>
+                                {formatCurrency(salesProfitData?.financials?.total_operating_expenses || 0)}
+                            </div>
+                            <div style={{ fontSize: '8px', color: '#777777', marginTop: '2px' }}>Rent, electric, packaging & shipping</div>
+                        </div>
+
+                        <div style={{ border: '1.5px solid #16a34a', borderRadius: '6px', padding: '10px', background: '#f0fdf4' }}>
+                            <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#16a34a', textTransform: 'uppercase' }}>
+                                True Net Profit
+                            </div>
+                            <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#16a34a', marginTop: '2px', fontFamily: 'monospace' }}>
+                                {formatCurrency(salesProfitData?.financials?.true_net_profit || 0)}
+                            </div>
+                            <div style={{ fontSize: '8px', fontWeight: 'bold', color: '#16a34a', marginTop: '2px' }}>
+                                Net Margin: {salesProfitData?.financials?.profit_margin_pct || 0}%
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* ========================================================= */}
+                    {/* 1. PROFIT REPORT PRINT SHEET                              */}
+                    {/* ========================================================= */}
+                    {(activeTab === 'profit_report' || activeTab === 'add_expense') && (
+                        <div>
+                            {/* Detailed P&L Waterfall Table */}
+                            <div style={{ marginBottom: '16px' }}>
+                                <div style={{ fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px', borderBottom: '1px solid #000000', paddingBottom: '3px' }}>
+                                    Income Statement Waterfall Breakdown
+                                </div>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
+                                    <tbody>
+                                        <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                            <td style={{ padding: '6px 8px', fontWeight: 600 }}>Gross Retail Sales:</td>
+                                            <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>
+                                                {formatCurrency(salesProfitData?.financials?.gross_revenue || 0)}
+                                            </td>
+                                        </tr>
+                                        <tr style={{ borderBottom: '1px solid #e5e7eb', color: '#7c3aed' }}>
+                                            <td style={{ padding: '6px 8px' }}>Less: Voided / Cancelled Sales:</td>
+                                            <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>
+                                                -{formatCurrency(salesProfitData?.financials?.sales_reversals || 0)}
+                                            </td>
+                                        </tr>
+                                        <tr style={{ borderBottom: '1px solid #e5e7eb', color: '#7c3aed' }}>
+                                            <td style={{ padding: '6px 8px' }}>Less: Approved Cashier Discounts:</td>
+                                            <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>
+                                                -{formatCurrency(salesProfitData?.financials?.discounts || 0)}
+                                            </td>
+                                        </tr>
+                                        <tr style={{ borderBottom: '1.5px solid #d1d5db', background: '#f3f4f6', fontWeight: 'bold' }}>
+                                            <td style={{ padding: '6px 8px', color: '#16a34a' }}>= Net Retail Sales:</td>
+                                            <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'monospace', color: '#16a34a' }}>
+                                                {formatCurrency(salesProfitData?.financials?.net_retail_sales || 0)}
+                                            </td>
+                                        </tr>
+                                        <tr style={{ borderBottom: '1px solid #e5e7eb', color: '#2563eb' }}>
+                                            <td style={{ padding: '6px 8px' }}>Less: Total Puhunan (Supplier Cost of Items Sold):</td>
+                                            <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>
+                                                -{formatCurrency(salesProfitData?.financials?.cost_of_goods_sold || 0)}
+                                            </td>
+                                        </tr>
+                                        <tr style={{ borderBottom: '1.5px solid #d1d5db', background: '#f3f4f6', fontWeight: 'bold' }}>
+                                            <td style={{ padding: '6px 8px', color: '#0891b2' }}>= Gross Margin:</td>
+                                            <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'monospace', color: '#0891b2' }}>
+                                                {formatCurrency(salesProfitData?.financials?.gross_margin || 0)}
+                                            </td>
+                                        </tr>
+                                        <tr style={{ borderBottom: '1px solid #e5e7eb', color: '#dc2626' }}>
+                                            <td style={{ padding: '6px 8px' }}>Less: In-Store Damaged Stock & Shrinkage Losses:</td>
+                                            <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>
+                                                -{formatCurrency(salesProfitData?.financials?.combined_shop_losses || salesProfitData?.financials?.shop_return_losses || 0)}
+                                            </td>
+                                        </tr>
+                                        <tr style={{ borderBottom: '1px solid #e5e7eb', color: '#d97706' }}>
+                                            <td style={{ padding: '6px 8px' }}>Less: Store Operating Expenses (Rent, utilities, shipping, packaging):</td>
+                                            <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>
+                                                -{formatCurrency(salesProfitData?.financials?.total_operating_expenses || 0)}
+                                            </td>
+                                        </tr>
+                                        <tr style={{ borderTop: '2px solid #16a34a', borderBottom: '2px double #16a34a', background: '#f0fdf4', fontWeight: 'bold' }}>
+                                            <td style={{ padding: '8px', fontSize: '11px', color: '#16a34a' }}>= TRUE NET PROFIT (Malinis na Kita):</td>
+                                            <td style={{ padding: '8px', textAlign: 'right', fontFamily: 'monospace', fontSize: '12px', color: '#16a34a' }}>
+                                                {formatCurrency(salesProfitData?.financials?.true_net_profit || 0)}
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Side-by-Side: Operating Expenses Breakdown & Payment Channels */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px', marginBottom: '16px' }}>
+                                {/* Expenses Table */}
+                                <div>
+                                    <div style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px', borderBottom: '1px solid #000000', paddingBottom: '3px' }}>
+                                        Operating Expenses Breakdown
+                                    </div>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
+                                        <tbody>
+                                            {[
+                                                { label: 'Shop Rent (Prorated Monthly Lease)', val: salesProfitData?.financials?.expense_breakdown?.rent || 0 },
+                                                { label: 'Electricity & Shop Utilities', val: salesProfitData?.financials?.expense_breakdown?.electricity || 0 },
+                                                { label: 'Shipping Fees (J&T, Lalamove, Flash)', val: salesProfitData?.financials?.expense_breakdown?.shipping_courier || 0 },
+                                                { label: 'Packaging Materials & Bags', val: salesProfitData?.financials?.expense_breakdown?.packaging || 0 },
+                                                { label: 'Staff Snacks & Allowances', val: salesProfitData?.financials?.expense_breakdown?.staff_allowance || 0 },
+                                                { label: 'Store Maintenance & Upkeep', val: salesProfitData?.financials?.expense_breakdown?.maintenance || 0 }
+                                            ].map(item => (
+                                                <tr key={item.label} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                                    <td style={{ padding: '5px 6px', color: '#444444' }}>{item.label}:</td>
+                                                    <td style={{ padding: '5px 6px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold' }}>
+                                                        {formatCurrency(item.val)}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            <tr style={{ background: '#f9fafb', fontWeight: 'bold', borderTop: '1px solid #000000' }}>
+                                                <td style={{ padding: '6px' }}>Total Operating Expenses:</td>
+                                                <td style={{ padding: '6px', textAlign: 'right', fontFamily: 'monospace', color: '#d97706' }}>
+                                                    {formatCurrency(salesProfitData?.financials?.total_operating_expenses || 0)}
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Payment Channels */}
+                                <div>
+                                    <div style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px', borderBottom: '1px solid #000000', paddingBottom: '3px' }}>
+                                        Payment Channels Summary
+                                    </div>
+                                    <div style={{ border: '1px solid #cccccc', borderRadius: '6px', padding: '10px', background: '#fafafa', marginBottom: '8px' }}>
+                                        <div style={{ fontSize: '10px', color: '#555555', fontWeight: 'bold' }}>Cash Drawer Inflow:</div>
+                                        <div style={{ fontSize: '15px', fontWeight: 'bold', fontFamily: 'monospace', color: '#16a34a', marginTop: '2px' }}>
+                                            {formatCurrency(salesProfitData?.payment_channels?.cash?.amount || 0)}
+                                        </div>
+                                        <div style={{ fontSize: '9px', color: '#777777', marginTop: '2px' }}>
+                                            {salesProfitData?.payment_channels?.cash?.count || 0} transaction(s) ({salesProfitData?.payment_channels?.cash?.percentage || 0}%)
+                                        </div>
+                                    </div>
+
+                                    <div style={{ border: '1px solid #cccccc', borderRadius: '6px', padding: '10px', background: '#fafafa' }}>
+                                        <div style={{ fontSize: '10px', color: '#555555', fontWeight: 'bold' }}>GCash Digital Wallet Inflow:</div>
+                                        <div style={{ fontSize: '15px', fontWeight: 'bold', fontFamily: 'monospace', color: '#2563eb', marginTop: '2px' }}>
+                                            {formatCurrency(salesProfitData?.payment_channels?.gcash?.amount || 0)}
+                                        </div>
+                                        <div style={{ fontSize: '9px', color: '#777777', marginTop: '2px' }}>
+                                            {salesProfitData?.payment_channels?.gcash?.count || 0} transaction(s) ({salesProfitData?.payment_channels?.gcash?.percentage || 0}%)
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ========================================================= */}
+                    {/* 2. SALES BREAKDOWN PRINT SHEET                            */}
+                    {/* ========================================================= */}
+                    {activeTab === 'sales_report' && (
+                        <div style={{ marginBottom: '16px' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1.5px solid #000000', background: '#f3f4f6' }}>
+                                        <th style={{ padding: '6px 4px', textAlign: 'left' }}>#</th>
+                                        <th style={{ padding: '6px 6px', textAlign: 'left' }}>Part Number</th>
+                                        <th style={{ padding: '6px 6px', textAlign: 'left' }}>Product Name</th>
+                                        <th style={{ padding: '6px 6px', textAlign: 'left' }}>Brand</th>
+                                        <th style={{ padding: '6px 6px', textAlign: 'center' }}>Qty</th>
+                                        <th style={{ padding: '6px 6px', textAlign: 'right' }}>Unit Puhunan</th>
+                                        <th style={{ padding: '6px 6px', textAlign: 'right' }}>Retail Price</th>
+                                        <th style={{ padding: '6px 6px', textAlign: 'right' }}>Revenue</th>
+                                        <th style={{ padding: '6px 6px', textAlign: 'right' }}>Gross Profit</th>
+                                        <th style={{ padding: '6px 6px', textAlign: 'center' }}>Margin</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {(salesProfitData?.sold_products || []).map((p, idx) => (
+                                        <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                            <td style={{ padding: '5px 4px', color: '#666666' }}>{idx + 1}</td>
+                                            <td style={{ padding: '5px 6px', fontFamily: 'monospace', fontWeight: 'bold' }}>{p.part_number}</td>
+                                            <td style={{ padding: '5px 6px' }}>{p.product_name}</td>
+                                            <td style={{ padding: '5px 6px' }}>{p.brand}</td>
+                                            <td style={{ padding: '5px 6px', textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold' }}>{p.total_qty_sold}</td>
+                                            <td style={{ padding: '5px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{formatCurrency(p.avg_unit_cost)}</td>
+                                            <td style={{ padding: '5px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{formatCurrency(p.avg_unit_price)}</td>
+                                            <td style={{ padding: '5px 6px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold' }}>{formatCurrency(p.total_revenue)}</td>
+                                            <td style={{ padding: '5px 6px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', color: '#16a34a' }}>{formatCurrency(p.total_gross_profit)}</td>
+                                            <td style={{ padding: '5px 6px', textAlign: 'center', fontWeight: 'bold' }}>{p.margin_pct}%</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {/* ========================================================= */}
+                    {/* 3. INVENTORY VELOCITY PRINT SHEET                         */}
+                    {/* ========================================================= */}
+                    {activeTab === 'inventory_report' && (
+                        <div style={{ marginBottom: '16px' }}>
+                            <div style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '4px', borderBottom: '1px solid #000000', paddingBottom: '3px' }}>
+                                Fast-Moving Parts (High Velocity)
+                            </div>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', marginBottom: '12px' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1.5px solid #000000', background: '#f3f4f6' }}>
+                                        <th style={{ padding: '5px 6px', textAlign: 'left' }}>SKU</th>
+                                        <th style={{ padding: '5px 6px', textAlign: 'left' }}>Product Name</th>
+                                        <th style={{ padding: '5px 6px', textAlign: 'left' }}>Brand</th>
+                                        <th style={{ padding: '5px 6px', textAlign: 'center' }}>Sellable Stock</th>
+                                        <th style={{ padding: '5px 6px', textAlign: 'center' }}>Units Sold</th>
+                                        <th style={{ padding: '5px 6px', textAlign: 'right' }}>Price</th>
+                                        <th style={{ padding: '5px 6px', textAlign: 'left' }}>Recommended Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {(fastDeadStockData?.fast_moving?.items || []).slice(0, 15).map((p, idx) => (
+                                        <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                            <td style={{ padding: '4px 6px', fontFamily: 'monospace', fontWeight: 'bold' }}>{p.sku}</td>
+                                            <td style={{ padding: '4px 6px' }}>{p.part_name}</td>
+                                            <td style={{ padding: '4px 6px' }}>{p.brand}</td>
+                                            <td style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 'bold' }}>{p.sellable_stock}</td>
+                                            <td style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 'bold', color: '#16a34a' }}>{p.net_qty_sold}</td>
+                                            <td style={{ padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{formatCurrency(p.retail_price)}</td>
+                                            <td style={{ padding: '4px 6px', color: '#16a34a', fontWeight: 600 }}>{p.action_advice}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+
+                            <div style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '4px', borderBottom: '1px solid #000000', paddingBottom: '3px' }}>
+                                Dead Stock Alert (Zero Sales &gt; 90 Days)
+                            </div>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1.5px solid #000000', background: '#fef2f2' }}>
+                                        <th style={{ padding: '5px 6px', textAlign: 'left' }}>SKU</th>
+                                        <th style={{ padding: '5px 6px', textAlign: 'left' }}>Product Name</th>
+                                        <th style={{ padding: '5px 6px', textAlign: 'center' }}>Stock</th>
+                                        <th style={{ padding: '5px 6px', textAlign: 'right' }}>Capital Tied Up</th>
+                                        <th style={{ padding: '5px 6px', textAlign: 'left' }}>Clearance Recommendation</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {(fastDeadStockData?.dead_stock?.items || []).slice(0, 15).map((p, idx) => (
+                                        <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                            <td style={{ padding: '4px 6px', fontFamily: 'monospace', fontWeight: 'bold' }}>{p.sku}</td>
+                                            <td style={{ padding: '4px 6px' }}>{p.part_name} ({p.brand})</td>
+                                            <td style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 'bold', color: '#dc2626' }}>{p.sellable_stock}</td>
+                                            <td style={{ padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', color: '#dc2626' }}>{formatCurrency(p.capital_tied_up)}</td>
+                                            <td style={{ padding: '4px 6px', color: '#b91c1c' }}>{p.clearance_recommendation}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {/* ========================================================= */}
+                    {/* 4. EXPENSES & CASH FLOW PRINT SHEET                       */}
+                    {/* ========================================================= */}
+                    {activeTab === 'cashflow_report' && (
+                        <div style={{ marginBottom: '16px' }}>
+                            <div style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px', borderBottom: '1px solid #000000', paddingBottom: '3px' }}>
+                                Operating Expenses Ledger
+                            </div>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1.5px solid #000000', background: '#f3f4f6' }}>
+                                        <th style={{ padding: '5px 6px', textAlign: 'left' }}>Date</th>
+                                        <th style={{ padding: '5px 6px', textAlign: 'left' }}>Category</th>
+                                        <th style={{ padding: '5px 6px', textAlign: 'left' }}>Expense Title</th>
+                                        <th style={{ padding: '5px 6px', textAlign: 'center' }}>Source</th>
+                                        <th style={{ padding: '5px 6px', textAlign: 'right' }}>Amount</th>
+                                        <th style={{ padding: '5px 6px', textAlign: 'left' }}>Recorded By</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {(cashflowData?.expenses?.items || []).map((e, idx) => (
+                                        <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                            <td style={{ padding: '4px 6px', fontFamily: 'monospace' }}>{e.expense_date}</td>
+                                            <td style={{ padding: '4px 6px', fontWeight: 'bold' }}>{e.category}</td>
+                                            <td style={{ padding: '4px 6px' }}>{e.title}</td>
+                                            <td style={{ padding: '4px 6px', textAlign: 'center', textTransform: 'uppercase', fontSize: '8px' }}>
+                                                {e.payment_source === 'cash_drawer' ? 'Cash Drawer' : 'GCash'}
+                                            </td>
+                                            <td style={{ padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', color: '#dc2626' }}>
+                                                {formatCurrency(e.amount)}
+                                            </td>
+                                            <td style={{ padding: '4px 6px' }}>{e.recorded_by}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {/* Official Report Signatures & Verification */}
+                    <div style={{ marginTop: '24px', paddingTop: '12px', borderTop: '1px solid #000000', display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}>
+                        <div style={{ width: '220px' }}>
+                            <div style={{ borderBottom: '1px solid #000000', height: '35px' }}></div>
+                            <div style={{ marginTop: '4px', textAlign: 'center', fontWeight: 'bold' }}>
+                                Prepared By: {user?.username || 'Staff'} ({user?.role || 'Staff'})
+                            </div>
+                            <div style={{ textAlign: 'center', fontSize: '8px', color: '#666666' }}>Authorized Store Personnel</div>
+                        </div>
+
+                        <div style={{ textAlign: 'center', fontSize: '9px', color: '#555555', alignSelf: 'center' }}>
+                            <div><strong>JLIN MOTO PARTS & ACCESSORIES</strong></div>
+                            <div>Physical Store & Counter Sales Operations</div>
+                            <div><em>Printed via JLIN Inventory System</em></div>
+                        </div>
+
+                        <div style={{ width: '220px' }}>
+                            <div style={{ borderBottom: '1px solid #000000', height: '35px' }}></div>
+                            <div style={{ marginTop: '4px', textAlign: 'center', fontWeight: 'bold' }}>
+                                Certified & Approved By
+                            </div>
+                            <div style={{ textAlign: 'center', fontSize: '8px', color: '#666666' }}>Store Owner / Admin</div>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 };
