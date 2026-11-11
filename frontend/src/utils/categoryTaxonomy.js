@@ -1,38 +1,10 @@
 /**
- * Standard 6-Category Motorparts Taxonomy (Max 6 Characters)
- * 
- * 1. CVT (CVT / Drive / Transmission: V-belts, flyballs, pulley sets, chains, sprockets)
- * 2. Elec (Electronics / Electrical / Ignition: ECUs, CDI units, regulators, spark plugs, wiring)
- * 3. Engine (Engine / Engine Parts / Exhaust / Filters: Blocks, pistons, valves, gaskets, oil filters)
- * 4. Brakes (Brakes: Calipers, brake pads, master cylinders, rotors, levers)
- * 5. Oils (Fluids / Oils / Lubricants: Brake fluid, engine oil, gear oil, fork oil, coolant)
- * 6. Wheels (Tires / Wheels / Suspension: Tires, rims/mags, wheel bearings, shocks, bolts)
+ * Standard 15-Category Motorparts Taxonomy
+ * Official J-Lin Motor Parts Inventory Taxonomy
  */
 
 export const SHORT_TAXONOMY = {
-  Brakes: {
-    key: 'Brakes',
-    label: 'Brakes',
-    skuPrefix: 'BRK',
-    color: '#ef4444',
-    bg: 'rgba(239, 68, 68, 0.12)',
-    border: 'rgba(239, 68, 68, 0.35)',
-    dot: '#ef4444',
-    scope: 'Calipers, brake pads, master cylinders, rotors, levers',
-    aliases: ['brakes', 'brake', 'cables', 'caliper', 'rotors', 'pads', 'lever']
-  },
-  Elec: {
-    key: 'Elec',
-    label: 'Elec',
-    skuPrefix: 'ELC',
-    color: '#3b82f6',
-    bg: 'rgba(59, 130, 246, 0.12)',
-    border: 'rgba(59, 130, 246, 0.35)',
-    dot: '#3b82f6',
-    scope: 'ECUs, CDI units, regulators, spark plugs, wiring, horns, lights',
-    aliases: ['electronics', 'electrical', 'elec', 'ignition', 'ecu', 'cdi', 'wiring', 'spark plug', 'battery', 'horn', 'light', 'lights']
-  },
-  Engine: {
+  'Engine': {
     key: 'Engine',
     label: 'Engine',
     skuPrefix: 'ENG',
@@ -40,87 +12,166 @@ export const SHORT_TAXONOMY = {
     bg: 'rgba(245, 158, 11, 0.12)',
     border: 'rgba(245, 158, 11, 0.35)',
     dot: '#f59e0b',
-    scope: 'Blocks, pistons, valves, gaskets, oil filters, tensioners, radiators',
-    aliases: ['engine', 'engine parts', 'exhaust', 'filters', 'filter', 'piston', 'valves', 'cylinder', 'gasket', 'tensioner', 'pipe']
+    scope: 'Blocks, pistons, valves, cylinder heads, crankshaft, gaskets, engine parts',
+    aliases: ['engine', 'engine parts', 'piston', 'valves', 'cylinder', 'gasket', 'crankshaft', 'block']
   },
-  CVT: {
-    key: 'CVT',
-    label: 'CVT',
+  'Tires': {
+    key: 'Tires',
+    label: 'Tires',
+    skuPrefix: 'TIRE',
+    color: '#06b6d4',
+    bg: 'rgba(6, 182, 212, 0.12)',
+    border: 'rgba(6, 182, 212, 0.35)',
+    dot: '#06b6d4',
+    scope: 'Tubeless tires, tube type tires, inner tubes, tire sealants',
+    aliases: ['tires', 'tire', 'inner tube', 'tubeless', 'tube']
+  },
+  'Wheels & Hubs': {
+    key: 'Wheels & Hubs',
+    label: 'Wheels & Hubs',
+    skuPrefix: 'WHL',
+    color: '#0284c7',
+    bg: 'rgba(2, 132, 199, 0.12)',
+    border: 'rgba(2, 132, 199, 0.35)',
+    dot: '#0284c7',
+    scope: 'Mags, rims, wheel hubs, spokes, wheel bearings, axle',
+    aliases: ['wheels & hubs', 'wheels', 'mags', 'rim', 'rims', 'hub', 'hubs', 'spokes', 'axle', 'wheel bearing']
+  },
+  'CVT & Pulleys': {
+    key: 'CVT & Pulleys',
+    label: 'CVT & Pulleys',
     skuPrefix: 'CVT',
     color: '#10b981',
     bg: 'rgba(16, 185, 129, 0.12)',
     border: 'rgba(16, 185, 129, 0.35)',
     dot: '#10b981',
-    scope: 'V-belts, flyballs, pulley sets, chains, sprockets, clutch springs',
-    aliases: ['transmission', 'cvt', 'drive', 'chains & sprockets', 'cvt & pulleys', 'belt', 'pulley', 'flyball', 'clutch', 'chain', 'sprocket']
+    scope: 'V-belts, pulley sets, flyballs, drive face, clutch bell, clutch lining, torque drive, clutch springs',
+    aliases: ['cvt & pulleys', 'cvt', 'transmission', 'drive', 'v-belt', 'belt', 'pulley', 'flyball', 'clutch', 'torque drive', 'drive face']
   },
-  Oils: {
-    key: 'Oils',
-    label: 'Oils',
+  'Suspension': {
+    key: 'Suspension',
+    label: 'Suspension',
+    skuPrefix: 'SUSP',
+    color: '#14b8a6',
+    bg: 'rgba(20, 184, 166, 0.12)',
+    border: 'rgba(20, 184, 166, 0.35)',
+    dot: '#14b8a6',
+    scope: 'Front fork, rear shock absorbers, fork oil, bushings, swing arm',
+    aliases: ['suspension', 'shock', 'shocks', 'rear shock', 'front fork', 'fork', 'swing arm', 'absorber']
+  },
+  'Exhaust': {
+    key: 'Exhaust',
+    label: 'Exhaust',
+    skuPrefix: 'EXH',
+    color: '#f97316',
+    bg: 'rgba(249, 115, 22, 0.12)',
+    border: 'rgba(249, 115, 22, 0.35)',
+    dot: '#f97316',
+    scope: 'Exhaust pipe, silencer, manifold, exhaust gasket, thermal wrap, power pipe',
+    aliases: ['exhaust', 'pipe', 'silencer', 'muffler', 'manifold', 'power pipe']
+  },
+  'Brakes': {
+    key: 'Brakes',
+    label: 'Brakes',
+    skuPrefix: 'BRK',
+    color: '#ef4444',
+    bg: 'rgba(239, 68, 68, 0.12)',
+    border: 'rgba(239, 68, 68, 0.35)',
+    dot: '#ef4444',
+    scope: 'Brake pads, brake shoes, calipers, disc rotors, master cylinder, brake hose, brake levers',
+    aliases: ['brakes', 'brake', 'caliper', 'rotors', 'rotor', 'pads', 'brake pads', 'brake shoe', 'master cylinder', 'brake hose']
+  },
+  'Chains & Sprockets': {
+    key: 'Chains & Sprockets',
+    label: 'Chains & Sprockets',
+    skuPrefix: 'CHN',
+    color: '#84cc16',
+    bg: 'rgba(132, 204, 22, 0.12)',
+    border: 'rgba(132, 204, 22, 0.35)',
+    dot: '#84cc16',
+    scope: 'Drive chains, front sprockets, rear sprockets, chain lube, tensioner, chain guide',
+    aliases: ['chains & sprockets', 'chain', 'chains', 'sprocket', 'sprockets', 'drive chain']
+  },
+  'Handlebars & Controls': {
+    key: 'Handlebars & Controls',
+    label: 'Handlebars & Controls',
+    skuPrefix: 'HNDL',
+    color: '#6366f1',
+    bg: 'rgba(99, 102, 241, 0.12)',
+    border: 'rgba(99, 102, 241, 0.35)',
+    dot: '#6366f1',
+    scope: 'Handlebars, throttle grips, levers, throttle cables, clutch cables, handle switches',
+    aliases: ['handlebars & controls', 'handlebars', 'handlebar', 'grips', 'throttle', 'lever', 'cables', 'switch']
+  },
+  'Lights & Mirrors': {
+    key: 'Lights & Mirrors',
+    label: 'Lights & Mirrors',
+    skuPrefix: 'LGHT',
+    color: '#eab308',
+    bg: 'rgba(234, 179, 8, 0.12)',
+    border: 'rgba(234, 179, 8, 0.35)',
+    dot: '#eab308',
+    scope: 'Headlights, signal lights, tail lights, LED bulbs, side mirrors, mini driving lights',
+    aliases: ['lights & mirrors', 'lights', 'light', 'mirror', 'mirrors', 'headlight', 'signal light', 'tail light', 'bulb', 'led']
+  },
+  'Electrical': {
+    key: 'Electrical',
+    label: 'Electrical',
+    skuPrefix: 'ELEC',
+    color: '#3b82f6',
+    bg: 'rgba(59, 130, 246, 0.12)',
+    border: 'rgba(59, 130, 246, 0.35)',
+    dot: '#3b82f6',
+    scope: 'ECU, CDI, ignition coil, regulator/rectifier, stator, starter motor, batteries, spark plugs, wiring harness',
+    aliases: ['electrical', 'elec', 'electronics', 'ecu', 'cdi', 'battery', 'batteries', 'spark plug', 'stator', 'regulator', 'wiring', 'starter']
+  },
+  'Oils & Lubricants': {
+    key: 'Oils & Lubricants',
+    label: 'Oils & Lubricants',
     skuPrefix: 'OIL',
     color: '#a855f7',
     bg: 'rgba(168, 85, 247, 0.12)',
     border: 'rgba(168, 85, 247, 0.35)',
     dot: '#a855f7',
-    scope: 'Brake fluid, engine oil, gear oil, fork oil, coolant, grease',
-    aliases: ['oils', 'fluids', 'lubricants', 'fluid', 'oil', 'coolant', 'brake fluid', 'gear oil', 'engine oil', 'grease']
+    scope: 'Engine oil, 4T/2T, gear oil, brake fluid, coolant, fork oil, grease, chain wax',
+    aliases: ['oils & lubricants', 'oils', 'oil', 'lubricants', 'fluid', 'coolant', 'gear oil', 'brake fluid', 'engine oil', 'grease']
   },
-  Wheels: {
-    key: 'Wheels',
-    label: 'Wheels',
-    skuPrefix: 'WHL',
-    color: '#06b6d4',
-    bg: 'rgba(6, 182, 212, 0.12)',
-    border: 'rgba(6, 182, 212, 0.35)',
-    dot: '#06b6d4',
-    scope: 'Tires, rims/mags, wheel bearings, shocks, bolts, chassis, accessories',
-    aliases: ['tires', 'wheels', 'wheels & hubs', 'suspension', 'chassis', 'accessories', 'body & seats', 'parts', 'tire', 'rim', 'mag', 'shock', 'bearing', 'bolt']
+  'Bolts & Accessories': {
+    key: 'Bolts & Accessories',
+    label: 'Bolts & Accessories',
+    skuPrefix: 'BLT',
+    color: '#ec4899',
+    bg: 'rgba(236, 72, 153, 0.12)',
+    border: 'rgba(236, 72, 153, 0.35)',
+    dot: '#ec4899',
+    scope: 'Titanium bolts, stainless bolts, nuts, washers, phone mounts, crash guards, brackets',
+    aliases: ['bolts & accessories', 'bolts', 'accessories', 'bolt', 'nut', 'washers', 'bracket', 'mount', 'crash guard']
+  },
+  'Body & Seats': {
+    key: 'Body & Seats',
+    label: 'Body & Seats',
+    skuPrefix: 'BODY',
+    color: '#8b5cf6',
+    bg: 'rgba(139, 92, 246, 0.12)',
+    border: 'rgba(139, 92, 246, 0.35)',
+    dot: '#8b5cf6',
+    scope: 'Fairings, body plastics, seat covers, seat assembly, fenders, windshields',
+    aliases: ['body & seats', 'body', 'seats', 'seat', 'fairing', 'fairings', 'plastic', 'fender', 'windshield']
+  },
+  'Riding Gear & Luggage': {
+    key: 'Riding Gear & Luggage',
+    label: 'Riding Gear & Luggage',
+    skuPrefix: 'GEAR',
+    color: '#64748b',
+    bg: 'rgba(100, 116, 139, 0.12)',
+    border: 'rgba(100, 116, 139, 0.35)',
+    dot: '#64748b',
+    scope: 'Helmets, riding jackets, gloves, top boxes, saddle bags, raincoats',
+    aliases: ['riding gear & luggage', 'gear', 'luggage', 'helmet', 'gloves', 'jacket', 'top box', 'box', 'bag']
   }
 };
 
-export const STANDARD_TAXONOMY_KEYS = ['Brakes', 'Elec', 'Engine', 'CVT', 'Oils', 'Wheels'];
-
-export const getShortCategory = (rawCategory) => {
-  if (!rawCategory || typeof rawCategory !== 'string') {
-    return {
-      key: 'Other',
-      label: 'Other',
-      color: '#94a3b8',
-      bg: 'rgba(148, 163, 184, 0.12)',
-      border: 'rgba(148, 163, 184, 0.3)',
-      dot: '#94a3b8'
-    };
-  }
-  const clean = rawCategory.trim();
-  const lower = clean.toLowerCase();
-
-  // 1. Direct key match
-  for (const [key, conf] of Object.entries(SHORT_TAXONOMY)) {
-    if (key.toLowerCase() === lower || conf.label.toLowerCase() === lower) {
-      return { ...conf };
-    }
-  }
-
-  // 2. Alias match
-  for (const conf of Object.values(SHORT_TAXONOMY)) {
-    if (conf.aliases.some(alias => lower.includes(alias))) {
-      return { ...conf };
-    }
-  }
-
-  // 3. Fallback: cap to 6 characters
-  const shortLabel = clean.length > 6 ? clean.substring(0, 6) : clean;
-  return {
-    key: shortLabel,
-    label: shortLabel,
-    color: '#94a3b8',
-    bg: 'rgba(148, 163, 184, 0.12)',
-    border: 'rgba(148, 163, 184, 0.3)',
-    dot: '#94a3b8'
-  };
-};
-
-export const MOTORCYCLE_CATEGORIES = [
+export const STANDARD_TAXONOMY_KEYS = [
   'Engine',
   'Tires',
   'Wheels & Hubs',
@@ -138,54 +189,84 @@ export const MOTORCYCLE_CATEGORIES = [
   'Riding Gear & Luggage'
 ];
 
-export const CANONICAL_CATEGORIES = [
-  { code: 'ENG', name: 'Engine', label: 'Engine (ENG)', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.35)' },
-  { code: 'TIRE', name: 'Tires', label: 'Tires (TIRE)', color: '#06b6d4', bg: 'rgba(6, 182, 212, 0.12)', border: 'rgba(6, 182, 212, 0.35)' },
-  { code: 'WHL', name: 'Wheels & Hubs', label: 'Wheels & Hubs (WHL)', color: '#0284c7', bg: 'rgba(2, 132, 199, 0.12)', border: 'rgba(2, 132, 199, 0.35)' },
-  { code: 'CVT', name: 'CVT & Pulleys', label: 'CVT & Pulleys (CVT)', color: '#10b981', bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.35)' },
-  { code: 'SUSP', name: 'Suspension', label: 'Suspension (SUSP)', color: '#14b8a6', bg: 'rgba(20, 184, 166, 0.12)', border: 'rgba(20, 184, 166, 0.35)' },
-  { code: 'EXH', name: 'Exhaust', label: 'Exhaust (EXH)', color: '#f97316', bg: 'rgba(249, 115, 22, 0.12)', border: 'rgba(249, 115, 22, 0.35)' },
-  { code: 'BRK', name: 'Brakes', label: 'Brakes (BRK)', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.12)', border: 'rgba(239, 68, 68, 0.35)' },
-  { code: 'CHN', name: 'Chains & Sprockets', label: 'Chains & Sprockets (CHN)', color: '#84cc16', bg: 'rgba(132, 204, 22, 0.12)', border: 'rgba(132, 204, 22, 0.35)' },
-  { code: 'HNDL', name: 'Handlebars & Controls', label: 'Handlebars & Controls (HNDL)', color: '#6366f1', bg: 'rgba(99, 102, 241, 0.12)', border: 'rgba(99, 102, 241, 0.35)' },
-  { code: 'LGHT', name: 'Lights & Mirrors', label: 'Lights & Mirrors (LGHT)', color: '#eab308', bg: 'rgba(234, 179, 8, 0.12)', border: 'rgba(234, 179, 8, 0.35)' },
-  { code: 'ELEC', name: 'Electrical', label: 'Electrical (ELEC)', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.12)', border: 'rgba(59, 130, 246, 0.35)' },
-  { code: 'OIL', name: 'Oils & Lubricants', label: 'Oils & Lubricants (OIL)', color: '#a855f7', bg: 'rgba(168, 85, 247, 0.12)', border: 'rgba(168, 85, 247, 0.35)' },
-  { code: 'BLT', name: 'Bolts & Accessories', label: 'Bolts & Accessories (BLT)', color: '#ec4899', bg: 'rgba(236, 72, 153, 0.12)', border: 'rgba(236, 72, 153, 0.35)' },
-  { code: 'BODY', name: 'Body & Seats', label: 'Body & Seats (BODY)', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)', border: 'rgba(139, 92, 246, 0.35)' },
-  { code: 'GEAR', name: 'Riding Gear & Luggage', label: 'Riding Gear & Luggage (GEAR)', color: '#64748b', bg: 'rgba(100, 116, 139, 0.12)', border: 'rgba(100, 116, 139, 0.35)' }
-];
+export const MOTORCYCLE_CATEGORIES = STANDARD_TAXONOMY_KEYS;
+
+export const CANONICAL_CATEGORIES = STANDARD_TAXONOMY_KEYS.map(key => {
+  const conf = SHORT_TAXONOMY[key];
+  return {
+    code: conf.skuPrefix,
+    name: conf.key,
+    label: `${conf.label} (${conf.skuPrefix})`,
+    color: conf.color,
+    bg: conf.bg,
+    border: conf.border
+  };
+});
 
 export const CANONICAL_6_CATEGORIES = CANONICAL_CATEGORIES;
+
+export const getShortCategory = (rawCategory) => {
+  if (!rawCategory || typeof rawCategory !== 'string') {
+    return {
+      key: 'Other',
+      label: 'Other',
+      color: '#94a3b8',
+      bg: 'rgba(148, 163, 184, 0.12)',
+      border: 'rgba(148, 163, 184, 0.3)',
+      dot: '#94a3b8'
+    };
+  }
+  const clean = rawCategory.trim();
+  const lower = clean.toLowerCase();
+
+  // 1. Direct key or label match
+  for (const [key, conf] of Object.entries(SHORT_TAXONOMY)) {
+    if (key.toLowerCase() === lower || conf.label.toLowerCase() === lower) {
+      return { ...conf };
+    }
+  }
+
+  // 2. Exact alias match
+  for (const conf of Object.values(SHORT_TAXONOMY)) {
+    if (conf.aliases.some(alias => alias === lower)) {
+      return { ...conf };
+    }
+  }
+
+  // 3. Substring alias match
+  for (const conf of Object.values(SHORT_TAXONOMY)) {
+    if (conf.aliases.some(alias => lower.includes(alias))) {
+      return { ...conf };
+    }
+  }
+
+  // 4. Fallback: return clean category name with standard styling
+  return {
+    key: clean,
+    label: clean,
+    color: '#94a3b8',
+    bg: 'rgba(148, 163, 184, 0.12)',
+    border: 'rgba(148, 163, 184, 0.3)',
+    dot: '#94a3b8'
+  };
+};
 
 export const getCategoryBadgeMeta = (catOrCode) => {
   if (!catOrCode) return CANONICAL_CATEGORIES[0];
   const str = String(catOrCode).trim().toLowerCase();
   const direct = CANONICAL_CATEGORIES.find(c => c.name.toLowerCase() === str || c.code.toLowerCase() === str);
   if (direct) return direct;
-  const code = getLedgerCategoryCode(catOrCode);
-  return CANONICAL_CATEGORIES.find(c => c.code === code) || CANONICAL_CATEGORIES[0];
+  const short = getShortCategory(catOrCode);
+  return CANONICAL_CATEGORIES.find(c => c.name.toLowerCase() === short.key.toLowerCase()) || CANONICAL_CATEGORIES[0];
 };
 
 /**
- * 3-4 Letter Standard Stock History Category Codes:
- * - Powertrain: ENG (Engine, Engine Parts, Exhaust, Filters)
- * - Drivetrain: CVT (CVT, Transmission, Drive, Belts, Pulleys)
- * - Braking: BRK (Brakes, Calipers, Pads, Levers, Rotors)
- * - Electrical: ELEC (Electrical, Electronics, Ignition, Lights, Spark)
- * - Chassis & Wheels: CHAS (Chassis, Suspension, Shocks, Wheels, Mags, Tires)
- * - Fluids & Lubes: OIL (Oils, Fluids, Lubricants, Coolant)
+ * 3-4 Letter Standard Stock History Category Codes
  */
 export const getLedgerCategoryCode = (rawCategory) => {
   if (!rawCategory || typeof rawCategory !== 'string') return 'ENG';
-  const c = rawCategory.trim().toLowerCase();
-  if (c === 'brk' || c.includes('brak') || c.includes('caliper') || c.includes('pad') || c.includes('lever') || c.includes('rotor')) return 'BRK';
-  if (c === 'elec' || c.includes('elec') || c.includes('ignit') || c.includes('ecu') || c.includes('cdi') || c.includes('light') || c.includes('spark') || c.includes('wire') || c.includes('headlight')) return 'ELEC';
-  if (c === 'eng' || c.includes('eng') || c.includes('exhaust') || c.includes('filter') || c.includes('piston') || c.includes('valve') || c.includes('gasket') || c.includes('cylinder') || c.includes('tensioner')) return 'ENG';
-  if (c === 'cvt' || c.includes('cvt') || c.includes('trans') || c.includes('drive') || c.includes('belt') || c.includes('pulley') || c.includes('sprocket') || c.includes('chain') || c.includes('flyball')) return 'CVT';
-  if (c === 'oil' || c.includes('oil') || c.includes('fluid') || c.includes('lube') || c.includes('coolant') || c.includes('grease')) return 'OIL';
-  if (c === 'chas' || c.includes('chas') || c.includes('tire') || c.includes('wheel') || c.includes('rim') || c.includes('mag') || c.includes('shock') || c.includes('suspension') || c.includes('handle') || c.includes('body') || c.includes('seat')) return 'CHAS';
-  return 'ENG';
+  const short = getShortCategory(rawCategory);
+  return short.skuPrefix || 'ENG';
 };
 
 /**
@@ -199,121 +280,64 @@ export const getShortBrand = (rawBrand) => {
   if (lower.includes('racing boy') || lower.includes('(rcb)') || lower === 'rcb') {
     return 'RCB';
   }
-  if (lower.includes('speedmate')) {
-    return 'Speedmate';
-  }
-  if (lower.includes('generic') || lower.includes('aftermarket') || lower === 'unknown' || lower === 'n/a' || lower === '-') {
+  if (lower.includes('aftermarket') || lower.includes('generic') || lower === 'aft') {
     return 'AFT';
   }
+  if (lower.includes('yamaha') || lower.includes('ypn')) return 'YAM';
+  if (lower.includes('honda') || lower.includes('hmp')) return 'HON';
+  if (lower.includes('suzuki') || lower.includes('smp')) return 'SUZ';
+  if (lower.includes('kawasaki')) return 'KAW';
+  if (lower.includes('koso')) return 'KOSO';
+  if (lower.includes('brembo')) return 'BRM';
+  if (lower.includes('michelin')) return 'MCH';
+  if (lower.includes('fdr')) return 'FDR';
+  if (lower.includes('pirelli')) return 'PIR';
+  if (lower.includes('maxxis')) return 'MAX';
+  if (lower.includes('motul')) return 'MTL';
+  if (lower.includes('castrol')) return 'CAS';
+  if (lower.includes('shell')) return 'SHL';
+  if (lower.includes('yamalube')) return 'YML';
+  if (lower.includes('bando')) return 'BND';
+  if (lower.includes('gates')) return 'GAT';
+  if (lower.includes('uma')) return 'UMA';
+  if (lower.includes('aracer')) return 'ARC';
+  if (lower.includes('jvt')) return 'JVT';
+  if (lower.includes('mutarru')) return 'MTR';
+  if (lower.includes('ttgr')) return 'TTGR';
+  if (lower.includes('ncy')) return 'NCY';
+  if (b.length > 8) return b.slice(0, 6).toUpperCase();
   return b;
 };
 
 /**
- * Clean & shorten reference strings for Stock Ledger:
- * - Truncates compound return strings: RET-SO-2026-0094-01-JLR-BP-AEROX -> RET-0094
- * - Formats opening balance: OPENING-20261103 -> OPN-1103
- * - Compacts sales orders: SO-2026-0111 -> SO-0111
+ * Format Audit Log & Ledger Reference Codes:
+ * Strips verbose internal database prefixes:
+ * - "SO-2026-0041" -> "SO-0041"
+ * - "PO-2026-0012" -> "PO-0012"
  */
-export const formatLedgerReference = (rawRef, transactionId) => {
-  if (!rawRef) return '—';
-  const str = String(rawRef).trim();
-
-  // Compound return with sale number: RET-SO-2026-0094-01-JLR-BP-AEROX
-  const returnMatch = str.match(/RET-(?:SO-)?(?:\d{4}-)?0*(\d{1,5})/i);
-  if (returnMatch) {
-    const num = returnMatch[1].padStart(4, '0');
-    return `RET-${num}`;
-  }
-
-  // Opening balance with explicit sequence: OPENING-20261103-02 -> OPN-1103-02
-  const opnSeqMatch = str.match(/OPENING-(\d{4})(\d{2})(\d{2})-(\d+)/i);
-  if (opnSeqMatch) {
-    return `OPN-${opnSeqMatch[2]}${opnSeqMatch[3]}-${opnSeqMatch[4].padStart(2, '0')}`;
-  }
-
-  // Opening balance: OPENING-20261103 -> OPN-1103 with unique suffix from transactionId
-  const opnMatch = str.match(/OPENING-(\d{4})(\d{2})(\d{2})/i);
-  if (opnMatch) {
-    const seqSuffix = transactionId ? `-${String(transactionId).padStart(2, '0').slice(-2)}` : '';
-    return `OPN-${opnMatch[2]}${opnMatch[3]}${seqSuffix}`;
-  }
-  if (str.startsWith('OPENING-')) {
-    const suffix = str.replace('OPENING-', '');
-    const seqSuffix = transactionId ? `-${String(transactionId).padStart(2, '0').slice(-2)}` : '';
-    return `OPN-${suffix.slice(-4)}${seqSuffix}`;
-  }
-
-  // POS Sale: SO-2026-0111 -> SO-0111
-  const saleMatch = str.match(/^SO-(?:\d{4}-)?0*(\d{1,5})$/i);
-  if (saleMatch) {
-    return `SO-${saleMatch[1].padStart(4, '0')}`;
-  }
-
-  return str;
+export const formatLedgerReference = (rawRef) => {
+  if (!rawRef || typeof rawRef !== 'string') return '—';
+  let clean = rawRef.trim();
+  clean = clean.replace(/^(SO|PO)-\d{4}-/i, '$1-');
+  clean = clean.replace(/^(SO|PO)-/i, '$1-');
+  clean = clean.replace(/^RCV-\d{4}-/i, 'RCV-');
+  clean = clean.replace(/^ADJ-\d{4}-/i, 'ADJ-');
+  clean = clean.replace(/^SWAP-\d{8}-/i, 'SWAP-');
+  return clean;
 };
 
 /**
- * Strips redundant auto-generated text and trailing pipes from Remarks
+ * Clean & Format Item Ledger Remarks:
+ * Truncates and formats long audit remarks cleanly.
  */
-export const cleanLedgerRemark = (rawRemark) => {
-  if (!rawRemark) return '—';
-  let text = String(rawRemark).trim();
-
-  // Strip dangling trailing pipes, hyphens, and whitespace
-  text = text.replace(/[\s|–-]+$/, '').trim();
-
-  // Direct Restock with courier: "Driver: Direct Restock (Lalamove) | " -> "Lalamove"
-  const driverCourierMatch = text.match(/Driver:\s*(?:Direct Restock\s*)?\(([^)]+)\)/i);
-  if (driverCourierMatch) {
-    const courier = driverCourierMatch[1].trim();
-    const parts = text.split('|').map(s => s.trim()).filter(Boolean);
-    const extraNotes = parts.slice(1).join(' • ').replace(/[\s|–-]+$/, '').trim();
-    if (extraNotes && extraNotes !== courier) return `${courier} • ${extraNotes}`;
-    return courier;
+export const cleanLedgerRemark = (rawRemark, maxLen = 35) => {
+  if (!rawRemark || typeof rawRemark !== 'string') return 'System transaction';
+  let clean = rawRemark.trim();
+  clean = clean.replace(/Purchase Order \d+/i, 'PO Received');
+  clean = clean.replace(/Sales Order Checkout \d+/i, 'POS Sale');
+  clean = clean.replace(/Physical Count Discrepancy Adjustment/i, 'Audit Adjustment');
+  if (clean.length > maxLen) {
+    return clean.slice(0, maxLen - 2) + '..';
   }
-
-  // Redundant POS Sale text: "POS Sale: SO-2026-0110 (4x Aerox Engine Oil Filter Element)"
-  if (/^POS Sale:\s*SO-[\d-]+/i.test(text) || text === 'POS Sale') {
-    const afterParen = text.replace(/^POS Sale:\s*SO-[\d-]+\s*\([^)]*\)\s*/i, '').replace(/[\s|–-]+$/, '').trim();
-    return afterParen || '—';
-  }
-
-  // Redundant initial opening text: "Initial opening stock (10 units) for brake"
-  if (/^Initial (?:opening|baseline) stock/i.test(text) || text === 'Initial stock') {
-    const serialMatch = text.match(/serialized units?:\s*([^)]+)/i);
-    if (serialMatch) {
-      return `Serials: ${serialMatch[1].trim()}`;
-    }
-    return '—';
-  }
-
-  // Redundant Supplier Delivery text
-  if (/^Restocked \d+ units via supplier delivery/i.test(text) || text === 'Supplier Delivery' || text === 'Direct Restock') {
-    return '—';
-  }
-
-  // Historical Void / Correction text
-  if (/^Return\/Refund\s*\([^)]*\)\s*from Order/i.test(text)) {
-    return 'Void / Correction';
-  }
-
-  // Restocked delivery: "Restocked 20 units via supplier delivery"
-  if (/^Restocked \d+ units via supplier delivery/i.test(text)) {
-    return 'Supplier Delivery';
-  }
-
-  // General clean of double pipes or dangling ends
-  text = text.replace(/\|\s*\|/g, '|').replace(/[\s|–-]+$/, '').trim();
-
-  return text || '—';
-};
-
-export default {
-  SHORT_TAXONOMY,
-  STANDARD_TAXONOMY_KEYS,
-  getShortCategory,
-  getLedgerCategoryCode,
-  getShortBrand,
-  formatLedgerReference,
-  cleanLedgerRemark
+  return clean;
 };

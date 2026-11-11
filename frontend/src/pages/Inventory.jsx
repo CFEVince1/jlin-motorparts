@@ -404,7 +404,11 @@ const Inventory = () => {
         const target = f.category.toLowerCase();
         result = result.filter(p => {
           const shortCat = getShortCategory(p.category);
-          return shortCat.key.toLowerCase() === target || (p.category && p.category.toLowerCase() === target);
+          return (
+            shortCat.key.toLowerCase() === target ||
+            shortCat.label.toLowerCase() === target ||
+            (p.category && p.category.toLowerCase() === target)
+          );
         });
       }
 
@@ -442,15 +446,24 @@ const Inventory = () => {
   const sortByFilter = filters.sortBy || 'name_asc';
 
   const categoryCounts = useMemo(() => {
-    const counts = { All: products.length, Brakes: 0, Elec: 0, Engine: 0, CVT: 0, Oils: 0, Wheels: 0 };
+    const counts = { All: products.length };
+    STANDARD_TAXONOMY_KEYS.forEach(k => { counts[k] = 0; });
     products.forEach(p => {
       const shortCat = getShortCategory(p.category);
       if (counts[shortCat.key] !== undefined) {
         counts[shortCat.key]++;
+      } else {
+        counts[shortCat.key] = (counts[shortCat.key] || 0) + 1;
       }
     });
     return counts;
   }, [products]);
+
+  const activeCategories = useMemo(() => {
+    const withCount = STANDARD_TAXONOMY_KEYS.filter(k => (categoryCounts[k] || 0) > 0);
+    const zeroCount = STANDARD_TAXONOMY_KEYS.filter(k => (categoryCounts[k] || 0) === 0);
+    return [...withCount, ...zeroCount];
+  }, [categoryCounts]);
 
   const fetchInventory = async () => {
     setLoading(true);
@@ -889,7 +902,7 @@ const Inventory = () => {
         {/* Filter Controls Row */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(240px, 2fr) minmax(180px, 1.3fr) minmax(140px, 1fr) minmax(140px, 1fr) minmax(150px, 1fr)',
+          gridTemplateColumns: 'minmax(220px, 2fr) minmax(160px, 1.2fr) minmax(160px, 1.2fr) minmax(130px, 1fr) minmax(140px, 1fr) minmax(140px, 1fr)',
           gap: '10px',
           alignItems: 'center',
           width: '100%',
@@ -906,6 +919,27 @@ const Inventory = () => {
               value={searchQuery}
               onChange={handleSearchChange}
             />
+          </div>
+
+          {/* Category Filter Dropdown */}
+          <div style={{ width: '100%' }}>
+            <select
+              className="input-premium"
+              value={categoryFilter}
+              onChange={(e) => setFilter('category', e.target.value)}
+              style={{ width: '100%', height: '38px', cursor: 'pointer', fontSize: '0.84rem' }}
+              title="Filter by Category"
+            >
+              <option value="All">All Categories ({products.length})</option>
+              {STANDARD_TAXONOMY_KEYS.map(cat => {
+                const count = categoryCounts[cat] || 0;
+                return (
+                  <option key={cat} value={cat}>
+                    {cat} {count > 0 ? `(${count})` : ''}
+                  </option>
+                );
+              })}
+            </select>
           </div>
 
           {/* Sort Dropdown */}
@@ -987,7 +1021,7 @@ const Inventory = () => {
             type="button"
             onClick={() => setFilter('category', 'All')}
             style={{
-              padding: '5px 12px',
+              padding: '6px 14px',
               borderRadius: '20px',
               fontSize: '0.78rem',
               fontWeight: 700,
@@ -996,6 +1030,7 @@ const Inventory = () => {
               alignItems: 'center',
               gap: '6px',
               whiteSpace: 'nowrap',
+              flexShrink: 0,
               transition: 'all 0.15s ease',
               border: categoryFilter === 'All' ? '1.5px solid var(--primary)' : '1px solid var(--border)',
               background: categoryFilter === 'All' ? 'rgba(16, 185, 129, 0.18)' : 'var(--surface)',
@@ -1010,13 +1045,13 @@ const Inventory = () => {
               background: categoryFilter === 'All' ? '#10b981' : 'rgba(255,255,255,0.08)',
               color: categoryFilter === 'All' ? '#ffffff' : 'var(--text-muted)'
             }}>
-              {categoryCounts.All || 0}
+              {categoryCounts.All || products.length}
             </span>
           </button>
 
-          {/* 6 Standardized Short Category Pills */}
-          {STANDARD_TAXONOMY_KEYS.map(catKey => {
-            const conf = SHORT_TAXONOMY[catKey];
+          {/* 15 Standard Motorparts Category Pills */}
+          {activeCategories.map(catKey => {
+            const conf = SHORT_TAXONOMY[catKey] || getShortCategory(catKey);
             const isSelected = categoryFilter.toLowerCase() === catKey.toLowerCase();
             const count = categoryCounts[catKey] || 0;
             return (
@@ -1024,9 +1059,9 @@ const Inventory = () => {
                 key={catKey}
                 type="button"
                 onClick={() => setFilter('category', isSelected ? 'All' : catKey)}
-                title={conf.scope}
+                title={conf.scope || catKey}
                 style={{
-                  padding: '5px 12px',
+                  padding: '6px 14px',
                   borderRadius: '20px',
                   fontSize: '0.78rem',
                   fontWeight: 700,
@@ -1035,20 +1070,22 @@ const Inventory = () => {
                   alignItems: 'center',
                   gap: '6px',
                   whiteSpace: 'nowrap',
+                  flexShrink: 0,
                   transition: 'all 0.15s ease',
                   border: isSelected ? `1.5px solid ${conf.color}` : '1px solid var(--border)',
                   background: isSelected ? conf.bg : 'var(--surface)',
-                  color: isSelected ? conf.color : 'var(--text-muted)'
+                  color: isSelected ? conf.color : count > 0 ? 'var(--text-main)' : 'var(--text-muted)',
+                  opacity: count === 0 ? 0.6 : 1
                 }}
               >
                 <span style={{
                   width: '7px',
                   height: '7px',
                   borderRadius: '50%',
-                  backgroundColor: conf.dot,
+                  backgroundColor: conf.dot || conf.color,
                   flexShrink: 0
                 }} />
-                <span>{conf.label}</span>
+                <span>{conf.label || catKey}</span>
                 <span style={{
                   fontSize: '0.68rem',
                   padding: '1px 6px',
