@@ -67,7 +67,6 @@ const Sidebar = ({
         { name: 'Item Swap', path: '/item-swap', icon: <ArrowLeftRight size={19} />, roles: ['admin', 'cashier'] },
         { name: 'Inventory', path: '/inventory', icon: <Archive size={19} />, roles: ['admin', 'cashier'] },
         { name: 'Purchasing', path: '/purchasing', icon: <Truck size={19} />, roles: ['admin'] },
-        { name: 'Receive Delivery', path: '/purchasing?tab=receive_orders', icon: <Truck size={19} />, roles: ['cashier'] },
         { name: 'Suppliers', path: '/suppliers', icon: <Building2 size={19} />, roles: ['admin'] },
     ];
 

@@ -921,6 +921,33 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
     return true;
   });
 
+  if (!isAdmin) {
+    return (
+      <div className="glass-panel" style={{ maxWidth: '480px', margin: '48px auto', padding: '36px 24px', textAlign: 'center', borderRadius: '16px' }}>
+        <div style={{
+          width: '52px',
+          height: '52px',
+          borderRadius: '50%',
+          background: 'rgba(239, 68, 68, 0.1)',
+          color: 'var(--danger)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          margin: '0 auto 16px auto',
+          border: '1px solid rgba(239, 68, 68, 0.2)'
+        }}>
+          <ShieldAlert size={24} />
+        </div>
+        <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '8px' }}>
+          Admin Access Required
+        </h2>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+          Purchasing and inventory delivery receiving are restricted to Owner / Admin accounts.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div style={{ width: '100%', minWidth: 0, paddingBottom: '32px' }}>
       <style>{`
