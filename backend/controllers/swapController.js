@@ -647,11 +647,6 @@ exports.processSwap = async (req, res) => {
                 created_at: new Date()
             }
         });
-                notes,
-                processed_by: req.user?.username || 'Staff',
-                created_at: new Date()
-            }
-        });
 
     } catch (err) {
         await conn.rollback();
