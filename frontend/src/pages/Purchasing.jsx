@@ -126,9 +126,12 @@ export const Purchasing = ({ defaultTab }) => {
   const initialTab = useMemo(() => {
     if (!isAdmin) return 'receive_orders';
     const qTab = searchParams.get('tab');
-    if (qTab === 'purchase_orders' || qTab === 'orders' || qTab === 'po') return 'purchase_orders';
-    return 'receive_orders';
-  }, [searchParams, isAdmin]);
+    if (qTab === 'receive_orders' || qTab === 'receive' || defaultTab === 'receive_orders') {
+      return 'receive_orders';
+    }
+    // Default for Admin when clicking Purchasing is Purchase Orders
+    return 'purchase_orders';
+  }, [searchParams, defaultTab, isAdmin]);
 
   const [activeTab, setActiveTab] = useState(initialTab);
   const [isIntakeExpanded, setIsIntakeExpanded] = useState(true);
@@ -149,8 +152,11 @@ export const Purchasing = ({ defaultTab }) => {
       return;
     }
     const qTab = searchParams.get('tab');
-    if (qTab === 'purchase_orders' || qTab === 'orders' || qTab === 'po') setActiveTab('purchase_orders');
-    else setActiveTab('receive_orders');
+    if (qTab === 'receive_orders' || qTab === 'receive') {
+      setActiveTab('receive_orders');
+    } else {
+      setActiveTab('purchase_orders');
+    }
   }, [searchParams, isAdmin]);
 
   const handleTabChange = (tab) => {
