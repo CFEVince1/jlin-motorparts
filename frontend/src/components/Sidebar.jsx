@@ -16,7 +16,8 @@ import {
     X,
     Banknote,
     ShieldCheck,
-    Truck
+    Truck,
+    ArrowLeftRight
 } from 'lucide-react';
 
 const Sidebar = ({
@@ -63,6 +64,7 @@ const Sidebar = ({
     const primaryLinks = [
         { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={19} />, roles: ['admin', 'cashier'] },
         { name: 'Sale (POS)', path: '/pos', icon: <ShoppingCart size={19} />, roles: ['admin', 'cashier'] },
+        { name: 'Item Swap', path: '/item-swap', icon: <ArrowLeftRight size={19} />, roles: ['admin', 'cashier'] },
         { name: 'Inventory', path: '/inventory', icon: <Archive size={19} />, roles: ['admin', 'cashier'] },
         { name: 'Purchasing', path: '/purchasing', icon: <Truck size={19} />, roles: ['admin'] },
         { name: 'Receive Delivery', path: '/purchasing?tab=receive_orders', icon: <Truck size={19} />, roles: ['cashier'] },

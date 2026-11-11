@@ -22,6 +22,7 @@ import CashFloat from './pages/CashFloat';
 import AuditLog from './pages/AuditLog';
 import CompatibilitySearch from './pages/CompatibilitySearch';
 import ManageCompatibility from './pages/ManageCompatibility';
+import ItemSwap from './pages/ItemSwap';
 
 // Backward-compatible redirect for /transactions -> /pos?tab=history
 const TransactionsRoute = () => {
@@ -56,6 +57,9 @@ function App() {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/pos" element={<POS />} />
+              <Route path="/item-swap" element={<ItemSwap />} />
+              <Route path="/swap" element={<Navigate to="/item-swap" replace />} />
+              <Route path="/swaps" element={<Navigate to="/item-swap" replace />} />
               <Route path="/transactions" element={<TransactionsRoute />} />
               <Route path="/sales-history" element={<Navigate to="/transactions" replace />} />
               <Route path="/returns" element={<Navigate to="/pos" replace />} />

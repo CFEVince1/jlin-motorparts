@@ -106,6 +106,7 @@ app.use('/api/items', require('./routes/itemRoutes'));
 app.use('/api/inventory', require('./routes/inventoryRoutes'));
 app.use('/api/sales', require('./routes/salesRoutes'));
 app.use('/api/returns', require('./routes/returnRoutes'));
+app.use('/api/swaps', require('./routes/swapRoutes'));
 app.use('/api/reports', require('./routes/reportRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/compatibility', require('./routes/compatibilityRoutes'));
