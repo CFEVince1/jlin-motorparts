@@ -1,8 +1,8 @@
 import React, { useContext, useState, useEffect, useCallback } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
-import { subscribeToInventoryChange } from '../utils/syncEvents';
+import { subscribeToInventoryChange, notifyInventoryChange } from '../utils/syncEvents';
 import {
     LayoutDashboard,
     ShoppingCart,
@@ -33,6 +33,7 @@ const Sidebar = ({
 }) => {
     const { user, logout } = useContext(AuthContext);
     const navigate = useNavigate();
+    const location = useLocation();
 
     // Real-time live sidebar status indicators
     const [pendingShiftCount, setPendingShiftCount] = useState(0);
@@ -128,9 +129,17 @@ const Sidebar = ({
         { name: 'Audit Log', path: '/audit-log', icon: <ShieldCheck size={19} />, roles: ['admin'] },
     ];
 
-    const handleLinkClick = () => {
+    const handleLinkClick = (e, targetPath) => {
         if (onCloseMobile) {
             onCloseMobile();
+        }
+        // When clicking the currently active page in the sidebar, force an immediate clean reload of the module
+        if (location.pathname === targetPath) {
+            e.preventDefault();
+            window.location.href = targetPath;
+            window.location.reload();
+        } else {
+            notifyInventoryChange('sidebar_nav');
         }
     };
 
@@ -189,7 +198,7 @@ const Sidebar = ({
                             key={link.path}
                             to={link.path}
                             end
-                            onClick={handleLinkClick}
+                            onClick={(e) => handleLinkClick(e, link.path)}
                             className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
                             title={isCollapsed ? link.name : undefined}
                         >
@@ -208,7 +217,7 @@ const Sidebar = ({
                             key={link.path}
                             to={link.path}
                             end
-                            onClick={handleLinkClick}
+                            onClick={(e) => handleLinkClick(e, link.path)}
                             className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
                             title={isCollapsed ? link.name : undefined}
                         >
