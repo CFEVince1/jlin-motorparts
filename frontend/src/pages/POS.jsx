@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { ShoppingCart, ChevronDown, Check, Printer, Search, Plus, Minus, Trash2, CheckCircle2, X, AlertCircle, Banknote, CreditCard, Smartphone, History, RotateCcw, Tag, Lock, Pause, Play, ShieldAlert, Key, Clock, Layers, Mail, Send, RefreshCw, ArrowLeftRight } from 'lucide-react';
+import { ShoppingCart, ChevronDown, Check, Printer, Search, Plus, Minus, Trash2, CheckCircle2, X, AlertCircle, Banknote, CreditCard, Smartphone, History, RotateCcw, Tag, Lock, Pause, Play, ShieldAlert, Key, Clock, Layers, Mail, Send, RefreshCw, ArrowLeftRight, TrendingUp } from 'lucide-react';
 import { filterProducts, isSerializedProduct, normalizePartNumberSearch } from '../utils/productFilter';
 import useTableFilter from '../hooks/useTableFilter';
 import { calculateCartTotals, calculateItemSubtotal, calculatePaymentDetails, roundCurrency } from '../utils/calculations';
