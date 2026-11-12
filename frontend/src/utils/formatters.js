@@ -29,3 +29,24 @@ export const formatAuditDate = (dateString) => {
 
     return `${month} ${day}, ${year} • ${formattedHours}:${minutes} ${ampm}`;
 };
+
+/**
+ * Format raw string into standard 13-digit GCash Reference Number pattern:
+ * e.g. "8047 181 819162" (4 digits, space, 3 digits, space, 6 digits)
+ */
+export const formatGcashReference = (val) => {
+    if (!val) return '';
+    const digits = String(val).replace(/\D/g, '').slice(0, 13);
+    if (digits.length <= 4) return digits;
+    if (digits.length <= 7) return `${digits.slice(0, 4)} ${digits.slice(4)}`;
+    return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
+};
+
+/**
+ * Validates whether string contains exactly 13 digits for GCash Reference
+ */
+export const isValidGcashReference = (val) => {
+    if (!val) return false;
+    const digits = String(val).replace(/\D/g, '');
+    return digits.length === 13;
+};

@@ -257,6 +257,7 @@ exports.checkout = async (req, res, next) => {
         let changeDueCentavos = 0;
         let cashAmountCentavos = null;
         let gcashAmountCentavos = null;
+        let formattedRef = null;
 
         if (method === 'Cash') {
             if (rawTendered === null || rawTendered === undefined || rawTendered === '') {
@@ -277,24 +278,26 @@ exports.checkout = async (req, res, next) => {
             cashAmountCentavos = totalAmountCentavos;
             gcashAmountCentavos = 0;
         } else if (method === 'GCash') {
-            // Invariant: GCash requires exact amount, zero change, and reference number >= 6 chars
+            // Invariant: GCash requires exact amount, zero change, and valid 13-digit reference number (e.g. 8047 181 819162)
             tenderedCentavos = totalAmountCentavos;
             changeDueCentavos = 0;
             cashAmountCentavos = 0;
             gcashAmountCentavos = totalAmountCentavos;
 
-            if (!refNo || refNo.length < 6) {
-                throw new AppValidationError('GCash payment requires a valid reference number of at least 6 characters');
+            const cleanDigits = refNo.replace(/\D/g, '');
+            if (!cleanDigits || cleanDigits.length !== 13) {
+                throw new AppValidationError('GCash payment requires a valid 13-digit reference number (e.g. 8047 181 819162)');
             }
+            formattedRef = `${cleanDigits.slice(0, 4)} ${cleanDigits.slice(4, 7)} ${cleanDigits.slice(7)}`;
 
-            // Invariant: GCash reference number must be unique across all sales
+            // Invariant: GCash reference number must be unique across all sales (checks both formatted and unformatted)
             const [existingSales] = await connection.query(
-                'SELECT id, order_number FROM sales WHERE payment_reference = ? LIMIT 1',
-                [refNo]
+                'SELECT id, order_number FROM sales WHERE payment_reference = ? OR REPLACE(payment_reference, " ", "") = ? LIMIT 1',
+                [formattedRef, cleanDigits]
             );
             if (existingSales.length > 0) {
                 throw new AppValidationError(
-                    `GCash reference already used: "${refNo}" has already been used on order ${existingSales[0].order_number || ('#' + existingSales[0].id)}`
+                    `GCash reference already used: "${formattedRef}" has already been used on order ${existingSales[0].order_number || ('#' + existingSales[0].id)}`
                 );
             }
         } else if (method === 'Split') {
@@ -326,18 +329,20 @@ exports.checkout = async (req, res, next) => {
                 );
             }
 
-            if (!refNo || refNo.length < 6) {
-                throw new AppValidationError('GCash reference number of at least 6 characters is required for the GCash portion');
+            const cleanDigits = refNo.replace(/\D/g, '');
+            if (!cleanDigits || cleanDigits.length !== 13) {
+                throw new AppValidationError('GCash reference number of exactly 13 digits is required for the GCash portion (e.g. 8047 181 819162)');
             }
+            formattedRef = `${cleanDigits.slice(0, 4)} ${cleanDigits.slice(4, 7)} ${cleanDigits.slice(7)}`;
 
             // Invariant: GCash reference number must be unique across all sales
             const [existingSales] = await connection.query(
-                'SELECT id, order_number FROM sales WHERE payment_reference = ? LIMIT 1',
-                [refNo]
+                'SELECT id, order_number FROM sales WHERE payment_reference = ? OR REPLACE(payment_reference, " ", "") = ? LIMIT 1',
+                [formattedRef, cleanDigits]
             );
             if (existingSales.length > 0) {
                 throw new AppValidationError(
-                    `GCash reference already used: "${refNo}" has already been used on order ${existingSales[0].order_number || ('#' + existingSales[0].id)}`
+                    `GCash reference already used: "${formattedRef}" has already been used on order ${existingSales[0].order_number || ('#' + existingSales[0].id)}`
                 );
             }
 
@@ -353,7 +358,7 @@ exports.checkout = async (req, res, next) => {
         const finalChangeDue = changeDueCentavos / 100;
         const finalCashAmount = method === 'Cash' ? totalAmount : (method === 'Split' && cashAmountCentavos !== null ? (cashAmountCentavos / 100) : 0.00);
         const finalGcashAmount = method === 'GCash' ? totalAmount : (method === 'Split' && gcashAmountCentavos !== null ? (gcashAmountCentavos / 100) : 0.00);
-        const paymentReferenceToSave = (method === 'Cash') ? null : (refNo || null);
+        const paymentReferenceToSave = (method === 'Cash') ? null : (formattedRef || refNo || null);
 
         // 5. Philippine 12% Value Added Tax (VAT-Inclusive Retail Model on Final Discounted Total)
         const vatableAmount = Math.round((totalAmount / 1.12) * 100) / 100;
@@ -541,7 +546,7 @@ exports.checkout = async (req, res, next) => {
             customer_address: custAddr,
             tendered_amount: finalTendered,
             change_due: finalChangeDue,
-            payment_reference: refNo || null,
+            payment_reference: paymentReferenceToSave,
             cash_amount: finalCashAmount,
             gcash_amount: finalGcashAmount,
             cashier: req.user?.username || 'Staff',
@@ -573,7 +578,7 @@ exports.checkout = async (req, res, next) => {
             customer_address: custAddr,
             tendered_amount: finalTendered,
             change_due: finalChangeDue,
-            payment_reference: refNo || null,
+            payment_reference: paymentReferenceToSave,
             cash_amount: finalCashAmount,
             gcash_amount: finalGcashAmount,
             cashier: req.user?.username || 'Staff',

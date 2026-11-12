@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Banknote, Smartphone, AlertCircle, X, CheckCircle, Split, ArrowLeft } from 'lucide-react';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatGcashReference, isValidGcashReference } from '../utils/formatters';
 import { calculatePaymentDetails, roundCurrency, calculatePhilippineTax } from '../utils/calculations';
 
 /**
@@ -158,14 +158,17 @@ export const CheckoutModal = ({
   }, [totalAmount, isSplit, isOpen]);
 
   // Validation rules
+  const cleanGcashDigits = gcashRef.replace(/\D/g, '');
+  const cleanSplitGcashDigits = splitGcashRef.replace(/\D/g, '');
+
   const isCashValid = isCash && cashTendered !== '' && roundCurrency(tenderedNumeric) >= roundCurrency(totalAmount);
-  const isGcashValid = isGcash && gcashRef.trim().length >= 6;
+  const isGcashValid = isGcash && cleanGcashDigits.length === 13;
   const isSplitValid = isSplit &&
     numSplitCash > 0 &&
     numSplitGcash > 0 &&
     splitCovered >= roundCurrency(totalAmount) &&
     numSplitCashTendered >= numSplitCash &&
-    splitGcashRef.trim().length >= 6;
+    cleanSplitGcashDigits.length === 13;
 
   const canSubmit = !loading && !isDiscountExceedingCost && (isCashValid || isGcashValid || isSplitValid);
 
@@ -495,15 +498,16 @@ export const CheckoutModal = ({
                   </div>
                   <div>
                     <label style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
-                      GCash Ref Code *
+                      GCash Reference No. (13 digits) *
                     </label>
                     <input
                       type="text"
-                      placeholder="Min 6 chars"
+                      placeholder="e.g. 8047 181 819162"
                       className="input-premium"
-                      style={{ height: '36px', fontSize: '0.85rem' }}
+                      style={{ height: '36px', fontSize: '0.85rem', fontFamily: 'monospace', letterSpacing: '0.5px' }}
                       value={splitGcashRef}
-                      onChange={(e) => setSplitGcashRef(e.target.value)}
+                      maxLength={15}
+                      onChange={(e) => setSplitGcashRef(formatGcashReference(e.target.value))}
                       required
                     />
                   </div>
@@ -560,9 +564,14 @@ export const CheckoutModal = ({
                 </div>
 
                 {/* Validation Warnings */}
-                {splitGcashRef.length > 0 && splitGcashRef.trim().length < 6 && (
-                  <div style={{ fontSize: '0.7rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <AlertCircle size={12} /> Reference number must be at least 6 characters
+                {cleanSplitGcashDigits.length > 0 && cleanSplitGcashDigits.length < 13 && (
+                  <div style={{ fontSize: '0.72rem', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <AlertCircle size={12} /> GCash reference must be 13 digits (e.g. 8047 181 819162) • Current: {cleanSplitGcashDigits.length}/13 digits
+                  </div>
+                )}
+                {cleanSplitGcashDigits.length === 13 && (
+                  <div style={{ fontSize: '0.72rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <CheckCircle size={12} /> Valid 13-digit GCash Reference Number
                   </div>
                 )}
                 {numSplitCash > 0 && numSplitGcash > 0 && splitCovered < totalAmount && (
@@ -704,15 +713,16 @@ export const CheckoutModal = ({
 
                 <div>
                   <label style={{ fontSize: '0.7rem', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
-                    GCash Reference Code (Min. 6 chars) *
+                    GCash Reference No. (13 digits) *
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. 1029384756"
+                    placeholder="e.g. 8047 181 819162"
                     className="input-premium"
-                    style={{ height: '36px', fontSize: '0.85rem' }}
+                    style={{ height: '36px', fontSize: '0.85rem', fontFamily: 'monospace', letterSpacing: '0.5px' }}
                     value={gcashRef}
-                    onChange={(e) => setGcashRef(e.target.value)}
+                    maxLength={15}
+                    onChange={(e) => setGcashRef(formatGcashReference(e.target.value))}
                     autoFocus
                     required
                   />
@@ -731,9 +741,14 @@ export const CheckoutModal = ({
                   <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>₱0.00</span>
                 </div>
 
-                {gcashRef.length > 0 && gcashRef.trim().length < 6 && (
-                  <div style={{ fontSize: '0.7rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <AlertCircle size={12} /> Reference number must be at least 6 characters
+                {cleanGcashDigits.length > 0 && cleanGcashDigits.length < 13 && (
+                  <div style={{ fontSize: '0.72rem', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <AlertCircle size={12} /> GCash reference must be 13 digits (e.g. 8047 181 819162) • Current: {cleanGcashDigits.length}/13 digits
+                  </div>
+                )}
+                {cleanGcashDigits.length === 13 && (
+                  <div style={{ fontSize: '0.72rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <CheckCircle size={12} /> Valid 13-digit GCash Reference Number
                   </div>
                 )}
               </div>
