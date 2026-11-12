@@ -12,6 +12,10 @@
   --accent: #10b981;
   --success: #10b981;
   --danger: #ef4444;
+  --warning: #fbbf24;
+  --warning-text: #fbbf24;
+  --warning-bg: rgba(245, 158, 11, 0.14);
+  --warning-border: rgba(245, 158, 11, 0.35);
   --border: #27272a; /* border-zinc-800 */
   --glass-bg: #18181b;
   --glass-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
@@ -54,6 +58,10 @@
   --accent: #059669;
   --success: #059669;
   --danger: #dc2626;
+  --warning: #b45309;
+  --warning-text: #92400e; /* Deep rich amber-800: high contrast & clear on white */
+  --warning-bg: #fef3c7; /* Warm soft amber-100 */
+  --warning-border: #fcd34d; /* amber-300 */
   --border: #e2e8f0; /* slate-200 */
   --glass-bg: #ffffff;
   --glass-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.05); /* shadow-sm */
@@ -711,6 +719,46 @@ tr:hover td {
 .dark .dark\:border-zinc-800, [data-theme='dark'] .dark\:border-zinc-800 { border-color: #27272a !important; }
 .dark .dark\:border-zinc-800\/50, [data-theme='dark'] .dark\:border-zinc-800\/50 { border-color: rgba(39, 39, 42, 0.5) !important; }
 .dark .dark\:border-amber-700\/50, [data-theme='dark'] .dark\:border-amber-700\/50 { border-color: rgba(217, 119, 6, 0.5) !important; }
+
+/* High-contrast, eye-friendly Amber / Yellow on White Mode */
+[data-theme='light'] [style*="color: rgb(245, 158, 11)"],
+[data-theme='light'] [style*="color: #f59e0b"],
+[data-theme='light'] [style*="color: rgb(234, 179, 8)"],
+[data-theme='light'] [style*="color: #eab308"],
+[data-theme='light'] [style*="color:#f59e0b"],
+[data-theme='light'] [style*="color:#eab308"],
+[data-theme='light'] [style*="color: #fbbf24"],
+[data-theme='light'] [style*="color:#fbbf24"] {
+  color: #92400e !important; /* Deep rich amber-800: sharp & eye-friendly on white */
+}
+
+[data-theme='light'] [style*="background: rgba(245, 158, 11"],
+[data-theme='light'] [style*="background: rgba(234, 179, 8"],
+[data-theme='light'] [style*="background:rgba(245, 158, 11"],
+[data-theme='light'] [style*="background:rgba(234, 179, 8"] {
+  background-color: #fef3c7 !important; /* Soft warm amber-100 */
+}
+
+[data-theme='light'] [style*="border: 1px solid rgba(245, 158, 11"],
+[data-theme='light'] [style*="border: 1px solid rgba(234, 179, 8"],
+[data-theme='light'] [style*="border-color: #f59e0b"],
+[data-theme='light'] [style*="border-color:#f59e0b"],
+[data-theme='light'] [style*="border:1px solid rgba(245, 158, 11"],
+[data-theme='light'] [style*="border:1px solid rgba(234, 179, 8"] {
+  border-color: #fcd34d !important; /* amber-300 */
+}
+
+[data-theme='light'] svg[color="#f59e0b"],
+[data-theme='light'] svg[color="#eab308"],
+[data-theme='light'] svg[color="#fbbf24"] {
+  color: #b45309 !important;
+  stroke: #b45309 !important;
+}
+
+[data-theme='light'] [style*="color: #a78bfa"],
+[data-theme='light'] [style*="color:#a78bfa"] {
+  color: #6d28d9 !important; /* High contrast purple on white */
+}
 
 /* Spinner */
 .spinner {

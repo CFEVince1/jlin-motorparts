@@ -1476,16 +1476,16 @@ const POS = ({ defaultTab }) => {
                             fontWeight: 600,
                             borderRadius: '8px',
                             cursor: 'pointer',
-                            borderColor: heldTransactions.length > 0 ? '#f59e0b' : 'var(--border)'
+                            borderColor: heldTransactions.length > 0 ? 'var(--warning-border)' : 'var(--border)'
                         }}
                         title="View paused customer transactions & hold active cart form"
                     >
-                        <Pause size={16} color={activeTab === 'held' ? 'currentColor' : '#f59e0b'} />
-                        <span>Held Carts</span>
+                        <Pause size={16} color={activeTab === 'held' ? 'currentColor' : 'var(--warning-text)'} />
+                        <span style={{ color: (heldTransactions.length > 0 && activeTab !== 'held') ? 'var(--warning-text)' : 'inherit' }}>Held Carts</span>
                         {heldTransactions.length > 0 && (
                             <span style={{
-                                background: activeTab === 'held' ? '#fff' : '#f59e0b',
-                                color: activeTab === 'held' ? '#000' : '#000',
+                                background: activeTab === 'held' ? 'var(--surface)' : 'var(--warning-text)',
+                                color: activeTab === 'held' ? 'var(--text-main)' : '#fff',
                                 fontWeight: 800,
                                 fontSize: '0.72rem',
                                 padding: '1px 6px',
@@ -1545,14 +1545,15 @@ const POS = ({ defaultTab }) => {
                             display: 'flex',
                             alignItems: 'center',
                             gap: '6px',
-                            background: 'rgba(234, 179, 8, 0.1)',
-                            border: '1px solid rgba(234, 179, 8, 0.3)',
+                            background: 'var(--warning-bg)',
+                            border: '1px solid var(--warning-border)',
                             borderRadius: '8px',
                             padding: '6px 12px',
                             fontSize: '0.76rem',
-                            color: '#eab308'
+                            color: 'var(--warning-text)',
+                            fontWeight: 600
                         }}>
-                            <AlertCircle size={14} />
+                            <AlertCircle size={14} color="var(--warning-text)" />
                             <span>No Active Cash Float assigned for this shift</span>
                         </div>
                     )}
@@ -2361,11 +2362,11 @@ const POS = ({ defaultTab }) => {
             {/* CART AREA (4 of 12 columns on desktop) */}
             <div id="pos-cart-section" className="glass-panel no-print cart-container pos-cart-wrapper" style={{ display: 'flex', flexDirection: 'column', padding: '0', minHeight: '480px', height: 'fit-content' }}>
                 {replacementMode ? (
-                    <div style={{ padding: '12px 14px', borderBottom: '1px solid rgba(245, 158, 11, 0.35)', background: 'rgba(245, 158, 11, 0.12)', borderRadius: '12px 12px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--warning-border)', background: 'var(--warning-bg)', borderRadius: '12px 12px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <ArrowLeftRight size={17} color="#f59e0b" />
+                            <ArrowLeftRight size={17} color="var(--warning-text)" />
                             <div>
-                                <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#f59e0b' }}>
+                                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--warning-text)' }}>
                                     ⇄ Item Replacement Mode
                                 </div>
                                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
