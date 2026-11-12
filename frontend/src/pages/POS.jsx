@@ -655,7 +655,7 @@ const POS = ({ defaultTab }) => {
     const [showDiscountRequestModal, setShowDiscountRequestModal] = useState(false);
     const [reqDiscountType, setReqDiscountType] = useState('fixed');
     const [reqDiscountVal, setReqDiscountVal] = useState('');
-    const [reqDiscountReason, setReqDiscountReason] = useState('Suki / Bulk discount request');
+    const [reqDiscountReason, setReqDiscountReason] = useState('');
     const [reqDiscountPin, setReqDiscountPin] = useState('');
     const [verifyingDiscountPin, setVerifyingDiscountPin] = useState(false);
     // Email OTP Approval State (Admin Gmail)
@@ -887,6 +887,7 @@ const POS = ({ defaultTab }) => {
     const handleClearDiscount = () => {
         setDiscountValue('');
         setReqDiscountVal('');
+        setReqDiscountReason('');
         setReqDiscountPin('');
         setIsOtpRequested(false);
         setDiscountOtp('');
@@ -977,6 +978,10 @@ const POS = ({ defaultTab }) => {
             setCart([]);
             setDiscountValue('');
             setDiscountType('fixed');
+            setReqDiscountVal('');
+            setReqDiscountReason('');
+            setIsOtpRequested(false);
+            setDiscountOtp('');
             setTenderedAmount('');
             setCustomerName('');
             setCustomerAddress('');
