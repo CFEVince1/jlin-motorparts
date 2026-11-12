@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import { notifyInventoryChange, subscribeToInventoryChange } from '../utils/syncEvents';
 import {
   Search,
   Printer,
@@ -479,6 +480,22 @@ const Inventory = () => {
   useEffect(() => {
     fetchInventory();
     fetchMovements(1, movementsLimit);
+
+    const unsubscribe = subscribeToInventoryChange(() => {
+      fetchInventory();
+      fetchMovements(1, movementsLimit);
+    });
+
+    // 8-second live sync polling: keeps stock and movements up-to-date in real time without restarting
+    const poll = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      fetchInventory();
+    }, 8000);
+
+    return () => {
+      unsubscribe();
+      clearInterval(poll);
+    };
   }, []);
 
   const handleDelete = async (id, name) => {

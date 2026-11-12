@@ -1,6 +1,8 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState, useEffect, useCallback } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
+import api from '../services/api';
+import { subscribeToInventoryChange } from '../utils/syncEvents';
 import {
     LayoutDashboard,
     ShoppingCart,
@@ -31,6 +33,55 @@ const Sidebar = ({
 }) => {
     const { user, logout } = useContext(AuthContext);
     const navigate = useNavigate();
+
+    // Real-time live sidebar status indicators
+    const [pendingShiftCount, setPendingShiftCount] = useState(0);
+    const [hasActiveShift, setHasActiveShift] = useState(false);
+    const [onlineStaffCount, setOnlineStaffCount] = useState(0);
+
+    const fetchSidebarLiveMetrics = useCallback(async () => {
+        try {
+            const isAdminRole = (user?.role || '').toLowerCase() === 'admin';
+            if (isAdminRole) {
+                // 1. Shift sign-off / active drawer check
+                const shiftRes = await api.get('/cash-float/active-shift').catch(() => null);
+                if (shiftRes?.data) {
+                    const status = shiftRes.data.status;
+                    setPendingShiftCount(status === 'PENDING_REMIT' ? 1 : 0);
+                    setHasActiveShift(status === 'ACTIVE');
+                }
+
+                // 2. Online staff count
+                const usersRes = await api.get('/users').catch(() => null);
+                if (Array.isArray(usersRes?.data)) {
+                    const onlineCount = usersRes.data.filter(u => u.is_online).length;
+                    setOnlineStaffCount(onlineCount);
+                }
+            } else {
+                const floatRes = await api.get('/cash-float/my-float').catch(() => null);
+                setHasActiveShift(Boolean(floatRes?.data?.activeFloat));
+            }
+        } catch (_) {}
+    }, [user]);
+
+    useEffect(() => {
+        fetchSidebarLiveMetrics();
+
+        const unsubscribe = subscribeToInventoryChange(() => {
+            fetchSidebarLiveMetrics();
+        });
+
+        // 8-second live polling: keeps sidebar badges real-time without restarting
+        const poll = setInterval(() => {
+            if (typeof document !== 'undefined' && document.hidden) return;
+            fetchSidebarLiveMetrics();
+        }, 8000);
+
+        return () => {
+            unsubscribe();
+            clearInterval(poll);
+        };
+    }, [fetchSidebarLiveMetrics]);
 
     const handleLogout = async () => {
         if (onLogout) {
@@ -144,6 +195,9 @@ const Sidebar = ({
                         >
                             <span className="link-icon">{link.icon}</span>
                             {!isCollapsed && <span className="link-text">{link.name}</span>}
+                            {!isCollapsed && link.path === '/pos' && hasActiveShift && (
+                                <span style={{ marginLeft: 'auto', width: '7px', height: '7px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 6px #10b981', display: 'inline-block' }} title="Cash drawer active"></span>
+                            )}
                         </NavLink>
                     ))}
 
@@ -160,6 +214,23 @@ const Sidebar = ({
                         >
                             <span className="link-icon">{link.icon}</span>
                             {!isCollapsed && <span className="link-text">{link.name}</span>}
+                            {!isCollapsed && link.path === '/shifts' && (
+                                pendingShiftCount > 0 ? (
+                                    <span style={{ marginLeft: 'auto', background: '#f59e0b', color: '#000', fontSize: '0.66rem', fontWeight: 800, padding: '1px 6px', borderRadius: '10px' }} title="Awaiting Admin Sign-Off">
+                                        Sign-Off
+                                    </span>
+                                ) : hasActiveShift ? (
+                                    <span style={{ marginLeft: 'auto', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', fontSize: '0.66rem', fontWeight: 700, padding: '1px 6px', borderRadius: '8px' }} title="Drawer Active">
+                                        Active
+                                    </span>
+                                ) : null
+                            )}
+                            {!isCollapsed && link.path === '/users' && onlineStaffCount > 0 && (
+                                <span style={{ marginLeft: 'auto', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', fontSize: '0.68rem', fontWeight: 700, padding: '1px 6px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '3px' }} title={`${onlineStaffCount} users online`}>
+                                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span>
+                                    {onlineStaffCount}
+                                </span>
+                            )}
                         </NavLink>
                     ))}
             </nav>
@@ -178,7 +249,10 @@ const Sidebar = ({
 
                     {!isCollapsed && (
                         <div className="sidebar-user-info">
-                            <div className="sidebar-username">{currentUser.username || 'admin'}</div>
+                            <div className="sidebar-username" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span>{currentUser.username || 'admin'}</span>
+                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 5px #10b981', display: 'inline-block' }} title="Active & Online"></span>
+                            </div>
                             <div className="sidebar-role">{(currentUser.role || '').toLowerCase() === 'admin' ? 'Owner / Admin' : 'Cashier / Staff'}</div>
                         </div>
                     )}

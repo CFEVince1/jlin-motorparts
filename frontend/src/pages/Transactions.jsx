@@ -4,7 +4,7 @@ import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { History, Receipt, X, Printer, Search, Calendar, RotateCcw, ArrowDownRight, ArrowUpRight, Filter, Ban, ChevronDown, ArrowLeftRight } from 'lucide-react';
-import { notifyInventoryChange } from '../utils/syncEvents';
+import { notifyInventoryChange, subscribeToInventoryChange } from '../utils/syncEvents';
 import Spinner from '../components/Spinner';
 import { getProductSnapshotMatch, normalizeSearchText } from '../utils/productFilter';
 import useTableFilter from '../hooks/useTableFilter';
@@ -462,6 +462,21 @@ const Transactions = ({ embedded = false, defaultTab }) => {
 
     useEffect(() => {
         fetchTransactions(1, pageSize);
+
+        const unsubscribe = subscribeToInventoryChange(() => {
+            fetchTransactions(1, pageSize);
+        });
+
+        // 8-second live sync polling
+        const poll = setInterval(() => {
+            if (typeof document !== 'undefined' && document.hidden) return;
+            fetchTransactions(1, pageSize);
+        }, 8000);
+
+        return () => {
+            unsubscribe();
+            clearInterval(poll);
+        };
     }, [debouncedSearchQuery, filterDate, filterStartDate, filterEndDate, sortBy, statusFilter, paymentMethodFilter, filterType, staffScope, userFilter, pageSize, fetchTransactions]);
 
     const handleOpenVoid = (transaction) => {

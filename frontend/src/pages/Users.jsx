@@ -7,6 +7,7 @@ import {
     Users as UsersIcon, CheckCircle2, XCircle
 } from 'lucide-react';
 import Spinner from '../components/Spinner';
+import { notifyInventoryChange, subscribeToInventoryChange } from '../utils/syncEvents';
 
 const ROLE_LABELS = {
     admin: { label: 'Owner / Admin', badge: '#8b5cf6', desc: 'Full control over pricing, inventory, approvals & financials' },
@@ -46,21 +47,37 @@ const Users = () => {
         });
     };
 
-    const fetchUsers = async () => {
-        setLoading(true);
+    const fetchUsers = async (silent = false) => {
+        if (!silent) setLoading(true);
         try {
             const res = await api.get('/users');
             setUsers(Array.isArray(res.data) ? res.data : []);
         } catch (err) {
             console.error('Failed to load users:', err);
-            toast.error(err.response?.data?.message || 'Failed to load staff accounts');
+            if (!silent) toast.error(err.response?.data?.message || 'Failed to load staff accounts');
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     };
 
     useEffect(() => {
         fetchUsers();
+
+        // Instant cross-tab sync
+        const unsubscribe = subscribeToInventoryChange(() => {
+            fetchUsers(true);
+        });
+
+        // 6-second live polling: updates who is online/offline without restarting or flashing UI
+        const poll = setInterval(() => {
+            if (typeof document !== 'undefined' && document.hidden) return;
+            fetchUsers(true);
+        }, 6000);
+
+        return () => {
+            unsubscribe();
+            clearInterval(poll);
+        };
     }, []);
 
     const handleOpenAddModal = () => {
@@ -129,6 +146,7 @@ const Users = () => {
             }
 
             fetchUsers();
+            notifyInventoryChange('user_change');
             handleTabChange('staff');
         } catch (err) {
             console.error('Failed to save staff account:', err);
@@ -148,6 +166,7 @@ const Users = () => {
             await api.put(`/users/${u.id}`, { is_active: nextStatus });
             toast.success(`Account @${u.username} ${nextStatus === 1 ? 'activated' : 'deactivated'}`);
             fetchUsers();
+            notifyInventoryChange('user_change');
         } catch (err) {
             console.error('Failed to toggle status:', err);
             toast.error(err.response?.data?.message || 'Failed to change account status');
@@ -163,6 +182,7 @@ const Users = () => {
             await api.delete(`/users/${u.id}`);
             toast.success(`Account @${u.username} deleted`);
             fetchUsers();
+            notifyInventoryChange('user_change');
         } catch (err) {
             console.error('Failed to delete user:', err);
             toast.error(err.response?.data?.message || 'Failed to delete staff account');

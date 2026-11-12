@@ -111,26 +111,44 @@ const POS = ({ defaultTab }) => {
         }
     }, [user]);
 
+    const fetchProducts = useCallback(async (silent = false) => {
+        try {
+            const res = await api.get('/products');
+            const activeProducts = res.data.filter(p => p.stock > 0);
+            setProducts(activeProducts);
+            const initialSerials = {};
+            activeProducts.forEach(p => {
+                if (p.is_serialized && p.serials && p.serials.length > 0) {
+                    initialSerials[p.id] = Number(p.serials[0].id);
+                }
+            });
+            setSelectedTableSerials(prev => ({ ...initialSerials, ...prev }));
+        } catch {
+            if (!silent) toast.error('Failed to load products');
+        }
+    }, []);
+
     useEffect(() => {
         fetchActiveCashFloat();
+        fetchProducts();
+
         const unsubscribe = subscribeToInventoryChange(() => {
             fetchActiveCashFloat();
+            fetchProducts(true);
         });
 
-        // 15-second heartbeat for staff shift status (forces logout if Admin ends shift remotely)
-        const isStaff = user && (user.role || '').toLowerCase() !== 'admin';
-        let heartbeat = null;
-        if (isStaff) {
-            heartbeat = setInterval(() => {
-                fetchActiveCashFloat();
-            }, 15000);
-        }
+        // 6-second heartbeat for staff shift status + real-time stock & float sync
+        const poll = setInterval(() => {
+            if (typeof document !== 'undefined' && document.hidden) return;
+            fetchActiveCashFloat();
+            fetchProducts(true);
+        }, 6000);
 
         return () => {
             if (unsubscribe) unsubscribe();
-            if (heartbeat) clearInterval(heartbeat);
+            clearInterval(poll);
         };
-    }, [fetchActiveCashFloat, user]);
+    }, [fetchActiveCashFloat, fetchProducts]);
 
     const [cart, setCart] = useState([]);
 
@@ -286,59 +304,47 @@ const POS = ({ defaultTab }) => {
     const lastKeyTimeRef = useRef(0);
 
     useEffect(() => {
-        const fetchProducts = async () => {
+        const checkAddSerialParam = async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const addSerial = urlParams.get('add_serial');
+            if (!addSerial) return;
             try {
                 const res = await api.get('/products');
                 const activeProducts = res.data.filter(p => p.stock > 0);
-                setProducts(activeProducts);
-                const initialSerials = {};
-                activeProducts.forEach(p => {
-                    if (p.is_serialized && p.serials && p.serials.length > 0) {
-                        initialSerials[p.id] = Number(p.serials[0].id);
-                    }
-                });
-                setSelectedTableSerials(prev => ({ ...initialSerials, ...prev }));
-
-                const urlParams = new URLSearchParams(window.location.search);
-                const addSerial = urlParams.get('add_serial');
-                if (addSerial) {
-                    for (const p of activeProducts) {
-                        const s = (p.serials || []).find(ser => ser.serial_number === addSerial);
-                        if (s) {
-                            const cartKey = `${p.id}_${s.id}`;
-                            const productPrice = Number(p.price ?? p.selling_price ?? 0);
-                            const lotStock = Number(s.quantity || 1);
-                            setCart([{
-                                cart_key: cartKey,
-                                product_id: p.id,
-                                part_number: p.part_number,
-                                name: p.product_name || p.name,
-                                brand: p.brand,
-                                size: p.size,
-                                compatibility_display: p.compatibility_display,
-                                is_serialized: true,
-                                serial_id: s.id,
-                                selected_serial_id: s.id,
-                                serial_number: s.serial_number,
-                                selected_serial_number: s.serial_number,
-                                serial_ids: [s.id],
-                                serial_numbers: [s.serial_number],
-                                quantity: lotStock,
-                                price: productPrice,
-                                cost_price: Number(p.cost_price ?? p.cost ?? 0),
-                                max_discount: Number(p.max_discount ?? Math.max(0, (productPrice - (Number(p.cost_price || 0))))),
-                                subtotal: lotStock * productPrice,
-                                maxStock: lotStock
-                            }]);
-                            break;
-                        }
+                for (const p of activeProducts) {
+                    const s = (p.serials || []).find(ser => ser.serial_number === addSerial);
+                    if (s) {
+                        const cartKey = `${p.id}_${s.id}`;
+                        const productPrice = Number(p.price ?? p.selling_price ?? 0);
+                        const lotStock = Number(s.quantity || 1);
+                        setCart([{
+                            cart_key: cartKey,
+                            product_id: p.id,
+                            part_number: p.part_number,
+                            name: p.product_name || p.name,
+                            brand: p.brand,
+                            size: p.size,
+                            compatibility_display: p.compatibility_display,
+                            is_serialized: true,
+                            serial_id: s.id,
+                            selected_serial_id: s.id,
+                            serial_number: s.serial_number,
+                            selected_serial_number: s.serial_number,
+                            serial_ids: [s.id],
+                            serial_numbers: [s.serial_number],
+                            quantity: lotStock,
+                            price: productPrice,
+                            cost_price: Number(p.cost_price ?? p.cost ?? 0),
+                            max_discount: Number(p.max_discount ?? Math.max(0, (productPrice - (Number(p.cost_price || 0))))),
+                            subtotal: lotStock * productPrice,
+                            maxStock: lotStock
+                        }]);
+                        break;
                     }
                 }
-            } catch {
-                toast.error('Failed to load products');
-            }
+            } catch (_) {}
         };
-        fetchProducts();
+        checkAddSerialParam();
     }, []);
 
     const uniqueCategories = [...new Set(catalogRows.map(product => product.category).filter(Boolean))];

@@ -493,10 +493,11 @@ export default function Dashboard() {
             fetchAllDashboardData(true);
         });
 
-        // 60-second gentle silent polling so numbers stay up-to-date without flashing UI
+        // 8-second gentle silent polling so numbers stay up-to-date in real time without flashing UI
         const pollInterval = setInterval(() => {
+            if (typeof document !== 'undefined' && document.hidden) return;
             fetchAllDashboardData(true);
-        }, 60000);
+        }, 8000);
 
         return () => {
             unsubscribe();

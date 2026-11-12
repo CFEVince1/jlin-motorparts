@@ -33,6 +33,7 @@ import {
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { formatCurrency, formatAuditDate } from '../utils/formatters';
+import { notifyInventoryChange, subscribeToInventoryChange } from '../utils/syncEvents';
 
 export const CashFloat = () => {
     const { user } = useContext(AuthContext);
@@ -245,6 +246,27 @@ export const CashFloat = () => {
         fetchRecords();
         fetchStaffList();
         fetchSummary();
+
+        // Real-time cross-tab & live sync
+        const unsubscribe = subscribeToInventoryChange(() => {
+            fetchActiveShift();
+            fetchRecords();
+            fetchStaffList();
+            fetchSummary();
+        });
+
+        // 5-second gentle background polling so shift submissions / remittances appear live without restarting
+        const poll = setInterval(() => {
+            if (typeof document !== 'undefined' && document.hidden) return;
+            fetchActiveShift();
+            fetchRecords();
+            fetchSummary();
+        }, 5000);
+
+        return () => {
+            unsubscribe();
+            clearInterval(poll);
+        };
     }, [fetchActiveShift, fetchRecords, fetchStaffList, fetchSummary]);
 
     // ==========================================
@@ -284,6 +306,7 @@ export const CashFloat = () => {
             fetchActiveShift();
             fetchRecords();
             fetchSummary();
+            notifyInventoryChange('shift_open');
         } catch (err) {
             console.error('Failed to open shift:', err);
             toast.error(err.response?.data?.message || 'Failed to open shift');
@@ -319,6 +342,7 @@ export const CashFloat = () => {
             fetchActiveShift();
             fetchRecords();
             fetchSummary();
+            notifyInventoryChange('shift_expense');
         } catch (err) {
             console.error('Failed to record petty cash expense:', err);
             toast.error(err.response?.data?.message || 'Failed to record expense');
@@ -362,6 +386,7 @@ export const CashFloat = () => {
             fetchActiveShift();
             fetchRecords();
             fetchSummary();
+            notifyInventoryChange('shift_expense');
         } catch (err) {
             console.error('Failed to close shift:', err);
             toast.error(err.response?.data?.message || 'Failed to close shift');
@@ -417,6 +442,7 @@ export const CashFloat = () => {
             fetchStaffList();
             fetchSummary();
             fetchActiveShift();
+            notifyInventoryChange('shift_signoff');
         } catch (err) {
             console.error('Failed to sign off shift:', err);
             toast.error(err.response?.data?.message || 'Failed to sign off shift');
@@ -444,6 +470,7 @@ export const CashFloat = () => {
             fetchRecords();
             fetchStaffList();
             fetchSummary();
+            notifyInventoryChange('shift_cancel');
         } catch (err) {
             console.error('Failed to cancel shift:', err);
             toast.error(err.response?.data?.message || 'Failed to cancel shift');
@@ -469,6 +496,7 @@ export const CashFloat = () => {
             fetchRecords();
             fetchStaffList();
             fetchSummary();
+            notifyInventoryChange('shift_cancel');
         } catch (err) {
             console.error('Failed to reopen shift:', err);
             toast.error(err.response?.data?.message || 'Failed to reopen shift');
@@ -502,6 +530,7 @@ export const CashFloat = () => {
             fetchRecords();
             fetchStaffList();
             fetchSummary();
+            notifyInventoryChange('shift_cancel');
         } catch (err) {
             console.error('Failed to log cash drop:', err);
             toast.error(err.response?.data?.message || 'Failed to log cash drop');
@@ -537,6 +566,7 @@ export const CashFloat = () => {
             fetchRecords();
             fetchStaffList();
             fetchSummary();
+            notifyInventoryChange('shift_cancel');
         } catch (err) {
             console.error('Failed to force close shift:', err);
             toast.error(err.response?.data?.message || 'Failed to force close shift');
@@ -569,6 +599,7 @@ export const CashFloat = () => {
             fetchRecords();
             fetchStaffList();
             fetchSummary();
+            notifyInventoryChange('shift_cancel');
         } catch (err) {
             console.error('Failed to open shift for staff:', err);
             toast.error(err.response?.data?.message || 'Failed to open shift');

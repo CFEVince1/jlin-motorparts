@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import { notifyInventoryChange, subscribeToInventoryChange } from '../utils/syncEvents';
 import {
     ArrowLeftRight,
     Search,
@@ -428,6 +429,7 @@ export const ItemSwap = () => {
                 toast.success(res.data.message || 'Item replacement completed successfully!');
                 setCompletedSwap(res.data.swap);
                 setShowSlipModal(true);
+                notifyInventoryChange('item_replacement');
 
                 // Reset workflow state
                 setFoundSale(null);
@@ -481,6 +483,25 @@ export const ItemSwap = () => {
         if (activeTab === 'swap_history') {
             fetchSwapHistory();
         }
+
+        const unsubscribe = subscribeToInventoryChange(() => {
+            if (activeTab === 'swap_history') {
+                fetchSwapHistory();
+            }
+        });
+
+        // 8-second live sync polling
+        const poll = setInterval(() => {
+            if (typeof document !== 'undefined' && document.hidden) return;
+            if (activeTab === 'swap_history') {
+                fetchSwapHistory();
+            }
+        }, 8000);
+
+        return () => {
+            unsubscribe();
+            clearInterval(poll);
+        };
     }, [activeTab, fetchSwapHistory]);
 
     return (
