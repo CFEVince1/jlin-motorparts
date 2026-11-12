@@ -114,6 +114,9 @@ const Inventory = () => {
   }, [searchParams, isAdmin]);
 
   const handleTabChange = (tab) => {
+    setIsAddProductOpen(false);
+    setAdjustmentTarget(null);
+    setEditingProductModal(null);
     setActiveTab(tab);
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
@@ -556,12 +559,19 @@ const Inventory = () => {
           {isAdmin && (
             <button
               type="button"
-              onClick={() => setIsAddProductOpen(!isAddProductOpen)}
+              onClick={() => {
+                if (activeTab !== 'catalog') {
+                  handleTabChange('catalog');
+                  setIsAddProductOpen(true);
+                } else {
+                  setIsAddProductOpen(!isAddProductOpen);
+                }
+              }}
               className="btn-primary"
               style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', padding: '8px 16px', height: '38px', boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)' }}
-              title={isAddProductOpen ? 'Close add product form' : 'Add a new motorcycle part to the inventory catalog'}
+              title={activeTab === 'catalog' && isAddProductOpen ? 'Close add product form' : 'Add a new motorcycle part to the inventory catalog'}
             >
-              {isAddProductOpen ? (
+              {activeTab === 'catalog' && isAddProductOpen ? (
                 <>
                   <X size={16} />
                   <span>Close Form</span>
@@ -578,13 +588,16 @@ const Inventory = () => {
           <button
             type="button"
             onClick={() => {
-              if (adjustmentTarget !== null) {
+              if (activeTab !== 'catalog') {
+                handleTabChange('catalog');
+                setAdjustmentTarget(products[0] || {});
+              } else if (adjustmentTarget !== null) {
                 setAdjustmentTarget(null);
               } else {
                 setAdjustmentTarget(products[0] || {});
               }
             }}
-            className={adjustmentTarget !== null ? 'btn-primary' : 'btn-secondary'}
+            className={activeTab === 'catalog' && adjustmentTarget !== null ? 'btn-primary' : 'btn-secondary'}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -593,13 +606,13 @@ const Inventory = () => {
               padding: '8px 14px',
               height: '38px',
               cursor: 'pointer',
-              background: adjustmentTarget !== null ? 'rgba(245, 158, 11, 0.2)' : undefined,
-              borderColor: adjustmentTarget !== null ? '#f59e0b' : undefined,
-              color: adjustmentTarget !== null ? '#f59e0b' : undefined
+              background: activeTab === 'catalog' && adjustmentTarget !== null ? 'rgba(245, 158, 11, 0.2)' : undefined,
+              borderColor: activeTab === 'catalog' && adjustmentTarget !== null ? '#f59e0b' : undefined,
+              color: activeTab === 'catalog' && adjustmentTarget !== null ? '#f59e0b' : undefined
             }}
-            title={adjustmentTarget !== null ? 'Close stock adjustment form' : 'Record manual stock adjustment (Damaged on shelf, Lost/Stolen, Found extra)'}
+            title={activeTab === 'catalog' && adjustmentTarget !== null ? 'Close stock adjustment form' : 'Record manual stock adjustment (Damaged on shelf, Lost/Stolen, Found extra)'}
           >
-            {adjustmentTarget !== null ? (
+            {activeTab === 'catalog' && adjustmentTarget !== null ? (
               <>
                 <X size={15} style={{ color: '#f59e0b' }} />
                 <span>Close Adjustment</span>
