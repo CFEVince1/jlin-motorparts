@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -7,6 +7,7 @@ import {
     Users as UsersIcon, CheckCircle2, XCircle
 } from 'lucide-react';
 import Spinner from '../components/Spinner';
+import { AuthContext } from '../context/AuthContextValue';
 import { notifyInventoryChange, subscribeToInventoryChange } from '../utils/syncEvents';
 
 const ROLE_LABELS = {
@@ -16,10 +17,12 @@ const ROLE_LABELS = {
 };
 
 const Users = () => {
+    const { user: authUser } = useContext(AuthContext);
     const [searchParams, setSearchParams] = useSearchParams();
     const activeTab = searchParams.get('tab') || 'staff';
 
     const [users, setUsers] = useState([]);
+    const [activeShift, setActiveShift] = useState(null);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [roleFilter, setRoleFilter] = useState('ALL');
@@ -60,18 +63,28 @@ const Users = () => {
         }
     };
 
+    const fetchActiveShift = async () => {
+        try {
+            const res = await api.get('/cash-float/active-shift');
+            setActiveShift(res.data?.activeShift || null);
+        } catch (_) {}
+    };
+
     useEffect(() => {
         fetchUsers();
+        fetchActiveShift();
 
         // Instant cross-tab sync
         const unsubscribe = subscribeToInventoryChange(() => {
             fetchUsers(true);
+            fetchActiveShift();
         });
 
         // 6-second live polling: updates who is online/offline without restarting or flashing UI
         const poll = setInterval(() => {
             if (typeof document !== 'undefined' && document.hidden) return;
             fetchUsers(true);
+            fetchActiveShift();
         }, 6000);
 
         return () => {
@@ -189,6 +202,24 @@ const Users = () => {
         }
     };
 
+    // Helper to determine live online presence
+    const computeIsOnline = (u) => {
+        if (u.is_active === 0 || u.is_active === false) return false;
+        const isCurrentUser = Boolean(
+            authUser && (
+                String(authUser.id) === String(u.id) ||
+                (authUser.username && u.username && authUser.username.toLowerCase() === u.username.toLowerCase())
+            )
+        );
+        const hasActiveShift = Boolean(
+            activeShift && (
+                String(activeShift.staff_id) === String(u.id) ||
+                (activeShift.staff_username && u.username && activeShift.staff_username.toLowerCase() === u.username.toLowerCase())
+            )
+        );
+        return Boolean(isCurrentUser || hasActiveShift || u.is_online === 1 || u.is_online === true);
+    };
+
     // Filtered users list
     const filteredUsers = users.filter(u => {
         const q = searchQuery.toLowerCase().trim();
@@ -202,7 +233,7 @@ const Users = () => {
             (roleFilter === 'CASHIER' && (r === 'cashier' || r === 'staff'));
 
         const isActive = u.is_active === 1 || u.is_active === undefined;
-        const isOnline = Boolean(u.is_online);
+        const isOnline = computeIsOnline(u);
 
         const matchesStatus = statusFilter === 'ALL' ||
             (statusFilter === 'ACTIVE' && isOnline) ||
@@ -212,8 +243,8 @@ const Users = () => {
         return matchesQuery && matchesRole && matchesStatus;
     });
 
-    const onlineCount = users.filter(u => u.is_online).length;
-    const offlineCount = users.filter(u => (u.is_active === 1 || u.is_active === undefined) && !u.is_online).length;
+    const onlineCount = users.filter(u => computeIsOnline(u)).length;
+    const offlineCount = users.filter(u => (u.is_active === 1 || u.is_active === undefined) && !computeIsOnline(u)).length;
     const deactivatedCount = users.filter(u => u.is_active === 0).length;
 
     return (
@@ -433,7 +464,13 @@ const Users = () => {
                                         {filteredUsers.map(u => {
                                             const roleMeta = ROLE_LABELS[(u.role || '').toLowerCase()] || ROLE_LABELS.cashier;
                                             const isActive = u.is_active === 1 || u.is_active === undefined;
-                                            const isOnline = Boolean(u.is_online);
+                                            const isOnline = computeIsOnline(u);
+                                            const isYou = Boolean(
+                                                authUser && (
+                                                    String(authUser.id) === String(u.id) ||
+                                                    (authUser.username && u.username && authUser.username.toLowerCase() === u.username.toLowerCase())
+                                                )
+                                            );
 
                                             return (
                                                 <tr key={u.id} style={{ opacity: isActive ? 1 : 0.65 }}>
@@ -454,8 +491,13 @@ const Users = () => {
                                                                 {(u.full_name || u.username || 'U').charAt(0).toUpperCase()}
                                                             </div>
                                                             <div>
-                                                                <strong style={{ display: 'block', fontSize: '0.88rem' }}>
+                                                                <strong style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.88rem' }}>
                                                                     {u.full_name || u.username}
+                                                                    {isYou && (
+                                                                        <span style={{ fontSize: '0.66rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(139, 92, 246, 0.25)', color: '#a78bfa', fontWeight: 800 }}>
+                                                                            YOU
+                                                                        </span>
+                                                                    )}
                                                                 </strong>
                                                                 <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
                                                                     ID #{u.id}
