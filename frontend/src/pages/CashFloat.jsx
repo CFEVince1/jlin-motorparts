@@ -139,12 +139,6 @@ export const CashFloat = () => {
         pendingSignOffAmount: 0
     });
 
-    // Admin Quick Time-In Modal State
-    const [showTimeInModal, setShowTimeInModal] = useState(false);
-    const [timeInStaff, setTimeInStaff] = useState(null);
-    const [timeInFloat, setTimeInFloat] = useState('2000');
-    const [submittingTimeIn, setSubmittingTimeIn] = useState(false);
-
     // Mid-Shift Cash Drop (Safe Remittance) Modal State
     const [showCashDropModal, setShowCashDropModal] = useState(false);
     const [cashDropShift, setCashDropShift] = useState(null);
@@ -583,53 +577,18 @@ export const CashFloat = () => {
     };
 
     // 9. QUICK TIME-IN FOR STAFF
-    const handleTimeInSubmit = async (e) => {
-        e.preventDefault();
-        if (!timeInStaff) return;
-        const numStarting = Number(timeInFloat);
-        if (!numStarting || numStarting <= 0) {
-            return toast.error('Please enter a valid starting float (e.g. 2000)');
-        }
-
-        setSubmittingTimeIn(true);
-        try {
-            const res = await api.post('/cash-float/open-shift', {
-                staff_id: timeInStaff.id,
-                starting_cash: numStarting,
-                notes: `Timed-In & Float assigned by Admin ${user?.username || 'admin'}`
-            });
-            toast.success(res.data?.message || `Shift opened for @${timeInStaff.username}! POS is now unlocked.`);
-            setShowTimeInModal(false);
-            setTimeInStaff(null);
-            setTimeInFloat('2000');
-            fetchActiveShift();
-            fetchRecords();
-            fetchStaffList();
-            fetchSummary();
-            notifyInventoryChange('shift_cancel');
-        } catch (err) {
-            console.error('Failed to open shift for staff:', err);
-            toast.error(err.response?.data?.message || 'Failed to open shift');
-        } finally {
-            setSubmittingTimeIn(false);
-        }
-    };
-
-    // 10. DIRECT 1-CLICK TIME-IN (Instant start with standard ₱2,000 float & POS unlock)
+    // 9. DIRECT 1-CLICK TIME-IN (Instant start with standard ₱2,000 float & POS unlock - no modal)
     const handleDirectTimeIn = async (staff, startingFloat = 2000) => {
-        if (!isAdmin) return;
-        const staffName = staff.full_name || staff.username;
-        const confirmMsg = `Start Shift & Time-In @${staff.username} (${staffName})?\n\n• Starting Change Float: ₱${Number(startingFloat).toLocaleString('en-US', { minimumFractionDigits: 2 })}\n• POS Terminal: Will unlock immediately for selling.\n\nProceed?`;
-        if (!window.confirm(confirmMsg)) return;
+        if (!isAdmin || !staff) return;
 
         setActionInProgressShiftId(`timein-${staff.id}`);
         try {
             const res = await api.post('/cash-float/open-shift', {
                 staff_id: staff.id,
                 starting_cash: Number(startingFloat),
-                notes: `Direct 1-Click Time-In by Admin ${user?.username || 'admin'}`
+                notes: `Timed-In with ₱${Number(startingFloat).toLocaleString('en-US', { minimumFractionDigits: 2 })} float by Admin ${user?.username || 'admin'}`
             });
-            toast.success(res.data?.message || `🟢 Timed-In @${staff.username}! Register unlocked.`);
+            toast.success(res.data?.message || `🟢 Timed-In @${staff.username}! Register unlocked with ₱${Number(startingFloat).toLocaleString('en-US', { minimumFractionDigits: 2 })} float.`);
             fetchActiveShift();
             fetchRecords();
             fetchStaffList();
@@ -1839,13 +1798,10 @@ export const CashFloat = () => {
                             {staffList.length > 0 && !staffList.some(s => s.active_shift_status === 'ACTIVE') && (
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                        setTimeInStaff(staffList[0]);
-                                        setTimeInFloat('2000');
-                                        setShowTimeInModal(true);
-                                    }}
+                                    onClick={() => handleDirectTimeIn(staffList[0], 2000)}
                                     className="btn-primary"
                                     style={{ padding: '7px 16px', fontSize: '0.82rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}
+                                    title="Immediately time-in cashier with standard ₱2,000 float and unlock POS terminal"
                                 >
                                     <Plus size={15} /> Time-In Cashier &amp; Assign Float
                                 </button>
@@ -2058,32 +2014,16 @@ export const CashFloat = () => {
                                                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                                                             {/* Case 1: Off-Shift */}
                                                             {!hasActive && (
-                                                                <>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => handleDirectTimeIn(s, 2000)}
-                                                                        disabled={isActionBusy}
-                                                                        className="btn-primary"
-                                                                        style={{ padding: '5px 12px', fontSize: '0.76rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                                                        title="Start shift with default ₱2,000 float & immediately unlock register"
-                                                                    >
-                                                                        <Play size={13} fill="currentColor" /> ▶ Time-In (₱2,000)
-                                                                    </button>
-
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            setTimeInStaff(s);
-                                                                            setTimeInFloat('2000');
-                                                                            setShowTimeInModal(true);
-                                                                        }}
-                                                                        className="btn-secondary"
-                                                                        style={{ padding: '5px 10px', fontSize: '0.74rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                                                        title="Set custom starting float amount or notes"
-                                                                    >
-                                                                        <Sliders size={13} /> Custom Float...
-                                                                    </button>
-                                                                </>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleDirectTimeIn(s, 2000)}
+                                                                    disabled={isActionBusy}
+                                                                    className="btn-primary"
+                                                                    style={{ padding: '5px 14px', fontSize: '0.76rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                                                                    title="Start shift with default ₱2,000 float & immediately unlock register"
+                                                                >
+                                                                    <Play size={13} fill="currentColor" /> ▶ Time-In &amp; Assign Float
+                                                                </button>
                                                             )}
 
                                                             {/* Case 2: On-Shift with 0 Sales (Accidental open) */}
@@ -2687,81 +2627,6 @@ export const CashFloat = () => {
                 </div>
             )}
 
-            {/* ============================================================ */}
-            {/* MODAL: ADMIN TIME-IN & ASSIGN STARTING FLOAT                 */}
-            {/* ============================================================ */}
-            {showTimeInModal && timeInStaff && (
-                <div style={{
-                    position: 'fixed',
-                    top: 0, left: 0, right: 0, bottom: 0,
-                    background: 'rgba(0, 0, 0, 0.75)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    zIndex: 99999, padding: '20px',
-                    overflowY: 'auto'
-                }}>
-                    <div className="glass-panel" style={{ width: '100%', maxWidth: '440px', borderRadius: '14px', padding: '24px', position: 'relative' }}>
-                        <button
-                            type="button"
-                            onClick={() => setShowTimeInModal(false)}
-                            style={{ position: 'absolute', right: '16px', top: '16px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-                        >
-                            <X size={20} />
-                        </button>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                            <Banknote size={22} color="#10b981" />
-                            <h2 style={{ margin: 0, fontSize: '1.18rem', fontWeight: 800 }}>
-                                Time-In Cashier &amp; Assign Float
-                            </h2>
-                        </div>
-                        <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                            Starting physical change fund (panukli) assigned to <strong style={{ color: 'var(--text-main)' }}>{timeInStaff.full_name || timeInStaff.username} (@{timeInStaff.username})</strong>. This will record their Time-In and unlock their POS terminal.
-                        </p>
-
-                        <form onSubmit={handleTimeInSubmit}>
-                            <div style={{ marginBottom: '16px' }}>
-                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '4px' }}>
-                                    Starting Float Amount (₱) *:
-                                </label>
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    min="1"
-                                    className="input-premium"
-                                    style={{ width: '100%', padding: '10px 12px', fontSize: '1.2rem', fontWeight: 800, fontFamily: 'monospace' }}
-                                    placeholder="2000.00"
-                                    value={timeInFloat}
-                                    onChange={(e) => setTimeInFloat(e.target.value)}
-                                    required
-                                    autoFocus
-                                />
-                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                                    Standard store float is typically ₱2,000.00 in mixed small bills and coins.
-                                </span>
-                            </div>
-
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowTimeInModal(false)}
-                                    className="btn-secondary"
-                                    style={{ padding: '8px 16px', fontSize: '0.84rem' }}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={submittingTimeIn}
-                                    className="btn-primary"
-                                    style={{ padding: '8px 20px', fontSize: '0.84rem', fontWeight: 800 }}
-                                >
-                                    {submittingTimeIn ? 'Starting Shift...' : 'Start Staff Shift (Time-In)'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
 
             {/* ============================================================ */}
             {/* MODAL: MID-SHIFT CASH DROP (SAFE REMITTANCE)                 */}
