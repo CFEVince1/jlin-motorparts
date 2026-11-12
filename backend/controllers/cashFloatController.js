@@ -1225,7 +1225,7 @@ exports.adminSignOff = async (req, res) => {
         const shiftId = req.params.id;
         const { notes } = req.body;
 
-        const [records] = await db.query('SELECT * FROM cash_floats WHERE id = ?', [shiftId]);
+        const [records] = await db.query('SELECT * FROM cash_floats WHERE (id = ? OR staff_id = ?) ORDER BY assigned_at DESC LIMIT 1', [shiftId, shiftId]);
         if (records.length === 0) {
             return res.status(404).json({ message: 'Shift record not found.' });
         }
@@ -1241,11 +1241,11 @@ exports.adminSignOff = async (req, res) => {
                 signed_off_at = NOW(),
                 returned_notes = CONCAT(COALESCE(returned_notes, ''), ' | Admin Sign-Off: ', ?)
             WHERE id = ?
-        `, [adminId, adminUsername, notes || 'Verified and signed off by Admin', shiftId]);
+        `, [adminId, adminUsername, notes || 'Verified and signed off by Admin', shift.id]);
 
         return res.json({
             success: true,
-            message: `Shift ${shift.shift_code || shiftId} officially signed off and completed by Admin (${adminUsername}).`
+            message: `Shift ${shift.shift_code || shift.id} officially signed off and completed by Admin (${adminUsername}).`
         });
     } catch (err) {
         console.error('Error signing off shift:', err);
@@ -1262,7 +1262,7 @@ exports.cancelShift = async (req, res) => {
     try {
         await ensureCashFloatsTableExists();
         const shiftId = req.params.id;
-        const [records] = await db.query('SELECT * FROM cash_floats WHERE id = ?', [shiftId]);
+        const [records] = await db.query('SELECT * FROM cash_floats WHERE (id = ? OR staff_id = ?) ORDER BY assigned_at DESC LIMIT 1', [shiftId, shiftId]);
         if (records.length === 0) {
             return res.status(404).json({ message: 'Shift not found.' });
         }
@@ -1271,7 +1271,7 @@ exports.cancelShift = async (req, res) => {
         // Check if any sales were tied to this shift
         let salesInDb = 0;
         try {
-            const [salesCheck] = await db.query('SELECT COUNT(*) as count FROM sales WHERE shift_id = ?', [shiftId]);
+            const [salesCheck] = await db.query('SELECT COUNT(*) as count FROM sales WHERE shift_id = ?', [shift.id]);
             salesInDb = Number(salesCheck[0]?.count || 0);
         } catch (sErr) {}
 
@@ -1279,17 +1279,17 @@ exports.cancelShift = async (req, res) => {
 
         if (salesInDb > 0 || shiftSalesCount > 0) {
             return res.status(400).json({
-                message: `Cannot cancel shift ${shift.shift_code || shiftId} because ${salesInDb || shiftSalesCount} sales transaction(s) have already been processed under it. Use "Force Time-Out & Count" instead to preserve sales records.`
+                message: `Cannot cancel shift ${shift.shift_code || shift.id} because ${salesInDb || shiftSalesCount} sales transaction(s) have already been processed under it. Use "Force Time-Out & Count" instead to preserve sales records.`
             });
         }
 
         // Clean up movements and shift record
-        await db.query('DELETE FROM cash_movements WHERE cash_float_id = ?', [shiftId]);
-        await db.query('DELETE FROM cash_floats WHERE id = ?', [shiftId]);
+        await db.query('DELETE FROM cash_movements WHERE cash_float_id = ?', [shift.id]);
+        await db.query('DELETE FROM cash_floats WHERE id = ?', [shift.id]);
 
         return res.json({
             success: true,
-            message: `Shift ${shift.shift_code || shiftId} for @${shift.staff_username} was successfully canceled. Staff is now Off-Shift.`
+            message: `Shift ${shift.shift_code || shift.id} for @${shift.staff_username} was successfully canceled. Staff is now Off-Shift.`
         });
     } catch (err) {
         console.error('Error cancelling shift:', err);
@@ -1306,7 +1306,7 @@ exports.reopenShift = async (req, res) => {
     try {
         await ensureCashFloatsTableExists();
         const shiftId = req.params.id;
-        const [records] = await db.query('SELECT * FROM cash_floats WHERE id = ?', [shiftId]);
+        const [records] = await db.query('SELECT * FROM cash_floats WHERE (id = ? OR staff_id = ?) ORDER BY assigned_at DESC LIMIT 1', [shiftId, shiftId]);
         if (records.length === 0) {
             return res.status(404).json({ message: 'Shift not found.' });
         }
@@ -1323,11 +1323,11 @@ exports.reopenShift = async (req, res) => {
                 admin_signed_off = 0,
                 reconciliation_notes = CONCAT(COALESCE(reconciliation_notes, ''), ' | Reopened by Admin')
             WHERE id = ?
-        `, [shiftId]);
+        `, [shift.id]);
 
         return res.json({
             success: true,
-            message: `Shift ${shift.shift_code || shiftId} for @${shift.staff_username} has been reopened! Staff can now continue selling.`
+            message: `Shift ${shift.shift_code || shift.id} for @${shift.staff_username} has been reopened! Staff can now continue selling.`
         });
     } catch (err) {
         console.error('Error reopening shift:', err);
@@ -1350,7 +1350,10 @@ exports.logCashDrop = async (req, res) => {
             return res.status(400).json({ message: 'Please enter a valid cash drop amount.' });
         }
 
-        const [records] = await db.query('SELECT * FROM cash_floats WHERE id = ? FOR UPDATE', [shiftId]);
+        const [records] = await db.query(
+            'SELECT * FROM cash_floats WHERE (id = ? OR staff_id = ?) AND (status = "ACTIVE" OR status = "PENDING_REMIT") ORDER BY assigned_at DESC LIMIT 1 FOR UPDATE',
+            [shiftId, shiftId]
+        );
         if (records.length === 0) {
             return res.status(404).json({ message: 'Active shift not found.' });
         }
@@ -1372,7 +1375,7 @@ exports.logCashDrop = async (req, res) => {
                 cash_drops = ?,
                 notes = CONCAT(COALESCE(notes, ''), ' | Cash Drop: -₱', ?, ' (', ?, ')')
             WHERE id = ?
-        `, [newBalance, newDrops, dropAmount.toFixed(2), notes || 'Mid-shift safe remittance', shiftId]);
+        `, [newBalance, newDrops, dropAmount.toFixed(2), notes || 'Mid-shift safe remittance', shift.id]);
 
         await logCashMovement(db, {
             cashFloatId: shift.id,
