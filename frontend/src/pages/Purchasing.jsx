@@ -161,6 +161,8 @@ export const Purchasing = ({ defaultTab }) => {
 
   const handleTabChange = (tab) => {
     if (!isAdmin && tab !== 'receive_orders') return;
+    setIsAddProductOpen(false);
+    setAddProductRowIndex(null);
     setActiveTab(tab);
     setSearchParams({ tab });
   };
@@ -996,33 +998,6 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
 
         {/* View Switcher Tabs & Quick Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {isAdmin && (
-            <button
-              type="button"
-              className="btn-primary"
-              id="put-new-product-header-btn"
-              onClick={() => {
-                setAddProductRowIndex(null);
-                setIsAddProductOpen(!isAddProductOpen);
-              }}
-              style={{
-                height: '38px',
-                padding: '0 16px',
-                fontSize: '0.84rem',
-                borderRadius: '8px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                cursor: 'pointer',
-                fontWeight: 600
-              }}
-              title="Register new motorcycle part in catalog"
-            >
-              <Package size={16} />
-              <span>{isAddProductOpen ? '✕ Close' : '+ New Part'}</span>
-            </button>
-          )}
-
           <div style={{ display: 'inline-flex', background: 'var(--surface-hover)', padding: '4px', borderRadius: '10px', gap: '6px', flexWrap: 'wrap' }}>
             {isAdmin && (
               <button
