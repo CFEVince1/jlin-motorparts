@@ -26,6 +26,11 @@ const Login = () => {
         if (location.state?.message) {
             setInfoMessage(location.state.message);
         }
+        const kickedMsg = sessionStorage.getItem('loginMessage');
+        if (kickedMsg) {
+            setErrorMessage(kickedMsg);
+            sessionStorage.removeItem('loginMessage');
+        }
     }, [location.state]);
 
     const handleLogin = async (e) => {

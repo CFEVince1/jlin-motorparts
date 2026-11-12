@@ -336,7 +336,7 @@ exports.getMyCashFloat = async (req, res) => {
                 COALESCE(cf.expected_cash, cf.current_cash_balance, cf.starting_cash, 0) AS expected_cash
              FROM cash_floats cf 
              WHERE cf.staff_id = ? 
-               AND cf.status = 'ACTIVE' 
+               AND cf.status IN ('ACTIVE', 'PENDING_REMIT')
                AND (DATE(cf.assigned_at) = CURDATE() OR DATE(DATE_ADD(cf.assigned_at, INTERVAL 8 HOUR)) = DATE(DATE_ADD(NOW(), INTERVAL 8 HOUR)))
              ORDER BY cf.assigned_at DESC LIMIT 1`,
             [staffId]
@@ -345,13 +345,19 @@ exports.getMyCashFloat = async (req, res) => {
         if (floats.length === 0) {
             return res.json({ 
                 activeFloat: null,
+                status: 'NO_SHIFT',
                 starting_cash: 0.00,
                 current_cash_balance: 0.00,
-                message: 'No active cash float assigned for today. Starting Panukli strictly defaults to ₱0.00.'
+                message: 'No active cash float assigned for today.'
             });
         }
 
-        res.json({ activeFloat: floats[0] });
+        const floatRecord = floats[0];
+        res.json({ 
+            activeFloat: floatRecord.status === 'ACTIVE' ? floatRecord : null,
+            shiftRecord: floatRecord,
+            status: floatRecord.status
+        });
     } catch (err) {
         console.error('Error fetching my cash float:', err);
         res.status(500).json({ message: 'Failed to retrieve your cash float.' });
@@ -766,16 +772,19 @@ exports.openShift = async (req, res) => {
             return res.status(400).json({ message: 'Opening Cash Float (Starting Change Fund) must be a valid amount greater than ₱0.00.' });
         }
 
-        // Check if there is already an active shift for this staff today
+        // Enforce Single Active Shift Constraint across the whole drawer system
         const [existingActive] = await db.query(
-            `SELECT * FROM cash_floats 
-             WHERE staff_id = ? AND status = 'ACTIVE' 
-               AND (DATE(assigned_at) = CURDATE() OR DATE(DATE_ADD(assigned_at, INTERVAL 8 HOUR)) = DATE(DATE_ADD(NOW(), INTERVAL 8 HOUR)))`,
-            [targetStaffId]
+            "SELECT * FROM cash_floats WHERE status IN ('ACTIVE', 'PENDING_REMIT') ORDER BY assigned_at DESC LIMIT 1"
         );
 
         if (existingActive.length > 0) {
             const activeShift = existingActive[0];
+            if (Number(activeShift.staff_id) !== Number(targetStaffId)) {
+                return res.status(400).json({
+                    message: `Cannot open shift: Cash drawer is currently active for ${activeShift.staff_username || 'another staff'} (${activeShift.shift_code || 'SHIFT-' + activeShift.id}). Please end or unshift that drawer first.`
+                });
+            }
+
             return res.status(200).json({
                 message: `Active shift already open for ${staffUser.username} (${activeShift.shift_code || 'SHIFT-' + activeShift.id}).`,
                 cashFloat: activeShift,
@@ -1186,6 +1195,15 @@ exports.closeShiftBlindCount = async (req, res) => {
 
         const [updatedRows] = await db.query('SELECT * FROM cash_floats WHERE id = ?', [currentShift.id]);
 
+        // Revoke staff session token immediately when closed by Admin so they are forced to log out
+        if (isAdmin && currentShift.staff_id) {
+            try {
+                await db.query('UPDATE users SET token_version = token_version + 1 WHERE id = ?', [currentShift.staff_id]);
+            } catch (e) {
+                console.warn('[closeShiftBlindCount] Session revocation notice:', e.message);
+            }
+        }
+
         return res.json({
             success: true,
             message: isAdmin 
@@ -1243,6 +1261,15 @@ exports.adminSignOff = async (req, res) => {
             WHERE id = ?
         `, [adminId, adminUsername, notes || 'Verified and signed off by Admin', shift.id]);
 
+        // Revoke staff session token immediately upon Admin sign-off
+        if (shift.staff_id) {
+            try {
+                await db.query('UPDATE users SET token_version = token_version + 1 WHERE id = ?', [shift.staff_id]);
+            } catch (e) {
+                console.warn('[adminSignOff] Session revocation notice:', e.message);
+            }
+        }
+
         return res.json({
             success: true,
             message: `Shift ${shift.shift_code || shift.id} officially signed off and completed by Admin (${adminUsername}).`
@@ -1286,6 +1313,15 @@ exports.cancelShift = async (req, res) => {
         // Clean up movements and shift record
         await db.query('DELETE FROM cash_movements WHERE cash_float_id = ?', [shift.id]);
         await db.query('DELETE FROM cash_floats WHERE id = ?', [shift.id]);
+
+        // Revoke staff session token immediately upon shift cancellation
+        if (shift.staff_id) {
+            try {
+                await db.query('UPDATE users SET token_version = token_version + 1 WHERE id = ?', [shift.staff_id]);
+            } catch (e) {
+                console.warn('[cancelShift] Session revocation notice:', e.message);
+            }
+        }
 
         return res.json({
             success: true,

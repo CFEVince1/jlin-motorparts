@@ -53,12 +53,21 @@ api.interceptors.response.use(
     (error) => {
         const status = error.response?.status;
         const url = error.config?.url || '';
+        const data = error.response?.data;
 
-        // If unauthorized and not an intentional login attempt, clear session and redirect
-        if (status === 401 && !url.includes('/auth/login')) {
+        // Check if shift ended by admin (403 with code SHIFT_ENDED) or 401 unauthorized (session revoked via token_version)
+        const isShiftEnded = status === 403 && (data?.code === 'SHIFT_ENDED' || data?.message?.includes('shift has been ended'));
+        const isUnauthorized = status === 401 && !url.includes('/auth/login');
+
+        if ((isShiftEnded || isUnauthorized) && !url.includes('/auth/login')) {
             if (!isLoggingOut) {
                 isLoggingOut = true;
                 localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                sessionStorage.clear();
+                if (isShiftEnded || data?.message?.includes('shift has been ended')) {
+                    sessionStorage.setItem('loginMessage', 'Your shift has been ended by the Admin.');
+                }
                 if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
                     window.location.href = '/login';
                 }

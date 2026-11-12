@@ -45,7 +45,44 @@ exports.login = async (req, res) => {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
-        // 3. Generate JWT with tokenVersion
+        const normalizedRole = (user.role || '').toLowerCase();
+        const isAdmin = normalizedRole === 'admin';
+
+        // 3. Shift-Locked Authentication Gate for Staff / Cashiers
+        if (!isAdmin) {
+            // Query active shift in cash_floats table
+            const [activeShifts] = await db.query(
+                "SELECT id, shift_code, staff_id, staff_username, status FROM cash_floats WHERE status IN ('ACTIVE', 'PENDING_REMIT') ORDER BY assigned_at DESC LIMIT 1"
+            );
+
+            // Case A: No Shift is Open
+            if (activeShifts.length === 0) {
+                return res.status(403).json({
+                    code: 'NO_ACTIVE_SHIFT',
+                    message: 'Login Restricted: No active shift has been opened by the Admin.'
+                });
+            }
+
+            const activeShift = activeShifts[0];
+
+            // Case B: Shift is Open for a DIFFERENT Staff Member
+            if (Number(activeShift.staff_id) !== Number(user.id)) {
+                return res.status(403).json({
+                    code: 'DRAWER_ASSIGNED_OTHER',
+                    message: `Access Denied: Drawer is currently assigned to ${activeShift.staff_username || 'another staff member'}.`
+                });
+            }
+
+            // Case C: Shift is Open for THIS Specific Staff Member, but already submitted preliminary count
+            if (activeShift.status === 'PENDING_REMIT') {
+                return res.status(403).json({
+                    code: 'SHIFT_AWAITING_VERIFICATION',
+                    message: 'Shift Closing in Progress: Your preliminary count has been submitted and is awaiting Admin verification.'
+                });
+            }
+        }
+
+        // 4. Generate JWT with tokenVersion
         if (!process.env.JWT_SECRET || !process.env.JWT_SECRET.trim()) {
             console.error('Login error: JWT_SECRET environment variable is not configured');
             return res.status(500).json({ message: 'Server configuration error: JWT_SECRET is missing' });

@@ -79,25 +79,58 @@ const POS = ({ defaultTab }) => {
 
     const [products, setProducts] = useState([]);
     const [activeCashFloat, setActiveCashFloat] = useState(null);
+    const [shiftStatus, setShiftStatus] = useState('ACTIVE');
+    const [pendingRemitShift, setPendingRemitShift] = useState(null);
 
     const fetchActiveCashFloat = useCallback(async () => {
         try {
             const res = await api.get('/cash-float/my-float');
-            setActiveCashFloat(res.data?.activeFloat || null);
+            const data = res.data;
+            const currentStatus = data?.status || (data?.activeFloat ? 'ACTIVE' : 'NO_SHIFT');
+            setShiftStatus(currentStatus);
+
+            if (currentStatus === 'ACTIVE') {
+                setActiveCashFloat(data.activeFloat || null);
+                setPendingRemitShift(null);
+            } else if (currentStatus === 'PENDING_REMIT') {
+                setActiveCashFloat(null);
+                setPendingRemitShift(data.shiftRecord || null);
+            } else {
+                setActiveCashFloat(null);
+                setPendingRemitShift(null);
+                const isStaff = user && (user.role || '').toLowerCase() !== 'admin';
+                if (isStaff) {
+                    sessionStorage.setItem('loginMessage', 'Your shift has been ended by the Admin.');
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    window.location.href = '/login';
+                }
+            }
         } catch (err) {
             console.error('Failed to load active cash float in POS:', err);
         }
-    }, []);
+    }, [user]);
 
     useEffect(() => {
         fetchActiveCashFloat();
         const unsubscribe = subscribeToInventoryChange(() => {
             fetchActiveCashFloat();
         });
+
+        // 15-second heartbeat for staff shift status (forces logout if Admin ends shift remotely)
+        const isStaff = user && (user.role || '').toLowerCase() !== 'admin';
+        let heartbeat = null;
+        if (isStaff) {
+            heartbeat = setInterval(() => {
+                fetchActiveCashFloat();
+            }, 15000);
+        }
+
         return () => {
             if (unsubscribe) unsubscribe();
+            if (heartbeat) clearInterval(heartbeat);
         };
-    }, [fetchActiveCashFloat]);
+    }, [fetchActiveCashFloat, user]);
 
     const [cart, setCart] = useState([]);
 
@@ -898,6 +931,9 @@ const POS = ({ defaultTab }) => {
     // 1. Trigger the confirmation modal
     const handleCheckoutClick = () => {
         if (cart.length === 0) return toast.error('Cart is empty');
+        if (shiftStatus === 'PENDING_REMIT') {
+            return toast.error('POS Locked: Preliminary closing count has been submitted and is awaiting Admin verification.');
+        }
         if (user && String(user.role).toLowerCase() !== 'admin' && !activeCashFloat) {
             return toast.error('Cannot process sale: No active cash float assigned by Admin for this shift. Starting cash is ₱0.00.');
         }
@@ -1267,6 +1303,22 @@ const POS = ({ defaultTab }) => {
                             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                                 (Panukli: {formatCurrency(activeCashFloat.starting_cash || activeCashFloat.total_amount)})
                             </span>
+                        </div>
+                    ) : shiftStatus === 'PENDING_REMIT' ? (
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            background: 'rgba(245, 158, 11, 0.15)',
+                            border: '1px solid rgba(245, 158, 11, 0.35)',
+                            borderRadius: '8px',
+                            padding: '6px 14px',
+                            fontSize: '0.78rem',
+                            color: '#f59e0b',
+                            fontWeight: 700
+                        }}>
+                            <Lock size={14} />
+                            <span>Drawer Locked: Preliminary closing count submitted • Awaiting Admin verification</span>
                         </div>
                     ) : (
                         <div style={{
@@ -1707,6 +1759,22 @@ const POS = ({ defaultTab }) => {
                                         <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                                             (Panukli: {formatCurrency(activeCashFloat.starting_cash || activeCashFloat.total_amount)})
                                         </span>
+                                    </div>
+                                ) : shiftStatus === 'PENDING_REMIT' ? (
+                                    <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        background: 'rgba(245, 158, 11, 0.15)',
+                                        border: '1px solid rgba(245, 158, 11, 0.35)',
+                                        borderRadius: '8px',
+                                        padding: '4px 12px',
+                                        fontSize: '0.76rem',
+                                        color: '#f59e0b',
+                                        fontWeight: 700
+                                    }}>
+                                        <Lock size={14} />
+                                        <span>Drawer Locked: Preliminary count submitted • Awaiting Admin verification</span>
                                     </div>
                                 ) : (
                                     <div style={{
@@ -2738,18 +2806,22 @@ const POS = ({ defaultTab }) => {
                             <span>Hold Cart</span>
                         </button>
                         <button 
-                            className={(!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin') ? "btn-secondary" : "btn-primary"} 
-                            style={{ padding: '10px 14px', fontSize: '0.88rem', cursor: (!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin') ? 'not-allowed' : 'pointer', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} 
+                            className={((!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin') || shiftStatus === 'PENDING_REMIT') ? "btn-secondary" : "btn-primary"} 
+                            style={{ padding: '10px 14px', fontSize: '0.88rem', cursor: ((!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin') || shiftStatus === 'PENDING_REMIT') ? 'not-allowed' : 'pointer', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} 
                             onClick={handleCheckoutClick} 
-                            disabled={cart.length === 0 || (!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin')}
+                            disabled={cart.length === 0 || (!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin') || shiftStatus === 'PENDING_REMIT'}
                         >
-                            {(!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin') ? (
+                            {shiftStatus === 'PENDING_REMIT' ? (
+                                <>
+                                    <Lock size={16} /> Awaiting Sign-Off
+                                </>
+                            ) : (!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin') ? (
                                 <>
                                     <Lock size={16} /> Awaiting Float
                                 </>
                             ) : (
                                 <>
-                                    <CheckCircle2 size={16} /> Complete & Print
+                                    <CheckCircle2 size={16} /> Complete &amp; Print
                                 </>
                             )}
                         </button>

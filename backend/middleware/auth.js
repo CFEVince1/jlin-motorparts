@@ -81,6 +81,27 @@ const authenticateToken = async (req, res, next) => {
             res.json = function(data) {
                 return originalJson(stripCostPrice(data));
             };
+
+            // Shift Guard: verify this staff member currently has an active shift
+            const path = req.originalUrl || req.path || '';
+            const isExempt = path.includes('/auth/logout') || 
+                             path.includes('/auth/me') ||
+                             path.includes('/cash-float/my-float') ||
+                             path.includes('/cash-float/active-shift') ||
+                             path.includes('/cash-float/close-shift'); // allowed to submit preliminary count
+
+            if (!isExempt) {
+                const [activeCheck] = await db.query(
+                    "SELECT id, status FROM cash_floats WHERE staff_id = ? AND status = 'ACTIVE' LIMIT 1",
+                    [user.id]
+                );
+                if (activeCheck.length === 0) {
+                    return res.status(403).json({
+                        code: 'SHIFT_ENDED',
+                        message: 'Your shift has been ended by the Admin.'
+                    });
+                }
+            }
         }
 
         next();

@@ -557,7 +557,7 @@ export const CashFloat = () => {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                    {!activeShift ? (
+                    {isAdmin && !activeShift && (
                         <button
                             type="button"
                             onClick={() => {
@@ -569,7 +569,8 @@ export const CashFloat = () => {
                         >
                             <Plus size={16} /> Open Shift (Starting Float)
                         </button>
-                    ) : (
+                    )}
+                    {activeShift && activeShift.status === 'ACTIVE' && (
                         <button
                             type="button"
                             onClick={() => {
@@ -586,7 +587,7 @@ export const CashFloat = () => {
                                 gap: '6px',
                                 padding: '8px 16px',
                                 fontSize: '0.84rem',
-                                background: '#dc2626',
+                                background: isAdmin ? '#dc2626' : '#d97706',
                                 color: '#ffffff',
                                 border: 'none',
                                 borderRadius: '8px',
@@ -594,8 +595,24 @@ export const CashFloat = () => {
                                 cursor: 'pointer'
                             }}
                         >
-                            <Lock size={15} /> Close Shift (Blind Cash Count)
+                            <Lock size={15} /> {isAdmin ? 'End Shift & Remit' : 'Submit Closing Count'}
                         </button>
+                    )}
+                    {activeShift && activeShift.status === 'PENDING_REMIT' && !isAdmin && (
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '6px 14px',
+                            fontSize: '0.82rem',
+                            background: 'rgba(245, 158, 11, 0.15)',
+                            border: '1px solid rgba(245, 158, 11, 0.35)',
+                            color: '#f59e0b',
+                            borderRadius: '8px',
+                            fontWeight: 700
+                        }}>
+                            <Clock size={15} /> Preliminary Count Submitted • Awaiting Admin Sign-Off
+                        </div>
                     )}
                 </div>
             </div>
@@ -1045,32 +1062,49 @@ export const CashFloat = () => {
                                         <Coins size={15} color="#3b82f6" /> Log Cash Drop (Safe Remit)
                                     </button>
 
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setCloseShiftForm({
-                                                actual_cash: '',
-                                                notes: '',
-                                                bills_1000: 0, bills_500: 0, bills_200: 0, bills_100: 0, bills_50: 0, bills_20: 0, coins_10: 0, coins_5: 0, coins_1: 0
-                                            });
-                                            setShowCloseShiftModal(true);
-                                        }}
-                                        style={{
-                                            background: '#dc2626',
-                                            color: '#ffffff',
-                                            border: 'none',
-                                            borderRadius: '8px',
-                                            padding: '8px 16px',
-                                            fontSize: '0.82rem',
-                                            fontWeight: 700,
-                                            cursor: 'pointer',
+                                    {activeShift.status === 'ACTIVE' ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setCloseShiftForm({
+                                                    actual_cash: '',
+                                                    notes: '',
+                                                    bills_1000: 0, bills_500: 0, bills_200: 0, bills_100: 0, bills_50: 0, bills_20: 0, coins_10: 0, coins_5: 0, coins_1: 0
+                                                });
+                                                setShowCloseShiftModal(true);
+                                            }}
+                                            style={{
+                                                background: isAdmin ? '#dc2626' : '#d97706',
+                                                color: '#ffffff',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                padding: '8px 16px',
+                                                fontSize: '0.82rem',
+                                                fontWeight: 700,
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px'
+                                            }}
+                                        >
+                                            <Lock size={15} /> {isAdmin ? 'End Shift & Remit' : 'Submit Closing Count'}
+                                        </button>
+                                    ) : (
+                                        <div style={{
                                             display: 'flex',
                                             alignItems: 'center',
-                                            gap: '6px'
-                                        }}
-                                    >
-                                        <Lock size={15} /> Close Shift (Blind Count)
-                                    </button>
+                                            gap: '6px',
+                                            padding: '6px 14px',
+                                            fontSize: '0.8rem',
+                                            background: 'rgba(245, 158, 11, 0.15)',
+                                            border: '1px solid rgba(245, 158, 11, 0.35)',
+                                            color: '#f59e0b',
+                                            borderRadius: '8px',
+                                            fontWeight: 700
+                                        }}>
+                                            <Clock size={15} /> Count Submitted • Awaiting Admin Verification
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -1866,7 +1900,7 @@ export const CashFloat = () => {
                                                                         }}
                                                                         style={{ padding: '5px 12px', fontSize: '0.74rem', fontWeight: 800, background: '#dc2626', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                                                                     >
-                                                                        <Lock size={13} /> Time-Out / Close
+                                                                        <Lock size={13} /> End Shift &amp; Remit
                                                                     </button>
                                                                 </>
                                                             )}
@@ -1898,7 +1932,7 @@ export const CashFloat = () => {
                                                                         }}
                                                                         style={{ padding: '5px 12px', fontSize: '0.74rem', fontWeight: 800, background: '#dc2626', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                                                                     >
-                                                                        <Lock size={13} /> Force Time-Out &amp; Count
+                                                                        <Lock size={13} /> End Shift &amp; Remit
                                                                     </button>
                                                                 </>
                                                             )}
@@ -1911,9 +1945,10 @@ export const CashFloat = () => {
                                                                         onClick={() => handleAdminSignOff(s)}
                                                                         disabled={signingOffId === s.active_float_id}
                                                                         className="btn-primary"
-                                                                        style={{ padding: '5px 12px', fontSize: '0.74rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                        style={{ padding: '5px 12px', fontSize: '0.74rem', fontWeight: 800, background: '#059669', borderColor: '#059669', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                        title="Review preliminary count, verify cash and GCash, and approve end shift"
                                                                     >
-                                                                        <Check size={13} /> {signingOffId === s.active_float_id ? 'Verifying...' : 'Accept Remittance (Sign Off)'}
+                                                                        <Check size={13} /> {signingOffId === s.active_float_id ? 'Verifying...' : 'Approve & End Shift'}
                                                                     </button>
 
                                                                     <button
@@ -1924,7 +1959,7 @@ export const CashFloat = () => {
                                                                         style={{ padding: '5px 10px', fontSize: '0.74rem', fontWeight: 700, color: '#f59e0b', borderColor: 'rgba(245, 158, 11, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                                                                         title="Undo accidental shift close and let cashier resume selling"
                                                                     >
-                                                                        <RefreshCw size={13} /> Unshift Close (Reopen)
+                                                                        <RefreshCw size={13} /> Unshift (Resume POS)
                                                                     </button>
                                                                 </>
                                                             )}
@@ -2073,16 +2108,16 @@ export const CashFloat = () => {
                         </button>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                            <Lock size={22} color="#dc2626" />
+                            <Lock size={22} color={isAdmin ? "#dc2626" : "#d97706"} />
                             <h2 style={{ margin: 0, fontSize: '1.18rem', fontWeight: 800 }}>
-                                Close Shift • Blind Cash Count
+                                {isAdmin ? 'Admin End Shift • Final Verification' : 'Submit Closing Count • Preliminary Drawer Count'}
                             </h2>
                         </div>
 
-                        {/* Blind count explanation */}
+                        {/* Explanation */}
                         <div style={{
-                            background: 'rgba(234, 88, 12, 0.08)',
-                            border: '1px solid rgba(234, 88, 12, 0.25)',
+                            background: isAdmin ? 'rgba(220, 38, 38, 0.08)' : 'rgba(234, 88, 12, 0.08)',
+                            border: `1px solid ${isAdmin ? 'rgba(220, 38, 38, 0.25)' : 'rgba(234, 88, 12, 0.25)'}`,
                             borderRadius: '8px',
                             padding: '10px 14px',
                             marginBottom: '16px',
@@ -2090,7 +2125,11 @@ export const CashFloat = () => {
                             color: 'var(--text-main)',
                             lineHeight: 1.4
                         }}>
-                            <strong>Blind Count Protocol:</strong> Count the physical bills and coins currently in your cash drawer. Do not attempt to guess or match system numbers; the software will automatically compare your count against expected drawer cash to identify exact matches, shortages, or overages.
+                            {isAdmin ? (
+                                <span><strong>Admin Final Verification:</strong> Count and verify physical cash and coins received from the drawer. Confirming this will finalize shift reconciliation and immediately revoke the staff member's login session.</span>
+                            ) : (
+                                <span><strong>Preliminary Drawer Count:</strong> Count the physical bills and coins currently in your cash drawer. Submitting your preliminary count sends it to the Store Owner/Admin for remote or in-person verification and locks your POS drawer until the next shift is assigned.</span>
+                            )}
                         </div>
 
                         <form onSubmit={handleCloseShiftSubmit}>
@@ -2194,7 +2233,7 @@ export const CashFloat = () => {
                                 <button
                                     type="submit"
                                     style={{
-                                        background: '#dc2626',
+                                        background: isAdmin ? '#dc2626' : '#d97706',
                                         color: '#ffffff',
                                         border: 'none',
                                         borderRadius: '8px',
@@ -2205,7 +2244,7 @@ export const CashFloat = () => {
                                     }}
                                     disabled={closingShift}
                                 >
-                                    {closingShift ? 'Reconciling...' : 'Submit Blind Count & Close Duty'}
+                                    {closingShift ? 'Submitting...' : (isAdmin ? 'Confirm End Shift & Verify' : 'Submit Preliminary Count to Admin')}
                                 </button>
                             </div>
                         </form>
