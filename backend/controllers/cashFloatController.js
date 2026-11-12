@@ -1222,7 +1222,7 @@ exports.closeShiftBlindCount = async (req, res) => {
         // Revoke staff session token immediately when closed by Admin so they are forced to log out
         if (isAdmin && currentShift.staff_id) {
             try {
-                await db.query('UPDATE users SET token_version = token_version + 1 WHERE id = ?', [currentShift.staff_id]);
+                await db.query('UPDATE users SET is_logged_in = 0, token_version = token_version + 1 WHERE id = ?', [currentShift.staff_id]);
             } catch (e) {
                 console.warn('[closeShiftBlindCount] Session revocation notice:', e.message);
             }
@@ -1338,7 +1338,7 @@ exports.adminSignOff = async (req, res) => {
         // Revoke staff session token immediately upon Admin sign-off
         if (shift.staff_id) {
             try {
-                await db.query('UPDATE users SET token_version = token_version + 1 WHERE id = ?', [shift.staff_id]);
+                await db.query('UPDATE users SET is_logged_in = 0, token_version = token_version + 1 WHERE id = ?', [shift.staff_id]);
             } catch (e) {
                 console.warn('[adminSignOff] Session revocation notice:', e.message);
             }
@@ -1391,7 +1391,7 @@ exports.cancelShift = async (req, res) => {
         // Revoke staff session token immediately upon shift cancellation
         if (shift.staff_id) {
             try {
-                await db.query('UPDATE users SET token_version = token_version + 1 WHERE id = ?', [shift.staff_id]);
+                await db.query('UPDATE users SET is_logged_in = 0, token_version = token_version + 1 WHERE id = ?', [shift.staff_id]);
             } catch (e) {
                 console.warn('[cancelShift] Session revocation notice:', e.message);
             }

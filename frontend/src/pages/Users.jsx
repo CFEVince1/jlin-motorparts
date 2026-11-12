@@ -182,15 +182,19 @@ const Users = () => {
             (roleFilter === 'CASHIER' && (r === 'cashier' || r === 'staff'));
 
         const isActive = u.is_active === 1 || u.is_active === undefined;
+        const isOnline = Boolean(u.is_online);
+
         const matchesStatus = statusFilter === 'ALL' ||
-            (statusFilter === 'ACTIVE' && isActive) ||
+            (statusFilter === 'ACTIVE' && isOnline) ||
+            (statusFilter === 'OFFLINE' && isActive && !isOnline) ||
             (statusFilter === 'DEACTIVATED' && !isActive);
 
         return matchesQuery && matchesRole && matchesStatus;
     });
 
-    const activeCount = users.filter(u => u.is_active === 1 || u.is_active === undefined).length;
-    const deactivatedCount = users.length - activeCount;
+    const onlineCount = users.filter(u => u.is_online).length;
+    const offlineCount = users.filter(u => (u.is_active === 1 || u.is_active === undefined) && !u.is_online).length;
+    const deactivatedCount = users.filter(u => u.is_active === 0).length;
 
     return (
         <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
@@ -293,14 +297,28 @@ const Users = () => {
                         </div>
 
                         <div style={{ background: 'var(--surface)', border: '1.5px solid rgba(16, 185, 129, 0.4)', borderRadius: '12px', padding: '16px 20px' }}>
-                            <div style={{ fontSize: '0.76rem', fontWeight: 700, color: '#10b981', textTransform: 'uppercase' }}>
-                                Active Accounts
+                            <div style={{ fontSize: '0.76rem', fontWeight: 700, color: '#10b981', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 6px #10b981', display: 'inline-block' }}></span>
+                                Active (Logged In)
                             </div>
                             <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#10b981', marginTop: '4px' }}>
-                                {activeCount}
+                                {onlineCount}
                             </div>
                             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                Can log in and operate
+                                Logged in right now
+                            </div>
+                        </div>
+
+                        <div style={{ background: 'var(--surface)', border: '1.5px solid rgba(148, 163, 184, 0.35)', borderRadius: '12px', padding: '16px 20px' }}>
+                            <div style={{ fontSize: '0.76rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#64748b', display: 'inline-block' }}></span>
+                                Offline Staff
+                            </div>
+                            <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#94a3b8', marginTop: '4px' }}>
+                                {offlineCount}
+                            </div>
+                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                Not currently logged in
                             </div>
                         </div>
 
@@ -363,8 +381,9 @@ const Users = () => {
                                 style={{ padding: '7px 10px', fontSize: '0.82rem' }}
                             >
                                 <option value="ALL">All Status</option>
-                                <option value="ACTIVE">Active Only</option>
-                                <option value="DEACTIVATED">Deactivated Only</option>
+                                <option value="ACTIVE">Active (Logged In)</option>
+                                <option value="OFFLINE">Offline</option>
+                                <option value="DEACTIVATED">Deactivated</option>
                             </select>
                         </div>
                     </div>
@@ -385,7 +404,7 @@ const Users = () => {
                                             <th style={{ whiteSpace: 'nowrap' }}>Staff Member</th>
                                             <th style={{ whiteSpace: 'nowrap' }}>Username</th>
                                             <th style={{ whiteSpace: 'nowrap' }}>Role & Duties</th>
-                                            <th style={{ whiteSpace: 'nowrap' }}>Account Status</th>
+                                            <th style={{ whiteSpace: 'nowrap' }}>Account & Login Status</th>
                                             <th style={{ whiteSpace: 'nowrap' }}>Created Date</th>
                                             <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Actions</th>
                                         </tr>
@@ -394,6 +413,7 @@ const Users = () => {
                                         {filteredUsers.map(u => {
                                             const roleMeta = ROLE_LABELS[(u.role || '').toLowerCase()] || ROLE_LABELS.cashier;
                                             const isActive = u.is_active === 1 || u.is_active === undefined;
+                                            const isOnline = Boolean(u.is_online);
 
                                             return (
                                                 <tr key={u.id} style={{ opacity: isActive ? 1 : 0.65 }}>
@@ -445,27 +465,78 @@ const Users = () => {
                                                         </div>
                                                     </td>
                                                     <td>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleToggleStatus(u)}
-                                                            style={{
-                                                                background: isActive ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-                                                                color: isActive ? '#10b981' : '#ef4444',
-                                                                border: `1px solid ${isActive ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-                                                                borderRadius: '12px',
-                                                                padding: '3px 10px',
-                                                                fontSize: '0.74rem',
-                                                                fontWeight: 700,
-                                                                cursor: 'pointer',
-                                                                display: 'inline-flex',
-                                                                alignItems: 'center',
-                                                                gap: '4px'
-                                                            }}
-                                                            title="Click to toggle account status"
-                                                        >
-                                                            {isActive ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
-                                                            {isActive ? 'Active' : 'Deactivated'}
-                                                        </button>
+                                                        {!isActive ? (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleToggleStatus(u)}
+                                                                style={{
+                                                                    background: 'rgba(239, 68, 68, 0.12)',
+                                                                    color: '#ef4444',
+                                                                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                                                                    borderRadius: '12px',
+                                                                    padding: '3px 10px',
+                                                                    fontSize: '0.74rem',
+                                                                    fontWeight: 700,
+                                                                    cursor: 'pointer',
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '4px'
+                                                                }}
+                                                                title="Account deactivated. Click to re-activate."
+                                                            >
+                                                                <XCircle size={12} />
+                                                                Deactivated
+                                                            </button>
+                                                        ) : isOnline ? (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleToggleStatus(u)}
+                                                                style={{
+                                                                    background: 'rgba(16, 185, 129, 0.12)',
+                                                                    color: '#10b981',
+                                                                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                                                                    borderRadius: '12px',
+                                                                    padding: '3px 10px',
+                                                                    fontSize: '0.74rem',
+                                                                    fontWeight: 700,
+                                                                    cursor: 'pointer',
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '5px'
+                                                                }}
+                                                                title="User is currently logged in. Click to deactivate account."
+                                                            >
+                                                                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 6px #10b981', display: 'inline-block' }}></span>
+                                                                Active
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleToggleStatus(u)}
+                                                                style={{
+                                                                    background: 'rgba(148, 163, 184, 0.10)',
+                                                                    color: '#94a3b8',
+                                                                    border: '1px solid rgba(148, 163, 184, 0.25)',
+                                                                    borderRadius: '12px',
+                                                                    padding: '3px 10px',
+                                                                    fontSize: '0.74rem',
+                                                                    fontWeight: 700,
+                                                                    cursor: 'pointer',
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '5px'
+                                                                }}
+                                                                title="User is offline (not logged in). Click to deactivate account."
+                                                            >
+                                                                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#64748b', display: 'inline-block' }}></span>
+                                                                Offline
+                                                            </button>
+                                                        )}
+                                                        {u.active_shift_code && (
+                                                            <div style={{ fontSize: '0.70rem', color: '#10b981', fontWeight: 600, marginTop: '2px' }}>
+                                                                Shift: {u.active_shift_code}
+                                                            </div>
+                                                        )}
                                                     </td>
                                                     <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                                                         {u.created_at ? new Date(u.created_at).toLocaleDateString() : 'N/A'}

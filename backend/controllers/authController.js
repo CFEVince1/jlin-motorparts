@@ -98,6 +98,12 @@ exports.login = async (req, res) => {
 
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
 
+        // Update real-time login and activity timestamp
+        await db.query(
+            'UPDATE users SET is_logged_in = 1, last_login_at = NOW(), last_active_at = NOW() WHERE id = ?',
+            [user.id]
+        );
+
         res.json({
             token,
             user: {
@@ -138,7 +144,7 @@ exports.logout = async (req, res) => {
         }
 
         if (userId) {
-            await db.query('UPDATE users SET token_version = token_version + 1 WHERE id = ?', [userId]);
+            await db.query('UPDATE users SET is_logged_in = 0, token_version = token_version + 1 WHERE id = ?', [userId]);
             console.log(`[Auth] User ${userId} logged out. Token version incremented.`);
         }
 
@@ -150,6 +156,10 @@ exports.logout = async (req, res) => {
 };
 
 exports.verify = (req, res) => {
+    // Keep user's active session timestamp fresh
+    if (req.user?.id) {
+        db.query('UPDATE users SET last_active_at = NOW(), is_logged_in = 1 WHERE id = ?', [req.user.id]).catch(() => {});
+    }
     // If this route is reached, the authMiddleware has already verified the token
     res.json({ user: { ...req.user, role: (req.user.role || '').toLowerCase() === 'admin' ? 'admin' : 'staff' }, message: 'Token is valid' });
 };

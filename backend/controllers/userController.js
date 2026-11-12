@@ -3,11 +3,50 @@ const bcrypt = require('bcryptjs');
 
 const VALID_ROLES = ['admin', 'cashier', 'staff'];
 
+const ensureUserColumns = async () => {
+    try {
+        await db.query('ALTER TABLE users ADD COLUMN is_logged_in TINYINT(1) DEFAULT 0');
+    } catch (_) {}
+    try {
+        await db.query('ALTER TABLE users ADD COLUMN last_login_at DATETIME NULL');
+    } catch (_) {}
+    try {
+        await db.query('ALTER TABLE users ADD COLUMN last_active_at DATETIME NULL');
+    } catch (_) {}
+};
+
 exports.getAllUsers = async (req, res) => {
     try {
-        const [users] = await db.query(
-            'SELECT id, username, full_name, role, pin, is_active, created_at, updated_at FROM users ORDER BY id ASC'
-        );
+        await ensureUserColumns();
+        const currentUserId = req.user?.id || 0;
+        const [users] = await db.query(`
+            SELECT 
+                u.id, 
+                u.username, 
+                u.full_name, 
+                u.role, 
+                u.pin, 
+                u.is_active, 
+                u.is_logged_in,
+                u.last_login_at,
+                u.last_active_at,
+                u.created_at, 
+                u.updated_at,
+                CASE 
+                    WHEN u.is_active = 0 THEN 0
+                    -- Current caller is guaranteed online
+                    WHEN u.id = ? THEN 1
+                    -- Other admin is online if marked logged in & active in past 15 min
+                    WHEN LOWER(u.role) = 'admin' AND u.is_logged_in = 1 AND u.last_active_at >= NOW() - INTERVAL 15 MINUTE THEN 1
+                    -- Staff is online only if marked logged in, active in past 15 min, AND has an ACTIVE shift in cash_floats
+                    WHEN LOWER(u.role) != 'admin' AND u.is_logged_in = 1 AND cf.id IS NOT NULL AND u.last_active_at >= NOW() - INTERVAL 15 MINUTE THEN 1
+                    ELSE 0
+                END AS is_online,
+                cf.shift_code AS active_shift_code
+            FROM users u
+            LEFT JOIN cash_floats cf ON cf.staff_id = u.id AND cf.status = 'ACTIVE'
+            ORDER BY u.id ASC
+        `, [currentUserId]);
         res.json(users);
     } catch (err) {
         console.error('Error fetching users:', err);
@@ -177,9 +216,10 @@ exports.toggleUserStatus = async (req, res) => {
             }
         }
 
-        await db.query('UPDATE users SET is_active = ?, token_version = token_version + 1 WHERE id = ?', [newStatus, targetId]);
+        const resetLoggedInSql = newStatus === 0 ? ', is_logged_in = 0' : '';
+        await db.query(`UPDATE users SET is_active = ?, token_version = token_version + 1${resetLoggedInSql} WHERE id = ?`, [newStatus, targetId]);
         res.json({
-            message: `User ${user.username} is now ${newStatus === 1 ? 'Active' : 'Deactivated'}.`,
+            message: `User ${user.username} is now ${newStatus === 1 ? 'Enabled' : 'Deactivated'}.`,
             is_active: newStatus
         });
     } catch (err) {
