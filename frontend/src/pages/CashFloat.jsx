@@ -447,7 +447,7 @@ export const CashFloat = () => {
     const handleCashDropSubmit = async (e) => {
         e.preventDefault();
         if (!cashDropShift) return;
-        const shiftId = cashDropShift.id || cashDropShift.active_float_id;
+        const shiftId = cashDropShift.active_float_id || cashDropShift.id;
         const numAmount = Number(cashDropAmount);
         if (!numAmount || numAmount <= 0) {
             return toast.error('Please enter a valid drop amount');
@@ -480,7 +480,7 @@ export const CashFloat = () => {
     const handleForceCloseSubmit = async (e) => {
         e.preventDefault();
         if (!forceCloseShift) return;
-        const shiftId = forceCloseShift.id || forceCloseShift.active_float_id;
+        const shiftId = forceCloseShift.active_float_id || forceCloseShift.id;
         const numActual = Number(forceCloseActual);
         if (!Number.isFinite(numActual) || numActual < 0) {
             return toast.error('Please enter valid physical cash counted');

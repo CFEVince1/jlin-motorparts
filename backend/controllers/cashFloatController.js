@@ -1012,12 +1012,12 @@ exports.closeShiftBlindCount = async (req, res) => {
             coins_1 = 0
         } = req.body;
 
-        let query = 'SELECT * FROM cash_floats WHERE status = "ACTIVE"';
+        let query = 'SELECT * FROM cash_floats WHERE (status = "ACTIVE" OR status = "PENDING_REMIT")';
         const params = [];
 
         if (shift_id) {
-            query += ' AND id = ?';
-            params.push(shift_id);
+            query += ' AND (id = ? OR staff_id = ?)';
+            params.push(shift_id, shift_id);
         } else {
             query += ' AND staff_id = ?';
             params.push(staffId);
@@ -1025,9 +1025,16 @@ exports.closeShiftBlindCount = async (req, res) => {
 
         query += ' ORDER BY assigned_at DESC LIMIT 1 FOR UPDATE';
 
-        const [records] = await db.query(query, params);
+        let [records] = await db.query(query, params);
         if (records.length === 0) {
-            return res.status(404).json({ message: 'No active shift found to close.' });
+            const [fallback] = await db.query(
+                'SELECT * FROM cash_floats WHERE (id = ? OR staff_id = ?) ORDER BY assigned_at DESC LIMIT 1',
+                [shift_id || staffId, shift_id || staffId]
+            );
+            if (fallback.length === 0) {
+                return res.status(404).json({ message: 'No shift found to close.' });
+            }
+            records = fallback;
         }
 
         const currentShift = records[0];
@@ -1066,18 +1073,32 @@ exports.closeShiftBlindCount = async (req, res) => {
         if (variance < 0) varianceBadge = 'SHORTAGE';
         else if (variance > 0) varianceBadge = 'OVERAGE';
 
-        const closingNotes = notes ? notes.trim() : `Blind count submitted by ${staffUsername}. Variance: ₱${variance.toFixed(2)}`;
+        const closingNotes = notes ? notes.trim() : `Shift closed by ${staffUsername}. Variance: ₱${variance.toFixed(2)}`;
 
-        // Ensure all required Section 8 columns exist on cash_floats table
+        // Ensure status column allows VARCHAR(30) so PENDING_REMIT / COMPLETED never throw ER_DATA_TRUNCATED
+        try {
+            await db.query(`ALTER TABLE cash_floats MODIFY COLUMN status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE'`);
+        } catch (e) {}
+
+        // Ensure all required columns exist on cash_floats table
         const [cfCloseCols] = await db.query('SHOW COLUMNS FROM cash_floats');
         const cfCloseColNames = cfCloseCols.map(c => c.Field);
         const missingCloseCols = [
             { col: 'blind_count_entered', def: 'DECIMAL(12,2) NULL' },
             { col: 'cash_drops', def: 'DECIMAL(12,2) NOT NULL DEFAULT 0.00' },
+            { col: 'actual_cash', def: 'DECIMAL(12,2) NULL' },
+            { col: 'expected_cash', def: 'DECIMAL(12,2) NOT NULL DEFAULT 0.00' },
+            { col: 'shortage_overage', def: 'DECIMAL(12,2) NULL' },
             { col: 'admin_signed_off', def: 'TINYINT(1) DEFAULT 0' },
             { col: 'signed_off_by_id', def: 'INT NULL' },
             { col: 'signed_off_by_name', def: 'VARCHAR(100) NULL' },
             { col: 'signed_off_at', def: 'DATETIME NULL' },
+            { col: 'completed_at', def: 'DATETIME NULL' },
+            { col: 'returned_at', def: 'DATETIME NULL' },
+            { col: 'reconciliation_notes', def: 'TEXT NULL' },
+            { col: 'returned_notes', def: 'TEXT NULL' },
+            { col: 'returned_by_id', def: 'INT NULL' },
+            { col: 'returned_by_username', def: 'VARCHAR(50) NULL' },
             { col: 'bills_1000', def: 'INT DEFAULT 0' },
             { col: 'bills_500', def: 'INT DEFAULT 0' },
             { col: 'bills_200', def: 'INT DEFAULT 0' },
@@ -1092,6 +1113,7 @@ exports.closeShiftBlindCount = async (req, res) => {
             if (!cfCloseColNames.includes(item.col)) {
                 try {
                     await db.query(`ALTER TABLE cash_floats ADD COLUMN ${item.col} ${item.def}`);
+                    cfCloseColNames.push(item.col);
                 } catch (colErr) {
                     console.warn(`[closeShift] Check/Add cash_floats.${item.col} notice:`, colErr.message);
                 }
@@ -1099,6 +1121,7 @@ exports.closeShiftBlindCount = async (req, res) => {
         }
 
         const newShiftStatus = isAdmin ? 'COMPLETED' : 'PENDING_REMIT';
+        const signedOffAtSql = isAdmin ? 'NOW()' : 'NULL';
 
         await db.query(`
             UPDATE cash_floats SET
@@ -1119,7 +1142,7 @@ exports.closeShiftBlindCount = async (req, res) => {
                 admin_signed_off = ?,
                 signed_off_by_id = ?,
                 signed_off_by_name = ?,
-                signed_off_at = ?,
+                signed_off_at = ${signedOffAtSql},
                 completed_at = NOW(),
                 returned_at = NOW(),
                 reconciliation_notes = ?,
@@ -1143,7 +1166,6 @@ exports.closeShiftBlindCount = async (req, res) => {
             isAdmin ? 1 : 0,
             isAdmin ? staffId : null,
             isAdmin ? staffUsername : null,
-            isAdmin ? new Date() : null,
             closingNotes,
             closingNotes,
             currentShift.id
@@ -1188,7 +1210,7 @@ exports.closeShiftBlindCount = async (req, res) => {
         });
     } catch (err) {
         console.error('Error closing shift:', err);
-        return res.status(500).json({ message: 'Failed to close shift.' });
+        return res.status(500).json({ message: 'Failed to close shift: ' + (err.message || 'Internal error'), error: err.message });
     }
 };
 
