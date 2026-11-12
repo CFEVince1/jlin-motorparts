@@ -154,21 +154,12 @@ const POS = ({ defaultTab }) => {
     const [cart, setCart] = useState([]);
 
     const CATEGORY_GROUPS = {
-        'Engine': ['Engine', 'Engine Parts', 'Filters'],
-        'Tires': ['Tires'],
-        'Wheels & Hubs': ['Wheels & Hubs', 'Wheels'],
-        'CVT & Pulleys': ['CVT & Pulleys', 'CVT', 'Transmission', 'Drive'],
-        'Suspension': ['Suspension', 'Chassis'],
-        'Exhaust': ['Exhaust'],
-        'Brakes': ['Brakes'],
-        'Chains & Sprockets': ['Chains & Sprockets'],
-        'Handlebars & Controls': ['Handlebars & Controls', 'Cables'],
-        'Lights & Mirrors': ['Lights & Mirrors'],
-        'Electrical': ['Electrical', 'Electronics', 'Ignition'],
-        'Oils & Lubricants': ['Oils & Lubricants', 'Oils', 'Lubricants', 'Fluids'],
-        'Bolts & Accessories': ['Bolts & Accessories', 'Accessories'],
-        'Body & Seats': ['Body & Seats'],
-        'Riding Gear & Luggage': ['Riding Gear & Luggage']
+        'ENG': ['Engine', 'Engine Parts', 'Filters', 'Exhaust', 'Piston', 'Cylinder', 'Camshaft', 'Valve'],
+        'BRK': ['Brakes', 'Brake', 'Pads', 'Caliper', 'Rotor', 'Shoe'],
+        'ELEC': ['Electrical', 'Electronics', 'Ignition', 'Lights & Mirrors', 'Lighting', 'Battery', 'ECU', 'CDI'],
+        'CVT': ['CVT & Pulleys', 'CVT', 'Transmission', 'Drive', 'Chains & Sprockets', 'Belt', 'Roller', 'Flyball'],
+        'CHAS': ['Chassis', 'Suspension', 'Tires', 'Wheels & Hubs', 'Wheels', 'Handlebars & Controls', 'Body & Seats', 'Riding Gear & Luggage', 'Bolts & Accessories', 'Shock', 'Fork'],
+        'OIL': ['Oils & Lubricants', 'Oils', 'Lubricants', 'Fluids', 'Brake Fluid', 'Gear Oil', 'Coolant']
     };
 
     const filterProductsFn = useCallback((items, query, f) => {
@@ -1916,7 +1907,7 @@ const POS = ({ defaultTab }) => {
                             }
                             .pos-filters-grid {
                                 display: grid;
-                                grid-template-columns: repeat(4, minmax(0, 1fr));
+                                grid-template-columns: 2fr 1fr 1fr;
                                 gap: 8px;
                                 alignItems: center;
                                 width: 100%;
@@ -1944,98 +1935,20 @@ const POS = ({ defaultTab }) => {
                                 }
                             }
                         `}</style>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-                                <h1 style={{ margin: 0 }}>Point of Sale</h1>
-                                {activeCashFloat ? (
-                                    <div style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '8px',
-                                        background: 'rgba(16, 185, 129, 0.1)',
-                                        border: '1px solid rgba(16, 185, 129, 0.3)',
-                                        borderRadius: '8px',
-                                        padding: '4px 12px'
-                                    }}>
-                                        <Banknote size={16} color="var(--primary)" />
-                                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Drawer Cash:</span>
-                                        <strong style={{ fontSize: '0.92rem', color: 'var(--primary)', fontFamily: 'monospace' }}>
-                                            {formatCurrency(activeCashFloat.current_cash_balance)}
-                                        </strong>
-                                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                            (Panukli: {formatCurrency(activeCashFloat.starting_cash || activeCashFloat.total_amount)})
-                                        </span>
-                                    </div>
-                                ) : shiftStatus === 'PENDING_REMIT' ? (
-                                    <div style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        background: 'rgba(245, 158, 11, 0.15)',
-                                        border: '1px solid rgba(245, 158, 11, 0.35)',
-                                        borderRadius: '8px',
-                                        padding: '4px 12px',
-                                        fontSize: '0.76rem',
-                                        color: '#f59e0b',
-                                        fontWeight: 700
-                                    }}>
-                                        <Lock size={14} />
-                                        <span>Drawer Locked: Preliminary count submitted • Awaiting Admin verification</span>
-                                    </div>
-                                ) : (
-                                    <div style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        background: 'rgba(234, 179, 8, 0.1)',
-                                        border: '1px solid rgba(234, 179, 8, 0.3)',
-                                        borderRadius: '8px',
-                                        padding: '4px 12px',
-                                        fontSize: '0.76rem',
-                                        color: '#eab308'
-                                    }}>
-                                        <AlertCircle size={14} />
-                                        <span>No Active Cash Float assigned for this shift</span>
-                                    </div>
-                                )}
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <button
-                                    type="button"
-                                    onClick={() => navigate('/transactions')}
-                                    className="btn-secondary"
-                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', padding: '6px 14px' }}
-                                    title="View Sales History"
-                                >
-                                    <History size={16} />
-                                    <span>Sales History</span>
-                                </button>
-                            </div>
-                        </div>
 
-                        {/* Filter bar on a single compact row: 4 columns on desktop */}
-                {/* Quick Category Buttons (Engine, Electrical, Tires, Oils, Bolts & Accessories) */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginRight: '4px' }}>
-                                Quick Categories:
+                        {/* Collapsed 6 Quick Category Codes on a single row */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap', overflowX: 'auto', marginBottom: '10px' }}>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginRight: '4px', whiteSpace: 'nowrap' }}>
+                                Categories:
                             </span>
                             {[
-                                { label: 'All Categories', value: 'All' },
-                                { label: 'Engine', value: 'Engine' },
-                                { label: 'Tires', value: 'Tires' },
-                                { label: 'Wheels & Hubs', value: 'Wheels & Hubs' },
-                                { label: 'CVT & Pulleys', value: 'CVT & Pulleys' },
-                                { label: 'Suspension', value: 'Suspension' },
-                                { label: 'Exhaust', value: 'Exhaust' },
-                                { label: 'Brakes', value: 'Brakes' },
-                                { label: 'Chains & Sprockets', value: 'Chains & Sprockets' },
-                                { label: 'Handlebars & Controls', value: 'Handlebars & Controls' },
-                                { label: 'Lights & Mirrors', value: 'Lights & Mirrors' },
-                                { label: 'Electrical', value: 'Electrical' },
-                                { label: 'Oils & Lubricants', value: 'Oils & Lubricants' },
-                                { label: 'Bolts & Accessories', value: 'Bolts & Accessories' },
-                                { label: 'Body & Seats', value: 'Body & Seats' },
-                                { label: 'Riding Gear & Luggage', value: 'Riding Gear & Luggage' }
+                                { label: 'All', value: 'All' },
+                                { label: 'ENG', value: 'ENG' },
+                                { label: 'BRK', value: 'BRK' },
+                                { label: 'ELEC', value: 'ELEC' },
+                                { label: 'CVT', value: 'CVT' },
+                                { label: 'CHAS', value: 'CHAS' },
+                                { label: 'OIL', value: 'OIL' }
                             ].map(cat => {
                                 const isSelected = filters.category === cat.value || (cat.value === 'All' && (!filters.category || filters.category === 'All'));
                                 return (
@@ -2044,14 +1957,15 @@ const POS = ({ defaultTab }) => {
                                         type="button"
                                         onClick={() => setCategory(cat.value)}
                                         style={{
-                                            padding: '4px 12px',
-                                            fontSize: '0.78rem',
-                                            fontWeight: isSelected ? 700 : 500,
-                                            borderRadius: '20px',
+                                            padding: '4px 14px',
+                                            fontSize: '0.76rem',
+                                            fontWeight: isSelected ? 800 : 600,
+                                            borderRadius: '16px',
                                             border: isSelected ? '1.5px solid var(--primary)' : '1px solid var(--border)',
                                             background: isSelected ? 'rgba(16, 185, 129, 0.15)' : 'var(--surface)',
                                             color: isSelected ? 'var(--primary)' : 'var(--text-main)',
                                             cursor: 'pointer',
+                                            whiteSpace: 'nowrap',
                                             transition: 'all 0.15s ease'
                                         }}
                                     >
@@ -2061,43 +1975,36 @@ const POS = ({ defaultTab }) => {
                             })}
                         </div>
 
+                        {/* Search and Filters grid (3 clean controls, duplicate dropdown removed) */}
                         <div className="pos-filters-grid">
-                    <div style={{ position: 'relative', width: '100%' }}>
-                        <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                        <input
-                            type="text"
-                            placeholder="Search or scan part # (Enter to add)..."
-                            className="input-premium pos-search-input"
-                            style={{ paddingLeft: '32px', width: '100%' }}
-                            value={searchQuery}
-                            onChange={handleSearchChange}
-                            onKeyDown={handleSearchKeyDown}
-                            autoFocus
-                        />
-                    </div>
-                    <div style={{ width: '100%' }}>
-                        <select className="input-premium" value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)} style={{ width: '100%', cursor: 'pointer' }}>
-                            {uniqueBrands.map(brand => (
-                                <option key={brand} value={brand}>{brand === 'All' ? 'All Brands' : brand}</option>
-                            ))}
-                        </select>
-                    </div>
-                    <div style={{ width: '100%' }}>
-                        <select value={category} onChange={e => setCategory(e.target.value)} className="input-premium" style={{ width: '100%', cursor: 'pointer' }}>
-                            <option value="All">All Categories</option>
-                            {uniqueCategories.map((cat, index) => (
-                                cat ? <option key={index} value={cat}>{cat}</option> : null
-                            ))}
-                        </select>
-                    </div>
-                    <div style={{ width: '100%' }}>
-                        <select className="input-premium" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={{ width: '100%', cursor: 'pointer' }}>
-                            <option value="All">All Types</option>
-                            <option value="Non-Serialized">Non-Serialized Only</option>
-                            <option value="Serialized">Serialized Only</option>
-                        </select>
-                    </div>
-                </div>
+                            <div style={{ position: 'relative', width: '100%' }}>
+                                <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                <input
+                                    type="text"
+                                    placeholder="Search or scan part # (Enter to add)..."
+                                    className="input-premium pos-search-input"
+                                    style={{ paddingLeft: '32px', width: '100%' }}
+                                    value={searchQuery}
+                                    onChange={handleSearchChange}
+                                    onKeyDown={handleSearchKeyDown}
+                                    autoFocus
+                                />
+                            </div>
+                            <div style={{ width: '100%' }}>
+                                <select className="input-premium" value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)} style={{ width: '100%', cursor: 'pointer' }}>
+                                    {uniqueBrands.map(brand => (
+                                        <option key={brand} value={brand}>{brand === 'All' ? 'All Brands' : brand}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div style={{ width: '100%' }}>
+                                <select className="input-premium" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={{ width: '100%', cursor: 'pointer' }}>
+                                    <option value="All">All Types</option>
+                                    <option value="Non-Serialized">Non-Serialized Only</option>
+                                    <option value="Serialized">Serialized Only</option>
+                                </select>
+                            </div>
+                        </div>
 
                 {/* Product Catalog Cards with Round Borders (Replaces obsolete table layout) */}
                 <div className="pos-product-cards-grid" style={{
@@ -2203,7 +2110,7 @@ const POS = ({ defaultTab }) => {
                                             {p.brand}
                                         </span>
                                     )}
-                                    {p.size && (
+                                    {p.size && !['unspecified', 'n/a', 'none', '-', ''].includes(String(p.size).trim().toLowerCase()) && (
                                         <span style={{
                                             fontSize: '0.72rem',
                                             color: 'var(--text-muted)',
@@ -2285,11 +2192,6 @@ const POS = ({ defaultTab }) => {
                                 alignItems: 'center'
                             }}>
                                 <div>
-                                    {user?.role === 'admin' && (
-                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                            Cost: {formatCurrency(p.cost_price || 0)}
-                                        </div>
-                                    )}
                                     <div style={{
                                         color: 'var(--primary)',
                                         fontWeight: 800,
@@ -3038,10 +2940,16 @@ const POS = ({ defaultTab }) => {
                                 <span style={{ fontFamily: 'monospace' }}>{formatCurrency(cartGrossSubtotal)}</span>
                             </div>
                             {/* Returned item credit */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.8rem', color: '#a78bfa', fontWeight: 600 }}>
-                                <span>Returned Item Credit:</span>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '0.8rem', color: '#a78bfa', fontWeight: 600 }}>
+                                <span>Less: Swap Credit:</span>
                                 <span style={{ fontFamily: 'monospace' }}>-{formatCurrency(replacementCredit)}</span>
                             </div>
+                            {calculatedDiscount > 0 && (
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '0.8rem', color: '#10b981', fontWeight: 600 }}>
+                                    <span>Less: OTP Discount:</span>
+                                    <span style={{ fontFamily: 'monospace' }}>-{formatCurrency(calculatedDiscount)}</span>
+                                </div>
+                            )}
 
                             {/* Balance / Top-Up Due Line */}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderTop: '1px dashed var(--border)', paddingTop: '8px' }}>
@@ -3112,35 +3020,29 @@ const POS = ({ defaultTab }) => {
                         </>
                     ) : (
                         <>
-                            {/* Gross Subtotal */}
+                            {/* Items Subtotal */}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                <span>Gross Subtotal:</span>
+                                <span>Items Subtotal:</span>
                                 <span style={{ fontFamily: 'monospace' }}>{formatCurrency(subtotal)}</span>
                             </div>
 
                             {/* Discount / Bawas Line */}
                             {calculatedDiscount > 0 && (
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '0.8rem', color: '#10b981', fontWeight: 600 }}>
-                                    <span>Discount / Bawas:</span>
+                                    <span>Less: OTP Discount:</span>
                                     <span style={{ fontFamily: 'monospace' }}>-{formatCurrency(calculatedDiscount)}</span>
                                 </div>
                             )}
 
-                            {/* Philippine 12% VAT Breakdown */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                <span>VATable Sales (Net):</span>
-                                <span style={{ fontFamily: 'monospace' }}>{formatCurrency(vatableSales)}</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                <span>12% PH VAT:</span>
-                                <span style={{ fontFamily: 'monospace', color: 'var(--primary)', fontWeight: 600 }}>{formatCurrency(vatAmount)}</span>
-                            </div>
+                            {/* Clean Non-VAT Retail Total */}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderTop: '1px dashed var(--border)', paddingTop: '8px' }}>
                                 <div>
-                                    <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>Total Amount</div>
-                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>(12% VAT-Inclusive)</div>
+                                    <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-main)' }}>Total Amount Payable</div>
+                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Non-VAT Retail Sale</div>
                                 </div>
-                                <span style={{ fontWeight: 'bold', color: 'var(--primary)', fontSize: '1.4rem' }}>{formatCurrency(totalAmount)}</span>
+                                <span style={{ fontWeight: 'bold', color: 'var(--primary)', fontSize: '1.4rem', fontFamily: 'monospace' }}>
+                                    {formatCurrency(totalAmount)}
+                                </span>
                             </div>
                             <div style={{ textAlign: 'center', fontSize: '0.74rem', color: '#94a3b8', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}><span>Part inspected with customer — Sold As-Is (No Return / No Refund)</span></div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr', gap: '8px' }}>
