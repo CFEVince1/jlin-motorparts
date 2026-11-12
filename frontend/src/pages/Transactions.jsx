@@ -23,7 +23,7 @@ export const formatShortOrderNo = (raw) => {
     return str;
 };
 
-const Transactions = ({ embedded = false, defaultTab }) => {
+const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
     const { user } = useContext(AuthContext);
     const navigate = useNavigate();
     const isStaff = user?.role === 'staff';
@@ -1544,7 +1544,13 @@ const Transactions = ({ embedded = false, defaultTab }) => {
 
                                                                 {!isVoid && (
                                                                     <button
-                                                                        onClick={() => navigate(`/item-swap?receipt=${encodeURIComponent(t.order_number || t.id)}`)}
+                                                                        onClick={() => {
+                                                                            if (onStartReplacement) {
+                                                                                onStartReplacement(t);
+                                                                            } else {
+                                                                                navigate(`/pos?tab=history&replaceSaleId=${encodeURIComponent(t.id)}`);
+                                                                            }
+                                                                        }}
                                                                         className="btn-secondary"
                                                                         style={{ padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.74rem', color: 'var(--primary)', borderColor: 'rgba(16, 185, 129, 0.4)', whiteSpace: 'nowrap' }}
                                                                         title="Replace Item from this Sale"
@@ -1755,6 +1761,37 @@ const Transactions = ({ embedded = false, defaultTab }) => {
                             <button className="btn-primary no-print" style={{ flex: 1, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={handlePrint}>
                                 <Printer size={16} /> Print Receipt
                             </button>
+                            {receiptDetails.status !== 'VOIDED' && (
+                                <button
+                                    type="button"
+                                    className="no-print"
+                                    style={{
+                                        padding: '10px 14px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '6px',
+                                        background: 'rgba(16, 185, 129, 0.15)',
+                                        color: '#10b981',
+                                        border: '1px solid rgba(16, 185, 129, 0.4)',
+                                        borderRadius: '6px',
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
+                                    }}
+                                    onClick={() => {
+                                        const saleToReplace = { ...receiptDetails };
+                                        closeReceipt();
+                                        if (onStartReplacement) {
+                                            onStartReplacement(saleToReplace);
+                                        } else {
+                                            navigate(`/pos?tab=history&replaceSaleId=${encodeURIComponent(saleToReplace.id)}`);
+                                        }
+                                    }}
+                                    title="Start item replacement / exchange for this sale"
+                                >
+                                    <ArrowLeftRight size={16} /> Replace Item
+                                </button>
+                            )}
                             {receiptDetails.status !== 'VOIDED' && (
                                 <button
                                     type="button"

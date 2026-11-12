@@ -64,9 +64,9 @@ function App() {
             <Route element={<MainLayout />}>
               <Route path="/" element={<RoleBasedHome />} />
               <Route path="/pos" element={<POS />} />
-              <Route path="/item-swap" element={<ItemSwap />} />
-              <Route path="/swap" element={<Navigate to="/item-swap" replace />} />
-              <Route path="/swaps" element={<Navigate to="/item-swap" replace />} />
+              <Route path="/item-swap" element={<Navigate to="/pos?tab=history" replace />} />
+              <Route path="/swap" element={<Navigate to="/pos?tab=history" replace />} />
+              <Route path="/swaps" element={<Navigate to="/pos?tab=history" replace />} />
               <Route path="/transactions" element={<TransactionsRoute />} />
               <Route path="/sales-history" element={<Navigate to="/transactions" replace />} />
               <Route path="/returns" element={<Navigate to="/pos" replace />} />

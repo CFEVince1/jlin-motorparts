@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { ShoppingCart, ChevronDown, Check, Printer, Search, Plus, Minus, Trash2, CheckCircle2, X, AlertCircle, Banknote, CreditCard, Smartphone, History, RotateCcw, Tag, Lock, Pause, Play, ShieldAlert, Key, Clock, Layers, Mail, Send, RefreshCw } from 'lucide-react';
+import { ShoppingCart, ChevronDown, Check, Printer, Search, Plus, Minus, Trash2, CheckCircle2, X, AlertCircle, Banknote, CreditCard, Smartphone, History, RotateCcw, Tag, Lock, Pause, Play, ShieldAlert, Key, Clock, Layers, Mail, Send, RefreshCw, ArrowLeftRight } from 'lucide-react';
 import { filterProducts, isSerializedProduct, normalizePartNumberSearch } from '../utils/productFilter';
 import useTableFilter from '../hooks/useTableFilter';
 import { calculateCartTotals, calculateItemSubtotal, calculatePaymentDetails, roundCurrency } from '../utils/calculations';
@@ -11,6 +11,7 @@ import { formatCurrency, formatAuditDate } from '../utils/formatters';
 import ThermalReceipt from '../components/ThermalReceipt';
 import ReceiptPrint from '../components/ReceiptPrint';
 import CheckoutModal from '../components/CheckoutModal';
+import ExchangeSlipModal from '../components/ExchangeSlipModal';
 import { notifyInventoryChange, subscribeToInventoryChange } from '../utils/syncEvents';
 import Transactions from './Transactions';
 
@@ -750,6 +751,205 @@ const POS = ({ defaultTab }) => {
     const { totalAmount, subtotal, discount, vatableSales, vatAmount } = calculateCartTotals(cart, calculatedDiscount);
     const paymentDetails = calculatePaymentDetails(totalAmount, tenderedAmount, paymentMethod);
 
+    // ==========================================
+    // ITEM REPLACEMENT / EXCHANGE STATE
+    // ==========================================
+    const [replacementMode, setReplacementMode] = useState(() => {
+        try {
+            const saved = sessionStorage.getItem('pos_replacement_mode');
+            return saved ? JSON.parse(saved) : null;
+        } catch {
+            return null;
+        }
+    });
+
+    const saveReplacementMode = (mode) => {
+        setReplacementMode(mode);
+        try {
+            if (mode) {
+                sessionStorage.setItem('pos_replacement_mode', JSON.stringify(mode));
+            } else {
+                sessionStorage.removeItem('pos_replacement_mode');
+            }
+        } catch (e) {
+            console.error('Failed to save replacement mode in session:', e);
+        }
+    };
+
+    const [saleForReplacementModal, setSaleForReplacementModal] = useState(null);
+    const [conditionVerified, setConditionVerified] = useState(false);
+    const [showReplacementCheckoutModal, setShowReplacementCheckoutModal] = useState(false);
+    const [swapPaymentMethod, setSwapPaymentMethod] = useState('Cash');
+    const [swapTendered, setSwapTendered] = useState('');
+    const [swapReason, setSwapReason] = useState('Fitment / Wrong Part Purchased');
+    const [swapNotes, setSwapNotes] = useState('');
+    const [submittingSwap, setSubmittingSwap] = useState(false);
+    const [completedSwap, setCompletedSwap] = useState(null);
+    const [showSwapSlipModal, setShowSwapSlipModal] = useState(false);
+
+    // Replacement Math & Policy Checks
+    const isReplacementActive = Boolean(replacementMode);
+    const replacementCredit = replacementMode ? Number(replacementMode.creditAmount || 0) : 0;
+    const replacementDiff = cartGrossSubtotal - replacementCredit;
+    const isUnderReplacementCredit = isReplacementActive && replacementDiff < -0.001;
+    const replacementRemainingCredit = isReplacementActive ? Math.max(0, replacementCredit - cartGrossSubtotal) : 0;
+    const replacementTopUpDue = isReplacementActive ? Math.max(0, replacementDiff) : 0;
+
+    const handleStartReplacementFromSale = async (sale) => {
+        try {
+            let fullSale = sale;
+            if (!fullSale.items && !fullSale.sale_items) {
+                const res = await api.get(`/sales/${sale.id}`);
+                fullSale = res.data;
+            }
+            setSaleForReplacementModal(fullSale);
+            setConditionVerified(false);
+        } catch (err) {
+            console.error('Failed to load sale items for replacement:', err);
+            toast.error('Failed to load receipt line items');
+        }
+    };
+
+    const handleSelectItemForReplacement = (item) => {
+        if (!conditionVerified) {
+            toast.error('Please inspect the part and check the condition verification box first.');
+            return;
+        }
+
+        // If current cart has items, automatically park them into Held Carts
+        if (cart.length > 0) {
+            const autoHeld = {
+                id: `HELD-${Date.now().toString().slice(-6)}`,
+                held_at: new Date().toISOString(),
+                customer_name: customerName?.trim() || 'Auto-Saved Cart (Prior to Exchange)',
+                cashier: user?.full_name || user?.username || 'Cashier',
+                items: cart,
+                total_amount: totalAmount,
+                discount_amount: calculatedDiscount,
+                discount_type: discountType,
+                discount_value: discountValue,
+                notes: 'Auto-paused when entering Item Replacement mode'
+            };
+            const updated = [autoHeld, ...heldTransactions];
+            saveHeldTransactions(updated);
+            toast.info('Existing cart was paused and saved to Held Carts.');
+        }
+
+        const mode = {
+            originalSale: saleForReplacementModal,
+            saleItem: item,
+            returnedProduct: {
+                id: item.product_id,
+                name: item.product_name || item.name,
+                part_number: item.part_number,
+                brand: item.brand,
+                cost_price: item.cost_price,
+                price: Number(item.price || item.unit_price)
+            },
+            creditAmount: Number(item.price || item.unit_price),
+            returnedQty: 1
+        };
+
+        saveReplacementMode(mode);
+        setCart([]);
+        setSaleForReplacementModal(null);
+        setActiveTab('register');
+        setSearchParams({ tab: 'register' });
+        toast.success(`Item Replacement Mode active! ₱${Number(item.price || item.unit_price).toFixed(2)} credit applied.`);
+    };
+
+    const handleCancelReplacement = () => {
+        if (cart.length > 0) {
+            if (!window.confirm('Cancel item replacement mode? Your replacement selections will be cleared.')) {
+                return;
+            }
+        }
+        saveReplacementMode(null);
+        setCart([]);
+        toast('Item replacement mode cancelled.');
+    };
+
+    const handleOpenReplacementCheckout = () => {
+        if (isUnderReplacementCredit) {
+            toast.error(`Zero Cash Refund Policy: Please add at least ${formatCurrency(replacementRemainingCredit)} more in replacement items.`);
+            return;
+        }
+        setSwapPaymentMethod('Cash');
+        setSwapTendered(replacementTopUpDue > 0 ? String(replacementTopUpDue) : '');
+        setShowReplacementCheckoutModal(true);
+    };
+
+    const handleConfirmProcessSwap = async () => {
+        if (!replacementMode) return;
+        if (replacementTopUpDue > 0 && swapPaymentMethod === 'Cash') {
+            const tenderedNum = Number(swapTendered) || replacementTopUpDue;
+            if (tenderedNum < replacementTopUpDue) {
+                toast.error(`Amount tendered (₱${tenderedNum.toFixed(2)}) is less than top-up due (₱${replacementTopUpDue.toFixed(2)})`);
+                return;
+            }
+        }
+
+        setSubmittingSwap(true);
+        try {
+            const payload = {
+                sale_id: replacementMode.originalSale.id,
+                sale_item_id: replacementMode.saleItem.id || replacementMode.saleItem.sale_item_id,
+                order_number: replacementMode.originalSale.order_number,
+                customer_name: customerName.trim() || replacementMode.originalSale.customer_name || 'Walk-in Customer',
+                returned_product_id: replacementMode.returnedProduct.id,
+                returned_qty: 1,
+                returned_unit_price: replacementMode.creditAmount,
+                counter_condition_verified: true,
+                replacement_items: cart.map(item => ({
+                    product_id: item.id || item.product_id,
+                    qty: Number(item.quantity || 1)
+                })),
+                new_product_id: cart[0].id || cart[0].product_id,
+                new_qty: cart.reduce((s, it) => s + Number(it.quantity || 1), 0),
+                payment_method: replacementTopUpDue > 0 ? swapPaymentMethod : 'None',
+                amount_tendered: replacementTopUpDue > 0
+                    ? (swapPaymentMethod === 'Cash' ? (Number(swapTendered) || replacementTopUpDue) : replacementTopUpDue)
+                    : 0,
+                reason: swapReason,
+                notes: swapNotes.trim()
+            };
+
+            const res = await api.post('/swaps', payload);
+            if (res.data.success) {
+                toast.success(res.data.message || 'Item replacement completed successfully!');
+                setCompletedSwap(res.data.swap);
+                setShowSwapSlipModal(true);
+                saveReplacementMode(null);
+                setCart([]);
+                setShowReplacementCheckoutModal(false);
+                setSwapTendered('');
+                setSwapNotes('');
+                notifyInventoryChange('item_replacement');
+                fetchActiveCashFloat(true);
+            }
+        } catch (err) {
+            console.error('Failed to process replacement swap:', err);
+            toast.error(err.response?.data?.message || 'Failed to process item replacement');
+        } finally {
+            setSubmittingSwap(false);
+        }
+    };
+
+    useEffect(() => {
+        const replaceSaleId = searchParams.get('replaceSaleId');
+        if (replaceSaleId) {
+            api.get(`/sales/${replaceSaleId}`)
+                .then(res => {
+                    if (res.data) {
+                        handleStartReplacementFromSale(res.data);
+                    }
+                })
+                .catch(err => {
+                    console.error('Failed to load sale for replacement:', err);
+                });
+        }
+    }, [searchParams]);
+
     // Held Transactions Handlers
     const handleOpenHoldModal = () => {
         if (cart.length === 0) {
@@ -1347,7 +1547,7 @@ const POS = ({ defaultTab }) => {
 
             {activeTab === 'history' ? (
                 <div className="no-print pos-history-view" style={{ minHeight: '650px' }}>
-                    <Transactions embedded={true} />
+                    <Transactions embedded={true} onStartReplacement={handleStartReplacementFromSale} />
                 </div>
             ) : activeTab === 'held' ? (
                 <div className="no-print pos-held-view" style={{ minHeight: '650px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
@@ -2235,17 +2435,91 @@ const POS = ({ defaultTab }) => {
 
             {/* CART AREA (4 of 12 columns on desktop) */}
             <div id="pos-cart-section" className="glass-panel no-print cart-container pos-cart-wrapper" style={{ display: 'flex', flexDirection: 'column', padding: '0', minHeight: '480px', height: 'fit-content' }}>
-                <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', borderRadius: '12px 12px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1rem', fontWeight: 600 }}><ShoppingCart size={18} /> Current Order</h3>
-                    {cart.length > 0 && (
-                        <span style={{ fontSize: '0.75rem', background: 'rgba(99, 102, 241, 0.2)', color: 'var(--primary)', border: '1px solid rgba(99, 102, 241, 0.4)', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
-                            {cart.reduce((sum, item) => sum + item.quantity, 0)} {cart.reduce((sum, item) => sum + item.quantity, 0) === 1 ? 'item' : 'items'}
-                        </span>
-                    )}
-                </div>
+                {replacementMode ? (
+                    <div style={{ padding: '12px 14px', borderBottom: '1px solid rgba(245, 158, 11, 0.35)', background: 'rgba(245, 158, 11, 0.12)', borderRadius: '12px 12px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <ArrowLeftRight size={17} color="#f59e0b" />
+                            <div>
+                                <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#f59e0b' }}>
+                                    ⇄ Item Replacement Mode
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                    Ref: #{replacementMode.originalSale.order_number || replacementMode.originalSale.id}
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleCancelReplacement}
+                            style={{
+                                background: 'rgba(239, 68, 68, 0.15)',
+                                border: '1px solid rgba(239, 68, 68, 0.35)',
+                                color: '#ef4444',
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                            }}
+                            title="Cancel replacement mode and clear cart"
+                        >
+                            ✕ Cancel
+                        </button>
+                    </div>
+                ) : (
+                    <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', borderRadius: '12px 12px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1rem', fontWeight: 600 }}><ShoppingCart size={18} /> Current Order</h3>
+                        {cart.length > 0 && (
+                            <span style={{ fontSize: '0.75rem', background: 'rgba(99, 102, 241, 0.2)', color: 'var(--primary)', border: '1px solid rgba(99, 102, 241, 0.4)', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                                {cart.reduce((sum, item) => sum + item.quantity, 0)} {cart.reduce((sum, item) => sum + item.quantity, 0) === 1 ? 'item' : 'items'}
+                            </span>
+                        )}
+                    </div>
+                )}
                 <div style={{ flex: 1, overflowY: 'auto', padding: '12px', maxHeight: '420px' }}>
+                    {/* Pinned Locked Credit Line during Replacement Mode */}
+                    {replacementMode && (
+                        <div style={{
+                            marginBottom: '10px',
+                            padding: '10px 12px',
+                            background: 'rgba(139, 92, 246, 0.08)',
+                            border: '1px solid rgba(139, 92, 246, 0.35)',
+                            borderRadius: '8px'
+                        }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <span style={{
+                                        fontSize: '0.66rem',
+                                        fontWeight: 800,
+                                        background: 'rgba(139, 92, 246, 0.25)',
+                                        color: '#a78bfa',
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        textTransform: 'uppercase'
+                                    }}>
+                                        Trade-In Credit
+                                    </span>
+                                    <div style={{ fontWeight: 600, fontSize: '0.86rem', color: 'var(--text-main)', marginTop: '4px' }}>
+                                        Returning: {replacementMode.returnedProduct.name}
+                                    </div>
+                                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                        {replacementMode.returnedProduct.part_number} • Qty: 1 (Restock to sellable)
+                                    </div>
+                                </div>
+                                <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '8px' }}>
+                                    <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.96rem', color: '#10b981' }}>
+                                        -{formatCurrency(replacementMode.creditAmount)}
+                                    </span>
+                                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Credit Applied</div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {cart.length === 0 ? (
-                        <div style={{ height: '100%', minHeight: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Order is empty</div>
+                        <div style={{ height: '100%', minHeight: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                            {replacementMode ? 'Add replacement part(s) from catalog' : 'Order is empty'}
+                        </div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {cart.map(item => {
@@ -2756,87 +3030,168 @@ const POS = ({ defaultTab }) => {
                 )}
 
                 <div style={{ padding: '14px 16px', background: 'var(--surface)', borderRadius: '0 0 12px 12px', borderTop: '1px solid var(--border)' }}>
-                    {/* Gross Subtotal */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        <span>Gross Subtotal:</span>
-                        <span style={{ fontFamily: 'monospace' }}>{formatCurrency(subtotal)}</span>
-                    </div>
+                    {replacementMode ? (
+                        <>
+                            {/* New items subtotal */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                <span>New Items Subtotal:</span>
+                                <span style={{ fontFamily: 'monospace' }}>{formatCurrency(cartGrossSubtotal)}</span>
+                            </div>
+                            {/* Returned item credit */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.8rem', color: '#a78bfa', fontWeight: 600 }}>
+                                <span>Returned Item Credit:</span>
+                                <span style={{ fontFamily: 'monospace' }}>-{formatCurrency(replacementCredit)}</span>
+                            </div>
 
-                    {/* Discount / Bawas Line */}
-                    {calculatedDiscount > 0 && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '0.8rem', color: '#10b981', fontWeight: 600 }}>
-                            <span>Discount / Bawas:</span>
-                            <span style={{ fontFamily: 'monospace' }}>-{formatCurrency(calculatedDiscount)}</span>
-                        </div>
-                    )}
+                            {/* Balance / Top-Up Due Line */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderTop: '1px dashed var(--border)', paddingTop: '8px' }}>
+                                <div>
+                                    <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>
+                                        {replacementTopUpDue > 0 ? 'Top-Up Payable' : 'Net Balance'}
+                                    </div>
+                                    <div style={{ fontSize: '0.72rem', color: isUnderReplacementCredit ? '#ef4444' : 'var(--text-muted)' }}>
+                                        {isUnderReplacementCredit
+                                            ? `Short by ${formatCurrency(replacementRemainingCredit)}`
+                                            : (replacementTopUpDue > 0 ? 'Upgrade Top-Up (Cash / GCash)' : 'Even Exchange (₱0.00)')}
+                                    </div>
+                                </div>
+                                <span style={{
+                                    fontWeight: 'bold',
+                                    fontSize: '1.4rem',
+                                    color: isUnderReplacementCredit ? '#ef4444' : (replacementTopUpDue > 0 ? '#f59e0b' : '#10b981')
+                                }}>
+                                    {formatCurrency(replacementTopUpDue)}
+                                </span>
+                            </div>
 
-                    {/* Philippine 12% VAT Breakdown */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        <span>VATable Sales (Net):</span>
-                        <span style={{ fontFamily: 'monospace' }}>{formatCurrency(vatableSales)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        <span>12% PH VAT:</span>
-                        <span style={{ fontFamily: 'monospace', color: 'var(--primary)', fontWeight: 600 }}>{formatCurrency(vatAmount)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderTop: '1px dashed var(--border)', paddingTop: '8px' }}>
-                        <div>
-                            <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>Total Amount</div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>(12% VAT-Inclusive)</div>
-                        </div>
-                        <span style={{ fontWeight: 'bold', color: 'var(--primary)', fontSize: '1.4rem' }}>{formatCurrency(totalAmount)}</span>
-                    </div>
-                    <div style={{ textAlign: 'center', fontSize: '0.74rem', color: '#94a3b8', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}><span>Part inspected with customer — Sold As-Is (No Return / No Refund)</span></div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr', gap: '8px' }}>
-                        <button
-                            type="button"
-                            onClick={handleOpenHoldModal}
-                            className="btn-secondary"
-                            disabled={cart.length === 0}
-                            style={{
-                                padding: '10px 10px',
-                                fontSize: '0.82rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '5px',
-                                borderColor: 'rgba(245, 158, 11, 0.4)',
-                                color: '#f59e0b',
-                                background: 'rgba(245, 158, 11, 0.08)',
-                                cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
-                                borderRadius: '8px'
-                            }}
-                            title="Pause cart when customer steps aside to check motorcycle or get cash"
-                        >
-                            <Pause size={15} />
-                            <span>Hold Cart</span>
-                        </button>
-                        <button 
-                            className={((!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin') || shiftStatus === 'PENDING_REMIT') ? "btn-secondary" : "btn-primary"} 
-                            style={{ padding: '10px 14px', fontSize: '0.88rem', cursor: ((!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin') || shiftStatus === 'PENDING_REMIT') ? 'not-allowed' : 'pointer', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} 
-                            onClick={handleCheckoutClick} 
-                            disabled={cart.length === 0 || (!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin') || shiftStatus === 'PENDING_REMIT'}
-                        >
-                            {shiftStatus === 'PENDING_REMIT' ? (
-                                <>
-                                    <Lock size={16} /> Awaiting Sign-Off
-                                </>
-                            ) : (!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin') ? (
-                                <>
-                                    <Lock size={16} /> Awaiting Float
-                                </>
-                            ) : (
-                                <>
-                                    <CheckCircle2 size={16} /> Complete &amp; Print
-                                </>
+                            {/* Zero Cash Refund Policy Warning when under credit */}
+                            {isUnderReplacementCredit && (
+                                <div style={{
+                                    marginBottom: '10px',
+                                    background: 'rgba(239, 68, 68, 0.1)',
+                                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                                    borderRadius: '6px',
+                                    padding: '8px 10px',
+                                    color: '#ef4444',
+                                    fontSize: '0.74rem',
+                                    lineHeight: 1.35
+                                }}>
+                                    <strong>Zero Cash Refund Policy:</strong> Current replacement subtotal ({formatCurrency(cartGrossSubtotal)}) is less than trade-in credit ({formatCurrency(replacementCredit)}). Please add at least <strong>{formatCurrency(replacementRemainingCredit)}</strong> more in motorparts from the catalog.
+                                </div>
                             )}
-                        </button>
-                    </div>
-                    {!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin' && (
-                        <div style={{ marginTop: '10px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '6px', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444', fontSize: '0.74rem' }}>
-                            <AlertCircle size={15} style={{ flexShrink: 0 }} />
-                            <span>Starting Panukli is ₱0.00. Admin must assign your shift cash float before sales can be completed.</span>
-                        </div>
+
+                            {/* Replacement Action Buttons */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                                <button
+                                    type="button"
+                                    className={isUnderReplacementCredit || cart.length === 0 ? "btn-secondary" : "btn-primary"}
+                                    disabled={isUnderReplacementCredit || cart.length === 0}
+                                    onClick={handleOpenReplacementCheckout}
+                                    style={{
+                                        padding: '12px 14px',
+                                        fontSize: '0.88rem',
+                                        borderRadius: '8px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '6px',
+                                        cursor: (isUnderReplacementCredit || cart.length === 0) ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    <CheckCircle2 size={16} />
+                                    {isUnderReplacementCredit
+                                        ? `Add ${formatCurrency(replacementRemainingCredit)} More to Complete`
+                                        : (replacementTopUpDue > 0
+                                            ? `Complete Exchange (Pay Top-Up: ${formatCurrency(replacementTopUpDue)})`
+                                            : 'Complete Even Exchange (₱0.00)')}
+                                </button>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            {/* Gross Subtotal */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                <span>Gross Subtotal:</span>
+                                <span style={{ fontFamily: 'monospace' }}>{formatCurrency(subtotal)}</span>
+                            </div>
+
+                            {/* Discount / Bawas Line */}
+                            {calculatedDiscount > 0 && (
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '0.8rem', color: '#10b981', fontWeight: 600 }}>
+                                    <span>Discount / Bawas:</span>
+                                    <span style={{ fontFamily: 'monospace' }}>-{formatCurrency(calculatedDiscount)}</span>
+                                </div>
+                            )}
+
+                            {/* Philippine 12% VAT Breakdown */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                <span>VATable Sales (Net):</span>
+                                <span style={{ fontFamily: 'monospace' }}>{formatCurrency(vatableSales)}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                <span>12% PH VAT:</span>
+                                <span style={{ fontFamily: 'monospace', color: 'var(--primary)', fontWeight: 600 }}>{formatCurrency(vatAmount)}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderTop: '1px dashed var(--border)', paddingTop: '8px' }}>
+                                <div>
+                                    <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>Total Amount</div>
+                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>(12% VAT-Inclusive)</div>
+                                </div>
+                                <span style={{ fontWeight: 'bold', color: 'var(--primary)', fontSize: '1.4rem' }}>{formatCurrency(totalAmount)}</span>
+                            </div>
+                            <div style={{ textAlign: 'center', fontSize: '0.74rem', color: '#94a3b8', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}><span>Part inspected with customer — Sold As-Is (No Return / No Refund)</span></div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr', gap: '8px' }}>
+                                <button
+                                    type="button"
+                                    onClick={handleOpenHoldModal}
+                                    className="btn-secondary"
+                                    disabled={cart.length === 0}
+                                    style={{
+                                        padding: '10px 10px',
+                                        fontSize: '0.82rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '5px',
+                                        borderColor: 'rgba(245, 158, 11, 0.4)',
+                                        color: '#f59e0b',
+                                        background: 'rgba(245, 158, 11, 0.08)',
+                                        cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
+                                        borderRadius: '8px'
+                                    }}
+                                    title="Pause cart when customer steps aside to check motorcycle or get cash"
+                                >
+                                    <Pause size={15} />
+                                    <span>Hold Cart</span>
+                                </button>
+                                <button 
+                                    className={((!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin') || shiftStatus === 'PENDING_REMIT') ? "btn-secondary" : "btn-primary"} 
+                                    style={{ padding: '10px 14px', fontSize: '0.88rem', cursor: ((!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin') || shiftStatus === 'PENDING_REMIT') ? 'not-allowed' : 'pointer', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} 
+                                    onClick={handleCheckoutClick} 
+                                    disabled={cart.length === 0 || (!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin') || shiftStatus === 'PENDING_REMIT'}
+                                >
+                                    {shiftStatus === 'PENDING_REMIT' ? (
+                                        <>
+                                            <Lock size={16} /> Awaiting Sign-Off
+                                        </>
+                                    ) : (!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin') ? (
+                                        <>
+                                            <Lock size={16} /> Awaiting Float
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircle2 size={16} /> Complete &amp; Print
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                            {!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin' && (
+                                <div style={{ marginTop: '10px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '6px', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444', fontSize: '0.74rem' }}>
+                                    <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                                    <span>Starting Panukli is ₱0.00. Admin must assign your shift cash float before sales can be completed.</span>
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </div>
@@ -3267,6 +3622,502 @@ const POS = ({ defaultTab }) => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* ============================================================ */}
+            {/* 3. SELECT ITEM TO REPLACE MODAL (From Sales History)          */}
+            {/* ============================================================ */}
+            {saleForReplacementModal && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    zIndex: 9999,
+                    background: 'rgba(0,0,0,0.75)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '16px'
+                }}>
+                    <div className="glass-panel" style={{
+                        maxWidth: '620px',
+                        width: '100%',
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '16px',
+                        padding: '24px',
+                        position: 'relative',
+                        maxHeight: '90vh',
+                        overflowY: 'auto'
+                    }}>
+                        {/* Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '14px', marginBottom: '16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{
+                                    width: '36px',
+                                    height: '36px',
+                                    borderRadius: '8px',
+                                    background: 'rgba(245, 158, 11, 0.15)',
+                                    color: '#f59e0b',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                }}>
+                                    <ArrowLeftRight size={20} />
+                                </div>
+                                <div>
+                                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>
+                                        Select Item to Replace
+                                    </h3>
+                                    <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                                        Receipt: #{saleForReplacementModal.order_number || saleForReplacementModal.id} • {formatAuditDate(saleForReplacementModal.sale_date || saleForReplacementModal.created_at)}
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSaleForReplacementModal(null)}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Sale summary box */}
+                        <div style={{
+                            background: 'var(--surface-hover)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '8px',
+                            padding: '10px 14px',
+                            fontSize: '0.82rem',
+                            marginBottom: '16px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: '8px'
+                        }}>
+                            <div>
+                                <span style={{ color: 'var(--text-muted)' }}>Customer: </span>
+                                <strong>{saleForReplacementModal.customer_name || 'Walk-in Customer'}</strong>
+                            </div>
+                            <div>
+                                <span style={{ color: 'var(--text-muted)' }}>Original Total Paid: </span>
+                                <strong style={{ color: 'var(--primary)' }}>{formatCurrency(saleForReplacementModal.total_amount || 0)}</strong>
+                            </div>
+                        </div>
+
+                        {/* Condition Verification Checkbox */}
+                        <div style={{
+                            background: conditionVerified ? 'rgba(16, 185, 129, 0.10)' : 'rgba(245, 158, 11, 0.10)',
+                            border: `1.5px solid ${conditionVerified ? '#10b981' : '#f59e0b'}`,
+                            borderRadius: '8px',
+                            padding: '12px 14px',
+                            marginBottom: '16px'
+                        }}>
+                            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={conditionVerified}
+                                    onChange={(e) => setConditionVerified(e.target.checked)}
+                                    style={{ marginTop: '3px', width: '16px', height: '16px', accentColor: '#10b981', cursor: 'pointer' }}
+                                />
+                                <div>
+                                    <strong style={{ fontSize: '0.86rem', color: 'var(--text-main)' }}>
+                                        Mandatory Counter Inspection &amp; Condition Verification
+                                    </strong>
+                                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px', lineHeight: 1.35 }}>
+                                        I confirm that the customer has presented the part in unmounted, unused, and resellable condition with original packaging intact.
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+
+                        {/* Items list */}
+                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>
+                            Items Purchased on this Receipt:
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                            {(saleForReplacementModal.items || saleForReplacementModal.sale_items || []).map((item, idx) => {
+                                const soldQty = Number(item.qty_sold ?? item.quantity ?? 1);
+                                const swappedQty = Number(item.qty_swapped || 0);
+                                const swappableCap = Math.max(0, soldQty - swappedQty);
+                                const isFullySwapped = swappableCap <= 0;
+
+                                return (
+                                    <div
+                                        key={item.id || idx}
+                                        style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            padding: '12px 14px',
+                                            background: isFullySwapped ? 'rgba(255,255,255,0.02)' : 'var(--surface-hover)',
+                                            border: '1px solid var(--border)',
+                                            borderRadius: '8px',
+                                            opacity: isFullySwapped ? 0.5 : 1
+                                        }}
+                                    >
+                                        <div style={{ flex: 1, minWidth: 0, marginRight: '12px' }}>
+                                            <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-main)' }}>
+                                                {item.product_name || item.name}
+                                            </div>
+                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                                PN: {item.part_number} • Qty: {soldQty} {soldQty === 1 ? 'pc' : 'pcs'}
+                                                {swappedQty > 0 && ` (${swappedQty} previously exchanged)`}
+                                            </div>
+                                            <div style={{ fontFamily: 'monospace', fontWeight: 800, color: 'var(--primary)', fontSize: '0.86rem', marginTop: '3px' }}>
+                                                {formatCurrency(item.price || item.unit_price)} each
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            {isFullySwapped ? (
+                                                <span style={{ fontSize: '0.72rem', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '4px 10px', borderRadius: '12px', fontWeight: 600 }}>
+                                                    Already Swapped
+                                                </span>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleSelectItemForReplacement(item)}
+                                                    className="btn-primary"
+                                                    style={{
+                                                        padding: '8px 14px',
+                                                        fontSize: '0.78rem',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '6px',
+                                                        background: '#f59e0b',
+                                                        borderColor: '#f59e0b',
+                                                        color: '#000',
+                                                        fontWeight: 700
+                                                    }}
+                                                >
+                                                    <ArrowLeftRight size={14} /> Replace This Item
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => setSaleForReplacementModal(null)}
+                                style={{ padding: '8px 16px', fontSize: '0.84rem' }}
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ============================================================ */}
+            {/* 4. CONFIRM ITEM REPLACEMENT MODAL                            */}
+            {/* ============================================================ */}
+            {showReplacementCheckoutModal && replacementMode && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    zIndex: 9999,
+                    background: 'rgba(0,0,0,0.75)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '16px'
+                }}>
+                    <div className="glass-panel" style={{
+                        maxWidth: '520px',
+                        width: '100%',
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '16px',
+                        padding: '24px',
+                        position: 'relative',
+                        maxHeight: '92vh',
+                        overflowY: 'auto'
+                    }}>
+                        {/* Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '14px', marginBottom: '16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{
+                                    width: '36px',
+                                    height: '36px',
+                                    borderRadius: '8px',
+                                    background: 'rgba(16, 185, 129, 0.15)',
+                                    color: '#10b981',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                }}>
+                                    <CheckCircle2 size={20} />
+                                </div>
+                                <div>
+                                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>
+                                        Confirm Item Replacement
+                                    </h3>
+                                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                                        Original Receipt: #{replacementMode.originalSale.order_number || replacementMode.originalSale.id}
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowReplacementCheckoutModal(false)}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Returned vs Replacement Comparison */}
+                        <div style={{
+                            background: 'var(--surface-hover)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            marginBottom: '16px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '10px',
+                            fontSize: '0.8rem'
+                        }}>
+                            {/* Returning */}
+                            <div>
+                                <div style={{ color: '#ef4444', fontWeight: 800, fontSize: '0.72rem', textTransform: 'uppercase', marginBottom: '2px' }}>
+                                    Returning (Trade-In Credit):
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
+                                    <span>{replacementMode.returnedProduct.name} (x1)</span>
+                                    <span style={{ fontFamily: 'monospace', color: '#ef4444', fontWeight: 800 }}>
+                                        -{formatCurrency(replacementCredit)}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* New Items */}
+                            <div style={{ borderTop: '1px dashed var(--border)', paddingTop: '8px' }}>
+                                <div style={{ color: '#10b981', fontWeight: 800, fontSize: '0.72rem', textTransform: 'uppercase', marginBottom: '4px' }}>
+                                    New Replacement Parts ({cart.length}):
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    {cart.map((cItem, cIdx) => (
+                                        <div key={cIdx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+                                            <span>{cItem.name} <strong>x{cItem.quantity}</strong></span>
+                                            <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                                                +{formatCurrency((cItem.price || 0) * cItem.quantity)}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, color: '#10b981', borderTop: '1px solid var(--border)', paddingTop: '4px', marginTop: '4px' }}>
+                                    <span>Total New Items Value:</span>
+                                    <span style={{ fontFamily: 'monospace' }}>+{formatCurrency(cartGrossSubtotal)}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Top-up Math Summary */}
+                        <div style={{
+                            padding: '12px 14px',
+                            borderRadius: '8px',
+                            background: replacementTopUpDue > 0 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                            border: `1px solid ${replacementTopUpDue > 0 ? 'rgba(245, 158, 11, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
+                            marginBottom: '16px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                        }}>
+                            <div>
+                                <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>
+                                    {replacementTopUpDue > 0 ? 'Upgrade Top-Up Amount Due:' : 'Net Difference:'}
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                    {replacementTopUpDue > 0 ? 'Customer pays the upgrade difference' : 'Even value exchange • No payment required'}
+                                </div>
+                            </div>
+                            <div style={{
+                                fontSize: '1.35rem',
+                                fontWeight: 900,
+                                fontFamily: 'monospace',
+                                color: replacementTopUpDue > 0 ? '#f59e0b' : '#10b981'
+                            }}>
+                                {formatCurrency(replacementTopUpDue)}
+                            </div>
+                        </div>
+
+                        {/* If Top-Up Due > 0: Payment Method and Amount Tendered */}
+                        {replacementTopUpDue > 0 && (
+                            <div style={{ marginBottom: '16px' }}>
+                                <label style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                                    Payment Method for Top-Up:
+                                </label>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSwapPaymentMethod('Cash')}
+                                        style={{
+                                            padding: '10px',
+                                            borderRadius: '8px',
+                                            border: '1px solid',
+                                            borderColor: swapPaymentMethod === 'Cash' ? 'var(--primary)' : 'var(--border)',
+                                            background: swapPaymentMethod === 'Cash' ? 'rgba(16, 185, 129, 0.15)' : 'var(--surface-hover)',
+                                            color: swapPaymentMethod === 'Cash' ? 'var(--primary)' : 'var(--text-main)',
+                                            fontWeight: 700,
+                                            fontSize: '0.85rem',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '6px'
+                                        }}
+                                    >
+                                        <Banknote size={16} /> Cash
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSwapPaymentMethod('GCash')}
+                                        style={{
+                                            padding: '10px',
+                                            borderRadius: '8px',
+                                            border: '1px solid',
+                                            borderColor: swapPaymentMethod === 'GCash' ? '#3b82f6' : 'var(--border)',
+                                            background: swapPaymentMethod === 'GCash' ? 'rgba(59, 130, 246, 0.15)' : 'var(--surface-hover)',
+                                            color: swapPaymentMethod === 'GCash' ? '#3b82f6' : 'var(--text-main)',
+                                            fontWeight: 700,
+                                            fontSize: '0.85rem',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '6px'
+                                        }}
+                                    >
+                                        <Smartphone size={16} /> GCash
+                                    </button>
+                                </div>
+
+                                {swapPaymentMethod === 'Cash' && (
+                                    <div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                            <label style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                                                Amount Tendered:
+                                            </label>
+                                            {Number(swapTendered) > replacementTopUpDue && (
+                                                <span style={{ fontSize: '0.76rem', color: '#10b981', fontWeight: 700 }}>
+                                                    Change: {formatCurrency(Number(swapTendered) - replacementTopUpDue)}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <input
+                                            type="number"
+                                            className="input-premium"
+                                            style={{ width: '100%', height: '38px', fontSize: '0.95rem', fontWeight: 700 }}
+                                            placeholder={`Exact ₱${replacementTopUpDue.toFixed(2)}`}
+                                            value={swapTendered}
+                                            onChange={(e) => setSwapTendered(e.target.value)}
+                                        />
+                                        {/* Quick buttons */}
+                                        <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                                            {[replacementTopUpDue, 100, 200, 500, 1000].filter((amt, idx, arr) => amt >= replacementTopUpDue && arr.indexOf(amt) === idx).map(amt => (
+                                                <button
+                                                    key={amt}
+                                                    type="button"
+                                                    onClick={() => setSwapTendered(String(amt))}
+                                                    style={{
+                                                        padding: '3px 8px',
+                                                        fontSize: '0.72rem',
+                                                        borderRadius: '4px',
+                                                        border: '1px solid var(--border)',
+                                                        background: 'var(--surface-hover)',
+                                                        color: 'var(--text-main)',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    ₱{amt}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Reason */}
+                        <div style={{ marginBottom: '14px' }}>
+                            <label style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                Reason for Replacement:
+                            </label>
+                            <select
+                                className="input-premium"
+                                value={swapReason}
+                                onChange={(e) => setSwapReason(e.target.value)}
+                                style={{ width: '100%', height: '36px', fontSize: '0.82rem' }}
+                            >
+                                <option value="Fitment / Wrong Part Purchased">Fitment / Wrong Part Purchased</option>
+                                <option value="Customer Upgrade Preference">Customer Upgrade Preference</option>
+                                <option value="Defective / Factory Fault">Defective / Factory Fault</option>
+                                <option value="Wrong Color / Variation">Wrong Color / Variation</option>
+                                <option value="Other Exchange Reason">Other Exchange Reason</option>
+                            </select>
+                        </div>
+
+                        {/* Notes */}
+                        <div style={{ marginBottom: '18px' }}>
+                            <label style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                Notes / Remarks (Optional):
+                            </label>
+                            <input
+                                type="text"
+                                className="input-premium"
+                                placeholder="e.g. Swapped to larger size belt as requested"
+                                value={swapNotes}
+                                onChange={(e) => setSwapNotes(e.target.value)}
+                                style={{ width: '100%', height: '34px', fontSize: '0.82rem' }}
+                            />
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => setShowReplacementCheckoutModal(false)}
+                                style={{ flex: 1, padding: '10px' }}
+                                disabled={submittingSwap}
+                            >
+                                Back to Cart
+                            </button>
+                            <button
+                                type="button"
+                                className="btn-primary"
+                                onClick={handleConfirmProcessSwap}
+                                disabled={submittingSwap || (replacementTopUpDue > 0 && swapPaymentMethod === 'Cash' && swapTendered && Number(swapTendered) < replacementTopUpDue)}
+                                style={{ flex: 1.5, padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                            >
+                                <CheckCircle2 size={16} />
+                                {submittingSwap ? 'Processing Exchange...' : 'Confirm & Issue Slip'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ============================================================ */}
+            {/* 5. EXCHANGE & REPLACEMENT PRINTABLE SLIP MODAL               */}
+            {/* ============================================================ */}
+            {showSwapSlipModal && completedSwap && (
+                <ExchangeSlipModal
+                    isOpen={showSwapSlipModal}
+                    swap={completedSwap}
+                    onClose={() => {
+                        setShowSwapSlipModal(false);
+                        setCompletedSwap(null);
+                    }}
+                />
             )}
         </div>
     );

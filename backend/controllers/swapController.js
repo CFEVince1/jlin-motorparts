@@ -255,9 +255,9 @@ exports.processSwap = async (req, res) => {
     await conn.beginTransaction();
 
     try {
+        const sale_id = req.body.sale_id || req.body.original_sale_id;
+        const sale_item_id = req.body.sale_item_id || req.body.original_sale_item_id;
         const {
-            sale_id,
-            sale_item_id,
             order_number,
             customer_name = 'Walk-in Customer',
             returned_product_id,
