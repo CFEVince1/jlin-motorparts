@@ -425,7 +425,7 @@ export const ItemSwap = () => {
 
             const res = await api.post('/swaps', payload);
             if (res.data.success) {
-                toast.success(res.data.message || 'Item swap completed successfully!');
+                toast.success(res.data.message || 'Item replacement completed successfully!');
                 setCompletedSwap(res.data.swap);
                 setShowSlipModal(true);
 
@@ -442,8 +442,8 @@ export const ItemSwap = () => {
                 fetchSwapHistory();
             }
         } catch (err) {
-            console.error('Failed to process swap:', err);
-            toast.error(err.response?.data?.message || 'Failed to process item swap');
+            console.error('Failed to process replacement:', err);
+            toast.error(err.response?.data?.message || 'Failed to process item replacement');
         } finally {
             setProcessingSwap(false);
         }
@@ -506,10 +506,10 @@ export const ItemSwap = () => {
                         color: 'var(--text-main)'
                     }}>
                         <ArrowLeftRight size={24} color="var(--primary)" />
-                        <span>Item Swap & Parts Exchange</span>
+                        <span>Item Replacement & Parts Exchange</span>
                     </h1>
                     <p style={{ margin: '4px 0 0 0', fontSize: '0.84rem', color: 'var(--text-muted)' }}>
-                        Strict Zero-Cash Policy: Customers cannot exchange items for cash. They can perform an Equal-Value Swap (₱0.00) or pay the difference for a pricey upgrade.
+                        Strict Zero-Cash Policy: Customers cannot exchange items for cash. They can perform an Equal-Value Replacement (₱0.00) or pay the difference for a pricey upgrade.
                     </p>
                 </div>
 
@@ -531,7 +531,7 @@ export const ItemSwap = () => {
                         }}
                     >
                         <RotateCcw size={15} />
-                        <span>New Item Swap</span>
+                        <span>New Item Replacement</span>
                     </button>
 
                     <button
@@ -551,7 +551,7 @@ export const ItemSwap = () => {
                         }}
                     >
                         <Receipt size={15} />
-                        <span>Swap Ledger ({swapSummary.total_swaps || 0})</span>
+                        <span>Replacement Ledger ({swapSummary.total_swaps || 0})</span>
                     </button>
                 </div>
             </div>
@@ -582,19 +582,19 @@ export const ItemSwap = () => {
                 </div>
                 <div style={{ fontSize: '0.82rem', color: 'var(--text-main)', lineHeight: '1.45' }}>
                     <strong style={{ color: 'var(--primary)' }}>Strict Zero Cash Refund Policy:</strong> Money is never handed back to the customer. Any replacement item priced lower than the original paid price is blocked. Only two paths are allowed:
-                    <span style={{ fontWeight: 700, color: '#10b981', marginLeft: '6px' }}>Scenario A (Equal-Value Swap ₱0.00)</span> or
-                    <span style={{ fontWeight: 700, color: '#3b82f6', marginLeft: '6px' }}>Scenario B (Upgrade Swap with Cash/GCash Top-Up)</span>.
+                    <span style={{ fontWeight: 700, color: '#10b981', marginLeft: '6px' }}>Scenario A (Equal-Value Replacement ₱0.00)</span> or
+                    <span style={{ fontWeight: 700, color: '#3b82f6', marginLeft: '6px' }}>Scenario B (Upgrade Replacement with Cash/GCash Top-Up)</span>.
                 </div>
             </div>
 
             {/* ========================================================= */}
-            {/* TAB 1: 4-STEP ITEM SWAP WORKFLOW                          */}
+            {/* TAB 1: 4-STEP ITEM REPLACEMENT WORKFLOW                   */}
             {/* ========================================================= */}
             {activeTab === 'new_swap' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', minWidth: 0 }}>
 
                     {/* ========================================================= */}
-                    {/* STEP 1: RECEIPT LOOKUP & SWAP CAP                         */}
+                    {/* STEP 1: RECEIPT LOOKUP & REPLACEMENT CAP                  */}
                     {/* ========================================================= */}
                     <div className="glass-panel" style={{
                         padding: '20px',
@@ -607,11 +607,11 @@ export const ItemSwap = () => {
                                     1
                                 </div>
                                 <h3 style={{ fontSize: '0.88rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-main)', margin: 0 }}>
-                                    Step 1: Receipt Lookup & Swappable Cap Verification
+                                    Step 1: Receipt Lookup &amp; Replacement Cap Verification
                                 </h3>
                             </div>
                             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                Enter Receipt / Order # to check purchase price and remaining swappable quantity
+                                Enter Receipt / Order # to check purchase price and remaining replaceable quantity
                             </span>
                         </div>
 
@@ -1704,12 +1704,12 @@ export const ItemSwap = () => {
                                         <Check size={16} />
                                         <span>
                                             {processingSwap
-                                                ? 'Processing Swap...'
+                                                ? 'Processing Replacement...'
                                                 : isUnderCredit
-                                                    ? `Add ₱${remainingNeeded.toFixed(2)} More to Reach Swap Value`
+                                                    ? `Add ₱${remainingNeeded.toFixed(2)} More to Reach Replacement Value`
                                                     : isUpgrade
-                                                        ? `Confirm Upgrade Swap & Collect +${formatCurrency(topUpDue)}`
-                                                        : `Confirm Even Swap (₱0.00)`}
+                                                        ? `Confirm Upgrade Replacement & Collect +${formatCurrency(topUpDue)}`
+                                                        : `Confirm Even Replacement (₱0.00)`}
                                         </span>
                                     </button>
                                 </div>
@@ -1817,13 +1817,13 @@ export const ItemSwap = () => {
                                         <tr>
                                             <td colSpan="6" style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
                                                 <RefreshCw size={20} className="animate-spin" style={{ margin: '0 auto 8px auto', color: 'var(--primary)' }} />
-                                                <div>Loading swap ledger...</div>
+                                                <div>Loading replacement ledger...</div>
                                             </td>
                                         </tr>
                                     ) : swaps.length === 0 ? (
                                         <tr>
                                             <td colSpan="6" style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                                                No item swaps recorded yet.
+                                                No item replacements recorded yet.
                                             </td>
                                         </tr>
                                     ) : (
@@ -1929,7 +1929,7 @@ export const ItemSwap = () => {
                                     JLIN MOTO PARTS
                                 </div>
                                 <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                    Customer Item Swap & Exchange Slip
+                                    Customer Item Replacement & Exchange Slip
                                 </div>
                                 <div style={{ fontSize: '0.85rem', fontFamily: 'monospace', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>
                                     {completedSwap.swap_code}
@@ -2029,9 +2029,9 @@ export const ItemSwap = () => {
                                 gap: '6px'
                             }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                    <span style={{ color: 'var(--text-muted)' }}>Swap Type:</span>
+                                    <span style={{ color: 'var(--text-muted)' }}>Replacement Type:</span>
                                     <strong style={{ color: Number(completedSwap.customer_top_up_paid) > 0 ? '#3b82f6' : 'var(--primary)' }}>
-                                        {Number(completedSwap.customer_top_up_paid) > 0 ? 'UPGRADE SWAP (+TOP-UP)' : 'EQUAL-VALUE SWAP (₱0.00)'}
+                                        {Number(completedSwap.customer_top_up_paid) > 0 ? 'UPGRADE REPLACEMENT (+TOP-UP)' : 'EQUAL-VALUE REPLACEMENT (₱0.00)'}
                                     </strong>
                                 </div>
 

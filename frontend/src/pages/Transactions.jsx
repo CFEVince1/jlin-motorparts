@@ -1532,9 +1532,9 @@ const Transactions = ({ embedded = false, defaultTab }) => {
                                                                         onClick={() => navigate(`/item-swap?receipt=${encodeURIComponent(t.order_number || t.id)}`)}
                                                                         className="btn-secondary"
                                                                         style={{ padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.74rem', color: 'var(--primary)', borderColor: 'rgba(16, 185, 129, 0.4)', whiteSpace: 'nowrap' }}
-                                                                        title="Swap Item from this Sale"
+                                                                        title="Replace Item from this Sale"
                                                                     >
-                                                                        <ArrowLeftRight size={13} /> Swap Item
+                                                                        <ArrowLeftRight size={13} /> Replace Item
                                                                     </button>
                                                                 )}
 
