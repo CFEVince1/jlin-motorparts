@@ -133,11 +133,18 @@ const Sidebar = ({
         if (onCloseMobile) {
             onCloseMobile();
         }
-        // When clicking the currently active page in the sidebar, force an immediate clean reload of the module
+        // When clicking the currently active page in the sidebar:
         if (location.pathname === targetPath) {
             e.preventDefault();
-            window.location.href = targetPath;
-            window.location.reload();
+            // If currently on a sub-tab, filter, or query string (e.g. ?tab=categories_brands),
+            // navigate back to the clean first tab without retaining clicked sub-tabs
+            if (location.search || window.location.search) {
+                navigate(targetPath, { replace: true });
+                window.location.href = targetPath;
+            } else {
+                // Already on the first tab: reload to refresh data
+                window.location.reload();
+            }
         } else {
             notifyInventoryChange('sidebar_nav');
         }

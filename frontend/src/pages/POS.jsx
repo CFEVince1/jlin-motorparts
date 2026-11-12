@@ -61,6 +61,8 @@ const POS = ({ defaultTab }) => {
             setActiveTab('held');
         } else if (qTab === 'register' || qTab === 'pos') {
             setActiveTab('register');
+        } else {
+            setActiveTab('register');
         }
     }, [searchParams]);
 

@@ -43,6 +43,11 @@ export const CashFloat = () => {
     // Tabs: 'active' | 'history' | 'manage'
     const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'active');
 
+    useEffect(() => {
+        const qTab = searchParams.get('tab');
+        setActiveTab(qTab || 'active');
+    }, [searchParams]);
+
     // ==========================================
     // 1. ACTIVE SHIFT TRACKER STATE
     // ==========================================

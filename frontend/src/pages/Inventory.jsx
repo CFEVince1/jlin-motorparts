@@ -104,10 +104,12 @@ const Inventory = () => {
     }
     if (isAdmin && (qTab === 'reorder' || qTab === 'reorder_list')) {
       setActiveTab('reorder_list');
-    } else if (['categories_brands', 'physical_audit', 'catalog'].includes(qTab)) {
+    } else if (['categories_brands', 'physical_audit'].includes(qTab)) {
       setActiveTab(qTab);
     } else if (isAdmin && qTab === 'movements') {
       setActiveTab('movements');
+    } else {
+      setActiveTab('catalog');
     }
   }, [searchParams, isAdmin]);
 
