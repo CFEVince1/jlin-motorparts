@@ -174,12 +174,21 @@ exports.getStaffList = async (req, res) => {
                 cf.notes AS active_notes,
                 cf.assigned_at AS active_float_assigned_at,
                 cf.completed_at AS active_float_completed_at,
-                cf.assigned_by_username AS active_float_assigned_by
+                cf.assigned_by_username AS active_float_assigned_by,
+                last_cf.assigned_at AS last_shift_assigned_at,
+                last_cf.completed_at AS last_shift_completed_at,
+                last_cf.status AS last_shift_status
             FROM users u
             LEFT JOIN cash_floats cf ON cf.id = (
                 SELECT id FROM cash_floats 
                 WHERE staff_id = u.id 
                   AND status IN ('ACTIVE', 'PENDING_REMIT')
+                ORDER BY assigned_at DESC 
+                LIMIT 1
+            )
+            LEFT JOIN cash_floats last_cf ON last_cf.id = (
+                SELECT id FROM cash_floats 
+                WHERE staff_id = u.id 
                 ORDER BY assigned_at DESC 
                 LIMIT 1
             )

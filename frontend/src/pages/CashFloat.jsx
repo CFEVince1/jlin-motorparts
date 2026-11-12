@@ -28,7 +28,9 @@ import {
     Sliders,
     TrendingDown,
     TrendingUp,
-    KeyRound
+    KeyRound,
+    Play,
+    Square
 } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -610,6 +612,66 @@ export const CashFloat = () => {
             toast.error(err.response?.data?.message || 'Failed to open shift');
         } finally {
             setSubmittingTimeIn(false);
+        }
+    };
+
+    // 10. DIRECT 1-CLICK TIME-IN (Instant start with standard ₱2,000 float & POS unlock)
+    const handleDirectTimeIn = async (staff, startingFloat = 2000) => {
+        if (!isAdmin) return;
+        const staffName = staff.full_name || staff.username;
+        const confirmMsg = `Start Shift & Time-In @${staff.username} (${staffName})?\n\n• Starting Change Float: ₱${Number(startingFloat).toLocaleString('en-US', { minimumFractionDigits: 2 })}\n• POS Terminal: Will unlock immediately for selling.\n\nProceed?`;
+        if (!window.confirm(confirmMsg)) return;
+
+        setActionInProgressShiftId(`timein-${staff.id}`);
+        try {
+            const res = await api.post('/cash-float/open-shift', {
+                staff_id: staff.id,
+                starting_cash: Number(startingFloat),
+                notes: `Direct 1-Click Time-In by Admin ${user?.username || 'admin'}`
+            });
+            toast.success(res.data?.message || `🟢 Timed-In @${staff.username}! Register unlocked.`);
+            fetchActiveShift();
+            fetchRecords();
+            fetchStaffList();
+            fetchSummary();
+            notifyInventoryChange('shift_cancel');
+        } catch (err) {
+            console.error('Failed to time in staff:', err);
+            toast.error(err.response?.data?.message || 'Failed to time-in staff');
+        } finally {
+            setActionInProgressShiftId(null);
+        }
+    };
+
+    // 11. DIRECT 1-CLICK TIME-OUT (Instant close shift, record timestamp & lock POS)
+    const handleDirectTimeOut = async (staff) => {
+        if (!isAdmin) return;
+        const shiftId = staff.active_float_id || staff.id;
+        const staffName = staff.full_name || staff.username;
+        const currentDrawerCash = Number(staff.active_cash_balance || staff.active_expected_cash || staff.active_starting_cash || 0);
+        const salesCount = Number(staff.active_sales_count || 0);
+
+        const confirmMsg = `Clock Out & End Shift for @${staff.username} (${staffName})?\n\n• Recorded Closing Drawer Cash: ₱${currentDrawerCash.toLocaleString('en-US', { minimumFractionDigits: 2 })}\n• Shift Activity: ${salesCount} sale(s)\n• POS Terminal: Will be locked immediately.\n\nTime-out this staff member now?`;
+        if (!window.confirm(confirmMsg)) return;
+
+        setActionInProgressShiftId(shiftId);
+        try {
+            const res = await api.post('/cash-float/close-shift', {
+                shift_id: shiftId,
+                actual_cash: currentDrawerCash,
+                notes: `Direct 1-Click Time-Out by Admin ${user?.username || 'admin'}. Balanced closing cash: ₱${currentDrawerCash.toFixed(2)}`
+            });
+            toast.success(res.data?.message || `⏹ Timed-Out @${staff.username}. Shift completed & terminal locked.`);
+            fetchActiveShift();
+            fetchRecords();
+            fetchStaffList();
+            fetchSummary();
+            notifyInventoryChange('shift_cancel');
+        } catch (err) {
+            console.error('Failed to time out staff:', err);
+            toast.error(err.response?.data?.message || 'Failed to time out staff');
+        } finally {
+            setActionInProgressShiftId(null);
         }
     };
 
@@ -1865,21 +1927,85 @@ export const CashFloat = () => {
 
                                                     {/* Col 3: Time-In / Time-Out */}
                                                     <td style={{ padding: '12px 14px' }}>
-                                                        {hasActive ? (
+                                                        {status === 'ACTIVE' ? (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                                <div style={{ fontSize: '0.78rem' }}>
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                                        <span style={{ color: '#16a34a', fontWeight: 800 }}>🟢 IN:</span>
+                                                                        <strong>{formatAuditDate(s.active_float_assigned_at)}</strong>
+                                                                    </div>
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                                                                        <span style={{ color: '#3b82f6', fontWeight: 700 }}>⏱ OUT:</span>
+                                                                        <span style={{ color: '#10b981', fontWeight: 700 }}>Active On-Duty</span>
+                                                                    </div>
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleDirectTimeOut(s)}
+                                                                    disabled={isActionBusy}
+                                                                    style={{
+                                                                        padding: '4px 10px',
+                                                                        fontSize: '0.74rem',
+                                                                        fontWeight: 800,
+                                                                        background: '#dc2626',
+                                                                        color: '#fff',
+                                                                        border: 'none',
+                                                                        borderRadius: '6px',
+                                                                        cursor: 'pointer',
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '5px',
+                                                                        width: 'fit-content'
+                                                                    }}
+                                                                    title="Direct 1-Click Time-Out (records closing timestamp, locks terminal, ends shift)"
+                                                                >
+                                                                    <Square size={12} fill="#fff" /> ⏹ Time-Out Now
+                                                                </button>
+                                                            </div>
+                                                        ) : status === 'PENDING_REMIT' ? (
                                                             <div style={{ fontSize: '0.78rem' }}>
                                                                 <div>
                                                                     <span style={{ color: 'var(--text-muted)', fontSize: '0.70rem' }}>In: </span>
                                                                     <strong>{formatAuditDate(s.active_float_assigned_at)}</strong>
                                                                 </div>
                                                                 <div style={{ marginTop: '2px' }}>
-                                                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.70rem' }}>Out: </span>
-                                                                    <span style={{ color: s.active_float_completed_at ? 'var(--text-main)' : '#10b981' }}>
-                                                                        {s.active_float_completed_at ? formatAuditDate(s.active_float_completed_at) : 'Active Now'}
+                                                                    <span style={{ color: '#f59e0b', fontSize: '0.70rem', fontWeight: 700 }}>Out: </span>
+                                                                    <span style={{ color: '#f59e0b', fontWeight: 700 }}>
+                                                                        {s.active_float_completed_at ? formatAuditDate(s.active_float_completed_at) : 'Timed-Out (Pending Sign-off)'}
                                                                     </span>
                                                                 </div>
                                                             </div>
                                                         ) : (
-                                                            <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>—</span>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                                {s.last_shift_assigned_at ? (
+                                                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: '1.25' }}>
+                                                                        <div><span style={{ color: 'var(--text-muted)' }}>Last In:</span> {formatAuditDate(s.last_shift_assigned_at)}</div>
+                                                                        <div><span style={{ color: 'var(--text-muted)' }}>Last Out:</span> {s.last_shift_completed_at ? formatAuditDate(s.last_shift_completed_at) : 'Ended'}</div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                                                        ⚪ Off-Duty
+                                                                    </div>
+                                                                )}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleDirectTimeIn(s, 2000)}
+                                                                    disabled={isActionBusy}
+                                                                    className="btn-primary"
+                                                                    style={{
+                                                                        padding: '4px 10px',
+                                                                        fontSize: '0.74rem',
+                                                                        fontWeight: 800,
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '5px',
+                                                                        width: 'fit-content'
+                                                                    }}
+                                                                    title="Direct 1-Click Time-In (starts shift with standard ₱2,000 float & unlocks POS terminal)"
+                                                                >
+                                                                    <Play size={12} fill="currentColor" /> ▶ Time-In (₱2k)
+                                                                </button>
+                                                            </div>
                                                         )}
                                                     </td>
 
@@ -1932,23 +2058,47 @@ export const CashFloat = () => {
                                                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                                                             {/* Case 1: Off-Shift */}
                                                             {!hasActive && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        setTimeInStaff(s);
-                                                                        setTimeInFloat('2000');
-                                                                        setShowTimeInModal(true);
-                                                                    }}
-                                                                    className="btn-primary"
-                                                                    style={{ padding: '5px 12px', fontSize: '0.76rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                                                >
-                                                                    <Plus size={13} /> Time-In &amp; Assign Float
-                                                                </button>
+                                                                <>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleDirectTimeIn(s, 2000)}
+                                                                        disabled={isActionBusy}
+                                                                        className="btn-primary"
+                                                                        style={{ padding: '5px 12px', fontSize: '0.76rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                        title="Start shift with default ₱2,000 float & immediately unlock register"
+                                                                    >
+                                                                        <Play size={13} fill="currentColor" /> ▶ Time-In (₱2,000)
+                                                                    </button>
+
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setTimeInStaff(s);
+                                                                            setTimeInFloat('2000');
+                                                                            setShowTimeInModal(true);
+                                                                        }}
+                                                                        className="btn-secondary"
+                                                                        style={{ padding: '5px 10px', fontSize: '0.74rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                        title="Set custom starting float amount or notes"
+                                                                    >
+                                                                        <Sliders size={13} /> Custom Float...
+                                                                    </button>
+                                                                </>
                                                             )}
 
                                                             {/* Case 2: On-Shift with 0 Sales (Accidental open) */}
                                                             {status === 'ACTIVE' && salesCount === 0 && (
                                                                 <>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleDirectTimeOut(s)}
+                                                                        disabled={isActionBusy}
+                                                                        style={{ padding: '5px 12px', fontSize: '0.74rem', fontWeight: 800, background: '#dc2626', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                        title="1-Click Time-Out & End Shift"
+                                                                    >
+                                                                        <Square size={13} fill="#fff" /> ⏹ Time-Out &amp; Close
+                                                                    </button>
+
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => handleCancelShift(s)}
@@ -1959,25 +2109,22 @@ export const CashFloat = () => {
                                                                     >
                                                                         <X size={13} /> Unshift / Cancel
                                                                     </button>
-
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            setForceCloseShift(s);
-                                                                            setForceCloseActual('');
-                                                                            setForceCloseNotes('');
-                                                                            setShowForceCloseModal(true);
-                                                                        }}
-                                                                        style={{ padding: '5px 12px', fontSize: '0.74rem', fontWeight: 800, background: '#dc2626', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                                                    >
-                                                                        <Lock size={13} /> End Shift &amp; Remit
-                                                                    </button>
                                                                 </>
                                                             )}
 
                                                             {/* Case 3: On-Shift with Active Selling (>0 Sales) */}
                                                             {status === 'ACTIVE' && salesCount > 0 && (
                                                                 <>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleDirectTimeOut(s)}
+                                                                        disabled={isActionBusy}
+                                                                        style={{ padding: '5px 12px', fontSize: '0.74rem', fontWeight: 800, background: '#dc2626', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                        title="1-Click Time-Out & End Shift with recorded drawer balance"
+                                                                    >
+                                                                        <Square size={13} fill="#fff" /> ⏹ Time-Out &amp; Close
+                                                                    </button>
+
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => {
@@ -2000,9 +2147,11 @@ export const CashFloat = () => {
                                                                             setForceCloseNotes('');
                                                                             setShowForceCloseModal(true);
                                                                         }}
-                                                                        style={{ padding: '5px 12px', fontSize: '0.74rem', fontWeight: 800, background: '#dc2626', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                        className="btn-secondary"
+                                                                        style={{ padding: '5px 8px', fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                                                                        title="Enter physical bill count and audit breakdown"
                                                                     >
-                                                                        <Lock size={13} /> End Shift &amp; Remit
+                                                                        <Lock size={12} /> Detailed Count...
                                                                     </button>
                                                                 </>
                                                             )}
