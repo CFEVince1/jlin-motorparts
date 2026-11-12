@@ -1560,7 +1560,7 @@ const POS = ({ defaultTab }) => {
             </div>
 
             {activeTab === 'history' ? (
-                <div className="no-print pos-history-view" style={{ minHeight: '650px' }}>
+                <div className="no-print pos-history-view" style={{ minHeight: '650px', width: '100%', overflowX: 'hidden' }}>
                     <Transactions embedded={true} onStartReplacement={handleStartReplacementFromSale} />
                 </div>
             ) : activeTab === 'held' ? (

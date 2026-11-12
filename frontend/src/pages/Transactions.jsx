@@ -1362,19 +1362,19 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                         )}
 
                         {/* Table Area inside Rounded Card */}
-                        <div style={{ padding: '20px' }}>
+                        <div style={{ padding: embedded ? '10px 14px' : '20px' }}>
                             {loading ? <Spinner text="Loading transactions..." /> : (
                                 <>
-                                <div className="table-container" style={{ width: '100%', overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                                <table>
+                                <div className="table-container" style={{ width: '100%', overflowX: 'hidden', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                                <table style={{ width: '100%', tableLayout: 'fixed' }}>
                                     <thead>
                                         <tr>
-                                            <th style={{ minWidth: '110px' }}>Order & Payment</th>
-                                            <th style={{ minWidth: '150px' }}>Date & Cashier</th>
-                                            <th style={{ minWidth: '250px' }}>Purchased Items</th>
-                                            <th className="text-right" style={{ minWidth: '120px' }}>Total Amount</th>
-                                            <th style={{ textAlign: 'center', minWidth: '95px' }}>Status</th>
-                                            <th style={{ textAlign: 'center', minWidth: '200px', paddingRight: '12px' }}>Actions</th>
+                                            <th style={{ width: '12%', padding: '8px 10px' }}>Order &amp; Payment</th>
+                                            <th style={{ width: '15%', padding: '8px 10px' }}>Date &amp; Cashier</th>
+                                            <th style={{ width: '38%', padding: '8px 10px' }}>Purchased Items</th>
+                                            <th className="text-right" style={{ width: '12%', padding: '8px 10px' }}>Total Amount</th>
+                                            <th style={{ textAlign: 'center', width: '7%', padding: '8px 6px' }}>Status</th>
+                                            <th style={{ textAlign: 'center', width: '16%', padding: '8px 6px' }}>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -1473,29 +1473,28 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                                                     </div>
                                                                 </div>
                                                             ) : (
-                                                                <div>
+                                                                <div style={{ maxWidth: '100%', overflow: 'hidden' }}>
                                                                     <div
                                                                         style={{
                                                                             fontWeight: 600,
-                                                                            fontSize: '0.86rem',
+                                                                            fontSize: '0.84rem',
                                                                             color: 'var(--text-main)',
                                                                             overflow: 'hidden',
                                                                             textOverflow: 'ellipsis',
-                                                                            whiteSpace: 'nowrap',
-                                                                            maxWidth: '280px'
+                                                                            whiteSpace: 'nowrap'
                                                                         }}
                                                                         title={t.products_included}
                                                                     >
                                                                         {t.products_included}
                                                                     </div>
-                                                                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
                                                                         <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--text-muted)' }}>
                                                                             {t.part_numbers || t.part_number || 'GEN-PART'}
                                                                         </span>
                                                                         <span>•</span>
                                                                         <span style={{
                                                                             fontWeight: 700,
-                                                                            fontSize: '0.68rem',
+                                                                            fontSize: '0.66rem',
                                                                             padding: '1px 5px',
                                                                             borderRadius: '4px',
                                                                             background: 'rgba(255, 255, 255, 0.06)',
@@ -1530,16 +1529,16 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                                         </td>
 
                                                         {/* 6. Compact Actions */}
-                                                        <td style={{ textAlign: 'center', paddingRight: '12px', whiteSpace: 'nowrap' }}>
-                                                            <div style={{ display: 'inline-flex', gap: '5px', alignItems: 'center' }}>
+                                                        <td style={{ textAlign: 'center', padding: '6px 4px', whiteSpace: 'nowrap' }}>
+                                                            <div style={{ display: 'inline-flex', gap: '3px', alignItems: 'center', justifyContent: 'center' }}>
                                                                 <button
                                                                     onClick={() => handleViewReceipt(t.id)}
                                                                     className="btn-secondary"
-                                                                    style={{ padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.74rem' }}
+                                                                    style={{ padding: '3px 7px', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem' }}
                                                                     disabled={loadingReceipt}
                                                                     title="Reprint Receipt"
                                                                 >
-                                                                    <Printer size={13} /> Print
+                                                                    <Printer size={12} /> Print
                                                                 </button>
 
                                                                 {!isVoid && (
@@ -1552,10 +1551,10 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                                                             }
                                                                         }}
                                                                         className="btn-secondary"
-                                                                        style={{ padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.74rem', color: 'var(--primary)', borderColor: 'rgba(16, 185, 129, 0.4)', whiteSpace: 'nowrap' }}
+                                                                        style={{ padding: '3px 7px', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: 'var(--primary)', borderColor: 'rgba(16, 185, 129, 0.4)', whiteSpace: 'nowrap' }}
                                                                         title="Replace Item from this Sale"
                                                                     >
-                                                                        <ArrowLeftRight size={13} /> Replace Item
+                                                                        <ArrowLeftRight size={12} /> Replace
                                                                     </button>
                                                                 )}
 
@@ -1563,10 +1562,10 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                                                     <button
                                                                         onClick={() => handleOpenVoid(t)}
                                                                         className="btn-secondary"
-                                                                        style={{ padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.74rem', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)', whiteSpace: 'nowrap' }}
+                                                                        style={{ padding: '3px 7px', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)', whiteSpace: 'nowrap' }}
                                                                         title="Void Sale"
                                                                     >
-                                                                        <Ban size={13} /> Void Sale
+                                                                        <Ban size={12} /> Void
                                                                     </button>
                                                                 )}
                                                             </div>
