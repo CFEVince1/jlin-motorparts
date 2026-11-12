@@ -2543,7 +2543,7 @@ const POS = ({ defaultTab }) => {
                                 type="text"
                                 className="input-premium"
                                 style={{ height: '32px', fontSize: '0.78rem', padding: '4px 8px' }}
-                                placeholder="e.g. Suki / Bulk discount"
+                                placeholder="Reason (optional)"
                                 value={reqDiscountReason}
                                 onChange={(e) => setReqDiscountReason(e.target.value)}
                             />
