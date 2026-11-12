@@ -592,6 +592,39 @@ exports.openShift = async (req, res) => {
             });
         }
 
+        // Ensure all required Section 8 columns exist on cash_floats table
+        const [cfCols] = await db.query('SHOW COLUMNS FROM cash_floats');
+        const cfColNames = cfCols.map(c => c.Field);
+        const missingCols = [
+            { col: 'shift_code', def: 'VARCHAR(50) NULL' },
+            { col: 'gcash_sales', def: 'DECIMAL(12,2) NOT NULL DEFAULT 0.00' },
+            { col: 'petty_cash_expenses', def: 'DECIMAL(12,2) NOT NULL DEFAULT 0.00' },
+            { col: 'blind_count_entered', def: 'DECIMAL(12,2) NULL' },
+            { col: 'admin_signed_off', def: 'TINYINT(1) DEFAULT 0' },
+            { col: 'signed_off_by_id', def: 'INT NULL' },
+            { col: 'signed_off_by_name', def: 'VARCHAR(100) NULL' },
+            { col: 'signed_off_at', def: 'DATETIME NULL' },
+            { col: 'bills_1000', def: 'INT DEFAULT 0' },
+            { col: 'bills_500', def: 'INT DEFAULT 0' },
+            { col: 'bills_200', def: 'INT DEFAULT 0' },
+            { col: 'bills_100', def: 'INT DEFAULT 0' },
+            { col: 'bills_50', def: 'INT DEFAULT 0' },
+            { col: 'bills_20', def: 'INT DEFAULT 0' },
+            { col: 'coins_10', def: 'INT DEFAULT 0' },
+            { col: 'coins_5', def: 'INT DEFAULT 0' },
+            { col: 'coins_1', def: 'INT DEFAULT 0' }
+        ];
+        for (const item of missingCols) {
+            if (!cfColNames.includes(item.col)) {
+                try {
+                    await db.query(`ALTER TABLE cash_floats ADD COLUMN ${item.col} ${item.def}`);
+                    cfColNames.push(item.col);
+                } catch (colErr) {
+                    console.warn(`[openShift] Check/Add cash_floats.${item.col} notice:`, colErr.message);
+                }
+            }
+        }
+
         // Generate shift code e.g. SHIFT-005
         const [maxIdRow] = await db.query('SELECT MAX(id) as max_id FROM cash_floats');
         const nextId = (maxIdRow[0]?.max_id || 0) + 1;
@@ -872,6 +905,35 @@ exports.closeShiftBlindCount = async (req, res) => {
         else if (variance > 0) varianceBadge = 'OVERAGE';
 
         const closingNotes = notes ? notes.trim() : `Blind count submitted by ${staffUsername}. Variance: ₱${variance.toFixed(2)}`;
+
+        // Ensure all required Section 8 columns exist on cash_floats table
+        const [cfCloseCols] = await db.query('SHOW COLUMNS FROM cash_floats');
+        const cfCloseColNames = cfCloseCols.map(c => c.Field);
+        const missingCloseCols = [
+            { col: 'blind_count_entered', def: 'DECIMAL(12,2) NULL' },
+            { col: 'admin_signed_off', def: 'TINYINT(1) DEFAULT 0' },
+            { col: 'signed_off_by_id', def: 'INT NULL' },
+            { col: 'signed_off_by_name', def: 'VARCHAR(100) NULL' },
+            { col: 'signed_off_at', def: 'DATETIME NULL' },
+            { col: 'bills_1000', def: 'INT DEFAULT 0' },
+            { col: 'bills_500', def: 'INT DEFAULT 0' },
+            { col: 'bills_200', def: 'INT DEFAULT 0' },
+            { col: 'bills_100', def: 'INT DEFAULT 0' },
+            { col: 'bills_50', def: 'INT DEFAULT 0' },
+            { col: 'bills_20', def: 'INT DEFAULT 0' },
+            { col: 'coins_10', def: 'INT DEFAULT 0' },
+            { col: 'coins_5', def: 'INT DEFAULT 0' },
+            { col: 'coins_1', def: 'INT DEFAULT 0' }
+        ];
+        for (const item of missingCloseCols) {
+            if (!cfCloseColNames.includes(item.col)) {
+                try {
+                    await db.query(`ALTER TABLE cash_floats ADD COLUMN ${item.col} ${item.def}`);
+                } catch (colErr) {
+                    console.warn(`[closeShift] Check/Add cash_floats.${item.col} notice:`, colErr.message);
+                }
+            }
+        }
 
         await db.query(`
             UPDATE cash_floats SET
