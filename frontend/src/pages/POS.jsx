@@ -1524,9 +1524,6 @@ const POS = ({ defaultTab }) => {
                             <strong style={{ fontSize: '0.92rem', color: 'var(--primary)', fontFamily: 'monospace' }}>
                                 {formatCurrency(activeCashFloat.current_cash_balance)}
                             </strong>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                (Panukli: {formatCurrency(activeCashFloat.starting_cash || activeCashFloat.total_amount)})
-                            </span>
                         </div>
                     ) : shiftStatus === 'PENDING_REMIT' ? (
                         <div style={{
