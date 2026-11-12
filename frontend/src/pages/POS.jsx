@@ -842,7 +842,6 @@ const POS = ({ defaultTab }) => {
 
             saveReplacementMode(mode);
             setCart([]);
-            setSaleForReplacementModal(null);
             setActiveTab('register');
             setSearchParams({ tab: 'register' });
             toast.success(`Item Replacement Mode active! ₱${itemPrice.toFixed(2)} credit applied from #${fullSale.order_number || fullSale.id}.`);
