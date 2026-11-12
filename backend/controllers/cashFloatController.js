@@ -1012,7 +1012,7 @@ exports.closeShiftBlindCount = async (req, res) => {
             coins_1 = 0
         } = req.body;
 
-        let query = 'SELECT * FROM cash_floats WHERE (status = "ACTIVE" OR status = "PENDING_REMIT")';
+        let query = "SELECT * FROM cash_floats WHERE (status = 'ACTIVE' OR status = 'PENDING_REMIT')";
         const params = [];
 
         if (shift_id) {
@@ -1351,7 +1351,7 @@ exports.logCashDrop = async (req, res) => {
         }
 
         const [records] = await db.query(
-            'SELECT * FROM cash_floats WHERE (id = ? OR staff_id = ?) AND (status = "ACTIVE" OR status = "PENDING_REMIT") ORDER BY assigned_at DESC LIMIT 1 FOR UPDATE',
+            "SELECT * FROM cash_floats WHERE (id = ? OR staff_id = ?) AND (status = 'ACTIVE' OR status = 'PENDING_REMIT') ORDER BY assigned_at DESC LIMIT 1 FOR UPDATE",
             [shiftId, shiftId]
         );
         if (records.length === 0) {
