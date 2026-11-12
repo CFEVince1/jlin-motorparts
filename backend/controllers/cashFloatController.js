@@ -1,12 +1,125 @@
 const db = require('../config/db');
 const { logCashMovement, closePastDayActiveFloats } = require('../services/cashMovementService');
 
+let _ensuredCashFloats = false;
+async function ensureCashFloatsTableExists() {
+    if (_ensuredCashFloats) return;
+    try {
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS cash_floats (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                shift_code VARCHAR(50) NULL,
+                staff_id INT NOT NULL,
+                staff_username VARCHAR(50) NOT NULL,
+                assigned_by_id INT NOT NULL,
+                assigned_by_username VARCHAR(50) NOT NULL,
+                total_amount DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                starting_cash DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                current_cash_balance DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                cash_sales DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                gcash_sales DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                change_given DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                cash_refunds DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                petty_cash_expenses DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                expected_cash DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                actual_cash DECIMAL(12, 2) DEFAULT NULL,
+                blind_count_entered DECIMAL(12, 2) DEFAULT NULL,
+                shortage_overage DECIMAL(12, 2) DEFAULT NULL,
+                sales_count INT NOT NULL DEFAULT 0,
+                bills_1000 INT DEFAULT 0,
+                bills_500 INT DEFAULT 0,
+                bills_200 INT DEFAULT 0,
+                bills_100 INT DEFAULT 0,
+                bills_50 INT DEFAULT 0,
+                bills_20 INT DEFAULT 0,
+                coins_10 INT DEFAULT 0,
+                coins_5 INT DEFAULT 0,
+                coins_1 INT DEFAULT 0,
+                status ENUM('ACTIVE', 'COMPLETED', 'RETURNED') NOT NULL DEFAULT 'ACTIVE',
+                admin_signed_off TINYINT(1) DEFAULT 0,
+                signed_off_by_id INT NULL,
+                signed_off_by_name VARCHAR(100) NULL,
+                signed_off_at DATETIME NULL,
+                notes TEXT NULL,
+                reconciliation_notes TEXT NULL,
+                assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                completed_at DATETIME NULL,
+                returned_at DATETIME NULL,
+                INDEX idx_cf_staff (staff_id),
+                INDEX idx_cf_status (status),
+                INDEX idx_cf_assigned (assigned_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS cash_movements (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                cash_float_id INT NULL,
+                staff_id INT NOT NULL,
+                staff_username VARCHAR(50) NOT NULL,
+                movement_type VARCHAR(50) NOT NULL,
+                amount DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                balance_before DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                balance_after DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                reference_id VARCHAR(100) NULL,
+                notes TEXT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_cm_staff (staff_id),
+                INDEX idx_cm_float (cash_float_id),
+                INDEX idx_cm_created_at (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+
+        // Check for missing columns in cash_floats
+        const [cfCols] = await db.query('SHOW COLUMNS FROM cash_floats');
+        const cfColNames = cfCols.map(c => c.Field);
+        const missingCols = [
+            { col: 'shift_code', def: 'VARCHAR(50) NULL' },
+            { col: 'gcash_sales', def: 'DECIMAL(12,2) NOT NULL DEFAULT 0.00' },
+            { col: 'petty_cash_expenses', def: 'DECIMAL(12,2) NOT NULL DEFAULT 0.00' },
+            { col: 'blind_count_entered', def: 'DECIMAL(12,2) NULL' },
+            { col: 'shortage_overage', def: 'DECIMAL(12,2) NULL' },
+            { col: 'actual_cash', def: 'DECIMAL(12,2) NULL' },
+            { col: 'completed_at', def: 'DATETIME NULL' },
+            { col: 'returned_at', def: 'DATETIME NULL' },
+            { col: 'reconciliation_notes', def: 'TEXT NULL' },
+            { col: 'admin_signed_off', def: 'TINYINT(1) DEFAULT 0' },
+            { col: 'signed_off_by_id', def: 'INT NULL' },
+            { col: 'signed_off_by_name', def: 'VARCHAR(100) NULL' },
+            { col: 'signed_off_at', def: 'DATETIME NULL' },
+            { col: 'bills_1000', def: 'INT DEFAULT 0' },
+            { col: 'bills_500', def: 'INT DEFAULT 0' },
+            { col: 'bills_200', def: 'INT DEFAULT 0' },
+            { col: 'bills_100', def: 'INT DEFAULT 0' },
+            { col: 'bills_50', def: 'INT DEFAULT 0' },
+            { col: 'bills_20', def: 'INT DEFAULT 0' },
+            { col: 'coins_10', def: 'INT DEFAULT 0' },
+            { col: 'coins_5', def: 'INT DEFAULT 0' },
+            { col: 'coins_1', def: 'INT DEFAULT 0' }
+        ];
+        for (const item of missingCols) {
+            if (!cfColNames.includes(item.col)) {
+                try {
+                    await db.query(`ALTER TABLE cash_floats ADD COLUMN ${item.col} ${item.def}`);
+                    cfColNames.push(item.col);
+                } catch (colErr) {
+                    // Ignore column already exists
+                }
+            }
+        }
+        _ensuredCashFloats = true;
+    } catch (e) {
+        console.warn('[ensureCashFloatsTableExists notice]:', e.message);
+    }
+}
+
 /**
  * GET /api/cash-float/staff-list
  * Returns all active staff / cashiers with their current active shift float status
  */
 exports.getStaffList = async (req, res) => {
     try {
+        await ensureCashFloatsTableExists();
         await closePastDayActiveFloats();
         const query = `
             SELECT 
@@ -27,7 +140,7 @@ exports.getStaffList = async (req, res) => {
             FROM users u
             LEFT JOIN cash_floats cf ON u.id = cf.staff_id 
                 AND cf.status = 'ACTIVE' 
-                AND DATE(CONVERT_TZ(cf.assigned_at, '+00:00', '+08:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+08:00'))
+                AND (DATE(cf.assigned_at) = CURDATE() OR DATE(DATE_ADD(cf.assigned_at, INTERVAL 8 HOUR)) = DATE(DATE_ADD(NOW(), INTERVAL 8 HOUR)))
             WHERE LOWER(u.role) IN ('staff', 'cashier')
             ORDER BY u.username ASC
         `;
@@ -45,6 +158,7 @@ exports.getStaffList = async (req, res) => {
  */
 exports.getSummary = async (req, res) => {
     try {
+        await ensureCashFloatsTableExists();
         await closePastDayActiveFloats();
         const [rows] = await db.query(`
             SELECT 
@@ -55,7 +169,7 @@ exports.getSummary = async (req, res) => {
                 COALESCE(SUM(COALESCE(current_cash_balance, starting_cash, total_amount, 0)), 0) AS total_drawer_balance
             FROM cash_floats
             WHERE status = 'ACTIVE'
-              AND DATE(CONVERT_TZ(assigned_at, '+00:00', '+08:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+08:00'))
+              AND (DATE(assigned_at) = CURDATE() OR DATE(DATE_ADD(assigned_at, INTERVAL 8 HOUR)) = DATE(DATE_ADD(NOW(), INTERVAL 8 HOUR)))
         `);
         const row = rows[0] || {};
         res.json({
@@ -136,6 +250,7 @@ exports.getCashFloats = async (req, res) => {
  */
 exports.getMyCashFloat = async (req, res) => {
     try {
+        await ensureCashFloatsTableExists();
         await closePastDayActiveFloats();
         const staffId = req.user.id;
         const [floats] = await db.query(
@@ -147,7 +262,7 @@ exports.getMyCashFloat = async (req, res) => {
              FROM cash_floats cf 
              WHERE cf.staff_id = ? 
                AND cf.status = 'ACTIVE' 
-               AND DATE(CONVERT_TZ(cf.assigned_at, '+00:00', '+08:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+08:00'))
+               AND (DATE(cf.assigned_at) = CURDATE() OR DATE(DATE_ADD(cf.assigned_at, INTERVAL 8 HOUR)) = DATE(DATE_ADD(NOW(), INTERVAL 8 HOUR)))
              ORDER BY cf.assigned_at DESC LIMIT 1`,
             [staffId]
         );
@@ -206,7 +321,7 @@ exports.assignCashFloat = async (req, res) => {
              FROM cash_floats 
              WHERE staff_id = ? 
                AND status = 'ACTIVE' 
-               AND DATE(CONVERT_TZ(assigned_at, '+00:00', '+08:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+08:00'))`,
+               AND (DATE(assigned_at) = CURDATE() OR DATE(DATE_ADD(assigned_at, INTERVAL 8 HOUR)) = DATE(DATE_ADD(NOW(), INTERVAL 8 HOUR)))`,
             [staff_id]
         );
 
@@ -526,6 +641,7 @@ exports.getCashFloatById = async (req, res) => {
  */
 exports.openShift = async (req, res) => {
     try {
+        await ensureCashFloatsTableExists();
         await closePastDayActiveFloats();
         const currentUserId = req.user.id;
         const currentUsername = req.user.username;
@@ -579,7 +695,7 @@ exports.openShift = async (req, res) => {
         const [existingActive] = await db.query(
             `SELECT * FROM cash_floats 
              WHERE staff_id = ? AND status = 'ACTIVE' 
-               AND DATE(CONVERT_TZ(assigned_at, '+00:00', '+08:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+08:00'))`,
+               AND (DATE(assigned_at) = CURDATE() OR DATE(DATE_ADD(assigned_at, INTERVAL 8 HOUR)) = DATE(DATE_ADD(NOW(), INTERVAL 8 HOUR)))`,
             [targetStaffId]
         );
 
@@ -590,39 +706,6 @@ exports.openShift = async (req, res) => {
                 cashFloat: activeShift,
                 isExisting: true
             });
-        }
-
-        // Ensure all required Section 8 columns exist on cash_floats table
-        const [cfCols] = await db.query('SHOW COLUMNS FROM cash_floats');
-        const cfColNames = cfCols.map(c => c.Field);
-        const missingCols = [
-            { col: 'shift_code', def: 'VARCHAR(50) NULL' },
-            { col: 'gcash_sales', def: 'DECIMAL(12,2) NOT NULL DEFAULT 0.00' },
-            { col: 'petty_cash_expenses', def: 'DECIMAL(12,2) NOT NULL DEFAULT 0.00' },
-            { col: 'blind_count_entered', def: 'DECIMAL(12,2) NULL' },
-            { col: 'admin_signed_off', def: 'TINYINT(1) DEFAULT 0' },
-            { col: 'signed_off_by_id', def: 'INT NULL' },
-            { col: 'signed_off_by_name', def: 'VARCHAR(100) NULL' },
-            { col: 'signed_off_at', def: 'DATETIME NULL' },
-            { col: 'bills_1000', def: 'INT DEFAULT 0' },
-            { col: 'bills_500', def: 'INT DEFAULT 0' },
-            { col: 'bills_200', def: 'INT DEFAULT 0' },
-            { col: 'bills_100', def: 'INT DEFAULT 0' },
-            { col: 'bills_50', def: 'INT DEFAULT 0' },
-            { col: 'bills_20', def: 'INT DEFAULT 0' },
-            { col: 'coins_10', def: 'INT DEFAULT 0' },
-            { col: 'coins_5', def: 'INT DEFAULT 0' },
-            { col: 'coins_1', def: 'INT DEFAULT 0' }
-        ];
-        for (const item of missingCols) {
-            if (!cfColNames.includes(item.col)) {
-                try {
-                    await db.query(`ALTER TABLE cash_floats ADD COLUMN ${item.col} ${item.def}`);
-                    cfColNames.push(item.col);
-                } catch (colErr) {
-                    console.warn(`[openShift] Check/Add cash_floats.${item.col} notice:`, colErr.message);
-                }
-            }
         }
 
         // Generate shift code e.g. SHIFT-005
@@ -702,6 +785,7 @@ exports.openShift = async (req, res) => {
  */
 exports.getActiveShift = async (req, res) => {
     try {
+        await ensureCashFloatsTableExists();
         await closePastDayActiveFloats();
         const currentUserId = req.user.id;
         const { staff_id } = req.query;
@@ -721,7 +805,7 @@ exports.getActiveShift = async (req, res) => {
             FROM cash_floats cf
             LEFT JOIN users u ON cf.staff_id = u.id
             WHERE cf.staff_id = ? AND cf.status = 'ACTIVE'
-              AND DATE(CONVERT_TZ(cf.assigned_at, '+00:00', '+08:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+08:00'))
+              AND (DATE(cf.assigned_at) = CURDATE() OR DATE(DATE_ADD(cf.assigned_at, INTERVAL 8 HOUR)) = DATE(DATE_ADD(NOW(), INTERVAL 8 HOUR)))
             ORDER BY cf.assigned_at DESC LIMIT 1
         `, [targetStaffId]);
 
@@ -759,6 +843,7 @@ exports.getActiveShift = async (req, res) => {
  */
 exports.recordPettyCashExpense = async (req, res) => {
     try {
+        await ensureCashFloatsTableExists();
         const staffId = req.user.id;
         const staffUsername = req.user.username;
         const { amount, category, reason } = req.body;
@@ -774,7 +859,7 @@ exports.recordPettyCashExpense = async (req, res) => {
         const [activeFloats] = await db.query(`
             SELECT * FROM cash_floats
             WHERE staff_id = ? AND status = 'ACTIVE'
-              AND DATE(CONVERT_TZ(assigned_at, '+00:00', '+08:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+08:00'))
+              AND (DATE(assigned_at) = CURDATE() OR DATE(DATE_ADD(assigned_at, INTERVAL 8 HOUR)) = DATE(DATE_ADD(NOW(), INTERVAL 8 HOUR)))
             ORDER BY assigned_at DESC LIMIT 1 FOR UPDATE
         `, [staffId]);
 
@@ -832,6 +917,7 @@ exports.recordPettyCashExpense = async (req, res) => {
  */
 exports.closeShiftBlindCount = async (req, res) => {
     try {
+        await ensureCashFloatsTableExists();
         const staffId = req.user.id;
         const staffUsername = req.user.username;
         const isAdmin = (req.user.role || '').toLowerCase() === 'admin';

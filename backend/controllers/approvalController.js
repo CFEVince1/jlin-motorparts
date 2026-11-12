@@ -473,9 +473,40 @@ exports.verifyAdminPin = async (req, res, next) => {
     }
 };
 
+// Helper to ensure pos_discount_otps table exists
+async function ensureDiscountOtpsTableExists() {
+    try {
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS pos_discount_otps (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                otp_code VARCHAR(10) NOT NULL,
+                code_hash VARCHAR(255) NOT NULL,
+                cashier_id INT NULL,
+                cashier_name VARCHAR(150) NULL,
+                admin_email VARCHAR(200) NULL,
+                discount_type VARCHAR(20) NOT NULL DEFAULT 'fixed',
+                discount_value DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                reason TEXT NULL,
+                cart_retail DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                cart_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                attempts INT NOT NULL DEFAULT 0,
+                expires_at DATETIME NOT NULL,
+                used_at DATETIME NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_otp_cashier (cashier_id),
+                INDEX idx_otp_expires (expires_at),
+                INDEX idx_otp_used (used_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+    } catch (e) {
+        console.warn('[ensureDiscountOtpsTableExists notice]:', e.message);
+    }
+}
+
 // 7. REQUEST DISCOUNT OTP (Sends 6-digit code to Admin Gmail)
 exports.requestDiscountOtp = async (req, res, next) => {
     try {
+        await ensureDiscountOtpsTableExists();
         const { discount_type, discount_value, reason, cart_retail, cart_cost } = req.body;
         const val = parseFloat(discount_value);
 
@@ -568,6 +599,7 @@ exports.requestDiscountOtp = async (req, res, next) => {
 // 8. VERIFY DISCOUNT OTP (Cashier inputs code from Admin Gmail)
 exports.verifyDiscountOtp = async (req, res, next) => {
     try {
+        await ensureDiscountOtpsTableExists();
         const { otp } = req.body;
         const inputOtp = String(otp || '').trim();
 

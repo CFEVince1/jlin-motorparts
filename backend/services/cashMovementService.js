@@ -53,7 +53,7 @@ async function closePastDayActiveFloats(dbOrConn) {
                 reconciliation_notes = COALESCE(reconciliation_notes, 'Auto-closed on business day reset - New shift required')
             WHERE status = 'ACTIVE' 
               AND (
-                DATE(CONVERT_TZ(assigned_at, '+00:00', '+08:00')) < DATE(CONVERT_TZ(NOW(), '+00:00', '+08:00'))
+                DATE(DATE_ADD(assigned_at, INTERVAL 8 HOUR)) < DATE(DATE_ADD(NOW(), INTERVAL 8 HOUR))
                 OR DATE(assigned_at) < CURDATE()
               )
         `);
