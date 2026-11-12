@@ -26,7 +26,6 @@ import {
   RefreshCw,
   TrendingUp,
   TrendingDown,
-  ClipboardList,
   Tag
 } from 'lucide-react';
 import Spinner from '../components/Spinner';
@@ -48,7 +47,6 @@ import PrintInventoryModal from '../components/PrintInventoryModal';
 import ProductEditModal from '../components/ProductEditModal';
 import AddProductModal from '../components/AddProductModal';
 import CategoriesBrandsManager from '../components/CategoriesBrandsManager';
-import PhysicalInventoryAudit from '../components/PhysicalInventoryAudit';
 import LowStockReorderPanel from '../components/LowStockReorderPanel';
 
 const STANDARD_CATEGORIES = [
@@ -91,7 +89,7 @@ const Inventory = () => {
     const qTab = searchParams.get('tab');
     if (!isAdmin && (qTab === 'movements' || qTab === 'reorder' || qTab === 'reorder_list')) return 'catalog';
     if (isAdmin && (qTab === 'reorder' || qTab === 'reorder_list')) return 'reorder_list';
-    if (['categories_brands', 'physical_audit'].includes(qTab)) return qTab;
+    if (qTab === 'categories_brands') return 'categories_brands';
     if (isAdmin && qTab === 'movements') return 'movements';
     return 'catalog';
   });
@@ -104,8 +102,8 @@ const Inventory = () => {
     }
     if (isAdmin && (qTab === 'reorder' || qTab === 'reorder_list')) {
       setActiveTab('reorder_list');
-    } else if (['categories_brands', 'physical_audit'].includes(qTab)) {
-      setActiveTab(qTab);
+    } else if (qTab === 'categories_brands') {
+      setActiveTab('categories_brands');
     } else if (isAdmin && qTab === 'movements') {
       setActiveTab('movements');
     } else {
@@ -700,30 +698,6 @@ const Inventory = () => {
         >
           <Tag size={16} />
           <span>Categories & Brands</span>
-        </button>
-
-        <button
-          type="button"
-          className={activeTab === 'physical_audit' ? 'btn-primary' : 'btn-secondary'}
-          style={{
-            height: '38px',
-            padding: '0 16px',
-            fontSize: '0.84rem',
-            borderRadius: '10px',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            cursor: 'pointer',
-            fontWeight: 700,
-            background: activeTab === 'physical_audit' ? 'var(--primary)' : 'var(--surface)',
-            color: activeTab === 'physical_audit' ? '#ffffff' : 'var(--text-muted)',
-            border: activeTab === 'physical_audit' ? 'none' : '1.5px solid var(--border)',
-            boxShadow: activeTab === 'physical_audit' ? '0 2px 6px rgba(16, 185, 129, 0.25)' : 'none'
-          }}
-          onClick={() => handleTabChange('physical_audit')}
-        >
-          <ClipboardList size={16} />
-          <span>Stock Count (Physical Audit)</span>
         </button>
 
         {isAdmin && (
@@ -2017,14 +1991,7 @@ const Inventory = () => {
       )}
 
       {/* =========================================================================
-          TAB 4: STOCK COUNT (PHYSICAL INVENTORY AUDIT)
-         ========================================================================= */}
-      {activeTab === 'physical_audit' && (
-        <PhysicalInventoryAudit products={products} onAuditCompleted={fetchInventory} />
-      )}
-
-      {/* =========================================================================
-          TAB 5: LOW STOCK / REORDER LIST
+          TAB 4: LOW STOCK / REORDER LIST
          ========================================================================= */}
       {isAdmin && activeTab === 'reorder_list' && (
         <LowStockReorderPanel products={products} onRefresh={fetchInventory} />
