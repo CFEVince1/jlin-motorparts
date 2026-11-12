@@ -41,9 +41,14 @@ const Login = () => {
             loginSchema.parse({ username, password });
 
             setLoading(true);
-            await login(username, password);
+            const loginRes = await login(username, password);
             toast.success('Successfully logged in');
-            navigate('/dashboard');
+            const role = (loginRes?.user?.role || '').toLowerCase();
+            if (role === 'admin') {
+                navigate('/dashboard');
+            } else {
+                navigate('/pos');
+            }
         } catch (err) {
             setLoading(false);
             const issues = err.issues || err.errors;

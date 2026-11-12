@@ -62,7 +62,7 @@ const Sidebar = ({
     };
 
     const primaryLinks = [
-        { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={19} />, roles: ['admin', 'cashier'] },
+        { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={19} />, roles: ['admin'] },
         { name: 'Sale (POS)', path: '/pos', icon: <ShoppingCart size={19} />, roles: ['admin', 'cashier'] },
         { name: 'Item Replacement', path: '/item-swap', icon: <ArrowLeftRight size={19} />, roles: ['admin', 'cashier'] },
         { name: 'Inventory', path: '/inventory', icon: <Archive size={19} />, roles: ['admin', 'cashier'] },

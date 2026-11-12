@@ -68,6 +68,13 @@ export default function Dashboard() {
     const [searchParams] = useSearchParams();
     const isAdmin = (user?.role || '').toLowerCase() === 'admin';
 
+    // Confidentiality Protection: Staff/Cashiers must never view store revenue and financials
+    useEffect(() => {
+        if (user && (user.role || '').toLowerCase() !== 'admin') {
+            navigate('/pos', { replace: true });
+        }
+    }, [user, navigate]);
+
     // ==========================================
     // 1. TIMEFRAME & DATE FILTER STATE
     // ==========================================
