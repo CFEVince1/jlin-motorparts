@@ -3005,40 +3005,58 @@ const POS = ({ defaultTab }) => {
                             {/* Balance / Top-Up Due Line */}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderTop: '1px dashed var(--border)', paddingTop: '8px' }}>
                                 <div>
-                                    <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>
-                                        Net Top-Up Payable
+                                    <div style={{ fontWeight: 800, fontSize: '0.94rem', color: replacementTopUpDue > 0 ? '#10b981' : (isUnderReplacementCredit ? 'var(--warning-text)' : 'var(--text-main)'), display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        {replacementTopUpDue > 0 ? (
+                                            <>
+                                                <TrendingUp size={16} />
+                                                <span>Upgrade Top-Up Due</span>
+                                            </>
+                                        ) : isUnderReplacementCredit ? (
+                                            <>
+                                                <AlertCircle size={15} />
+                                                <span>Remaining Unspent Credit</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <CheckCircle2 size={15} />
+                                                <span>Even Value Exchange</span>
+                                            </>
+                                        )}
                                     </div>
-                                    <div style={{ fontSize: '0.72rem', color: isUnderReplacementCredit ? '#ef4444' : 'var(--text-muted)' }}>
-                                        {isUnderReplacementCredit
-                                            ? `Short by ${formatCurrency(replacementRemainingCredit)}`
-                                            : (replacementTopUpDue > 0 ? '+Top-Up Due (Cash / GCash)' : 'Even Exchange (₱0.00)')}
+                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                        {replacementTopUpDue > 0
+                                            ? 'Customer pays upgrade difference (Cash or GCash)'
+                                            : (isUnderReplacementCredit ? 'Select more parts or choose an upgrade' : 'Exact value match • ₱0.00 balance')}
                                     </div>
                                 </div>
                                 <span style={{
-                                    fontWeight: 'bold',
-                                    fontSize: '1.4rem',
+                                    fontWeight: 900,
+                                    fontSize: '1.45rem',
                                     fontFamily: 'monospace',
-                                    color: isUnderReplacementCredit ? 'var(--text-muted)' : (replacementTopUpDue > 0 ? '#f59e0b' : '#10b981')
+                                    color: replacementTopUpDue > 0 ? '#10b981' : (isUnderReplacementCredit ? 'var(--warning-text)' : 'var(--primary)')
                                 }}>
-                                    {isUnderReplacementCredit
-                                        ? '₱0.00'
-                                        : (replacementTopUpDue > 0 ? `+${formatCurrency(replacementTopUpDue)}` : '₱0.00')}
+                                    {replacementTopUpDue > 0
+                                        ? `+${formatCurrency(replacementTopUpDue)}`
+                                        : (isUnderReplacementCredit ? formatCurrency(replacementRemainingCredit) : '₱0.00')}
                                 </span>
                             </div>
 
-                            {/* Zero Cash Refund Policy Warning when under credit */}
+                            {/* Helpful Guidance when under credit */}
                             {isUnderReplacementCredit && (
                                 <div style={{
                                     marginBottom: '10px',
-                                    background: 'rgba(239, 68, 68, 0.1)',
-                                    border: '1px solid rgba(239, 68, 68, 0.3)',
-                                    borderRadius: '6px',
-                                    padding: '8px 10px',
-                                    color: '#ef4444',
-                                    fontSize: '0.74rem',
-                                    lineHeight: 1.35
+                                    background: 'var(--warning-bg)',
+                                    border: '1px solid var(--warning-border)',
+                                    borderRadius: '8px',
+                                    padding: '10px 12px',
+                                    color: 'var(--warning-text)',
+                                    fontSize: '0.75rem',
+                                    lineHeight: 1.4
                                 }}>
-                                    <strong>Zero Cash Refund Policy:</strong> Current replacement subtotal ({formatCurrency(cartGrossSubtotal)}) is less than trade-in credit ({formatCurrency(replacementCredit)}). Please add at least <strong>{formatCurrency(replacementRemainingCredit)}</strong> more in motorparts from the catalog.
+                                    <div style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '3px' }}>
+                                        <span>💡 Upgrade or Complete Exchange:</span>
+                                    </div>
+                                    Customer has <strong>{formatCurrency(replacementRemainingCredit)}</strong> trade-in credit left to spend. You can add more items from the catalog, or pick a pricier upgrade part (e.g. Brembo 4-Piston Caliper). Any upgrade difference will be collected at checkout.
                                 </div>
                             )}
 
@@ -3052,6 +3070,7 @@ const POS = ({ defaultTab }) => {
                                     style={{
                                         padding: '12px 14px',
                                         fontSize: '0.88rem',
+                                        fontWeight: 800,
                                         borderRadius: '8px',
                                         display: 'flex',
                                         alignItems: 'center',
@@ -3060,12 +3079,22 @@ const POS = ({ defaultTab }) => {
                                         cursor: (isUnderReplacementCredit || cart.length === 0) ? 'not-allowed' : 'pointer'
                                     }}
                                 >
-                                    <CheckCircle2 size={16} />
-                                    {isUnderReplacementCredit
-                                        ? `Add ${formatCurrency(replacementRemainingCredit)} More to Complete`
-                                        : (replacementTopUpDue > 0
-                                            ? `Pay ${formatCurrency(replacementTopUpDue)} & Print`
-                                            : 'Even Exchange (₱0.00) & Print')}
+                                    {isUnderReplacementCredit ? (
+                                        <>
+                                            <AlertCircle size={16} />
+                                            <span>Add {formatCurrency(replacementRemainingCredit)} More or Pick Upgrade</span>
+                                        </>
+                                    ) : replacementTopUpDue > 0 ? (
+                                        <>
+                                            <TrendingUp size={16} />
+                                            <span>Pay +{formatCurrency(replacementTopUpDue)} Upgrade &amp; Print</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircle2 size={16} />
+                                            <span>Even Exchange (₱0.00) &amp; Print</span>
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </>
@@ -3689,28 +3718,38 @@ const POS = ({ defaultTab }) => {
                         <div style={{
                             padding: '12px 14px',
                             borderRadius: '8px',
-                            background: replacementTopUpDue > 0 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                            border: `1px solid ${replacementTopUpDue > 0 ? 'rgba(245, 158, 11, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
+                            background: replacementTopUpDue > 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.08)',
+                            border: `1px solid rgba(16, 185, 129, 0.3)`,
                             marginBottom: '16px',
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center'
                         }}>
                             <div>
-                                <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>
-                                    {replacementTopUpDue > 0 ? 'Upgrade Top-Up Amount Due:' : 'Net Difference:'}
+                                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    {replacementTopUpDue > 0 ? (
+                                        <>
+                                            <TrendingUp size={16} color="#10b981" />
+                                            <span>Upgrade Top-Up Amount Due:</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircle2 size={16} color="#10b981" />
+                                            <span>Even Value Exchange:</span>
+                                        </>
+                                    )}
                                 </div>
-                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                    {replacementTopUpDue > 0 ? 'Customer pays the upgrade difference' : 'Even value exchange • No payment required'}
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                    {replacementTopUpDue > 0 ? 'Customer pays the upgrade difference (Cash or GCash)' : 'Even value exchange • No payment required'}
                                 </div>
                             </div>
                             <div style={{
-                                fontSize: '1.35rem',
+                                fontSize: '1.4rem',
                                 fontWeight: 900,
                                 fontFamily: 'monospace',
-                                color: replacementTopUpDue > 0 ? '#f59e0b' : '#10b981'
+                                color: '#10b981'
                             }}>
-                                {formatCurrency(replacementTopUpDue)}
+                                {replacementTopUpDue > 0 ? `+${formatCurrency(replacementTopUpDue)}` : '₱0.00'}
                             </div>
                         </div>
 
@@ -3787,14 +3826,21 @@ const POS = ({ defaultTab }) => {
                                         />
                                         {/* Quick buttons */}
                                         <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
-                                            {[replacementTopUpDue, 100, 200, 500, 1000].filter((amt, idx, arr) => amt >= replacementTopUpDue && arr.indexOf(amt) === idx).map(amt => (
+                                            {[
+                                                replacementTopUpDue,
+                                                Math.ceil(replacementTopUpDue / 100) * 100,
+                                                Math.ceil(replacementTopUpDue / 500) * 500,
+                                                Math.ceil(replacementTopUpDue / 1000) * 1000,
+                                                (Math.floor(replacementTopUpDue / 1000) + 1) * 1000
+                                            ].filter((amt, idx, arr) => amt >= replacementTopUpDue && arr.indexOf(amt) === idx && amt > 0).slice(0, 5).map(amt => (
                                                 <button
                                                     key={amt}
                                                     type="button"
                                                     onClick={() => setSwapTendered(String(amt))}
                                                     style={{
-                                                        padding: '3px 8px',
-                                                        fontSize: '0.72rem',
+                                                        padding: '4px 10px',
+                                                        fontSize: '0.74rem',
+                                                        fontWeight: 700,
                                                         borderRadius: '4px',
                                                         border: '1px solid var(--border)',
                                                         background: 'var(--surface-hover)',
@@ -3802,7 +3848,7 @@ const POS = ({ defaultTab }) => {
                                                         cursor: 'pointer'
                                                     }}
                                                 >
-                                                    ₱{amt}
+                                                    ₱{amt.toLocaleString()}
                                                 </button>
                                             ))}
                                         </div>
@@ -3864,7 +3910,11 @@ const POS = ({ defaultTab }) => {
                                 style={{ flex: 1.5, padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                             >
                                 <CheckCircle2 size={16} />
-                                {submittingSwap ? 'Processing Exchange...' : 'Confirm & Issue Slip'}
+                                {submittingSwap
+                                    ? 'Processing Exchange...'
+                                    : (replacementTopUpDue > 0
+                                        ? `Confirm & Pay +${formatCurrency(replacementTopUpDue)}`
+                                        : 'Confirm & Issue Slip')}
                             </button>
                         </div>
                     </div>
