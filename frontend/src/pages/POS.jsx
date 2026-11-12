@@ -36,7 +36,7 @@ const getPageNumbers = (current, total) => {
 const POS = ({ defaultTab }) => {
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
-    const { user } = useContext(AuthContext);
+    const { user, logout } = useContext(AuthContext);
 
     const initialTab = useMemo(() => {
         const qTab = searchParams.get('tab');
@@ -101,9 +101,7 @@ const POS = ({ defaultTab }) => {
                 const isStaff = user && (user.role || '').toLowerCase() !== 'admin';
                 if (isStaff) {
                     sessionStorage.setItem('loginMessage', 'Your shift has been ended by the Admin.');
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('user');
-                    window.location.href = '/login';
+                    logout();
                 }
             }
         } catch (err) {

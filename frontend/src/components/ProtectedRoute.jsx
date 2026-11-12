@@ -20,7 +20,7 @@ const ProtectedRoute = ({ allowedRoles }) => {
 
     const userRole = (user?.role || '').toLowerCase() === 'admin' ? 'admin' : 'cashier';
     if (allowedRoles && !allowedRoles.map(r => r.toLowerCase()).includes(userRole)) {
-        return <Navigate to="/dashboard" replace />;
+        return <Navigate to={userRole === 'admin' ? '/dashboard' : '/pos'} replace />;
     }
 
     return <Outlet />;

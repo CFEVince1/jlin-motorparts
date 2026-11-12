@@ -454,8 +454,8 @@ export const ItemSwap = () => {
     // ==========================================
     // FETCH SWAP AUDIT HISTORY
     // ==========================================
-    const fetchSwapHistory = useCallback(async () => {
-        setLoadingSwaps(true);
+    const fetchSwapHistory = useCallback(async (silent = false) => {
+        if (!silent) setLoadingSwaps(true);
         try {
             const res = await api.get('/swaps', {
                 params: {
@@ -473,9 +473,9 @@ export const ItemSwap = () => {
             }
         } catch (err) {
             console.error('Error fetching swap history:', err);
-            toast.error('Failed to load swap records');
+            if (!silent) toast.error('Failed to load swap records');
         } finally {
-            setLoadingSwaps(false);
+            if (!silent) setLoadingSwaps(false);
         }
     }, [historyPage, historySearch]);
 
@@ -486,15 +486,15 @@ export const ItemSwap = () => {
 
         const unsubscribe = subscribeToInventoryChange(() => {
             if (activeTab === 'swap_history') {
-                fetchSwapHistory();
+                fetchSwapHistory(true);
             }
         });
 
-        // 8-second live sync polling
+        // 8-second live sync polling without flashing UI
         const poll = setInterval(() => {
             if (typeof document !== 'undefined' && document.hidden) return;
             if (activeTab === 'swap_history') {
-                fetchSwapHistory();
+                fetchSwapHistory(true);
             }
         }, 8000);
 

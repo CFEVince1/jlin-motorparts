@@ -126,7 +126,7 @@ app.get('/', (req, res) => {
 let lastServerError = null;
 
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', service: 'jlin-inventory-api', timestamp: new Date().toISOString() });
+    res.json({ status: 'ok', service: 'jlin-inventory-api', version: '1.0.1', timestamp: new Date().toISOString() });
 });
 
 app.get('/health/db', async (req, res) => {

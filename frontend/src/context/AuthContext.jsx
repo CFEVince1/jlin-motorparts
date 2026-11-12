@@ -66,17 +66,21 @@ export const AuthProvider = ({ children }) => {
                             const shiftData = floatRes.data;
                             if (!shiftData?.activeFloat || shiftData?.status !== 'ACTIVE') {
                                 localStorage.removeItem('token');
-                                setUser(null);
                                 sessionStorage.setItem('loginMessage', 'Login Restricted: No active shift has been opened by the Admin.');
-                                window.location.href = '/login';
+                                setUser(null);
+                                setLoading(false);
                                 return;
                             }
                         } catch (floatErr) {
-                            localStorage.removeItem('token');
-                            setUser(null);
-                            sessionStorage.setItem('loginMessage', 'Login Restricted: No active shift has been opened by the Admin.');
-                            window.location.href = '/login';
-                            return;
+                            const status = floatErr.response?.status;
+                            if (status === 401 || status === 403) {
+                                localStorage.removeItem('token');
+                                sessionStorage.setItem('loginMessage', 'Login Restricted: No active shift has been opened by the Admin.');
+                                setUser(null);
+                                setLoading(false);
+                                return;
+                            }
+                            // On network error or cold-start, do not abruptly wipe session; wait for heartbeat
                         }
                     }
 
@@ -107,15 +111,13 @@ export const AuthProvider = ({ children }) => {
                 const shiftData = floatRes.data;
                 if (!shiftData?.activeFloat || shiftData?.status !== 'ACTIVE') {
                     localStorage.removeItem('token');
-                    setUser(null);
                     sessionStorage.setItem('loginMessage', 'Your shift has ended. Logged out for system confidentiality.');
-                    window.location.href = '/login';
+                    setUser(null);
                 }
             } catch (err) {
                 if (err.response?.status === 401 || err.response?.status === 403) {
                     localStorage.removeItem('token');
                     setUser(null);
-                    window.location.href = '/login';
                 }
             }
         }, 15000);

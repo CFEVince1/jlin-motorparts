@@ -394,8 +394,8 @@ const Transactions = ({ embedded = false, defaultTab }) => {
         }
     }, [isStaff]);
 
-    const fetchTransactions = useCallback(async (page = 1, limit = pageSize) => {
-        setLoading(true);
+    const fetchTransactions = useCallback(async (page = 1, limit = pageSize, silent = false) => {
+        if (!silent) setLoading(true);
         try {
             const params = {
                 page,
@@ -430,9 +430,9 @@ const Transactions = ({ embedded = false, defaultTab }) => {
                 setSalesSummary(rawData.summary);
             }
         } catch {
-            toast.error('Failed to load transactions');
+            if (!silent) toast.error('Failed to load transactions');
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     }, [debouncedSearchQuery, filterDate, filterStartDate, filterEndDate, sortBy, statusFilter, paymentMethodFilter, filterType, isStaff, staffScope, userFilter, pageSize]);
 
@@ -461,23 +461,23 @@ const Transactions = ({ embedded = false, defaultTab }) => {
     };
 
     useEffect(() => {
-        fetchTransactions(1, pageSize);
+        fetchTransactions(pagination.page || 1, pageSize);
 
         const unsubscribe = subscribeToInventoryChange(() => {
-            fetchTransactions(1, pageSize);
+            fetchTransactions(pagination.page || 1, pageSize, true);
         });
 
-        // 8-second live sync polling
+        // 8-second live sync polling without interrupting UI or flickering loading spinner
         const poll = setInterval(() => {
             if (typeof document !== 'undefined' && document.hidden) return;
-            fetchTransactions(1, pageSize);
+            fetchTransactions(pagination.page || 1, pageSize, true);
         }, 8000);
 
         return () => {
             unsubscribe();
             clearInterval(poll);
         };
-    }, [debouncedSearchQuery, filterDate, filterStartDate, filterEndDate, sortBy, statusFilter, paymentMethodFilter, filterType, staffScope, userFilter, pageSize, fetchTransactions]);
+    }, [debouncedSearchQuery, filterDate, filterStartDate, filterEndDate, sortBy, statusFilter, paymentMethodFilter, filterType, staffScope, userFilter, pageSize, fetchTransactions, pagination.page]);
 
     const handleOpenVoid = (transaction) => {
         setVoidTarget(transaction);

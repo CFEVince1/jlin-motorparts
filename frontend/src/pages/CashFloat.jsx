@@ -178,21 +178,21 @@ export const CashFloat = () => {
     };
 
     // Fetch active shift tracker
-    const fetchActiveShift = useCallback(async () => {
-        setLoadingActiveShift(true);
+    const fetchActiveShift = useCallback(async (silent = false) => {
+        if (!silent) setLoadingActiveShift(true);
         try {
             const res = await api.get('/cash-float/active-shift');
             setActiveShift(res.data?.activeShift || null);
         } catch (err) {
             console.error('Failed to load active shift:', err);
         } finally {
-            setLoadingActiveShift(false);
+            if (!silent) setLoadingActiveShift(false);
         }
     }, []);
 
     // Fetch shift history records
-    const fetchRecords = useCallback(async () => {
-        setLoadingRecords(true);
+    const fetchRecords = useCallback(async (silent = false) => {
+        if (!silent) setLoadingRecords(true);
         try {
             const params = {};
             if (statusFilter !== 'ALL' && statusFilter !== 'DISCREPANCY') params.status = statusFilter;
@@ -208,9 +208,9 @@ export const CashFloat = () => {
             setRecords(list);
         } catch (err) {
             console.error('Failed to load shift records:', err);
-            toast.error('Failed to load cash count history');
+            if (!silent) toast.error('Failed to load cash count history');
         } finally {
-            setLoadingRecords(false);
+            if (!silent) setLoadingRecords(false);
         }
     }, [statusFilter, staffFilter, dateFilter, searchTerm]);
 
@@ -249,17 +249,17 @@ export const CashFloat = () => {
 
         // Real-time cross-tab & live sync
         const unsubscribe = subscribeToInventoryChange(() => {
-            fetchActiveShift();
-            fetchRecords();
+            fetchActiveShift(true);
+            fetchRecords(true);
             fetchStaffList();
             fetchSummary();
         });
 
-        // 5-second gentle background polling so shift submissions / remittances appear live without restarting
+        // 5-second gentle background polling so shift submissions / remittances appear live without restarting or flashing
         const poll = setInterval(() => {
             if (typeof document !== 'undefined' && document.hidden) return;
-            fetchActiveShift();
-            fetchRecords();
+            fetchActiveShift(true);
+            fetchRecords(true);
             fetchSummary();
         }, 5000);
 

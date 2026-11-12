@@ -138,8 +138,8 @@ const Inventory = () => {
   });
   const [quickLookupSearch, setQuickLookupSearch] = useState('');
 
-  const fetchMovements = useCallback(async (page = 1, limit = movementsLimit) => {
-    setLoadingMovements(true);
+  const fetchMovements = useCallback(async (page = 1, limit = movementsLimit, silent = false) => {
+    if (!silent) setLoadingMovements(true);
     try {
       const res = await api.get('/inventory/movements', {
         params: {
@@ -165,9 +165,9 @@ const Inventory = () => {
         setMovementsPage(rawData.pagination.page);
       }
     } catch {
-      toast.error('Failed to load stock movements');
+      if (!silent) toast.error('Failed to load stock movements');
     } finally {
-      setLoadingMovements(false);
+      if (!silent) setLoadingMovements(false);
     }
   }, [movementSearch, movementType, movementStartDate, movementEndDate, movementsLimit]);
 
@@ -465,15 +465,15 @@ const Inventory = () => {
     return STANDARD_TAXONOMY_KEYS.filter(k => (categoryCounts[k] || 0) > 0);
   }, [categoryCounts]);
 
-  const fetchInventory = async () => {
-    setLoading(true);
+  const fetchInventory = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await api.get('/inventory');
       setProducts(res.data || []);
     } catch {
-      toast.error('Failed to load inventory');
+      if (!silent) toast.error('Failed to load inventory');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -482,21 +482,22 @@ const Inventory = () => {
     fetchMovements(1, movementsLimit);
 
     const unsubscribe = subscribeToInventoryChange(() => {
-      fetchInventory();
-      fetchMovements(1, movementsLimit);
+      fetchInventory(true);
+      fetchMovements(movementsPage || 1, movementsLimit, true);
     });
 
-    // 8-second live sync polling: keeps stock and movements up-to-date in real time without restarting
+    // 8-second live sync polling: keeps stock and movements up-to-date in real time without refreshing or flashing UI
     const poll = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
-      fetchInventory();
+      fetchInventory(true);
+      fetchMovements(movementsPage || 1, movementsLimit, true);
     }, 8000);
 
     return () => {
       unsubscribe();
       clearInterval(poll);
     };
-  }, []);
+  }, [movementsLimit, movementsPage, fetchMovements]);
 
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Are you sure you want to delete ${name}? This will remove it from the active inventory catalog.`)) return;

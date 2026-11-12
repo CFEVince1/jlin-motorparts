@@ -1,6 +1,8 @@
+import { useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
+import { AuthContext } from './context/AuthContextValue';
 import ProtectedRoute from './components/ProtectedRoute';
 import MainLayout from './components/MainLayout';
 
@@ -34,6 +36,12 @@ const TransactionsRoute = () => {
   return <Navigate to={`/pos?${params.toString()}`} replace />;
 };
 
+const RoleBasedHome = () => {
+  const { user } = useContext(AuthContext);
+  const isAdmin = (user?.role || '').toLowerCase() === 'admin';
+  return <Navigate to={isAdmin ? "/dashboard" : "/pos"} replace />;
+};
+
 function App() {
   return (
     <AuthProvider>
@@ -54,8 +62,7 @@ function App() {
           {/* Protected Routes inside MainLayout */}
           <Route element={<ProtectedRoute />}>
             <Route element={<MainLayout />}>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/" element={<RoleBasedHome />} />
               <Route path="/pos" element={<POS />} />
               <Route path="/item-swap" element={<ItemSwap />} />
               <Route path="/swap" element={<Navigate to="/item-swap" replace />} />
@@ -69,8 +76,9 @@ function App() {
               <Route path="/profile" element={<StaffProfileScreen />} />
               <Route path="/inventory" element={<Inventory />} />
               <Route path="/approvals" element={<Navigate to="/pos?tab=history" replace />} />
-              {/* Admin Roles */}
+              {/* Admin Roles ONLY */}
               <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
+                <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/purchasing" element={<Purchasing />} />
                 <Route path="/suppliers" element={<Suppliers />} />
                 <Route path="/stock-receive" element={<Navigate to="/purchasing?tab=receive_orders" replace />} />
