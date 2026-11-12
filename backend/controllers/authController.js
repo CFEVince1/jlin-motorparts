@@ -89,11 +89,10 @@ exports.login = async (req, res) => {
         }
 
         const tokenVersion = user.token_version !== undefined && user.token_version !== null ? user.token_version : 1;
-        const normalizedRole = (user.role || '').toLowerCase();
         const payload = {
             id: user.id,
             username: user.username,
-            role: normalizedRole === 'admin' ? 'admin' : 'staff',
+            role: isAdmin ? 'admin' : 'staff',
             tokenVersion
         };
 
