@@ -64,9 +64,16 @@ export const AuthProvider = ({ children }) => {
                         try {
                             const floatRes = await api.get('/cash-float/my-float');
                             const shiftData = floatRes.data;
-                            if (!shiftData?.activeFloat || shiftData?.status !== 'ACTIVE') {
+                            const activeFloat = shiftData?.activeFloat;
+                            const shiftStatus = activeFloat?.status || shiftData?.status;
+                            const hasValidActiveShift = Boolean(activeFloat && shiftStatus === 'ACTIVE');
+
+                            if (!hasValidActiveShift) {
                                 localStorage.removeItem('token');
-                                sessionStorage.setItem('loginMessage', 'Login Restricted: No active shift has been opened by the Admin.');
+                                const msg = shiftStatus === 'PENDING_REMIT'
+                                    ? 'Shift Closing in Progress: Your preliminary count has been submitted and is awaiting Admin verification.'
+                                    : 'Login Restricted: No active shift has been opened by the Admin.';
+                                sessionStorage.setItem('loginMessage', msg);
                                 setUser(null);
                                 setLoading(false);
                                 return;
@@ -109,7 +116,11 @@ export const AuthProvider = ({ children }) => {
             try {
                 const floatRes = await api.get('/cash-float/my-float');
                 const shiftData = floatRes.data;
-                if (!shiftData?.activeFloat || shiftData?.status !== 'ACTIVE') {
+                const activeFloat = shiftData?.activeFloat;
+                const shiftStatus = activeFloat?.status || shiftData?.status;
+                const hasValidActiveShift = Boolean(activeFloat && shiftStatus === 'ACTIVE');
+
+                if (!hasValidActiveShift) {
                     localStorage.removeItem('token');
                     sessionStorage.setItem('loginMessage', 'Your shift has ended. Logged out for system confidentiality.');
                     setUser(null);
@@ -138,12 +149,13 @@ export const AuthProvider = ({ children }) => {
                 });
                 const shiftData = floatRes.data;
                 const activeFloat = shiftData?.activeFloat;
-                const status = shiftData?.status;
+                const shiftStatus = activeFloat?.status || shiftData?.status;
+                const hasValidActiveShift = Boolean(activeFloat && shiftStatus === 'ACTIVE');
 
-                if (!activeFloat || status !== 'ACTIVE') {
+                if (!hasValidActiveShift) {
                     localStorage.removeItem('token');
                     setUser(null);
-                    const msg = status === 'PENDING_REMIT'
+                    const msg = shiftStatus === 'PENDING_REMIT'
                         ? 'Shift Closing in Progress: Your preliminary count has been submitted and is awaiting Admin verification.'
                         : 'Login Restricted: No active shift has been opened by the Admin.';
                     const err = new Error(msg);
