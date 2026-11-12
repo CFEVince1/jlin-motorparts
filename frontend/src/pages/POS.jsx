@@ -767,8 +767,6 @@ const POS = ({ defaultTab }) => {
         }
     };
 
-    const [saleForReplacementModal, setSaleForReplacementModal] = useState(null);
-    const [conditionVerified, setConditionVerified] = useState(false);
     const [showReplacementCheckoutModal, setShowReplacementCheckoutModal] = useState(false);
     const [swapPaymentMethod, setSwapPaymentMethod] = useState('Cash');
     const [swapTendered, setSwapTendered] = useState('');
@@ -786,67 +784,96 @@ const POS = ({ defaultTab }) => {
     const replacementRemainingCredit = isReplacementActive ? Math.max(0, replacementCredit - cartGrossSubtotal) : 0;
     const replacementTopUpDue = isReplacementActive ? Math.max(0, replacementDiff) : 0;
 
-    const handleStartReplacementFromSale = async (sale) => {
+    const handleStartReplacementFromSale = async (sale, specificItem = null) => {
         try {
             let fullSale = sale;
             if (!fullSale.items && !fullSale.sale_items) {
                 const res = await api.get(`/sales/${sale.id}`);
                 fullSale = res.data;
             }
-            setSaleForReplacementModal(fullSale);
-            setConditionVerified(false);
+
+            const saleItems = fullSale.items || fullSale.sale_items || [];
+            if (saleItems.length === 0) {
+                toast.error('This receipt has no swappable items.');
+                return;
+            }
+
+            const targetItem = specificItem || saleItems.find(it => {
+                const soldQty = Number(it.qty_sold ?? it.quantity ?? 1);
+                const swappedQty = Number(it.qty_swapped || 0);
+                return (soldQty - swappedQty) > 0;
+            }) || saleItems[0];
+
+            // If current cart has items, automatically park them into Held Carts
+            if (cart.length > 0) {
+                const autoHeld = {
+                    id: `HELD-${Date.now().toString().slice(-6)}`,
+                    held_at: new Date().toISOString(),
+                    customer_name: customerName?.trim() || 'Auto-Saved Cart (Prior to Exchange)',
+                    cashier: user?.full_name || user?.username || 'Cashier',
+                    items: cart,
+                    total_amount: totalAmount,
+                    discount_amount: calculatedDiscount,
+                    discount_type: discountType,
+                    discount_value: discountValue,
+                    notes: 'Auto-paused when entering Item Replacement mode'
+                };
+                const updated = [autoHeld, ...heldTransactions];
+                saveHeldTransactions(updated);
+                toast.info('Existing cart was paused and saved to Held Carts.');
+            }
+
+            const itemPrice = Number(targetItem.price || targetItem.unit_price || 0);
+            const mode = {
+                originalSale: fullSale,
+                saleItem: targetItem,
+                allSaleItems: saleItems,
+                returnedProduct: {
+                    id: targetItem.product_id || targetItem.id,
+                    name: targetItem.product_name || targetItem.name,
+                    part_number: targetItem.part_number,
+                    brand: targetItem.brand,
+                    cost_price: targetItem.cost_price,
+                    price: itemPrice
+                },
+                creditAmount: itemPrice,
+                returnedQty: 1
+            };
+
+            saveReplacementMode(mode);
+            setCart([]);
+            setSaleForReplacementModal(null);
+            setActiveTab('register');
+            setSearchParams({ tab: 'register' });
+            toast.success(`Item Replacement Mode active! ₱${itemPrice.toFixed(2)} credit applied from #${fullSale.order_number || fullSale.id}.`);
         } catch (err) {
-            console.error('Failed to load sale items for replacement:', err);
-            toast.error('Failed to load receipt line items');
+            console.error('Failed to start replacement mode:', err);
+            toast.error('Failed to start item replacement');
         }
     };
 
     const handleSelectItemForReplacement = (item) => {
-        if (!conditionVerified) {
-            toast.error('Please inspect the part and check the condition verification box first.');
-            return;
-        }
-
-        // If current cart has items, automatically park them into Held Carts
-        if (cart.length > 0) {
-            const autoHeld = {
-                id: `HELD-${Date.now().toString().slice(-6)}`,
-                held_at: new Date().toISOString(),
-                customer_name: customerName?.trim() || 'Auto-Saved Cart (Prior to Exchange)',
-                cashier: user?.full_name || user?.username || 'Cashier',
-                items: cart,
-                total_amount: totalAmount,
-                discount_amount: calculatedDiscount,
-                discount_type: discountType,
-                discount_value: discountValue,
-                notes: 'Auto-paused when entering Item Replacement mode'
-            };
-            const updated = [autoHeld, ...heldTransactions];
-            saveHeldTransactions(updated);
-            toast.info('Existing cart was paused and saved to Held Carts.');
-        }
-
+        if (!replacementMode?.originalSale) return;
+        const currentSale = replacementMode.originalSale;
+        const itemPrice = Number(item.price || item.unit_price || 0);
         const mode = {
-            originalSale: saleForReplacementModal,
+            originalSale: currentSale,
             saleItem: item,
+            allSaleItems: currentSale.items || currentSale.sale_items || [item],
             returnedProduct: {
-                id: item.product_id,
+                id: item.product_id || item.id,
                 name: item.product_name || item.name,
                 part_number: item.part_number,
                 brand: item.brand,
                 cost_price: item.cost_price,
-                price: Number(item.price || item.unit_price)
+                price: itemPrice
             },
-            creditAmount: Number(item.price || item.unit_price),
+            creditAmount: itemPrice,
             returnedQty: 1
         };
 
         saveReplacementMode(mode);
-        setCart([]);
-        setSaleForReplacementModal(null);
-        setActiveTab('register');
-        setSearchParams({ tab: 'register' });
-        toast.success(`Item Replacement Mode active! ₱${Number(item.price || item.unit_price).toFixed(2)} credit applied.`);
+        toast.success(`Switched replacement item to ${item.product_name || item.name} (Credit: ₱${itemPrice.toFixed(2)})`);
     };
 
     const handleCancelReplacement = () => {
@@ -2401,12 +2428,39 @@ const POS = ({ defaultTab }) => {
                                     }}>
                                         Trade-In Credit
                                     </span>
-                                    <div style={{ fontWeight: 600, fontSize: '0.86rem', color: 'var(--text-main)', marginTop: '4px' }}>
-                                        Returning: {replacementMode.returnedProduct.name}
-                                    </div>
-                                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                        {replacementMode.returnedProduct.part_number} • Qty: 1 (Restock to sellable)
-                                    </div>
+                                    {replacementMode.allSaleItems && replacementMode.allSaleItems.length > 1 ? (
+                                        <div style={{ marginTop: '4px' }}>
+                                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '2px' }}>
+                                                Returning Part ({replacementMode.allSaleItems.length} items on receipt):
+                                            </div>
+                                            <select
+                                                value={replacementMode.saleItem?.id}
+                                                onChange={(e) => {
+                                                    const selected = replacementMode.allSaleItems.find(it => String(it.id) === e.target.value);
+                                                    if (selected) {
+                                                        handleSelectItemForReplacement(selected);
+                                                    }
+                                                }}
+                                                className="input-premium"
+                                                style={{ fontSize: '0.78rem', padding: '3px 8px', width: '100%', background: 'var(--surface)', cursor: 'pointer' }}
+                                            >
+                                                {replacementMode.allSaleItems.map(it => (
+                                                    <option key={it.id} value={it.id}>
+                                                        {it.product_name || it.name} ({formatCurrency(it.price || it.unit_price)})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div style={{ fontWeight: 600, fontSize: '0.86rem', color: 'var(--text-main)', marginTop: '4px' }}>
+                                                Returning: {replacementMode.returnedProduct.name}
+                                            </div>
+                                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                                {replacementMode.returnedProduct.part_number} • Qty: 1 (Restock to sellable)
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                                 <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '8px' }}>
                                     <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.96rem', color: '#10b981' }}>
@@ -3524,197 +3578,6 @@ const POS = ({ defaultTab }) => {
                                     <span>↩ Void &amp; Return to Cart</span>
                                 </button>
                             )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* ============================================================ */}
-            {/* 3. SELECT ITEM TO REPLACE MODAL (From Sales History)          */}
-            {/* ============================================================ */}
-            {saleForReplacementModal && (
-                <div style={{
-                    position: 'fixed',
-                    inset: 0,
-                    zIndex: 9999,
-                    background: 'rgba(0,0,0,0.75)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '16px'
-                }}>
-                    <div className="glass-panel" style={{
-                        maxWidth: '620px',
-                        width: '100%',
-                        background: 'var(--surface)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '16px',
-                        padding: '24px',
-                        position: 'relative',
-                        maxHeight: '90vh',
-                        overflowY: 'auto'
-                    }}>
-                        {/* Header */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '14px', marginBottom: '16px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <div style={{
-                                    width: '36px',
-                                    height: '36px',
-                                    borderRadius: '8px',
-                                    background: 'rgba(245, 158, 11, 0.15)',
-                                    color: '#f59e0b',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                }}>
-                                    <ArrowLeftRight size={20} />
-                                </div>
-                                <div>
-                                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>
-                                        Select Item to Replace
-                                    </h3>
-                                    <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                                        Receipt: #{saleForReplacementModal.order_number || saleForReplacementModal.id} • {formatAuditDate(saleForReplacementModal.sale_date || saleForReplacementModal.created_at)}
-                                    </div>
-                                </div>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setSaleForReplacementModal(null)}
-                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        {/* Sale summary box */}
-                        <div style={{
-                            background: 'var(--surface-hover)',
-                            border: '1px solid var(--border)',
-                            borderRadius: '8px',
-                            padding: '10px 14px',
-                            fontSize: '0.82rem',
-                            marginBottom: '16px',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            flexWrap: 'wrap',
-                            gap: '8px'
-                        }}>
-                            <div>
-                                <span style={{ color: 'var(--text-muted)' }}>Customer: </span>
-                                <strong>{saleForReplacementModal.customer_name || 'Walk-in Customer'}</strong>
-                            </div>
-                            <div>
-                                <span style={{ color: 'var(--text-muted)' }}>Original Total Paid: </span>
-                                <strong style={{ color: 'var(--primary)' }}>{formatCurrency(saleForReplacementModal.total_amount || 0)}</strong>
-                            </div>
-                        </div>
-
-                        {/* Condition Verification Checkbox */}
-                        <div style={{
-                            background: conditionVerified ? 'rgba(16, 185, 129, 0.10)' : 'rgba(245, 158, 11, 0.10)',
-                            border: `1.5px solid ${conditionVerified ? '#10b981' : '#f59e0b'}`,
-                            borderRadius: '8px',
-                            padding: '12px 14px',
-                            marginBottom: '16px'
-                        }}>
-                            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
-                                <input
-                                    type="checkbox"
-                                    checked={conditionVerified}
-                                    onChange={(e) => setConditionVerified(e.target.checked)}
-                                    style={{ marginTop: '3px', width: '16px', height: '16px', accentColor: '#10b981', cursor: 'pointer' }}
-                                />
-                                <div>
-                                    <strong style={{ fontSize: '0.86rem', color: 'var(--text-main)' }}>
-                                        Mandatory Counter Inspection &amp; Condition Verification
-                                    </strong>
-                                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px', lineHeight: 1.35 }}>
-                                        I confirm that the customer has presented the part in unmounted, unused, and resellable condition with original packaging intact.
-                                    </div>
-                                </div>
-                            </label>
-                        </div>
-
-                        {/* Items list */}
-                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>
-                            Items Purchased on this Receipt:
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-                            {(saleForReplacementModal.items || saleForReplacementModal.sale_items || []).map((item, idx) => {
-                                const soldQty = Number(item.qty_sold ?? item.quantity ?? 1);
-                                const swappedQty = Number(item.qty_swapped || 0);
-                                const swappableCap = Math.max(0, soldQty - swappedQty);
-                                const isFullySwapped = swappableCap <= 0;
-
-                                return (
-                                    <div
-                                        key={item.id || idx}
-                                        style={{
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
-                                            padding: '12px 14px',
-                                            background: isFullySwapped ? 'rgba(255,255,255,0.02)' : 'var(--surface-hover)',
-                                            border: '1px solid var(--border)',
-                                            borderRadius: '8px',
-                                            opacity: isFullySwapped ? 0.5 : 1
-                                        }}
-                                    >
-                                        <div style={{ flex: 1, minWidth: 0, marginRight: '12px' }}>
-                                            <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-main)' }}>
-                                                {item.product_name || item.name}
-                                            </div>
-                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                                PN: {item.part_number} • Qty: {soldQty} {soldQty === 1 ? 'pc' : 'pcs'}
-                                                {swappedQty > 0 && ` (${swappedQty} previously exchanged)`}
-                                            </div>
-                                            <div style={{ fontFamily: 'monospace', fontWeight: 800, color: 'var(--primary)', fontSize: '0.86rem', marginTop: '3px' }}>
-                                                {formatCurrency(item.price || item.unit_price)} each
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            {isFullySwapped ? (
-                                                <span style={{ fontSize: '0.72rem', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '4px 10px', borderRadius: '12px', fontWeight: 600 }}>
-                                                    Already Swapped
-                                                </span>
-                                            ) : (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleSelectItemForReplacement(item)}
-                                                    className="btn-primary"
-                                                    style={{
-                                                        padding: '8px 14px',
-                                                        fontSize: '0.78rem',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '6px',
-                                                        background: '#f59e0b',
-                                                        borderColor: '#f59e0b',
-                                                        color: '#000',
-                                                        fontWeight: 700
-                                                    }}
-                                                >
-                                                    <ArrowLeftRight size={14} /> Replace This Item
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                            <button
-                                type="button"
-                                className="btn-secondary"
-                                onClick={() => setSaleForReplacementModal(null)}
-                                style={{ padding: '8px 16px', fontSize: '0.84rem' }}
-                            >
-                                Close
-                            </button>
                         </div>
                     </div>
                 </div>
