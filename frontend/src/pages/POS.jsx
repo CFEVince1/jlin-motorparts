@@ -1007,6 +1007,7 @@ const POS = ({ defaultTab }) => {
 
     const closeReceipt = () => {
         setShowReceipt(false);
+        setShowVoidConfirm(false);
         setLastTransaction(null);
         setPaymentMethod('Cash');
         setTenderedAmount('');
@@ -1016,13 +1017,12 @@ const POS = ({ defaultTab }) => {
 
     // Void recent sale and restore its items to the cart (if customer forgot an item)
     const [voidingSale, setVoidingSale] = useState(false);
-    const handleVoidAndReopen = async () => {
+    const [showVoidConfirm, setShowVoidConfirm] = useState(false);
+
+    const executeVoidAndReopen = async () => {
         if (!lastTransaction) return;
         const targetId = lastTransaction.saleId || lastTransaction.id;
         const orderNo = lastTransaction.orderNumber || targetId;
-
-        const confirmMsg = `Void order ${orderNo} and return all its items to the cart so the customer can add forgotten items?`;
-        if (!window.confirm(confirmMsg)) return;
 
         setVoidingSale(true);
         try {
@@ -1042,9 +1042,10 @@ const POS = ({ defaultTab }) => {
                 setCustomerAddress(lastTransaction.customerAddress);
             }
 
-            // Close receipt modal
+            // Close receipt modal & reset confirmation
             setShowReceipt(false);
             setLastTransaction(null);
+            setShowVoidConfirm(false);
 
             // Refresh products catalog so available stock counts are restored
             const resProducts = await api.get('/products');
@@ -3113,31 +3114,78 @@ const POS = ({ defaultTab }) => {
                             >
                                 <History size={14} /> View in Sales History
                             </button>
-                            <button
-                                type="button"
-                                className="btn-secondary"
-                                style={{
-                                    width: '100%',
-                                    padding: '9px 12px',
+                            {showVoidConfirm ? (
+                                <div style={{
+                                    padding: '12px',
+                                    borderRadius: '8px',
+                                    background: 'rgba(225, 29, 72, 0.08)',
+                                    border: '1.5px solid rgba(225, 29, 72, 0.35)',
                                     display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '6px',
-                                    color: '#e11d48',
-                                    borderColor: 'rgba(225, 29, 72, 0.35)',
-                                    background: 'rgba(225, 29, 72, 0.05)',
-                                    fontWeight: '600',
-                                    fontSize: '0.82rem',
-                                    borderRadius: '6px',
-                                    cursor: 'pointer'
-                                }}
-                                onClick={handleVoidAndReopen}
-                                disabled={voidingSale}
-                                title="Customer forgot something? Void this transaction and return items to cart to add more items."
-                            >
-                                <RotateCcw size={15} />
-                                {voidingSale ? 'Voiding & Restoring Cart...' : '↩ Void & Return to Cart'}
-                            </button>
+                                    flexDirection: 'column',
+                                    gap: '8px',
+                                    marginTop: '4px'
+                                }}>
+                                    <div style={{ fontSize: '0.80rem', fontWeight: 700, color: '#e11d48', textAlign: 'center' }}>
+                                        Void order #{lastTransaction?.orderNumber || lastTransaction?.saleId} and return items to cart?
+                                    </div>
+                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                                        Customer can add forgotten items and checkout again.
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '8px', marginTop: '2px' }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowVoidConfirm(false)}
+                                            className="btn-secondary"
+                                            style={{ flex: 1, padding: '7px 8px', fontSize: '0.78rem', fontWeight: 700 }}
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={executeVoidAndReopen}
+                                            disabled={voidingSale}
+                                            style={{
+                                                flex: 1,
+                                                padding: '7px 8px',
+                                                fontSize: '0.78rem',
+                                                fontWeight: 800,
+                                                background: '#e11d48',
+                                                color: '#ffffff',
+                                                border: 'none',
+                                                borderRadius: '6px',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            {voidingSale ? 'Voiding...' : 'Yes, Void & Restore'}
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    style={{
+                                        width: '100%',
+                                        padding: '9px 12px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '6px',
+                                        color: '#e11d48',
+                                        borderColor: 'rgba(225, 29, 72, 0.35)',
+                                        background: 'rgba(225, 29, 72, 0.05)',
+                                        fontWeight: '600',
+                                        fontSize: '0.82rem',
+                                        borderRadius: '6px',
+                                        cursor: 'pointer'
+                                    }}
+                                    onClick={() => setShowVoidConfirm(true)}
+                                    title="Customer forgot something? Void this transaction and return items to cart to add more items."
+                                >
+                                    <RotateCcw size={15} />
+                                    <span>↩ Void &amp; Return to Cart</span>
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
