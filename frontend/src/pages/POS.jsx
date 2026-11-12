@@ -3047,20 +3047,23 @@ const POS = ({ defaultTab }) => {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderTop: '1px dashed var(--border)', paddingTop: '8px' }}>
                                 <div>
                                     <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>
-                                        {replacementTopUpDue > 0 ? 'Top-Up Payable' : 'Net Balance'}
+                                        Net Top-Up Payable
                                     </div>
                                     <div style={{ fontSize: '0.72rem', color: isUnderReplacementCredit ? '#ef4444' : 'var(--text-muted)' }}>
                                         {isUnderReplacementCredit
                                             ? `Short by ${formatCurrency(replacementRemainingCredit)}`
-                                            : (replacementTopUpDue > 0 ? 'Upgrade Top-Up (Cash / GCash)' : 'Even Exchange (₱0.00)')}
+                                            : (replacementTopUpDue > 0 ? '+Top-Up Due (Cash / GCash)' : 'Even Exchange (₱0.00)')}
                                     </div>
                                 </div>
                                 <span style={{
                                     fontWeight: 'bold',
                                     fontSize: '1.4rem',
-                                    color: isUnderReplacementCredit ? '#ef4444' : (replacementTopUpDue > 0 ? '#f59e0b' : '#10b981')
+                                    fontFamily: 'monospace',
+                                    color: isUnderReplacementCredit ? 'var(--text-muted)' : (replacementTopUpDue > 0 ? '#f59e0b' : '#10b981')
                                 }}>
-                                    {formatCurrency(replacementTopUpDue)}
+                                    {isUnderReplacementCredit
+                                        ? '₱0.00'
+                                        : (replacementTopUpDue > 0 ? `+${formatCurrency(replacementTopUpDue)}` : '₱0.00')}
                                 </span>
                             </div>
 
@@ -3102,8 +3105,8 @@ const POS = ({ defaultTab }) => {
                                     {isUnderReplacementCredit
                                         ? `Add ${formatCurrency(replacementRemainingCredit)} More to Complete`
                                         : (replacementTopUpDue > 0
-                                            ? `Complete Exchange (Pay Top-Up: ${formatCurrency(replacementTopUpDue)})`
-                                            : 'Complete Even Exchange (₱0.00)')}
+                                            ? `Pay ${formatCurrency(replacementTopUpDue)} & Print`
+                                            : 'Even Exchange (₱0.00) & Print')}
                                 </button>
                             </div>
                         </>
