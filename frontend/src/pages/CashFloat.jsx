@@ -370,17 +370,49 @@ export const CashFloat = () => {
         }
     };
 
-    // 4. ADMIN SIGN-OFF
-    const handleAdminSignOff = async (shift) => {
+    // 4. ADMIN REMOTE REVIEW & SIGN-OFF MODAL
+    const [signOffModalShift, setSignOffModalShift] = useState(null);
+    const [signOffVerifiedCash, setSignOffVerifiedCash] = useState('');
+    const [signOffNotes, setSignOffNotes] = useState('');
+    const [signOffLoadingDetails, setSignOffLoadingDetails] = useState(false);
+    const [signOffDetails, setSignOffDetails] = useState(null);
+
+    const handleOpenSignOffModal = async (shift) => {
         if (!isAdmin) return;
-        const shiftId = shift.id || shift.active_float_id;
-        const shiftCode = shift.shift_code || shift.active_shift_code || `SHIFT-${shiftId}`;
+        const shiftId = shift.active_float_id || shift.id;
+        setSignOffModalShift(shift);
+        setSignOffVerifiedCash(String(shift.actual_cash || shift.blind_count_entered || shift.expected_cash || ''));
+        setSignOffNotes('');
+        setSignOffLoadingDetails(true);
+        setSignOffDetails(null);
+        try {
+            const res = await api.get(`/cash-float/${shiftId}`);
+            setSignOffDetails(res.data);
+            if (res.data.actual_cash || res.data.blind_count_entered) {
+                setSignOffVerifiedCash(String(res.data.actual_cash || res.data.blind_count_entered));
+            }
+        } catch (err) {
+            console.error('Failed to load shift details for sign-off:', err);
+        } finally {
+            setSignOffLoadingDetails(false);
+        }
+    };
+
+    const handleConfirmSignOff = async (e) => {
+        e.preventDefault();
+        if (!signOffModalShift) return;
+        const shiftId = signOffModalShift.active_float_id || signOffModalShift.id;
+        const shiftCode = signOffModalShift.active_shift_code || signOffModalShift.shift_code || `SHIFT-${shiftId}`;
+
         setSigningOffId(shiftId);
         try {
             const res = await api.post(`/cash-float/${shiftId}/sign-off`, {
-                notes: `Physically counted & verified by Admin ${user?.username || 'admin'}`
+                verified_actual_cash: signOffVerifiedCash ? Number(signOffVerifiedCash) : undefined,
+                notes: signOffNotes.trim() || `Verified & approved by Admin ${user?.username || 'admin'}`
             });
-            toast.success(res.data?.message || `Shift ${shiftCode} signed off!`);
+            toast.success(res.data?.message || `Shift ${shiftCode} approved and ended!`);
+            setSignOffModalShift(null);
+            setSignOffDetails(null);
             fetchRecords();
             fetchStaffList();
             fetchSummary();
@@ -392,6 +424,8 @@ export const CashFloat = () => {
             setSigningOffId(null);
         }
     };
+
+    const handleAdminSignOff = handleOpenSignOffModal;
 
     // 5. ADMIN CANCEL SHIFT (Accidental open with 0 sales)
     const handleCancelShift = async (shift) => {
@@ -2723,6 +2757,178 @@ export const CashFloat = () => {
                                     style={{ padding: '8px 20px', fontSize: '0.84rem', fontWeight: 800, background: '#dc2626', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
                                 >
                                     {submittingForceClose ? 'Closing Shift...' : 'Force Time-Out &amp; Sign Off'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ============================================================ */}
+            {/* MODAL: ADMIN REMOTE END-SHIFT REVIEW & APPROVAL              */}
+            {/* ============================================================ */}
+            {signOffModalShift && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0, 0, 0, 0.75)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 99999, padding: '20px',
+                    overflowY: 'auto'
+                }}>
+                    <div className="glass-panel" style={{ width: '100%', maxWidth: '560px', borderRadius: '14px', padding: '24px', position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
+                        <button
+                            type="button"
+                            onClick={() => setSignOffModalShift(null)}
+                            style={{ position: 'absolute', right: '16px', top: '16px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                        >
+                            <X size={20} />
+                        </button>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                            <CheckCircle size={24} color="#059669" />
+                            <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>
+                                Approve &amp; End Shift (Sign Off)
+                            </h2>
+                        </div>
+                        <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                            Review preliminary count submitted by <strong style={{ color: 'var(--text-main)' }}>@{signOffModalShift.username || signOffModalShift.staff_username}</strong>. Approving will finalize reconciliation and immediately revoke staff session access.
+                        </p>
+
+                        {/* Reconciliation Comparison Card */}
+                        <div style={{
+                            background: 'var(--surface)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '10px',
+                            padding: '14px 16px',
+                            marginBottom: '16px'
+                        }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', textAlign: 'center' }}>
+                                <div style={{ padding: '8px', background: 'var(--surface-hover)', borderRadius: '8px' }}>
+                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Expected Cash</div>
+                                    <div style={{ fontSize: '1.1rem', fontWeight: 800, fontFamily: 'monospace', color: '#3b82f6', marginTop: '2px' }}>
+                                        {formatCurrency(signOffDetails?.expected_cash ?? signOffModalShift.expected_cash ?? (signOffModalShift.active_cash_balance || 0))}
+                                    </div>
+                                </div>
+                                <div style={{ padding: '8px', background: 'var(--surface-hover)', borderRadius: '8px' }}>
+                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Staff Counted</div>
+                                    <div style={{ fontSize: '1.1rem', fontWeight: 800, fontFamily: 'monospace', color: '#10b981', marginTop: '2px' }}>
+                                        {formatCurrency(signOffDetails?.actual_cash ?? signOffModalShift.actual_cash ?? signOffModalShift.blind_count_entered ?? 0)}
+                                    </div>
+                                </div>
+                                <div style={{ padding: '8px', background: 'var(--surface-hover)', borderRadius: '8px' }}>
+                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Variance</div>
+                                    {(() => {
+                                        const exp = Number(signOffDetails?.expected_cash ?? signOffModalShift.expected_cash ?? (signOffModalShift.active_cash_balance || 0));
+                                        const act = Number(signOffVerifiedCash || signOffDetails?.actual_cash || signOffModalShift.actual_cash || 0);
+                                        const diff = act - exp;
+                                        const color = Math.abs(diff) < 0.01 ? '#10b981' : (diff < 0 ? '#ef4444' : '#f59e0b');
+                                        return (
+                                            <div style={{ fontSize: '1.1rem', fontWeight: 800, fontFamily: 'monospace', color, marginTop: '2px' }}>
+                                                {Math.abs(diff) < 0.01 ? '₱0.00' : (diff < 0 ? `-${formatCurrency(Math.abs(diff))}` : `+${formatCurrency(diff)}`)}
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* GCash Verification List */}
+                        <div style={{ marginBottom: '16px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    GCash Verification (Match With GCash App)
+                                </span>
+                                <span style={{ fontSize: '0.76rem', color: '#0284c7', fontWeight: 700, fontFamily: 'monospace' }}>
+                                    Total: {formatCurrency(signOffDetails?.gcash_sales ?? signOffModalShift.gcash_sales ?? 0)}
+                                </span>
+                            </div>
+
+                            <div style={{
+                                maxHeight: '140px',
+                                overflowY: 'auto',
+                                border: '1px solid var(--border)',
+                                borderRadius: '8px',
+                                background: 'var(--surface)'
+                            }}>
+                                {signOffLoadingDetails ? (
+                                    <div style={{ padding: '14px', textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                        Loading GCash transaction records...
+                                    </div>
+                                ) : signOffDetails?.gcashTransactions && signOffDetails.gcashTransactions.length > 0 ? (
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.76rem', textAlign: 'left' }}>
+                                        <thead>
+                                            <tr style={{ background: 'var(--surface-hover)', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>
+                                                <th style={{ padding: '6px 8px' }}>Order</th>
+                                                <th style={{ padding: '6px 8px' }}>Amount</th>
+                                                <th style={{ padding: '6px 8px' }}>13-Digit Ref #</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {signOffDetails.gcashTransactions.map((tx, idx) => (
+                                                <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                    <td style={{ padding: '6px 8px', fontFamily: 'monospace' }}>{tx.receipt_no || tx.order_number}</td>
+                                                    <td style={{ padding: '6px 8px', color: '#0284c7', fontWeight: 700, fontFamily: 'monospace' }}>{formatCurrency(tx.gcash_amount || tx.total_amount)}</td>
+                                                    <td style={{ padding: '6px 8px', color: '#10b981', fontWeight: 700, fontFamily: 'monospace' }}>{tx.gcash_reference || 'N/A'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                ) : (
+                                    <div style={{ padding: '14px', textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                        No digital GCash transactions recorded in this shift.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <form onSubmit={handleConfirmSignOff}>
+                            <div style={{ marginBottom: '14px' }}>
+                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '4px' }}>
+                                    Verified Physical Cash Received (₱) *:
+                                </label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    className="input-premium"
+                                    style={{ width: '100%', padding: '10px 12px', fontSize: '1.2rem', fontWeight: 800, fontFamily: 'monospace' }}
+                                    value={signOffVerifiedCash}
+                                    onChange={(e) => setSignOffVerifiedCash(e.target.value)}
+                                    required
+                                />
+                            </div>
+
+                            <div style={{ marginBottom: '18px' }}>
+                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '4px' }}>
+                                    Admin Verification Notes (Optional):
+                                </label>
+                                <input
+                                    type="text"
+                                    className="input-premium"
+                                    style={{ width: '100%', padding: '8px 10px', fontSize: '0.84rem' }}
+                                    placeholder="e.g. Cash counted and GCash refs cross-checked"
+                                    value={signOffNotes}
+                                    onChange={(e) => setSignOffNotes(e.target.value)}
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setSignOffModalShift(null)}
+                                    className="btn-secondary"
+                                    style={{ padding: '8px 16px', fontSize: '0.84rem' }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="btn-primary"
+                                    style={{ padding: '8px 20px', fontSize: '0.84rem', fontWeight: 800, background: '#059669', borderColor: '#059669', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                    disabled={signingOffId !== null}
+                                >
+                                    <Check size={16} /> {signingOffId !== null ? 'Finalizing...' : 'Confirm Approve & End Shift'}
                                 </button>
                             </div>
                         </form>

@@ -300,6 +300,149 @@ async function sendRestockRequestEmail({ to, staffName, priority, notes, items =
     return await sendViaResend(resendApiKey, process.env.MAIL_FROM, to, subject, htmlContent, text);
   }
 
+// Sends POS Shift Handover & Preliminary Count Notification to Admin Gmail
+async function sendShiftClosingSubmittedEmail({
+  to,
+  cashierName,
+  shiftCode,
+  actualCash,
+  expectedCash,
+  variance,
+  varianceBadge,
+  openingFloat,
+  cashSales,
+  gcashSales,
+  notes,
+  gcashTransactions = []
+}) {
+  const resendApiKey = process.env.RESEND_API_KEY || (process.env.SMTP_PASS && process.env.SMTP_PASS.startsWith('re_') ? process.env.SMTP_PASS : null);
+
+  const numActual = Number(actualCash || 0);
+  const numExpected = Number(expectedCash || 0);
+  const numVariance = Number(variance || 0);
+  const varianceColor = numVariance === 0 ? '#15803d' : (numVariance < 0 ? '#dc2626' : '#ea580c');
+  const varianceLabel = numVariance === 0 ? 'EXACT MATCH (₱0.00)' : (numVariance < 0 ? `SHORTAGE of -₱${Math.abs(numVariance).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : `OVERAGE of +₱${numVariance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`);
+
+  const gcashRows = (gcashTransactions && gcashTransactions.length > 0)
+    ? gcashTransactions.map(tx => `
+      <tr style="border-bottom: 1px solid #f1f5f9; font-size: 12px;">
+        <td style="padding: 6px 4px; color: #0f172a; font-family: monospace;">${tx.receipt_no || tx.order_number || 'N/A'}</td>
+        <td style="padding: 6px 4px; color: #0284c7; font-weight: 700; font-family: monospace;">₱${Number(tx.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+        <td style="padding: 6px 4px; color: #059669; font-weight: 700; font-family: monospace;">${tx.gcash_reference || 'N/A'}</td>
+      </tr>
+    `).join('')
+    : `<tr><td colspan="3" style="padding: 10px; text-align: center; color: #94a3b8; font-size: 12px;">No GCash sales punched during this shift</td></tr>`;
+
+  const htmlContent = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 28px 24px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <h2 style="color: #0f172a; margin: 0; font-size: 22px; font-weight: 800;">JLIN Motorparts</h2>
+        <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">Remote End-Shift • Cashier Count Submitted</p>
+      </div>
+
+      <div style="background-color: #f8fafc; border-radius: 10px; padding: 18px; margin-bottom: 20px; border: 1px solid #e2e8f0; text-align: center;">
+        <span style="display: inline-block; background: #fef3c7; color: #92400e; font-size: 11px; font-weight: 800; padding: 3px 10px; borderRadius: 4px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
+          Awaiting Admin Verification
+        </span>
+        <div style="font-size: 14px; color: #475569; margin-bottom: 6px;">
+          Cashier <strong>@${cashierName || 'Staff'}</strong> has submitted their closing count for shift <strong>${shiftCode || 'Shift'}</strong>.
+        </div>
+        <div style="font-size: 32px; font-weight: 900; color: #0f172a; font-family: monospace;">
+          ₱${numActual.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+        </div>
+        <div style="font-size: 12px; color: #64748b; margin-top: 4px;">
+          Actual Cash Counted by Staff
+        </div>
+      </div>
+
+      <div style="background-color: #ffffff; border-radius: 8px; padding: 16px; margin-bottom: 20px; border: 1px solid #edf2f7; font-size: 13px;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="color: #64748b; padding: 5px 0;">Opening Panukli (Float):</td>
+            <td style="color: #0f172a; font-weight: 600; text-align: right; padding: 5px 0; font-family: monospace;">₱${Number(openingFloat || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          </tr>
+          <tr>
+            <td style="color: #64748b; padding: 5px 0;">Cash Sales In:</td>
+            <td style="color: #15803d; font-weight: 600; text-align: right; padding: 5px 0; font-family: monospace;">+₱${Number(cashSales || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          </tr>
+          <tr>
+            <td style="color: #64748b; padding: 5px 0;">GCash Sales (Digital):</td>
+            <td style="color: #0284c7; font-weight: 600; text-align: right; padding: 5px 0; font-family: monospace;">₱${Number(gcashSales || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          </tr>
+          <tr style="border-top: 1px solid #e2e8f0;">
+            <td style="color: #64748b; padding: 8px 0 4px 0;">Expected Drawer Cash:</td>
+            <td style="color: #0f172a; font-weight: 700; text-align: right; padding: 8px 0 4px 0; font-family: monospace;">₱${numExpected.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          </tr>
+          <tr>
+            <td style="color: #64748b; padding: 4px 0;">Actual Counted Cash:</td>
+            <td style="color: #0f172a; font-weight: 700; text-align: right; padding: 4px 0; font-family: monospace;">₱${numActual.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          </tr>
+          <tr style="border-top: 1px dashed #cbd5e1;">
+            <td style="color: #0f172a; font-weight: 700; padding: 8px 0;">Variance / Discrepancy:</td>
+            <td style="color: ${varianceColor}; font-weight: 800; font-size: 14px; text-align: right; padding: 8px 0; font-family: monospace;">${varianceLabel}</td>
+          </tr>
+          ${notes ? `<tr><td colspan="2" style="padding-top: 8px; font-size: 12px; color: #64748b; font-style: italic;">Staff Note: "${notes}"</td></tr>` : ''}
+        </table>
+      </div>
+
+      <!-- GCash Reconciliation Table -->
+      <div style="margin-bottom: 24px;">
+        <div style="font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
+          GCash Transactions for Verification (Check GCash App):
+        </div>
+        <table style="width: 100%; border-collapse: collapse; text-align: left; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden;">
+          <thead>
+            <tr style="background: #f1f5f9; font-size: 11px; color: #64748b; text-transform: uppercase;">
+              <th style="padding: 6px 8px;">Order / Receipt</th>
+              <th style="padding: 6px 8px;">Amount</th>
+              <th style="padding: 6px 8px;">13-Digit Ref No.</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${gcashRows}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="text-align: center; margin-bottom: 20px;">
+        <a href="https://jlin-motorparts.vercel.app/cash-float" style="background-color: #059669; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700; padding: 12px 28px; border-radius: 8px; display: inline-block;">
+          Approve &amp; End Shift (Sign Off)
+        </a>
+      </div>
+
+      <p style="color: #64748b; font-size: 12px; line-height: 1.5; text-align: center; margin: 0 0 14px 0;">
+        The cashier's POS screen is now locked. Once you click Approve &amp; End Shift, the shift will be finalized and the cashier's login token will be revoked until you open their next shift.
+      </p>
+
+      <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 20px 0;" />
+
+      <p style="color: #94a3b8; font-size: 11px; text-align: center; margin: 0;">
+        &copy; JLIN Motorparts POS Shift Security System.
+      </p>
+    </div>
+  `;
+
+  const subject = `🔔 [JLIN POS] Shift Handover & Count Submitted by @${cashierName || 'Cashier'} (${shiftCode || 'Shift'})`;
+  const text = `Shift Closing Count Submitted\nCashier: ${cashierName}\nShift: ${shiftCode}\nCounted Cash: ₱${numActual}\nExpected Cash: ₱${numExpected}\nVariance: ${varianceLabel}\nGCash Sales: ₱${gcashSales}\n\nReview & Approve online: https://jlin-motorparts.vercel.app/cash-float`;
+
+  if (resendApiKey) {
+    try {
+      const { Resend } = require('resend');
+      const resend = new Resend(resendApiKey);
+      const fromEmail = process.env.MAIL_FROM || 'onboarding@resend.dev';
+      const result = await resend.emails.send({
+        from: fromEmail,
+        to: [to],
+        subject,
+        text,
+        html: htmlContent,
+      });
+      return result;
+    } catch (err) {
+      console.warn('[Mailer] Resend send error, falling back to SMTP:', err.message);
+    }
+  }
+
   const sender = process.env.MAIL_FROM || `"JLIN Motorparts" <${process.env.SMTP_USER}>`;
   return await transporter.sendMail({
     from: sender,
@@ -310,4 +453,4 @@ async function sendRestockRequestEmail({ to, staffName, priority, notes, items =
   });
 }
 
-module.exports = { sendOtpEmail, sendDiscountOtpEmail, sendRestockRequestEmail };
+module.exports = { sendOtpEmail, sendDiscountOtpEmail, sendRestockRequestEmail, sendShiftClosingSubmittedEmail };

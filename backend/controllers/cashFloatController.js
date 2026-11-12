@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const { logCashMovement, closePastDayActiveFloats } = require('../services/cashMovementService');
+const mailer = require('../utils/mailer');
 
 let _ensuredCashFloats = false;
 async function ensureCashFloatsTableExists() {
@@ -702,14 +703,37 @@ exports.getCashFloatById = async (req, res) => {
                 u.role AS staff_role
             FROM cash_floats cf
             LEFT JOIN users u ON cf.staff_id = u.id
-            WHERE cf.id = ?
-        `, [floatId]);
+            WHERE cf.id = ? OR cf.staff_id = ?
+            ORDER BY cf.assigned_at DESC LIMIT 1
+        `, [floatId, floatId]);
 
         if (records.length === 0) {
             return res.status(404).json({ message: 'Cash float record not found.' });
         }
 
-        res.json(records[0]);
+        const shift = records[0];
+
+        // Fetch GCash sales for this shift
+        let gcashSalesList = [];
+        try {
+            const [sales] = await db.query(`
+                SELECT id, receipt_no, order_number, total_amount, 
+                       COALESCE(gcash_amount, total_amount) AS gcash_amount,
+                       COALESCE(gcash_ref_no, payment_reference) AS gcash_reference,
+                       customer_name, sale_date
+                FROM sales
+                WHERE (user_id = ? OR cashier_id = ?)
+                  AND sale_date >= ?
+                  AND (payment_method LIKE '%GCash%' OR payment_method LIKE '%Split%' OR gcash_ref_no IS NOT NULL)
+                ORDER BY sale_date DESC
+            `, [shift.staff_id, shift.staff_id, shift.assigned_at]);
+            gcashSalesList = sales;
+        } catch (sErr) {}
+
+        res.json({
+            ...shift,
+            gcashTransactions: gcashSalesList
+        });
     } catch (err) {
         console.error('Error fetching cash float details:', err);
         res.status(500).json({ message: 'Failed to retrieve cash float details.' });
@@ -1204,6 +1228,46 @@ exports.closeShiftBlindCount = async (req, res) => {
             }
         }
 
+        // When cashier submits preliminary count, notify Store Owner/Admin Gmail immediately
+        if (!isAdmin) {
+            (async () => {
+                try {
+                    const [admins] = await db.query(
+                        "SELECT email FROM users WHERE LOWER(role) = 'admin' AND email IS NOT NULL AND email != '' ORDER BY id ASC LIMIT 1"
+                    );
+                    const adminEmail = admins[0]?.email || process.env.SMTP_USER || 'jlinmotorparts.noreply@gmail.com';
+
+                    const [shiftGcashTxs] = await db.query(`
+                        SELECT receipt_no, order_number, COALESCE(gcash_amount, total_amount) as amount,
+                               COALESCE(gcash_ref_no, payment_reference) as gcash_reference, sale_date
+                        FROM sales
+                        WHERE (user_id = ? OR cashier_id = ?)
+                          AND sale_date >= ?
+                          AND (payment_method LIKE '%GCash%' OR payment_method LIKE '%Split%' OR gcash_ref_no IS NOT NULL)
+                        ORDER BY sale_date DESC LIMIT 30
+                    `, [currentShift.staff_id, currentShift.staff_id, currentShift.assigned_at]);
+
+                    await mailer.sendShiftClosingSubmittedEmail({
+                        to: adminEmail,
+                        cashierName: currentShift.staff_username,
+                        shiftCode: currentShift.shift_code || `SHIFT-${currentShift.id}`,
+                        actualCash: numActualCash,
+                        expectedCash: expectedDrawerCash,
+                        variance,
+                        varianceBadge,
+                        openingFloat,
+                        cashSales,
+                        gcashSales: Number(currentShift.gcash_sales || 0),
+                        notes: closingNotes,
+                        gcashTransactions: shiftGcashTxs
+                    });
+                    console.log(`[Shift Remittance] Dispatched closing notification email to Admin ${adminEmail}`);
+                } catch (emailErr) {
+                    console.warn('[Shift Remittance] Email notification notice:', emailErr.message);
+                }
+            })();
+        }
+
         return res.json({
             success: true,
             message: isAdmin 
@@ -1241,7 +1305,7 @@ exports.adminSignOff = async (req, res) => {
         const adminId = req.user.id;
         const adminUsername = req.user.username;
         const shiftId = req.params.id;
-        const { notes } = req.body;
+        const { notes, verified_actual_cash } = req.body;
 
         const [records] = await db.query('SELECT * FROM cash_floats WHERE (id = ? OR staff_id = ?) ORDER BY assigned_at DESC LIMIT 1', [shiftId, shiftId]);
         if (records.length === 0) {
@@ -1249,17 +1313,27 @@ exports.adminSignOff = async (req, res) => {
         }
 
         const shift = records[0];
+        const numVerifiedCash = (verified_actual_cash !== undefined && verified_actual_cash !== null && verified_actual_cash !== '')
+            ? Number(verified_actual_cash)
+            : Number(shift.actual_cash || shift.blind_count_entered || shift.expected_cash || 0);
+
+        const expectedCash = Number(shift.expected_cash || 0);
+        const finalVariance = Math.round((numVerifiedCash - expectedCash) * 100) / 100;
 
         await db.query(`
             UPDATE cash_floats SET
+                actual_cash = ?,
+                shortage_overage = ?,
                 status = 'COMPLETED',
                 admin_signed_off = 1,
                 signed_off_by_id = ?,
                 signed_off_by_name = ?,
                 signed_off_at = NOW(),
+                completed_at = COALESCE(completed_at, NOW()),
+                returned_at = COALESCE(returned_at, NOW()),
                 returned_notes = CONCAT(COALESCE(returned_notes, ''), ' | Admin Sign-Off: ', ?)
             WHERE id = ?
-        `, [adminId, adminUsername, notes || 'Verified and signed off by Admin', shift.id]);
+        `, [numVerifiedCash, finalVariance, adminId, adminUsername, notes || 'Verified and signed off by Admin', shift.id]);
 
         // Revoke staff session token immediately upon Admin sign-off
         if (shift.staff_id) {
@@ -1272,7 +1346,7 @@ exports.adminSignOff = async (req, res) => {
 
         return res.json({
             success: true,
-            message: `Shift ${shift.shift_code || shift.id} officially signed off and completed by Admin (${adminUsername}).`
+            message: `Shift ${shift.shift_code || shift.id} officially signed off and completed by Admin (${adminUsername}). Verified Cash: ₱${numVerifiedCash.toFixed(2)}.`
         });
     } catch (err) {
         console.error('Error signing off shift:', err);
