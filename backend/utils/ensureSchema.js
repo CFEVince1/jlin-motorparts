@@ -162,6 +162,7 @@ async function ensureSchema() {
     // Ensure cash_floats columns
     const ensureCashFloatCols = [
       { col: 'shift_code', def: 'VARCHAR(50) NULL' },
+      { col: 'cash_drops', def: 'DECIMAL(12,2) NOT NULL DEFAULT 0.00' },
       { col: 'gcash_sales', def: 'DECIMAL(12,2) NOT NULL DEFAULT 0.00' },
       { col: 'petty_cash_expenses', def: 'DECIMAL(12,2) NOT NULL DEFAULT 0.00' },
       { col: 'reconciliation_notes', def: 'TEXT NULL' },

@@ -121,8 +121,38 @@ export const CashFloat = () => {
         activeCount: 0,
         totalStartingCash: 0,
         totalDrawerBalance: 0,
-        totalCashSales: 0
+        totalCashSales: 0,
+        totalCashDrops: 0,
+        activeStaffName: null,
+        activeStaffUsername: null,
+        activeShiftCode: null,
+        activeStartTime: null,
+        pendingSignOffCount: 0,
+        pendingSignOffAmount: 0
     });
+
+    // Admin Quick Time-In Modal State
+    const [showTimeInModal, setShowTimeInModal] = useState(false);
+    const [timeInStaff, setTimeInStaff] = useState(null);
+    const [timeInFloat, setTimeInFloat] = useState('2000');
+    const [submittingTimeIn, setSubmittingTimeIn] = useState(false);
+
+    // Mid-Shift Cash Drop (Safe Remittance) Modal State
+    const [showCashDropModal, setShowCashDropModal] = useState(false);
+    const [cashDropShift, setCashDropShift] = useState(null);
+    const [cashDropAmount, setCashDropAmount] = useState('');
+    const [cashDropNotes, setCashDropNotes] = useState('');
+    const [submittingCashDrop, setSubmittingCashDrop] = useState(false);
+
+    // Admin Force Time-Out / Close Modal State
+    const [showForceCloseModal, setShowForceCloseModal] = useState(false);
+    const [forceCloseShift, setForceCloseShift] = useState(null);
+    const [forceCloseActual, setForceCloseActual] = useState('');
+    const [forceCloseNotes, setForceCloseNotes] = useState('');
+    const [submittingForceClose, setSubmittingForceClose] = useState(false);
+
+    // Shift Action In Progress
+    const [actionInProgressShiftId, setActionInProgressShiftId] = useState(null);
 
     const handleTabChange = (tab) => {
         setActiveTab(tab);
@@ -343,18 +373,173 @@ export const CashFloat = () => {
     // 4. ADMIN SIGN-OFF
     const handleAdminSignOff = async (shift) => {
         if (!isAdmin) return;
-        setSigningOffId(shift.id);
+        const shiftId = shift.id || shift.active_float_id;
+        const shiftCode = shift.shift_code || shift.active_shift_code || `SHIFT-${shiftId}`;
+        setSigningOffId(shiftId);
         try {
-            const res = await api.post(`/cash-float/${shift.id}/sign-off`, {
-                notes: `Verified by Admin ${user?.username || 'admin'}`
+            const res = await api.post(`/cash-float/${shiftId}/sign-off`, {
+                notes: `Physically counted & verified by Admin ${user?.username || 'admin'}`
             });
-            toast.success(res.data?.message || `Shift ${shift.shift_code} signed off!`);
+            toast.success(res.data?.message || `Shift ${shiftCode} signed off!`);
             fetchRecords();
+            fetchStaffList();
+            fetchSummary();
+            fetchActiveShift();
         } catch (err) {
             console.error('Failed to sign off shift:', err);
             toast.error(err.response?.data?.message || 'Failed to sign off shift');
         } finally {
             setSigningOffId(null);
+        }
+    };
+
+    // 5. ADMIN CANCEL SHIFT (Accidental open with 0 sales)
+    const handleCancelShift = async (shift) => {
+        if (!isAdmin) return;
+        const shiftId = shift.active_float_id || shift.id;
+        const shiftCode = shift.active_shift_code || shift.shift_code || `SHIFT-${shiftId}`;
+        const staffName = shift.username || shift.staff_username || 'staff';
+        const confirmMsg = `Cancel accidental shift ${shiftCode} for @${staffName}?\n\nStaff will be reset to Off-Shift. This is only allowed if 0 sales were punched.`;
+        if (!window.confirm(confirmMsg)) return;
+
+        setActionInProgressShiftId(shiftId);
+        try {
+            const res = await api.post(`/cash-float/${shiftId}/cancel`);
+            toast.success(res.data?.message || 'Shift canceled successfully.');
+            fetchActiveShift();
+            fetchRecords();
+            fetchStaffList();
+            fetchSummary();
+        } catch (err) {
+            console.error('Failed to cancel shift:', err);
+            toast.error(err.response?.data?.message || 'Failed to cancel shift');
+        } finally {
+            setActionInProgressShiftId(null);
+        }
+    };
+
+    // 6. ADMIN REOPEN SHIFT (Undo accidental close / return to selling)
+    const handleReopenShift = async (shift) => {
+        if (!isAdmin) return;
+        const shiftId = shift.active_float_id || shift.id;
+        const shiftCode = shift.active_shift_code || shift.shift_code || `SHIFT-${shiftId}`;
+        const staffName = shift.username || shift.staff_username || 'staff';
+        const confirmMsg = `Reopen shift ${shiftCode} for @${staffName}?\n\nStaff will be put back on Active Duty and can immediately resume punching sales with all previous shift numbers preserved.`;
+        if (!window.confirm(confirmMsg)) return;
+
+        setActionInProgressShiftId(shiftId);
+        try {
+            const res = await api.post(`/cash-float/${shiftId}/reopen`);
+            toast.success(res.data?.message || 'Shift reopened successfully!');
+            fetchActiveShift();
+            fetchRecords();
+            fetchStaffList();
+            fetchSummary();
+        } catch (err) {
+            console.error('Failed to reopen shift:', err);
+            toast.error(err.response?.data?.message || 'Failed to reopen shift');
+        } finally {
+            setActionInProgressShiftId(null);
+        }
+    };
+
+    // 7. MID-SHIFT CASH DROP (Safe Remittance)
+    const handleCashDropSubmit = async (e) => {
+        e.preventDefault();
+        if (!cashDropShift) return;
+        const shiftId = cashDropShift.id || cashDropShift.active_float_id;
+        const numAmount = Number(cashDropAmount);
+        if (!numAmount || numAmount <= 0) {
+            return toast.error('Please enter a valid drop amount');
+        }
+
+        setSubmittingCashDrop(true);
+        try {
+            const res = await api.post(`/cash-float/${shiftId}/cash-drop`, {
+                amount: numAmount,
+                notes: cashDropNotes.trim()
+            });
+            toast.success(res.data?.message || `₱${numAmount.toFixed(2)} cash drop logged!`);
+            setShowCashDropModal(false);
+            setCashDropAmount('');
+            setCashDropNotes('');
+            setCashDropShift(null);
+            fetchActiveShift();
+            fetchRecords();
+            fetchStaffList();
+            fetchSummary();
+        } catch (err) {
+            console.error('Failed to log cash drop:', err);
+            toast.error(err.response?.data?.message || 'Failed to log cash drop');
+        } finally {
+            setSubmittingCashDrop(false);
+        }
+    };
+
+    // 8. ADMIN FORCE TIME-OUT & COUNT
+    const handleForceCloseSubmit = async (e) => {
+        e.preventDefault();
+        if (!forceCloseShift) return;
+        const shiftId = forceCloseShift.id || forceCloseShift.active_float_id;
+        const numActual = Number(forceCloseActual);
+        if (!Number.isFinite(numActual) || numActual < 0) {
+            return toast.error('Please enter valid physical cash counted');
+        }
+
+        setSubmittingForceClose(true);
+        try {
+            const res = await api.post('/cash-float/close-shift', {
+                shift_id: shiftId,
+                actual_cash: numActual,
+                notes: forceCloseNotes.trim() || `Force time-out & counted by Admin ${user?.username}`
+            });
+            toast.success(res.data?.message || 'Shift force closed successfully!');
+            setShowForceCloseModal(false);
+            setForceCloseActual('');
+            setForceCloseNotes('');
+            setForceCloseShift(null);
+            setReconResultModal(res.data?.reconciliation || null);
+            fetchActiveShift();
+            fetchRecords();
+            fetchStaffList();
+            fetchSummary();
+        } catch (err) {
+            console.error('Failed to force close shift:', err);
+            toast.error(err.response?.data?.message || 'Failed to force close shift');
+        } finally {
+            setSubmittingForceClose(false);
+        }
+    };
+
+    // 9. QUICK TIME-IN FOR STAFF
+    const handleTimeInSubmit = async (e) => {
+        e.preventDefault();
+        if (!timeInStaff) return;
+        const numStarting = Number(timeInFloat);
+        if (!numStarting || numStarting <= 0) {
+            return toast.error('Please enter a valid starting float (e.g. 2000)');
+        }
+
+        setSubmittingTimeIn(true);
+        try {
+            const res = await api.post('/cash-float/open-shift', {
+                staff_id: timeInStaff.id,
+                starting_cash: numStarting,
+                notes: `Timed-In & Float assigned by Admin ${user?.username || 'admin'}`
+            });
+            toast.success(res.data?.message || `Shift opened for @${timeInStaff.username}! POS is now unlocked.`);
+            setShowTimeInModal(false);
+            setTimeInStaff(null);
+            setTimeInFloat('2000');
+            fetchActiveShift();
+            fetchRecords();
+            fetchStaffList();
+            fetchSummary();
+        } catch (err) {
+            console.error('Failed to open shift for staff:', err);
+            toast.error(err.response?.data?.message || 'Failed to open shift');
+        } finally {
+            setSubmittingTimeIn(false);
         }
     };
 
@@ -836,7 +1021,7 @@ export const CashFloat = () => {
                                     </div>
                                 </div>
 
-                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                                     <button
                                         type="button"
                                         onClick={() => setShowExpenseModal(true)}
@@ -844,6 +1029,20 @@ export const CashFloat = () => {
                                         style={{ padding: '8px 14px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px' }}
                                     >
                                         <MinusCircle size={15} color="#ef4444" /> Record Petty Cash Expense
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setCashDropShift(activeShift);
+                                            setCashDropAmount('');
+                                            setCashDropNotes('');
+                                            setShowCashDropModal(true);
+                                        }}
+                                        className="btn-secondary"
+                                        style={{ padding: '8px 14px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                    >
+                                        <Coins size={15} color="#3b82f6" /> Log Cash Drop (Safe Remit)
                                     </button>
 
                                     <button
@@ -980,7 +1179,7 @@ export const CashFloat = () => {
                                         {formatCurrency(activeShift.current_cash_balance)}
                                     </div>
                                     <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                                        Formula: Opening Float ({formatCurrency(activeShift.starting_cash)}) + Cash Sales (+{formatCurrency(activeShift.cash_sales || 0)}) − Petty Cash (-{formatCurrency(activeShift.petty_cash_expenses || 0)})
+                                        Formula: Opening Float ({formatCurrency(activeShift.starting_cash)}) + Cash Sales (+{formatCurrency(activeShift.cash_sales || 0)}) − Petty Cash (-{formatCurrency(activeShift.petty_cash_expenses || 0)}) − Mid-Shift Drops (-{formatCurrency(activeShift.cash_drops || 0)})
                                     </div>
                                 </div>
 
@@ -1351,162 +1550,390 @@ export const CashFloat = () => {
             )}
 
             {/* ============================================================ */}
-            {/* TAB 3: ADMIN DRAWER CONTROL PANEL (ADMIN ONLY)               */}
+            {/* TAB 3: STAFF DRAWER CONTROL PANEL (ADMIN ONLY)               */}
             {/* ============================================================ */}
             {activeTab === 'manage' && isAdmin && (
                 <div>
-                    {/* Admin Summary Cards */}
+                    {/* Top 3 Live Status Cards */}
                     <div style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-                        gap: '14px',
-                        marginBottom: '20px'
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                        gap: '16px',
+                        marginBottom: '22px'
                     }}>
+                        {/* 1. Active Drawer Status */}
                         <div style={{
                             background: 'var(--surface)',
-                            border: '1.5px solid #2563eb',
-                            borderRadius: '12px',
-                            padding: '14px 18px',
-                            boxShadow: 'var(--glass-shadow)'
+                            border: summaryStats.activeCount > 0 ? '1.5px solid #10b981' : '1.5px solid var(--border)',
+                            borderRadius: '14px',
+                            padding: '16px 20px',
+                            boxShadow: 'var(--glass-shadow)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                            gap: '8px'
                         }}>
-                            <div style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                Active Drawers Today
+                            <div>
+                                <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    Active Drawer &amp; POS Status
+                                </div>
+                                <div style={{ fontSize: '1.45rem', fontWeight: 900, color: summaryStats.activeCount > 0 ? '#10b981' : 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span>{summaryStats.activeStaffName ? summaryStats.activeStaffName : 'No Active Shift'}</span>
+                                    {summaryStats.activeCount > 0 ? (
+                                        <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                                            POS UNLOCKED 🟢
+                                        </span>
+                                    ) : (
+                                        <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                                            POS LOCKED 🔒
+                                        </span>
+                                    )}
+                                </div>
                             </div>
-                            <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#3b82f6', marginTop: '6px' }}>
-                                {summaryStats.activeCount}
-                            </div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                                Open cashier sessions on duty
+                            <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                                {summaryStats.activeCount > 0 ? (
+                                    <>
+                                        Shift: <strong style={{ color: 'var(--text-main)', fontFamily: 'monospace' }}>{summaryStats.activeShiftCode || 'ACTIVE'}</strong> • Timed In: <strong>{formatAuditDate(summaryStats.activeStartTime)}</strong>
+                                    </>
+                                ) : (
+                                    'Cashier cannot ring up POS sales until a shift is timed-in & assigned float.'
+                                )}
                             </div>
                         </div>
 
+                        {/* 2. Live Expected Drawer Cash */}
                         <div style={{
                             background: 'var(--surface)',
-                            border: '1.5px solid #16a34a',
-                            borderRadius: '12px',
-                            padding: '14px 18px',
-                            boxShadow: 'var(--glass-shadow)'
+                            border: '1.5px solid #3b82f6',
+                            borderRadius: '14px',
+                            padding: '16px 20px',
+                            boxShadow: 'var(--glass-shadow)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                            gap: '8px'
                         }}>
-                            <div style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                Total Starting Cash Floats
+                            <div>
+                                <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    Live Expected Drawer Cash
+                                </div>
+                                <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#3b82f6', marginTop: '4px', fontFamily: 'monospace' }}>
+                                    {formatCurrency(summaryStats.totalDrawerBalance)}
+                                </div>
                             </div>
-                            <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#16a34a', marginTop: '6px', fontFamily: 'monospace' }}>
-                                {formatCurrency(summaryStats.totalStartingCash)}
-                            </div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                                Assigned panukli loaded in registers
+                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                                Float: <strong>{formatCurrency(summaryStats.totalStartingCash)}</strong> • Sales: <strong style={{ color: '#10b981' }}>+{formatCurrency(summaryStats.totalCashSales)}</strong> • Drops: <strong style={{ color: '#ef4444' }}>-{formatCurrency(summaryStats.totalCashDrops || 0)}</strong>
                             </div>
                         </div>
 
+                        {/* 3. Pending Remittances to Sign Off */}
                         <div style={{
                             background: 'var(--surface)',
-                            border: '1.5px solid #0284c7',
-                            borderRadius: '12px',
-                            padding: '14px 18px',
-                            boxShadow: 'var(--glass-shadow)'
+                            border: summaryStats.pendingSignOffCount > 0 ? '1.5px solid #f59e0b' : '1.5px solid var(--border)',
+                            borderRadius: '14px',
+                            padding: '16px 20px',
+                            boxShadow: 'var(--glass-shadow)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                            gap: '8px'
                         }}>
-                            <div style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                Live Drawer Cash Balance
+                            <div>
+                                <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    Pending Remittances to Sign Off
+                                </div>
+                                <div style={{ fontSize: '1.8rem', fontWeight: 900, color: summaryStats.pendingSignOffCount > 0 ? '#f59e0b' : 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span>{summaryStats.pendingSignOffCount || 0} Shift{summaryStats.pendingSignOffCount !== 1 ? 's' : ''}</span>
+                                    {summaryStats.pendingSignOffCount > 0 && (
+                                        <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                                            ACTION NEEDED
+                                        </span>
+                                    )}
+                                </div>
                             </div>
-                            <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#0284c7', marginTop: '6px', fontFamily: 'monospace' }}>
-                                {formatCurrency(summaryStats.totalDrawerBalance)}
-                            </div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                                Physical cash across all store registers
+                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                                {summaryStats.pendingSignOffCount > 0
+                                    ? `Total: ${formatCurrency(summaryStats.pendingSignOffAmount || 0)} physical cash waiting for owner verification.`
+                                    : 'All closed shifts have been verified and signed off.'}
                             </div>
                         </div>
                     </div>
 
-                    {/* Staff List Table */}
-                    <div className="glass-panel" style={{ padding: '20px', borderRadius: '12px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                            <h3 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800 }}>
-                                Staff & Cashier Registers
-                            </h3>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setOpenShiftForm({ ...openShiftForm, staff_id: staffList[0]?.id || '' });
-                                    setActiveTab('open_shift');
-                                }}
-                                className="btn-primary"
-                                style={{ padding: '6px 14px', fontSize: '0.8rem' }}
-                            >
-                                <Plus size={14} /> Assign Starting Float to Staff
-                            </button>
+                    {/* 6-Column Control Table */}
+                    <div className="glass-panel" style={{ padding: '20px', borderRadius: '14px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                            <div>
+                                <h3 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Users size={18} color="var(--primary)" /> Staff Drawer Management &amp; Time Controls
+                                </h3>
+                                <p style={{ margin: '3px 0 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                    Time-in staff with starting change fund, monitor real-time drawer totals, log safe drops, and sign off shift remittances.
+                                </p>
+                            </div>
+                            {staffList.length > 0 && !staffList.some(s => s.active_shift_status === 'ACTIVE') && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setTimeInStaff(staffList[0]);
+                                        setTimeInFloat('2000');
+                                        setShowTimeInModal(true);
+                                    }}
+                                    className="btn-primary"
+                                    style={{ padding: '7px 16px', fontSize: '0.82rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}
+                                >
+                                    <Plus size={15} /> Time-In Cashier &amp; Assign Float
+                                </button>
+                            )}
                         </div>
 
-                        <div className="table-container" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
+                        <div className="table-container" style={{ border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
                             <table className="table" style={{ margin: 0 }}>
                                 <thead>
                                     <tr>
-                                        <th>Staff / Cashier</th>
-                                        <th>Role</th>
-                                        <th>Shift Status</th>
-                                        <th>Starting Panukli</th>
-                                        <th>Cash Sales</th>
-                                        <th>Live Drawer Balance</th>
-                                        <th style={{ textAlign: 'right' }}>Actions</th>
+                                        <th style={{ padding: '10px 14px' }}>Staff &amp; Role</th>
+                                        <th style={{ padding: '10px 14px' }}>Shift Status</th>
+                                        <th style={{ padding: '10px 14px' }}>Time-In / Time-Out</th>
+                                        <th style={{ padding: '10px 14px' }}>Drawer Math</th>
+                                        <th style={{ padding: '10px 14px' }}>Txns in Shift</th>
+                                        <th style={{ padding: '10px 14px', textAlign: 'right' }}>Admin Control Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {staffList.map(s => {
-                                        const hasActive = !!s.active_float_id;
-                                        return (
-                                            <tr key={s.id}>
-                                                <td>
-                                                    <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.86rem' }}>
-                                                        {s.full_name || s.username}
-                                                    </div>
-                                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                                        @{s.username}
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <span style={{ fontSize: '0.74rem', background: 'var(--surface-hover)', padding: '2px 8px', borderRadius: '4px' }}>
-                                                        {s.role}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    {hasActive ? (
-                                                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#16a34a', background: 'rgba(22, 163, 74, 0.1)', padding: '2px 8px', borderRadius: '6px' }}>
-                                                            🟢 Active Shift
-                                                        </span>
-                                                    ) : (
-                                                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                                            ⚪ No Active Shift
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>
-                                                    {hasActive ? formatCurrency(s.active_starting_cash) : '₱0.00'}
-                                                </td>
-                                                <td style={{ fontFamily: 'monospace', color: '#16a34a', fontWeight: 700 }}>
-                                                    {hasActive ? `+${formatCurrency(s.active_cash_sales)}` : '₱0.00'}
-                                                </td>
-                                                <td style={{ fontFamily: 'monospace', fontWeight: 800, color: hasActive ? '#3b82f6' : 'var(--text-muted)' }}>
-                                                    {hasActive ? formatCurrency(s.active_cash_balance) : '₱0.00'}
-                                                </td>
-                                                <td style={{ textAlign: 'right' }}>
-                                                    {!hasActive ? (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setOpenShiftForm({ ...openShiftForm, staff_id: s.id });
-                                                                setActiveTab('open_shift');
-                                                            }}
-                                                            className="btn-primary"
-                                                            style={{ padding: '3px 8px', fontSize: '0.74rem' }}
-                                                        >
-                                                            Open Shift
-                                                        </button>
-                                                    ) : (
-                                                        <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>On Duty</span>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
+                                    {staffList.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="6" style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
+                                                No active cashier or staff accounts found.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        staffList.map(s => {
+                                            const hasActive = !!s.active_float_id;
+                                            const status = s.active_shift_status || (hasActive ? 'ACTIVE' : 'OFF');
+                                            const salesCount = Number(s.active_sales_count || 0);
+                                            const isActionBusy = actionInProgressShiftId === s.active_float_id;
+
+                                            return (
+                                                <tr key={s.id}>
+                                                    {/* Col 1: Staff & Role */}
+                                                    <td style={{ padding: '12px 14px' }}>
+                                                        <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '0.88rem' }}>
+                                                            {s.full_name || s.username}
+                                                        </div>
+                                                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                                            <span>@{s.username}</span>
+                                                            <span style={{ fontSize: '0.68rem', background: 'var(--surface-hover)', padding: '1px 6px', borderRadius: '4px', textTransform: 'capitalize' }}>
+                                                                {s.role}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Col 2: Shift Status */}
+                                                    <td style={{ padding: '12px 14px' }}>
+                                                        {status === 'ACTIVE' ? (
+                                                            <div>
+                                                                <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#16a34a', background: 'rgba(22, 163, 74, 0.12)', border: '1px solid rgba(22, 163, 74, 0.3)', padding: '3px 8px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                                    🟢 On-Shift (Selling)
+                                                                </span>
+                                                                <div style={{ fontSize: '0.72rem', fontFamily: 'monospace', color: 'var(--text-muted)', marginTop: '3px' }}>
+                                                                    {s.active_shift_code || `SHIFT-${s.active_float_id}`}
+                                                                </div>
+                                                            </div>
+                                                        ) : status === 'PENDING_REMIT' ? (
+                                                            <div>
+                                                                <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#f59e0b', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '3px 8px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                                    🟡 Pending Remittance
+                                                                </span>
+                                                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '3px' }}>
+                                                                    Waiting Sign-Off
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div>
+                                                                <span style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--surface-hover)', padding: '3px 8px', borderRadius: '6px' }}>
+                                                                    ⚪ Off-Shift
+                                                                </span>
+                                                                <div style={{ fontSize: '0.70rem', color: '#ef4444', marginTop: '2px' }}>
+                                                                    Terminal Locked
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </td>
+
+                                                    {/* Col 3: Time-In / Time-Out */}
+                                                    <td style={{ padding: '12px 14px' }}>
+                                                        {hasActive ? (
+                                                            <div style={{ fontSize: '0.78rem' }}>
+                                                                <div>
+                                                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.70rem' }}>In: </span>
+                                                                    <strong>{formatAuditDate(s.active_float_assigned_at)}</strong>
+                                                                </div>
+                                                                <div style={{ marginTop: '2px' }}>
+                                                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.70rem' }}>Out: </span>
+                                                                    <span style={{ color: s.active_float_completed_at ? 'var(--text-main)' : '#10b981' }}>
+                                                                        {s.active_float_completed_at ? formatAuditDate(s.active_float_completed_at) : 'Active Now'}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>—</span>
+                                                        )}
+                                                    </td>
+
+                                                    {/* Col 4: Drawer Math */}
+                                                    <td style={{ padding: '12px 14px' }}>
+                                                        {hasActive ? (
+                                                            <div style={{ fontFamily: 'monospace', fontSize: '0.80rem' }}>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                                                                    <span style={{ color: 'var(--text-muted)' }}>Float:</span>
+                                                                    <span>{formatCurrency(s.active_starting_cash)}</span>
+                                                                </div>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', color: '#16a34a' }}>
+                                                                    <span>Sales:</span>
+                                                                    <span>+{formatCurrency(s.active_cash_sales)}</span>
+                                                                </div>
+                                                                {Number(s.active_cash_drops || 0) > 0 && (
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', color: '#ef4444' }}>
+                                                                        <span>Drops:</span>
+                                                                        <span>-{formatCurrency(s.active_cash_drops)}</span>
+                                                                    </div>
+                                                                )}
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', borderTop: '1px dashed var(--border)', marginTop: '2px', paddingTop: '2px', fontWeight: 800, color: '#3b82f6' }}>
+                                                                    <span>Net:</span>
+                                                                    <span>{formatCurrency(s.active_cash_balance)}</span>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>—</span>
+                                                        )}
+                                                    </td>
+
+                                                    {/* Col 5: Txns in Shift */}
+                                                    <td style={{ padding: '12px 14px' }}>
+                                                        {hasActive ? (
+                                                            <div>
+                                                                <div style={{ fontWeight: 800, fontSize: '0.84rem', color: salesCount > 0 ? 'var(--text-main)' : 'var(--text-muted)' }}>
+                                                                    {salesCount} sale{salesCount !== 1 ? 's' : ''}
+                                                                </div>
+                                                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                                                    GCash: {formatCurrency(s.active_gcash_sales || 0)}
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>0 txns</span>
+                                                        )}
+                                                    </td>
+
+                                                    {/* Col 6: Dynamic Admin Control Actions */}
+                                                    <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                                                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                                            {/* Case 1: Off-Shift */}
+                                                            {!hasActive && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setTimeInStaff(s);
+                                                                        setTimeInFloat('2000');
+                                                                        setShowTimeInModal(true);
+                                                                    }}
+                                                                    className="btn-primary"
+                                                                    style={{ padding: '5px 12px', fontSize: '0.76rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                >
+                                                                    <Plus size={13} /> Time-In &amp; Assign Float
+                                                                </button>
+                                                            )}
+
+                                                            {/* Case 2: On-Shift with 0 Sales (Accidental open) */}
+                                                            {status === 'ACTIVE' && salesCount === 0 && (
+                                                                <>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleCancelShift(s)}
+                                                                        disabled={isActionBusy}
+                                                                        className="btn-secondary"
+                                                                        style={{ padding: '5px 10px', fontSize: '0.74rem', fontWeight: 700, color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                        title="Cleanly void shift opened by mistake (0 sales recorded)"
+                                                                    >
+                                                                        <X size={13} /> Unshift / Cancel
+                                                                    </button>
+
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setForceCloseShift(s);
+                                                                            setForceCloseActual('');
+                                                                            setForceCloseNotes('');
+                                                                            setShowForceCloseModal(true);
+                                                                        }}
+                                                                        style={{ padding: '5px 12px', fontSize: '0.74rem', fontWeight: 800, background: '#dc2626', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                    >
+                                                                        <Lock size={13} /> Time-Out / Close
+                                                                    </button>
+                                                                </>
+                                                            )}
+
+                                                            {/* Case 3: On-Shift with Active Selling (>0 Sales) */}
+                                                            {status === 'ACTIVE' && salesCount > 0 && (
+                                                                <>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setCashDropShift(s);
+                                                                            setCashDropAmount('');
+                                                                            setCashDropNotes('');
+                                                                            setShowCashDropModal(true);
+                                                                        }}
+                                                                        className="btn-secondary"
+                                                                        style={{ padding: '5px 10px', fontSize: '0.74rem', fontWeight: 700, color: '#3b82f6', borderColor: 'rgba(59, 130, 246, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                    >
+                                                                        <Coins size={13} /> Log Cash Drop
+                                                                    </button>
+
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setForceCloseShift(s);
+                                                                            setForceCloseActual('');
+                                                                            setForceCloseNotes('');
+                                                                            setShowForceCloseModal(true);
+                                                                        }}
+                                                                        style={{ padding: '5px 12px', fontSize: '0.74rem', fontWeight: 800, background: '#dc2626', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                    >
+                                                                        <Lock size={13} /> Force Time-Out &amp; Count
+                                                                    </button>
+                                                                </>
+                                                            )}
+
+                                                            {/* Case 4: Pending Remittance (Awaiting Sign-Off) */}
+                                                            {status === 'PENDING_REMIT' && (
+                                                                <>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleAdminSignOff(s)}
+                                                                        disabled={signingOffId === s.active_float_id}
+                                                                        className="btn-primary"
+                                                                        style={{ padding: '5px 12px', fontSize: '0.74rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                    >
+                                                                        <Check size={13} /> {signingOffId === s.active_float_id ? 'Verifying...' : 'Accept Remittance (Sign Off)'}
+                                                                    </button>
+
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleReopenShift(s)}
+                                                                        disabled={isActionBusy}
+                                                                        className="btn-secondary"
+                                                                        style={{ padding: '5px 10px', fontSize: '0.74rem', fontWeight: 700, color: '#f59e0b', borderColor: 'rgba(245, 158, 11, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                        title="Undo accidental shift close and let cashier resume selling"
+                                                                    >
+                                                                        <RefreshCw size={13} /> Unshift Close (Reopen)
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
                                 </tbody>
                             </table>
                         </div>
@@ -1998,6 +2425,268 @@ export const CashFloat = () => {
                                 Close
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ============================================================ */}
+            {/* MODAL: ADMIN TIME-IN & ASSIGN STARTING FLOAT                 */}
+            {/* ============================================================ */}
+            {showTimeInModal && timeInStaff && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0, 0, 0, 0.75)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 99999, padding: '20px',
+                    overflowY: 'auto'
+                }}>
+                    <div className="glass-panel" style={{ width: '100%', maxWidth: '440px', borderRadius: '14px', padding: '24px', position: 'relative' }}>
+                        <button
+                            type="button"
+                            onClick={() => setShowTimeInModal(false)}
+                            style={{ position: 'absolute', right: '16px', top: '16px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                        >
+                            <X size={20} />
+                        </button>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                            <Banknote size={22} color="#10b981" />
+                            <h2 style={{ margin: 0, fontSize: '1.18rem', fontWeight: 800 }}>
+                                Time-In Cashier &amp; Assign Float
+                            </h2>
+                        </div>
+                        <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                            Starting physical change fund (panukli) assigned to <strong style={{ color: 'var(--text-main)' }}>{timeInStaff.full_name || timeInStaff.username} (@{timeInStaff.username})</strong>. This will record their Time-In and unlock their POS terminal.
+                        </p>
+
+                        <form onSubmit={handleTimeInSubmit}>
+                            <div style={{ marginBottom: '16px' }}>
+                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '4px' }}>
+                                    Starting Float Amount (₱) *:
+                                </label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="1"
+                                    className="input-premium"
+                                    style={{ width: '100%', padding: '10px 12px', fontSize: '1.2rem', fontWeight: 800, fontFamily: 'monospace' }}
+                                    placeholder="2000.00"
+                                    value={timeInFloat}
+                                    onChange={(e) => setTimeInFloat(e.target.value)}
+                                    required
+                                    autoFocus
+                                />
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                                    Standard store float is typically ₱2,000.00 in mixed small bills and coins.
+                                </span>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowTimeInModal(false)}
+                                    className="btn-secondary"
+                                    style={{ padding: '8px 16px', fontSize: '0.84rem' }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={submittingTimeIn}
+                                    className="btn-primary"
+                                    style={{ padding: '8px 20px', fontSize: '0.84rem', fontWeight: 800 }}
+                                >
+                                    {submittingTimeIn ? 'Starting Shift...' : 'Start Staff Shift (Time-In)'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ============================================================ */}
+            {/* MODAL: MID-SHIFT CASH DROP (SAFE REMITTANCE)                 */}
+            {/* ============================================================ */}
+            {showCashDropModal && cashDropShift && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0, 0, 0, 0.75)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 99999, padding: '20px',
+                    overflowY: 'auto'
+                }}>
+                    <div className="glass-panel" style={{ width: '100%', maxWidth: '440px', borderRadius: '14px', padding: '24px', position: 'relative' }}>
+                        <button
+                            type="button"
+                            onClick={() => setShowCashDropModal(false)}
+                            style={{ position: 'absolute', right: '16px', top: '16px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                        >
+                            <X size={20} />
+                        </button>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                            <Coins size={22} color="#3b82f6" />
+                            <h2 style={{ margin: 0, fontSize: '1.18rem', fontWeight: 800 }}>
+                                Mid-Shift Cash Drop (Safe Remit)
+                            </h2>
+                        </div>
+                        <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                            Safely pull excess cash out of the register and transfer it to the store safe or Admin during the shift.
+                        </p>
+
+                        <form onSubmit={handleCashDropSubmit}>
+                            <div style={{ marginBottom: '14px' }}>
+                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '4px' }}>
+                                    Amount to Remit (₱) *:
+                                </label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="1"
+                                    max={cashDropShift.current_cash_balance || cashDropShift.active_cash_balance || 99999}
+                                    className="input-premium"
+                                    style={{ width: '100%', padding: '10px 12px', fontSize: '1.2rem', fontWeight: 800, fontFamily: 'monospace' }}
+                                    placeholder="5000.00"
+                                    value={cashDropAmount}
+                                    onChange={(e) => setCashDropAmount(e.target.value)}
+                                    required
+                                    autoFocus
+                                />
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                                    Current drawer cash: {formatCurrency(cashDropShift.current_cash_balance || cashDropShift.active_cash_balance || 0)}
+                                </span>
+                            </div>
+
+                            <div style={{ marginBottom: '18px' }}>
+                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '4px' }}>
+                                    Notes / Safe Reference (Optional):
+                                </label>
+                                <input
+                                    type="text"
+                                    className="input-premium"
+                                    style={{ width: '100%', padding: '8px 10px', fontSize: '0.84rem' }}
+                                    placeholder="e.g. 5x ₱1000 bills dropped into safe"
+                                    value={cashDropNotes}
+                                    onChange={(e) => setCashDropNotes(e.target.value)}
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCashDropModal(false)}
+                                    className="btn-secondary"
+                                    style={{ padding: '8px 16px', fontSize: '0.84rem' }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={submittingCashDrop}
+                                    className="btn-primary"
+                                    style={{ padding: '8px 20px', fontSize: '0.84rem', fontWeight: 800, background: '#3b82f6', borderColor: '#3b82f6' }}
+                                >
+                                    {submittingCashDrop ? 'Logging Drop...' : 'Confirm Cash Drop'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ============================================================ */}
+            {/* MODAL: ADMIN FORCE TIME-OUT & BLIND COUNT                   */}
+            {/* ============================================================ */}
+            {showForceCloseModal && forceCloseShift && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0, 0, 0, 0.75)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 99999, padding: '20px',
+                    overflowY: 'auto'
+                }}>
+                    <div className="glass-panel" style={{ width: '100%', maxWidth: '440px', borderRadius: '14px', padding: '24px', position: 'relative' }}>
+                        <button
+                            type="button"
+                            onClick={() => setShowForceCloseModal(false)}
+                            style={{ position: 'absolute', right: '16px', top: '16px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                        >
+                            <X size={20} />
+                        </button>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                            <Lock size={22} color="#dc2626" />
+                            <h2 style={{ margin: 0, fontSize: '1.18rem', fontWeight: 800 }}>
+                                Admin Force Time-Out &amp; Close Shift
+                            </h2>
+                        </div>
+                        <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                            Clock out <strong style={{ color: 'var(--text-main)' }}>@{forceCloseShift.username || forceCloseShift.staff_username}</strong> and count physical drawer cash. Their POS terminal will lock immediately.
+                        </p>
+
+                        <form onSubmit={handleForceCloseSubmit}>
+                            <div style={{ marginBottom: '14px', background: 'var(--surface-hover)', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                                    Expected Physical Cash in Register:
+                                </div>
+                                <div style={{ fontSize: '1.4rem', fontWeight: 900, fontFamily: 'monospace', color: '#3b82f6', marginTop: '2px' }}>
+                                    {formatCurrency(forceCloseShift.active_cash_balance || forceCloseShift.current_cash_balance || 0)}
+                                </div>
+                            </div>
+
+                            <div style={{ marginBottom: '14px' }}>
+                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '4px' }}>
+                                    Actual Physical Cash Counted (₱) *:
+                                </label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    className="input-premium"
+                                    style={{ width: '100%', padding: '10px 12px', fontSize: '1.2rem', fontWeight: 800, fontFamily: 'monospace' }}
+                                    placeholder="Enter physical cash counted in drawer"
+                                    value={forceCloseActual}
+                                    onChange={(e) => setForceCloseActual(e.target.value)}
+                                    required
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div style={{ marginBottom: '18px' }}>
+                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '4px' }}>
+                                    Admin Notes (Optional):
+                                </label>
+                                <input
+                                    type="text"
+                                    className="input-premium"
+                                    style={{ width: '100%', padding: '8px 10px', fontSize: '0.84rem' }}
+                                    placeholder="e.g. End of night physical count"
+                                    value={forceCloseNotes}
+                                    onChange={(e) => setForceCloseNotes(e.target.value)}
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowForceCloseModal(false)}
+                                    className="btn-secondary"
+                                    style={{ padding: '8px 16px', fontSize: '0.84rem' }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={submittingForceClose}
+                                    style={{ padding: '8px 20px', fontSize: '0.84rem', fontWeight: 800, background: '#dc2626', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                                >
+                                    {submittingForceClose ? 'Closing Shift...' : 'Force Time-Out &amp; Sign Off'}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

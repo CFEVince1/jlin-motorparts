@@ -78,6 +78,7 @@ async function ensureCashFloatsTableExists() {
         const cfColNames = cfCols.map(c => c.Field);
         const missingCols = [
             { col: 'shift_code', def: 'VARCHAR(50) NULL' },
+            { col: 'cash_drops', def: 'DECIMAL(12,2) NOT NULL DEFAULT 0.00' },
             { col: 'gcash_sales', def: 'DECIMAL(12,2) NOT NULL DEFAULT 0.00' },
             { col: 'petty_cash_expenses', def: 'DECIMAL(12,2) NOT NULL DEFAULT 0.00' },
             { col: 'blind_count_entered', def: 'DECIMAL(12,2) NULL' },
@@ -113,6 +114,27 @@ async function ensureCashFloatsTableExists() {
                 }
             }
         }
+
+        // Ensure status column allows VARCHAR(30) so PENDING_REMIT and custom shift states work
+        try {
+            await db.query(`ALTER TABLE cash_floats MODIFY COLUMN status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE'`);
+        } catch (statusModErr) {
+            // Ignore if already VARCHAR
+        }
+
+        // Soft-deactivate dummy/test accounts so they don't clutter the production shift drawer panel
+        try {
+            await db.query(`
+                UPDATE users 
+                SET is_active = 0 
+                WHERE LOWER(username) IN ('elena', 'brix', 'gilmoore') 
+                   OR LOWER(full_name) LIKE '%elena%' 
+                   OR LOWER(full_name) LIKE '%brix%' 
+                   OR LOWER(full_name) LIKE '%gilmoore%'
+            `);
+        } catch (deactErr) {
+            // Ignore if columns missing
+        }
         _ensuredCashFloats = true;
     } catch (e) {
         console.warn('[ensureCashFloatsTableExists notice]:', e.message);
@@ -134,20 +156,38 @@ exports.getStaffList = async (req, res) => {
                 u.full_name, 
                 u.role,
                 cf.id AS active_float_id,
+                cf.shift_code AS active_shift_code,
+                cf.status AS active_shift_status,
                 COALESCE(cf.starting_cash, cf.total_amount, 0) AS active_starting_cash,
                 COALESCE(cf.current_cash_balance, cf.starting_cash, cf.total_amount, 0) AS active_cash_balance,
                 COALESCE(cf.cash_sales, 0) AS active_cash_sales,
+                COALESCE(cf.gcash_sales, 0) AS active_gcash_sales,
                 COALESCE(cf.change_given, 0) AS active_change_given,
                 COALESCE(cf.cash_refunds, 0) AS active_cash_refunds,
+                COALESCE(cf.cash_drops, 0) AS active_cash_drops,
                 COALESCE(cf.sales_count, 0) AS active_sales_count,
+                cf.expected_cash AS active_expected_cash,
+                cf.actual_cash AS active_actual_cash,
+                cf.shortage_overage AS active_shortage_overage,
+                cf.admin_signed_off AS active_admin_signed_off,
                 cf.notes AS active_notes,
                 cf.assigned_at AS active_float_assigned_at,
+                cf.completed_at AS active_float_completed_at,
                 cf.assigned_by_username AS active_float_assigned_by
             FROM users u
-            LEFT JOIN cash_floats cf ON u.id = cf.staff_id 
-                AND cf.status = 'ACTIVE' 
-                AND (DATE(cf.assigned_at) = CURDATE() OR DATE(DATE_ADD(cf.assigned_at, INTERVAL 8 HOUR)) = DATE(DATE_ADD(NOW(), INTERVAL 8 HOUR)))
+            LEFT JOIN cash_floats cf ON cf.id = (
+                SELECT id FROM cash_floats 
+                WHERE staff_id = u.id 
+                  AND status IN ('ACTIVE', 'PENDING_REMIT')
+                ORDER BY assigned_at DESC 
+                LIMIT 1
+            )
             WHERE LOWER(u.role) IN ('staff', 'cashier')
+              AND COALESCE(u.is_active, 1) = 1
+              AND LOWER(u.username) NOT IN ('elena', 'brix', 'gilmoore')
+              AND LOWER(COALESCE(u.full_name, '')) NOT LIKE '%elena%'
+              AND LOWER(COALESCE(u.full_name, '')) NOT LIKE '%brix%'
+              AND LOWER(COALESCE(u.full_name, '')) NOT LIKE '%gilmoore%'
             ORDER BY u.username ASC
         `;
         const [staff] = await db.query(query);
@@ -172,18 +212,47 @@ exports.getSummary = async (req, res) => {
                 COALESCE(SUM(COALESCE(starting_cash, total_amount, 0)), 0) AS total_starting_cash,
                 COALESCE(SUM(COALESCE(cash_sales, 0)), 0) AS total_cash_sales,
                 COALESCE(SUM(COALESCE(cash_refunds, 0)), 0) AS total_cash_refunds,
+                COALESCE(SUM(COALESCE(cash_drops, 0)), 0) AS total_cash_drops,
                 COALESCE(SUM(COALESCE(current_cash_balance, starting_cash, total_amount, 0)), 0) AS total_drawer_balance
             FROM cash_floats
             WHERE status = 'ACTIVE'
-              AND (DATE(assigned_at) = CURDATE() OR DATE(DATE_ADD(assigned_at, INTERVAL 8 HOUR)) = DATE(DATE_ADD(NOW(), INTERVAL 8 HOUR)))
         `);
         const row = rows[0] || {};
+
+        // Active shift details if staff is active
+        const [activeRows] = await db.query(`
+            SELECT cf.shift_code, cf.staff_username, cf.assigned_at, u.full_name
+            FROM cash_floats cf
+            LEFT JOIN users u ON cf.staff_id = u.id
+            WHERE cf.status = 'ACTIVE'
+            ORDER BY cf.assigned_at DESC
+            LIMIT 1
+        `);
+        const activeShift = activeRows[0] || null;
+
+        // Pending remittances count and amount
+        const [pendingRows] = await db.query(`
+            SELECT 
+                COUNT(id) AS pending_count,
+                COALESCE(SUM(COALESCE(actual_cash, expected_cash, 0)), 0) AS pending_amount
+            FROM cash_floats
+            WHERE status = 'PENDING_REMIT' OR (status = 'COMPLETED' AND admin_signed_off = 0)
+        `);
+        const pending = pendingRows[0] || {};
+
         res.json({
             activeCount: Number(row.active_count || 0),
             totalStartingCash: Number(row.total_starting_cash || 0),
             totalCashSales: Number(row.total_cash_sales || 0),
             totalCashRefunds: Number(row.total_cash_refunds || 0),
-            totalDrawerBalance: Number(row.total_drawer_balance || 0)
+            totalCashDrops: Number(row.total_cash_drops || 0),
+            totalDrawerBalance: Number(row.total_drawer_balance || 0),
+            activeStaffName: activeShift ? (activeShift.full_name || activeShift.staff_username) : null,
+            activeStaffUsername: activeShift ? activeShift.staff_username : null,
+            activeShiftCode: activeShift ? activeShift.shift_code : null,
+            activeStartTime: activeShift ? activeShift.assigned_at : null,
+            pendingSignOffCount: Number(pending.pending_count || 0),
+            pendingSignOffAmount: Number(pending.pending_amount || 0)
         });
     } catch (err) {
         console.error('Error fetching cash float summary:', err);
@@ -983,13 +1052,14 @@ exports.closeShiftBlindCount = async (req, res) => {
             return res.status(400).json({ message: 'Please enter a valid actual counted cash amount.' });
         }
 
-        // Formula: Expected Drawer Cash = Opening Float + Cash Sales - Cash Refunds - Cash Expenses
+        // Formula: Expected Drawer Cash = Opening Float + Cash Sales - Cash Refunds - Cash Expenses - Cash Drops
         const openingFloat = Number(currentShift.starting_cash || currentShift.total_amount || 0);
         const cashSales = Number(currentShift.cash_sales || 0);
         const cashRefunds = Number(currentShift.cash_refunds || 0);
         const pettyExpenses = Number(currentShift.petty_cash_expenses || 0);
+        const cashDrops = Number(currentShift.cash_drops || 0);
 
-        const expectedDrawerCash = Math.round((openingFloat + cashSales - cashRefunds - pettyExpenses) * 100) / 100;
+        const expectedDrawerCash = Math.round((openingFloat + cashSales - cashRefunds - pettyExpenses - cashDrops) * 100) / 100;
         const variance = Math.round((numActualCash - expectedDrawerCash) * 100) / 100;
 
         let varianceBadge = 'BALANCED';
@@ -1003,6 +1073,7 @@ exports.closeShiftBlindCount = async (req, res) => {
         const cfCloseColNames = cfCloseCols.map(c => c.Field);
         const missingCloseCols = [
             { col: 'blind_count_entered', def: 'DECIMAL(12,2) NULL' },
+            { col: 'cash_drops', def: 'DECIMAL(12,2) NOT NULL DEFAULT 0.00' },
             { col: 'admin_signed_off', def: 'TINYINT(1) DEFAULT 0' },
             { col: 'signed_off_by_id', def: 'INT NULL' },
             { col: 'signed_off_by_name', def: 'VARCHAR(100) NULL' },
@@ -1027,6 +1098,8 @@ exports.closeShiftBlindCount = async (req, res) => {
             }
         }
 
+        const newShiftStatus = isAdmin ? 'COMPLETED' : 'PENDING_REMIT';
+
         await db.query(`
             UPDATE cash_floats SET
                 actual_cash = ?,
@@ -1042,7 +1115,7 @@ exports.closeShiftBlindCount = async (req, res) => {
                 coins_10 = ?,
                 coins_5 = ?,
                 coins_1 = ?,
-                status = 'COMPLETED',
+                status = ?,
                 admin_signed_off = ?,
                 signed_off_by_id = ?,
                 signed_off_by_name = ?,
@@ -1066,6 +1139,7 @@ exports.closeShiftBlindCount = async (req, res) => {
             Number(coins_10) || 0,
             Number(coins_5) || 0,
             Number(coins_1) || 0,
+            newShiftStatus,
             isAdmin ? 1 : 0,
             isAdmin ? staffId : null,
             isAdmin ? staffUsername : null,
@@ -1080,31 +1154,35 @@ exports.closeShiftBlindCount = async (req, res) => {
             cashFloatId: currentShift.id,
             staffId: currentShift.staff_id,
             staffUsername: currentShift.staff_username,
-            movementType: 'CLOSE_SHIFT_BLIND_COUNT',
+            movementType: isAdmin ? 'ADMIN_FORCE_TIME_OUT' : 'CLOSE_SHIFT_BLIND_COUNT',
             amount: numActualCash,
             balanceBefore: currentShift.current_cash_balance,
             balanceAfter: 0.00,
             referenceId: currentShift.shift_code || `SHIFT-${currentShift.id}`,
-            notes: `Shift closed. Counted: ₱${numActualCash.toFixed(2)}, Expected: ₱${expectedDrawerCash.toFixed(2)}, Variance: ₱${variance.toFixed(2)} (${varianceBadge})`
+            notes: `Shift closed (${newShiftStatus}). Counted: ₱${numActualCash.toFixed(2)}, Expected: ₱${expectedDrawerCash.toFixed(2)}, Variance: ₱${variance.toFixed(2)} (${varianceBadge})`
         });
 
         const [updatedRows] = await db.query('SELECT * FROM cash_floats WHERE id = ?', [currentShift.id]);
 
         return res.json({
             success: true,
-            message: `Shift closed successfully. Expected: ₱${expectedDrawerCash.toFixed(2)}, Counted: ₱${numActualCash.toFixed(2)}. Variance: ${variance === 0 ? 'Exact Match (₱0.00)' : (variance < 0 ? `Shortage of ₱${Math.abs(variance).toFixed(2)}` : `Overage of +₱${variance.toFixed(2)}`)}.`,
+            message: isAdmin 
+                ? `Shift closed & verified by Admin. Expected: ₱${expectedDrawerCash.toFixed(2)}, Counted: ₱${numActualCash.toFixed(2)}. Variance: ${variance === 0 ? 'Exact Match (₱0.00)' : (variance < 0 ? `Shortage of ₱${Math.abs(variance).toFixed(2)}` : `Overage of +₱${variance.toFixed(2)}`)}.`
+                : `Shift successfully closed! Remittance of ₱${numActualCash.toFixed(2)} submitted for Admin physical verification.`,
             reconciliation: {
                 shiftCode: currentShift.shift_code || `SHIFT-${currentShift.id}`,
                 openingFloat,
                 cashSales,
                 gcashSales: Number(currentShift.gcash_sales || 0),
                 cashRefunds,
+                cashDrops,
                 pettyCashExpenses: pettyExpenses,
                 expectedDrawerCash,
                 actualCountedCash: numActualCash,
                 variance,
                 varianceBadge,
-                adminSignedOff: isAdmin
+                adminSignedOff: isAdmin,
+                status: newShiftStatus
             },
             shift: updatedRows[0]
         });
@@ -1116,7 +1194,7 @@ exports.closeShiftBlindCount = async (req, res) => {
 
 /**
  * POST /api/cash-float/:id/sign-off
- * Admin Sign-Off on closed shift
+ * Admin Sign-Off on closed / pending remittance shift
  */
 exports.adminSignOff = async (req, res) => {
     try {
@@ -1134,6 +1212,7 @@ exports.adminSignOff = async (req, res) => {
 
         await db.query(`
             UPDATE cash_floats SET
+                status = 'COMPLETED',
                 admin_signed_off = 1,
                 signed_off_by_id = ?,
                 signed_off_by_name = ?,
@@ -1144,11 +1223,156 @@ exports.adminSignOff = async (req, res) => {
 
         return res.json({
             success: true,
-            message: `Shift ${shift.shift_code || shiftId} officially signed off by Admin (${adminUsername}).`
+            message: `Shift ${shift.shift_code || shiftId} officially signed off and completed by Admin (${adminUsername}).`
         });
     } catch (err) {
         console.error('Error signing off shift:', err);
         return res.status(500).json({ message: 'Failed to sign off shift.' });
+    }
+};
+
+/**
+ * POST /api/cash-float/:id/cancel
+ * Allows Admin to cleanly cancel/void a shift opened by mistake ONLY if 0 sales were processed.
+ * If sales exist, cancellation is blocked with instructions to use Force Time-Out instead.
+ */
+exports.cancelShift = async (req, res) => {
+    try {
+        await ensureCashFloatsTableExists();
+        const shiftId = req.params.id;
+        const [records] = await db.query('SELECT * FROM cash_floats WHERE id = ?', [shiftId]);
+        if (records.length === 0) {
+            return res.status(404).json({ message: 'Shift not found.' });
+        }
+        const shift = records[0];
+
+        // Check if any sales were tied to this shift
+        let salesInDb = 0;
+        try {
+            const [salesCheck] = await db.query('SELECT COUNT(*) as count FROM sales WHERE shift_id = ?', [shiftId]);
+            salesInDb = Number(salesCheck[0]?.count || 0);
+        } catch (sErr) {}
+
+        const shiftSalesCount = Number(shift.sales_count || 0);
+
+        if (salesInDb > 0 || shiftSalesCount > 0) {
+            return res.status(400).json({
+                message: `Cannot cancel shift ${shift.shift_code || shiftId} because ${salesInDb || shiftSalesCount} sales transaction(s) have already been processed under it. Use "Force Time-Out & Count" instead to preserve sales records.`
+            });
+        }
+
+        // Clean up movements and shift record
+        await db.query('DELETE FROM cash_movements WHERE cash_float_id = ?', [shiftId]);
+        await db.query('DELETE FROM cash_floats WHERE id = ?', [shiftId]);
+
+        return res.json({
+            success: true,
+            message: `Shift ${shift.shift_code || shiftId} for @${shift.staff_username} was successfully canceled. Staff is now Off-Shift.`
+        });
+    } catch (err) {
+        console.error('Error cancelling shift:', err);
+        return res.status(500).json({ message: 'Failed to cancel shift.' });
+    }
+};
+
+/**
+ * POST /api/cash-float/:id/reopen
+ * Allows Admin to undo an accidental shift close (e.g. while in PENDING_REMIT or closed prematurely),
+ * restoring status = 'ACTIVE' and clearing completion times so staff can resume punching sales.
+ */
+exports.reopenShift = async (req, res) => {
+    try {
+        await ensureCashFloatsTableExists();
+        const shiftId = req.params.id;
+        const [records] = await db.query('SELECT * FROM cash_floats WHERE id = ?', [shiftId]);
+        if (records.length === 0) {
+            return res.status(404).json({ message: 'Shift not found.' });
+        }
+        const shift = records[0];
+
+        await db.query(`
+            UPDATE cash_floats SET
+                status = 'ACTIVE',
+                completed_at = NULL,
+                returned_at = NULL,
+                actual_cash = NULL,
+                blind_count_entered = NULL,
+                shortage_overage = NULL,
+                admin_signed_off = 0,
+                reconciliation_notes = CONCAT(COALESCE(reconciliation_notes, ''), ' | Reopened by Admin')
+            WHERE id = ?
+        `, [shiftId]);
+
+        return res.json({
+            success: true,
+            message: `Shift ${shift.shift_code || shiftId} for @${shift.staff_username} has been reopened! Staff can now continue selling.`
+        });
+    } catch (err) {
+        console.error('Error reopening shift:', err);
+        return res.status(500).json({ message: 'Failed to reopen shift.' });
+    }
+};
+
+/**
+ * POST /api/cash-float/:id/cash-drop
+ * Deducts mid-day cash remittance from expected drawer balance before closing count.
+ */
+exports.logCashDrop = async (req, res) => {
+    try {
+        await ensureCashFloatsTableExists();
+        const shiftId = req.params.id;
+        const { amount, notes } = req.body;
+        const dropAmount = Number(amount);
+
+        if (!dropAmount || dropAmount <= 0) {
+            return res.status(400).json({ message: 'Please enter a valid cash drop amount.' });
+        }
+
+        const [records] = await db.query('SELECT * FROM cash_floats WHERE id = ? FOR UPDATE', [shiftId]);
+        if (records.length === 0) {
+            return res.status(404).json({ message: 'Active shift not found.' });
+        }
+        const shift = records[0];
+        const currentBalance = Number(shift.current_cash_balance || shift.starting_cash || 0);
+
+        if (dropAmount > currentBalance) {
+            return res.status(400).json({
+                message: `Drop amount (₱${dropAmount.toFixed(2)}) exceeds current drawer cash (₱${currentBalance.toFixed(2)}).`
+            });
+        }
+
+        const newBalance = Math.round((currentBalance - dropAmount) * 100) / 100;
+        const newDrops = Math.round((Number(shift.cash_drops || 0) + dropAmount) * 100) / 100;
+
+        await db.query(`
+            UPDATE cash_floats SET
+                current_cash_balance = ?,
+                cash_drops = ?,
+                notes = CONCAT(COALESCE(notes, ''), ' | Cash Drop: -₱', ?, ' (', ?, ')')
+            WHERE id = ?
+        `, [newBalance, newDrops, dropAmount.toFixed(2), notes || 'Mid-shift safe remittance', shiftId]);
+
+        await logCashMovement(db, {
+            cashFloatId: shift.id,
+            staffId: req.user.id,
+            staffUsername: req.user.username,
+            movementType: 'CASH_DROP',
+            amount: dropAmount,
+            balanceBefore: currentBalance,
+            balanceAfter: newBalance,
+            referenceId: shift.shift_code,
+            notes: notes ? `Cash drop: ${notes}` : `Mid-day remittance to Admin`
+        });
+
+        return res.json({
+            success: true,
+            message: `₱${dropAmount.toFixed(2)} cash drop logged successfully. Remaining drawer cash: ₱${newBalance.toFixed(2)}`,
+            new_balance: newBalance,
+            cash_drops: newDrops
+        });
+    } catch (err) {
+        console.error('Error logging cash drop:', err);
+        return res.status(500).json({ message: 'Failed to log cash drop.' });
     }
 };
 
