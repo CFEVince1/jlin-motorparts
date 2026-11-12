@@ -47,49 +47,55 @@
 }
 
 [data-theme='light'], .light {
-  --primary: #059669; /* Emerald 600 */
-  --primary-hover: #10b981; /* Emerald 500 */
-  --secondary: #f4f4f5;
-  --bg-dark: #f8fafc; /* slate-50 */
-  --surface: #ffffff; /* pure white */
-  --surface-hover: #f1f5f9; /* slate-100 */
-  --text-main: #0f172a; /* slate-900 */
-  --text-muted: #64748b; /* slate-500 */
-  --accent: #059669;
-  --success: #059669;
+  /* Soft Warm Off-White Stone & Calm Emerald Palette (Anti-Glare / Eye-Friendly) */
+  --primary: #047857; /* Calmer Emerald-700 (richer, non-neon on light canvas) */
+  --primary-hover: #065f46; /* Emerald-800 on hover */
+  --secondary: #f8f7f4; /* Stone-50 panel */
+  --bg-dark: #f2f1ed; /* Main canvas background (cuts 10-15% glare immediately) */
+  --bg-canvas: #f2f1ed;
+  --bg-panel: #f8f7f4;
+  --bg-card: #fcfbf9;
+  --surface: #fcfbf9; /* Soft Alabaster / Stone-50 product cards & surfaces */
+  --surface-panel: #f8f7f4; /* Stone-50 left sidebar & right cart checkout panel */
+  --surface-hover: #eceae4; /* Stone-100 warm hover state */
+  --text-main: #262522; /* Soft charcoal stone-800 for titles & prices (no halation/blur) */
+  --text-muted: #6b6860; /* Muted stone-500 for SKUs & category labels */
+  --accent: #047857;
+  --success: #047857;
   --danger: #dc2626;
   --warning: #b45309;
-  --warning-text: #92400e; /* Deep rich amber-800: high contrast & clear on white */
+  --warning-text: #92400e; /* Deep rich amber-800: high contrast & clear on light */
   --warning-bg: #fef3c7; /* Warm soft amber-100 */
   --warning-border: #fcd34d; /* amber-300 */
-  --border: #e2e8f0; /* slate-200 */
-  --glass-bg: #ffffff;
-  --glass-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.05); /* shadow-sm */
-  --input-bg: #ffffff; /* crisp white input */
-  --input-border: #cbd5e1; /* slate-300 */
-  --input-color: #0f172a; /* slate-900 */
-  --input-placeholder: #94a3b8; /* slate-400 */
-  --th-bg: #f8fafc; /* slate-50 */
-  --th-color: #334155; /* slate-700 */
-  --td-color: #0f172a; /* slate-900 */
-  --td-border: #f1f5f9; /* slate-100 */
-  --td-muted: #64748b; /* slate-500 */
-  --tr-hover: #f8fafc;
-  --badge-non-serialized-bg: #f1f5f9; /* slate-100 */
-  --badge-non-serialized-color: #334155; /* slate-700 */
-  --badge-non-serialized-border: #cbd5e1; /* slate-300 */
-  --badge-serialized-bg: #fffbeb; /* amber-50 */
-  --badge-serialized-color: #b45309; /* amber-700 */
-  --badge-serialized-border: #fcd34d; /* amber-300 */
-  --btn-secondary-bg: #ffffff; /* white */
-  --btn-secondary-hover: #f1f5f9; /* slate-100 */
-  --btn-secondary-color: #1e293b; /* slate-800 */
-  --btn-secondary-border: #cbd5e1; /* slate-300 */
-  --sidebar-bg: #ffffff; /* white */
-  --sidebar-border: #e2e8f0; /* slate-200 */
-  --sidebar-link: #64748b; /* slate-500 */
-  --sidebar-link-hover: #0f172a; /* slate-900 */
-  --sidebar-link-hover-bg: #f1f5f9; /* slate-100 */
+  --border: #e2e0d8; /* border-stone-200 subtle divider (no harsh contrast) */
+  --border-subtle: #e2e0d8;
+  --glass-bg: #f8f7f4;
+  --glass-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
+  --input-bg: #fcfbf9; /* Soft alabaster input */
+  --input-border: #d8d5cb; /* Stone-300 */
+  --input-color: #262522; /* Stone-800 */
+  --input-placeholder: #8c887b; /* Stone-400 */
+  --th-bg: #eae8e1; /* Stone-150 header */
+  --th-color: #262522;
+  --td-color: #262522;
+  --td-border: #e2e0d8;
+  --td-muted: #6b6860;
+  --tr-hover: rgba(4, 120, 87, 0.05);
+  --badge-non-serialized-bg: #eae8e1;
+  --badge-non-serialized-color: #44403c;
+  --badge-non-serialized-border: #d6d3c9;
+  --badge-serialized-bg: #fef3c7;
+  --badge-serialized-color: #92400e;
+  --badge-serialized-border: #fcd34d;
+  --btn-secondary-bg: #fcfbf9;
+  --btn-secondary-hover: #eceae4;
+  --btn-secondary-color: #262522;
+  --btn-secondary-border: #d8d5cb;
+  --sidebar-bg: #f8f7f4; /* Stone-50 left sidebar */
+  --sidebar-border: #e2e0d8; /* border-stone-200 */
+  --sidebar-link: #6b6860; /* text-stone-500 */
+  --sidebar-link-hover: #262522; /* text-stone-800 */
+  --sidebar-link-hover-bg: #eceae4;
 }
 
 * {
@@ -216,9 +222,9 @@ select.input-premium option {
 
 /* Buttons - Emerald Brand Accent */
 .btn-primary {
-  background-color: #059669;
+  background-color: var(--primary);
   color: #ffffff;
-  border: none;
+  border: 1px solid var(--primary);
   height: 40px;
   padding: 8px 16px;
   border-radius: 8px;
@@ -232,8 +238,9 @@ select.input-premium option {
   gap: 8px;
 }
 
-.btn-primary:hover {
-  background-color: #10b981;
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 /* Secondary / Logout Button:
@@ -757,7 +764,90 @@ tr:hover td {
 
 [data-theme='light'] [style*="color: #a78bfa"],
 [data-theme='light'] [style*="color:#a78bfa"] {
-  color: #6d28d9 !important; /* High contrast purple on white */
+  color: #581c87 !important; /* Rich deep purple-900 on light */
+}
+
+/* ========================================================== */
+/* EYE-FRIENDLY LIGHT MODE REFINEMENTS (WARM STONE PALETTE)   */
+/* ========================================================== */
+[data-theme='light'] .pos-product-card {
+  background-color: var(--surface) !important; /* Soft Alabaster #fcfbf9 */
+  border: 1px solid var(--border) !important; /* border-stone-200 #e2e0d8 */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+}
+
+[data-theme='light'] .pos-product-card:hover {
+  background-color: #ffffff !important;
+  border-color: #047857 !important;
+  box-shadow: 0 4px 12px rgba(4, 120, 87, 0.08) !important;
+}
+
+[data-theme='light'] .pos-cart-wrapper,
+[data-theme='light'] #pos-cart-section {
+  background-color: #f8f7f4 !important; /* Stone-50 right checkout panel */
+  border-color: #e2e0d8 !important; /* border-stone-200 */
+}
+
+[data-theme='light'] .sidebar,
+[data-theme='light'] .sidebar-wrapper .sidebar {
+  background-color: #f8f7f4 !important; /* Stone-50 left sidebar */
+  border-right-color: #e2e0d8 !important;
+}
+
+[data-theme='light'] .sidebar-link.active,
+.light .sidebar-link.active {
+  color: #064e3b !important; /* text-emerald-900 */
+  background-color: rgba(209, 250, 229, 0.75) !important; /* bg-emerald-100/70 */
+  border-left: 3px solid #047857 !important;
+  font-weight: 700 !important;
+}
+
+[data-theme='light'] .sidebar-link.active .link-icon svg,
+.light .sidebar-link.active .link-icon svg {
+  color: #047857 !important;
+}
+
+/* In-Stock pills in Light Mode */
+[data-theme='light'] [style*="color: rgb(22, 163, 74)"],
+[data-theme='light'] [style*="color: #16a34a"] {
+  color: #065f46 !important; /* text-emerald-900 / 800 */
+}
+
+[data-theme='light'] [style*="rgba(22, 163, 74, 0.1)"] {
+  background-color: rgba(209, 250, 229, 0.75) !important; /* bg-emerald-100/70 */
+  border-color: rgba(167, 243, 208, 0.95) !important;
+}
+
+/* Trade-In Credit alert card in Light Mode */
+[data-theme='light'] .trade-in-card,
+[data-theme='light'] [data-alert="trade-in-credit"],
+[data-theme='light'] [style*="background: rgba(139, 92, 246, 0.08)"] {
+  background-color: rgba(243, 232, 255, 0.55) !important; /* bg-purple-100/50 */
+  border: 1px solid #e9d5ff !important; /* border-purple-200 */
+}
+
+[data-theme='light'] .trade-in-badge,
+[data-theme='light'] [data-badge="trade-in-credit"],
+[data-theme='light'] [style*="background: rgba(139, 92, 246, 0.25)"] {
+  background-color: #f3e8ff !important;
+  color: #581c87 !important; /* text-purple-900 */
+  border: 1px solid #d8b4fe !important;
+}
+
+/* Refund Policy & Under Credit Box in Light Mode */
+[data-theme='light'] .under-credit-banner,
+[data-theme='light'] [data-alert="under-credit"],
+[data-theme='light'] .refund-policy-warning,
+[data-theme='light'] [style*="background: rgba(239, 68, 68, 0.1)"] {
+  background-color: rgba(255, 228, 230, 0.55) !important; /* bg-rose-100/50 */
+  border: 1px solid #fecdd3 !important; /* border-rose-200 */
+  color: #881337 !important; /* text-rose-900 */
+}
+
+[data-theme='light'] .under-credit-banner strong,
+[data-theme='light'] [data-alert="under-credit"] strong,
+[data-theme='light'] [style*="background: rgba(239, 68, 68, 0.1)"] strong {
+  color: #881337 !important;
 }
 
 /* Spinner */

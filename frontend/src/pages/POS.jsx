@@ -2405,24 +2405,32 @@ const POS = ({ defaultTab }) => {
                 <div style={{ flex: 1, overflowY: 'auto', padding: '12px', maxHeight: '420px' }}>
                     {/* Pinned Locked Credit Line during Replacement Mode */}
                     {replacementMode && (
-                        <div style={{
-                            marginBottom: '10px',
-                            padding: '10px 12px',
-                            background: 'rgba(139, 92, 246, 0.08)',
-                            border: '1px solid rgba(139, 92, 246, 0.35)',
-                            borderRadius: '8px'
-                        }}>
+                        <div
+                            className="trade-in-card"
+                            data-alert="trade-in-credit"
+                            style={{
+                                marginBottom: '10px',
+                                padding: '10px 12px',
+                                background: 'rgba(139, 92, 246, 0.08)',
+                                border: '1px solid rgba(139, 92, 246, 0.35)',
+                                borderRadius: '8px'
+                            }}
+                        >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                    <span style={{
-                                        fontSize: '0.66rem',
-                                        fontWeight: 800,
-                                        background: 'rgba(139, 92, 246, 0.25)',
-                                        color: '#a78bfa',
-                                        padding: '2px 6px',
-                                        borderRadius: '4px',
-                                        textTransform: 'uppercase'
-                                    }}>
+                                    <span
+                                        className="trade-in-badge"
+                                        data-badge="trade-in-credit"
+                                        style={{
+                                            fontSize: '0.66rem',
+                                            fontWeight: 800,
+                                            background: 'rgba(139, 92, 246, 0.25)',
+                                            color: '#a78bfa',
+                                            padding: '2px 6px',
+                                            borderRadius: '4px',
+                                            textTransform: 'uppercase'
+                                        }}
+                                    >
                                         Trade-In Credit
                                     </span>
                                     {replacementMode.allSaleItems && replacementMode.allSaleItems.length > 1 ? (
@@ -3043,16 +3051,20 @@ const POS = ({ defaultTab }) => {
 
                             {/* Helpful Guidance when under credit */}
                             {isUnderReplacementCredit && (
-                                <div style={{
-                                    marginBottom: '10px',
-                                    background: 'var(--warning-bg)',
-                                    border: '1px solid var(--warning-border)',
-                                    borderRadius: '8px',
-                                    padding: '10px 12px',
-                                    color: 'var(--warning-text)',
-                                    fontSize: '0.75rem',
-                                    lineHeight: 1.4
-                                }}>
+                                <div
+                                    className="under-credit-banner"
+                                    data-alert="under-credit"
+                                    style={{
+                                        marginBottom: '10px',
+                                        background: 'var(--warning-bg)',
+                                        border: '1px solid var(--warning-border)',
+                                        borderRadius: '8px',
+                                        padding: '10px 12px',
+                                        color: 'var(--warning-text)',
+                                        fontSize: '0.75rem',
+                                        lineHeight: 1.4
+                                    }}
+                                >
                                     <div style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '3px' }}>
                                         <span>💡 Upgrade or Complete Exchange:</span>
                                     </div>
