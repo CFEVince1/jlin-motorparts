@@ -39,8 +39,10 @@ async function logCashMovement(dbOrConn, {
 }
 
 /**
- * Automatically close any unclosed shifts / cash floats from past business days
- * so they do not carry over into the new day/session.
+ * Safely archive stale abandoned shifts older than 14 days.
+ * NOTE: Active or Pending Remit shifts are NEVER automatically closed across midnight
+ * or business day changes because staff may work overtime, perform cash count,
+ * or await Admin remittance sign-off. Admin is the sole authority to verify cash and complete shifts.
  */
 async function closePastDayActiveFloats(dbOrConn) {
     try {
@@ -50,18 +52,15 @@ async function closePastDayActiveFloats(dbOrConn) {
                 status = 'COMPLETED',
                 completed_at = COALESCE(completed_at, NOW()),
                 returned_at = COALESCE(returned_at, NOW()),
-                reconciliation_notes = COALESCE(reconciliation_notes, 'Auto-closed on business day reset - New shift required')
-            WHERE status = 'ACTIVE' 
-              AND (
-                DATE(DATE_ADD(assigned_at, INTERVAL 8 HOUR)) < DATE(DATE_ADD(NOW(), INTERVAL 8 HOUR))
-                OR DATE(assigned_at) < CURDATE()
-              )
+                reconciliation_notes = COALESCE(reconciliation_notes, 'Auto-archived stale unclosed shift (>14 days inactive)')
+            WHERE status IN ('ACTIVE', 'PENDING_REMIT') 
+              AND assigned_at < DATE_SUB(NOW(), INTERVAL 14 DAY)
         `);
         if (result && result.affectedRows > 0) {
-            console.log(`[CashMovementService] Auto-closed ${result.affectedRows} past-day active float(s) on new day reset.`);
+            console.log(`[CashMovementService] Archived ${result.affectedRows} stale shift(s) older than 14 days.`);
         }
     } catch (err) {
-        console.error('[CashMovementService] Error auto-closing past day active floats:', err);
+        console.error('[CashMovementService] Error checking stale shifts:', err);
     }
 }
 

@@ -50,34 +50,43 @@ exports.login = async (req, res) => {
 
         // 3. Shift-Locked Authentication Gate for Staff / Cashiers
         if (!isAdmin) {
-            // Query active shift in cash_floats table
-            const [activeShifts] = await db.query(
-                "SELECT id, shift_code, staff_id, staff_username, status FROM cash_floats WHERE status IN ('ACTIVE', 'PENDING_REMIT') ORDER BY assigned_at DESC LIMIT 1"
+            // Check if THIS staff member has an ACTIVE shift assigned to them
+            const [myActiveShifts] = await db.query(
+                "SELECT id, shift_code, staff_id, staff_username, status FROM cash_floats WHERE staff_id = ? AND status = 'ACTIVE' ORDER BY assigned_at DESC LIMIT 1",
+                [user.id]
             );
 
-            // Case A: No Shift is Open
-            if (activeShifts.length === 0) {
+            if (myActiveShifts.length === 0) {
+                // Check if THIS staff member has a PENDING_REMIT shift awaiting Admin sign-off
+                const [myPendingShifts] = await db.query(
+                    "SELECT id, shift_code, staff_id, staff_username, status FROM cash_floats WHERE staff_id = ? AND status = 'PENDING_REMIT' ORDER BY assigned_at DESC LIMIT 1",
+                    [user.id]
+                );
+
+                if (myPendingShifts.length > 0) {
+                    return res.status(403).json({
+                        code: 'SHIFT_AWAITING_VERIFICATION',
+                        message: 'Shift Closing in Progress: Your preliminary count has been submitted and is awaiting Admin verification.'
+                    });
+                }
+
+                // Check if the drawer is active for a DIFFERENT staff member
+                const [otherActiveShifts] = await db.query(
+                    "SELECT id, shift_code, staff_id, staff_username, status FROM cash_floats WHERE status = 'ACTIVE' AND staff_id != ? ORDER BY assigned_at DESC LIMIT 1",
+                    [user.id]
+                );
+
+                if (otherActiveShifts.length > 0) {
+                    return res.status(403).json({
+                        code: 'DRAWER_ASSIGNED_OTHER',
+                        message: `Access Denied: Cash drawer is currently assigned to @${otherActiveShifts[0].staff_username || 'another cashier'}. Please ask Admin to handover or time-in your drawer.`
+                    });
+                }
+
+                // No active shift for any cashier
                 return res.status(403).json({
                     code: 'NO_ACTIVE_SHIFT',
-                    message: 'Login Restricted: No active shift has been opened by the Admin.'
-                });
-            }
-
-            const activeShift = activeShifts[0];
-
-            // Case B: Shift is Open for a DIFFERENT Staff Member
-            if (Number(activeShift.staff_id) !== Number(user.id)) {
-                return res.status(403).json({
-                    code: 'DRAWER_ASSIGNED_OTHER',
-                    message: `Access Denied: Drawer is currently assigned to ${activeShift.staff_username || 'another staff member'}.`
-                });
-            }
-
-            // Case C: Shift is Open for THIS Specific Staff Member, but already submitted preliminary count
-            if (activeShift.status === 'PENDING_REMIT') {
-                return res.status(403).json({
-                    code: 'SHIFT_AWAITING_VERIFICATION',
-                    message: 'Shift Closing in Progress: Your preliminary count has been submitted and is awaiting Admin verification.'
+                    message: 'Login Restricted: No active shift has been opened for you by the Admin. Please ask Admin to Time-In & Assign Float.'
                 });
             }
         }

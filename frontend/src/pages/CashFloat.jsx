@@ -1798,7 +1798,10 @@ export const CashFloat = () => {
                             {staffList.length > 0 && !staffList.some(s => s.active_shift_status === 'ACTIVE') && (
                                 <button
                                     type="button"
-                                    onClick={() => handleDirectTimeIn(staffList[0], 2000)}
+                                    onClick={() => {
+                                        const target = staffList.find(s => !s.active_float_id) || staffList[0];
+                                        if (target) handleDirectTimeIn(target, 2000);
+                                    }}
                                     className="btn-primary"
                                     style={{ padding: '7px 16px', fontSize: '0.82rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}
                                     title="Immediately time-in cashier with standard ₱2,000 float and unlock POS terminal"
@@ -1881,86 +1884,91 @@ export const CashFloat = () => {
                                                         )}
                                                     </td>
 
-                                                    {/* Col 3: Time-In / Time-Out */}
+                                                    {/* Col 3: Time-In / Time-Out Status & Duration */}
                                                     <td style={{ padding: '12px 14px' }}>
-                                                        {status === 'ACTIVE' ? (
-                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                                                <div style={{ fontSize: '0.78rem' }}>
-                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                                        <span style={{ color: '#16a34a', fontWeight: 800 }}>🟢 IN:</span>
-                                                                        <strong>{formatAuditDate(s.active_float_assigned_at)}</strong>
+                                                        {status === 'ACTIVE' ? (() => {
+                                                            const diffMs = s.active_float_assigned_at ? (Date.now() - new Date(s.active_float_assigned_at).getTime()) : 0;
+                                                            const totalMins = Math.max(0, Math.floor(diffMs / 60000));
+                                                            const hrs = Math.floor(totalMins / 60);
+                                                            const mins = totalMins % 60;
+                                                            const isOvertime = hrs >= 8;
+
+                                                            return (
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                                                    <div style={{ fontSize: '0.78rem' }}>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                                            <span style={{ color: '#16a34a', fontWeight: 800 }}>🟢 IN:</span>
+                                                                            <strong>{formatAuditDate(s.active_float_assigned_at)}</strong>
+                                                                        </div>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '3px', fontSize: '0.74rem' }}>
+                                                                            <span style={{ color: 'var(--text-muted)' }}>⏱ On-Duty:</span>
+                                                                            <strong style={{ color: isOvertime ? '#d97706' : 'var(--text-main)' }}>
+                                                                                {hrs}h {mins}m
+                                                                            </strong>
+                                                                        </div>
                                                                     </div>
-                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                                                                        <span style={{ color: '#3b82f6', fontWeight: 700 }}>⏱ OUT:</span>
-                                                                        <span style={{ color: '#10b981', fontWeight: 700 }}>Active On-Duty</span>
-                                                                    </div>
+                                                                    {isOvertime ? (
+                                                                        <span style={{
+                                                                            marginTop: '3px',
+                                                                            padding: '2px 7px',
+                                                                            borderRadius: '4px',
+                                                                            fontSize: '0.68rem',
+                                                                            fontWeight: 800,
+                                                                            background: 'rgba(245, 158, 11, 0.15)',
+                                                                            color: '#d97706',
+                                                                            border: '1px solid rgba(245, 158, 11, 0.35)',
+                                                                            width: 'fit-content',
+                                                                            display: 'inline-flex',
+                                                                            alignItems: 'center',
+                                                                            gap: '4px'
+                                                                        }}>
+                                                                            ⏱️ Overtime / Remit Due
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span style={{ fontSize: '0.70rem', color: '#10b981', fontWeight: 700, marginTop: '2px' }}>
+                                                                            ● Active on Register
+                                                                        </span>
+                                                                    )}
                                                                 </div>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleDirectTimeOut(s)}
-                                                                    disabled={isActionBusy}
-                                                                    style={{
-                                                                        padding: '4px 10px',
-                                                                        fontSize: '0.74rem',
-                                                                        fontWeight: 800,
-                                                                        background: '#dc2626',
-                                                                        color: '#fff',
-                                                                        border: 'none',
-                                                                        borderRadius: '6px',
-                                                                        cursor: 'pointer',
-                                                                        display: 'inline-flex',
-                                                                        alignItems: 'center',
-                                                                        gap: '5px',
-                                                                        width: 'fit-content'
-                                                                    }}
-                                                                    title="Direct 1-Click Time-Out (records closing timestamp, locks terminal, ends shift)"
-                                                                >
-                                                                    <Square size={12} fill="#fff" /> ⏹ Time-Out Now
-                                                                </button>
-                                                            </div>
-                                                        ) : status === 'PENDING_REMIT' ? (
-                                                            <div style={{ fontSize: '0.78rem' }}>
+                                                            );
+                                                        })() : status === 'PENDING_REMIT' ? (
+                                                            <div style={{ fontSize: '0.78rem', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                                                                 <div>
                                                                     <span style={{ color: 'var(--text-muted)', fontSize: '0.70rem' }}>In: </span>
                                                                     <strong>{formatAuditDate(s.active_float_assigned_at)}</strong>
                                                                 </div>
-                                                                <div style={{ marginTop: '2px' }}>
-                                                                    <span style={{ color: '#f59e0b', fontSize: '0.70rem', fontWeight: 700 }}>Out: </span>
+                                                                <div>
+                                                                    <span style={{ color: '#f59e0b', fontSize: '0.70rem', fontWeight: 700 }}>Remit: </span>
                                                                     <span style={{ color: '#f59e0b', fontWeight: 700 }}>
-                                                                        {s.active_float_completed_at ? formatAuditDate(s.active_float_completed_at) : 'Timed-Out (Pending Sign-off)'}
+                                                                        {s.active_float_completed_at ? formatAuditDate(s.active_float_completed_at) : 'Submitted (Pending Admin)'}
                                                                     </span>
                                                                 </div>
+                                                                <span style={{
+                                                                    marginTop: '2px',
+                                                                    padding: '2px 7px',
+                                                                    borderRadius: '4px',
+                                                                    fontSize: '0.68rem',
+                                                                    fontWeight: 800,
+                                                                    background: 'rgba(245, 158, 11, 0.15)',
+                                                                    color: '#d97706',
+                                                                    border: '1px solid rgba(245, 158, 11, 0.35)',
+                                                                    width: 'fit-content'
+                                                                }}>
+                                                                    ⏳ Awaiting Admin Sign-Off
+                                                                </span>
                                                             </div>
                                                         ) : (
-                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                                                                 {s.last_shift_assigned_at ? (
-                                                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: '1.25' }}>
-                                                                        <div><span style={{ color: 'var(--text-muted)' }}>Last In:</span> {formatAuditDate(s.last_shift_assigned_at)}</div>
-                                                                        <div><span style={{ color: 'var(--text-muted)' }}>Last Out:</span> {s.last_shift_completed_at ? formatAuditDate(s.last_shift_completed_at) : 'Ended'}</div>
+                                                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: '1.3' }}>
+                                                                        <div><span>Last In:</span> <strong>{formatAuditDate(s.last_shift_assigned_at)}</strong></div>
+                                                                        <div><span>Last Out:</span> <strong>{s.last_shift_completed_at ? formatAuditDate(s.last_shift_completed_at) : 'Ended'}</strong></div>
                                                                     </div>
                                                                 ) : (
-                                                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                                                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
                                                                         ⚪ Off-Duty
                                                                     </div>
                                                                 )}
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleDirectTimeIn(s, 2000)}
-                                                                    disabled={isActionBusy}
-                                                                    className="btn-primary"
-                                                                    style={{
-                                                                        padding: '4px 10px',
-                                                                        fontSize: '0.74rem',
-                                                                        fontWeight: 800,
-                                                                        display: 'inline-flex',
-                                                                        alignItems: 'center',
-                                                                        gap: '5px',
-                                                                        width: 'fit-content'
-                                                                    }}
-                                                                    title="Direct 1-Click Time-In (starts shift with standard ₱2,000 float & unlocks POS terminal)"
-                                                                >
-                                                                    <Play size={12} fill="currentColor" /> ▶ Time-In (₱2k)
-                                                                </button>
                                                             </div>
                                                         )}
                                                     </td>

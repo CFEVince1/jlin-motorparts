@@ -338,7 +338,9 @@ exports.getMyCashFloat = async (req, res) => {
         await ensureCashFloatsTableExists();
         await closePastDayActiveFloats();
         const staffId = req.user.id;
-        const [floats] = await db.query(
+        const isAdmin = (req.user.role || '').toLowerCase() === 'admin';
+
+        let [floats] = await db.query(
             `SELECT 
                 cf.*,
                 COALESCE(cf.starting_cash, cf.total_amount, 0) AS starting_cash,
@@ -347,10 +349,33 @@ exports.getMyCashFloat = async (req, res) => {
              FROM cash_floats cf 
              WHERE cf.staff_id = ? 
                AND cf.status IN ('ACTIVE', 'PENDING_REMIT')
-               AND (DATE(cf.assigned_at) = CURDATE() OR DATE(DATE_ADD(cf.assigned_at, INTERVAL 8 HOUR)) = DATE(DATE_ADD(NOW(), INTERVAL 8 HOUR)))
              ORDER BY cf.assigned_at DESC LIMIT 1`,
             [staffId]
         );
+
+        // If requester is Admin and has no individual float, check store-wide active drawer so Admin can inspect register state
+        if (floats.length === 0 && isAdmin) {
+            const [storeActive] = await db.query(
+                `SELECT 
+                    cf.*,
+                    COALESCE(cf.starting_cash, cf.total_amount, 0) AS starting_cash,
+                    COALESCE(cf.current_cash_balance, cf.starting_cash, cf.total_amount, 0) AS current_cash_balance,
+                    COALESCE(cf.expected_cash, cf.current_cash_balance, cf.starting_cash, 0) AS expected_cash
+                 FROM cash_floats cf 
+                 WHERE cf.status IN ('ACTIVE', 'PENDING_REMIT')
+                 ORDER BY cf.assigned_at DESC LIMIT 1`
+            );
+            if (storeActive.length > 0) {
+                const floatRecord = storeActive[0];
+                return res.json({ 
+                    activeFloat: floatRecord.status === 'ACTIVE' ? { ...floatRecord, isStoreDrawer: true } : null,
+                    shiftRecord: { ...floatRecord, isStoreDrawer: true },
+                    status: floatRecord.status,
+                    isStoreDrawer: true,
+                    assignedCashier: floatRecord.staff_username
+                });
+            }
+        }
 
         if (floats.length === 0) {
             return res.json({ 
@@ -358,7 +383,7 @@ exports.getMyCashFloat = async (req, res) => {
                 status: 'NO_SHIFT',
                 starting_cash: 0.00,
                 current_cash_balance: 0.00,
-                message: 'No active cash float assigned for today.'
+                message: 'No active cash float assigned.'
             });
         }
 
@@ -411,8 +436,8 @@ exports.assignCashFloat = async (req, res) => {
             `SELECT id, starting_cash, total_amount, current_cash_balance, cash_sales, cash_refunds, assigned_at, notes 
              FROM cash_floats 
              WHERE staff_id = ? 
-               AND status = 'ACTIVE' 
-               AND (DATE(assigned_at) = CURDATE() OR DATE(DATE_ADD(assigned_at, INTERVAL 8 HOUR)) = DATE(DATE_ADD(NOW(), INTERVAL 8 HOUR)))`,
+               AND status = 'ACTIVE'
+             ORDER BY assigned_at DESC LIMIT 1`,
             [staff_id]
         );
 
@@ -813,16 +838,40 @@ exports.openShift = async (req, res) => {
         if (existingActive.length > 0) {
             const activeShift = existingActive[0];
             if (Number(activeShift.staff_id) !== Number(targetStaffId)) {
-                return res.status(400).json({
-                    message: `Cannot open shift: Cash drawer is currently active for ${activeShift.staff_username || 'another staff'} (${activeShift.shift_code || 'SHIFT-' + activeShift.id}). Please end or unshift that drawer first.`
+                if (isAdmin) {
+                    // Admin is opening a shift for a new cashier -> automatically handover and close the previous drawer
+                    await db.query(`
+                        UPDATE cash_floats SET 
+                            status = 'COMPLETED',
+                            completed_at = NOW(),
+                            returned_at = NOW(),
+                            admin_signed_off = 1,
+                            signed_off_by_id = ?,
+                            signed_off_by_name = ?,
+                            signed_off_at = NOW(),
+                            reconciliation_notes = CONCAT(COALESCE(reconciliation_notes, ''), ' | Handover to @', ?, ' by Admin')
+                        WHERE id = ?
+                    `, [currentUserId, currentUsername, staffUser.username, activeShift.id]);
+
+                    if (activeShift.staff_id) {
+                        try {
+                            await db.query('UPDATE users SET is_logged_in = 0, token_version = token_version + 1 WHERE id = ?', [activeShift.staff_id]);
+                        } catch (e) {
+                            console.warn('[openShift handover] Session notice:', e.message);
+                        }
+                    }
+                } else {
+                    return res.status(400).json({
+                        message: `Cannot open shift: Cash drawer is currently active for @${activeShift.staff_username || 'another staff'} (${activeShift.shift_code || 'SHIFT-' + activeShift.id}). Please ask Admin to handover or time-in your drawer.`
+                    });
+                }
+            } else {
+                return res.status(200).json({
+                    message: `Active shift already open for ${staffUser.username} (${activeShift.shift_code || 'SHIFT-' + activeShift.id}).`,
+                    cashFloat: activeShift,
+                    isExisting: true
                 });
             }
-
-            return res.status(200).json({
-                message: `Active shift already open for ${staffUser.username} (${activeShift.shift_code || 'SHIFT-' + activeShift.id}).`,
-                cashFloat: activeShift,
-                isExisting: true
-            });
         }
 
         // Generate shift code e.g. SHIFT-005
@@ -922,7 +971,6 @@ exports.getActiveShift = async (req, res) => {
             FROM cash_floats cf
             LEFT JOIN users u ON cf.staff_id = u.id
             WHERE cf.staff_id = ? AND cf.status = 'ACTIVE'
-              AND (DATE(cf.assigned_at) = CURDATE() OR DATE(DATE_ADD(cf.assigned_at, INTERVAL 8 HOUR)) = DATE(DATE_ADD(NOW(), INTERVAL 8 HOUR)))
             ORDER BY cf.assigned_at DESC LIMIT 1
         `, [targetStaffId]);
 
@@ -976,7 +1024,6 @@ exports.recordPettyCashExpense = async (req, res) => {
         const [activeFloats] = await db.query(`
             SELECT * FROM cash_floats
             WHERE staff_id = ? AND status = 'ACTIVE'
-              AND (DATE(assigned_at) = CURDATE() OR DATE(DATE_ADD(assigned_at, INTERVAL 8 HOUR)) = DATE(DATE_ADD(NOW(), INTERVAL 8 HOUR)))
             ORDER BY assigned_at DESC LIMIT 1 FOR UPDATE
         `, [staffId]);
 

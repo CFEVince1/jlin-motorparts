@@ -1519,7 +1519,9 @@ const POS = ({ defaultTab }) => {
                             padding: '6px 12px'
                         }}>
                             <Banknote size={16} color="var(--primary)" />
-                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Drawer Cash:</span>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                {activeCashFloat.isStoreDrawer ? `Store Drawer (@${activeCashFloat.staff_username}):` : 'Drawer Cash:'}
+                            </span>
                             <strong style={{ fontSize: '0.92rem', color: 'var(--primary)', fontFamily: 'monospace' }}>
                                 {formatCurrency(activeCashFloat.current_cash_balance)}
                             </strong>
@@ -1554,7 +1556,11 @@ const POS = ({ defaultTab }) => {
                             fontWeight: 600
                         }}>
                             <AlertCircle size={14} color="var(--warning-text)" />
-                            <span>No Active Cash Float assigned for this shift</span>
+                            <span>
+                                {user && String(user.role).toLowerCase() === 'admin'
+                                    ? 'No Active Shift (POS Locked for Staff • Open in Shifts tab)'
+                                    : 'No Active Cash Float assigned for this shift'}
+                            </span>
                         </div>
                     )}
                 </div>
