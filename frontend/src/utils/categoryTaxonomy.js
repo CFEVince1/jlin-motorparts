@@ -347,21 +347,23 @@ export const formatLedgerReference = (rawRef) => {
   clean = clean.replace(/^RCV-\d{4}-/i, 'RCV-');
   clean = clean.replace(/^ADJ-\d{4}-/i, 'ADJ-');
   clean = clean.replace(/^SWAP-\d{8}-/i, 'SWAP-');
+  clean = clean.replace(/^AUDIT-(\d{9,})/i, (_, id) => `AUDIT-${id.slice(-4)}`);
   return clean;
 };
 
 /**
  * Clean & Format Item Ledger Remarks:
- * Truncates and formats long audit remarks cleanly.
+ * Normalizes order codes and formats audit remarks cleanly without hard truncation.
  */
-export const cleanLedgerRemark = (rawRemark, maxLen = 35) => {
+export const cleanLedgerRemark = (rawRemark, maxLen = 60) => {
   if (!rawRemark || typeof rawRemark !== 'string') return 'System transaction';
   let clean = rawRemark.trim();
   clean = clean.replace(/Purchase Order \d+/i, 'PO Received');
   clean = clean.replace(/Sales Order Checkout \d+/i, 'POS Sale');
   clean = clean.replace(/Physical Count Discrepancy Adjustment/i, 'Audit Adjustment');
+  clean = clean.replace(/SO-\d{4}-(\d+)/gi, 'SO-$1');
   if (clean.length > maxLen) {
-    return clean.slice(0, maxLen - 2) + '..';
+    return clean.slice(0, maxLen - 3) + '...';
   }
   return clean;
 };

@@ -275,22 +275,22 @@ const Inventory = () => {
         </span>
       );
     }
-    if (t === 'ADJUSTMENT' || t === 'ADJUST') {
+    if (t === 'ADJUSTMENT_ADD' || t === 'FOUND' || t === 'SURPLUS') {
       return (
         <span style={{
           padding: '2px 8px',
           borderRadius: '10px',
           fontSize: '0.72rem',
           fontWeight: 700,
-          background: 'rgba(245, 158, 11, 0.15)',
-          color: '#f59e0b',
-          border: '1px solid rgba(245, 158, 11, 0.3)'
+          background: 'rgba(16, 185, 129, 0.15)',
+          color: '#10b981',
+          border: '1px solid rgba(16, 185, 129, 0.3)'
         }}>
-          Adj
+          📦 Found Stock
         </span>
       );
     }
-    if (t === 'DAMAGE') {
+    if (t === 'ADJUSTMENT_DAMAGE' || t === 'DAMAGE') {
       return (
         <span style={{
           padding: '2px 8px',
@@ -305,7 +305,7 @@ const Inventory = () => {
         </span>
       );
     }
-    if (t === 'LOSS') {
+    if (t === 'ADJUSTMENT_LOST' || t === 'LOSS' || t === 'SHRINKAGE') {
       return (
         <span style={{
           padding: '2px 8px',
@@ -320,18 +320,33 @@ const Inventory = () => {
         </span>
       );
     }
-    if (t === 'FOUND' || t === 'SURPLUS') {
+    if (t === 'ADJUSTMENT_SUB') {
       return (
         <span style={{
           padding: '2px 8px',
           borderRadius: '10px',
           fontSize: '0.72rem',
           fontWeight: 700,
-          background: 'rgba(16, 185, 129, 0.15)',
-          color: '#10b981',
-          border: '1px solid rgba(16, 185, 129, 0.3)'
+          background: 'rgba(239, 68, 68, 0.15)',
+          color: '#ef4444',
+          border: '1px solid rgba(239, 68, 68, 0.3)'
         }}>
-          📦 Found
+          Adj (-)
+        </span>
+      );
+    }
+    if (t === 'ADJUSTMENT' || t === 'ADJUST') {
+      return (
+        <span style={{
+          padding: '2px 8px',
+          borderRadius: '10px',
+          fontSize: '0.72rem',
+          fontWeight: 700,
+          background: 'rgba(245, 158, 11, 0.15)',
+          color: '#f59e0b',
+          border: '1px solid rgba(245, 158, 11, 0.3)'
+        }}>
+          Adj (Audit)
         </span>
       );
     }
@@ -1613,7 +1628,7 @@ const Inventory = () => {
           TAB 3: STOCK MOVEMENTS & AUDIT LEDGER
          ========================================================================= */}
       {isAdmin && activeTab === 'movements' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingTop: '8px' }}>
           {/* INLINE STOCK CARD HISTORY (NO MODAL, NO BORDER BOX) */}
           {ledgerTarget !== null && (
             <ItemLedgerDrawer
@@ -1816,15 +1831,15 @@ const Inventory = () => {
               {loadingMovements ? (
                 <Spinner text="Loading stock movements..." />
               ) : (
-                <table>
+                <table style={{ width: '100%', minWidth: '1000px' }}>
                   <thead>
                     <tr>
-                      <th style={{ minWidth: '145px' }}>Date & Time</th>
-                      <th style={{ minWidth: '105px' }}>Reference #</th>
+                      <th style={{ minWidth: '155px', padding: '10px 14px' }}>Date & Time</th>
+                      <th style={{ minWidth: '110px' }}>Reference #</th>
                       <th style={{ minWidth: '240px' }}>Product & Brand</th>
-                      <th style={{ minWidth: '75px', textAlign: 'center' }}>Movement Type</th>
-                      <th style={{ minWidth: '140px', textAlign: 'center' }}>Stock Change</th>
-                      <th style={{ minWidth: '180px' }}>Remarks / Reason</th>
+                      <th style={{ minWidth: '95px', textAlign: 'center' }}>Movement Type</th>
+                      <th style={{ minWidth: '145px', textAlign: 'center' }}>Stock Change</th>
+                      <th style={{ minWidth: '200px' }}>Remarks / Reason</th>
                       <th style={{ minWidth: '85px', textAlign: 'center', paddingRight: '14px', whiteSpace: 'nowrap' }}>Action</th>
                     </tr>
                   </thead>
@@ -1851,7 +1866,7 @@ const Inventory = () => {
                         return (
                           <tr key={m.id}>
                             {/* 1. Date & Time + Staff */}
-                            <td>
+                            <td style={{ padding: '10px 14px' }}>
                               <div style={{ fontSize: '0.80rem', whiteSpace: 'nowrap', color: 'var(--text-main)', fontWeight: 600 }}>
                                 {formatAuditDate(m.created_at)}
                               </div>
@@ -1915,16 +1930,25 @@ const Inventory = () => {
                               </div>
                               {isAdmin && Number(m.unit_cost) > 0 && (
                                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap' }}>
-                                  Cost: {formatCurrency(Number(m.unit_cost))}
+                                  Unit Cost: {formatCurrency(Number(m.unit_cost))}
                                 </div>
                               )}
                             </td>
 
                             {/* 6. Remarks / Reason (Cleaned) */}
-                            <td style={{ fontSize: '0.80rem', color: 'var(--text-main)', maxWidth: '220px', wordBreak: 'break-word' }}>
-                              <span title={rawRemarks} style={{ color: cleanedRemarks === '—' ? 'var(--text-muted)' : 'var(--text-main)' }}>
+                            <td style={{ fontSize: '0.80rem', color: 'var(--text-main)', maxWidth: '240px' }}>
+                              <div
+                                title={rawRemarks}
+                                style={{
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  maxWidth: '240px',
+                                  color: cleanedRemarks === '—' ? 'var(--text-muted)' : 'var(--text-main)'
+                                }}
+                              >
                                 {cleanedRemarks}
-                              </span>
+                              </div>
                             </td>
 
                             {/* 7. Action */}
