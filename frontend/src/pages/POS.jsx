@@ -1441,7 +1441,7 @@ const POS = ({ defaultTab }) => {
 
 
         return (
-        <div className="pos-root-container" style={{ position: 'relative', width: '100%', minHeight: '100%' }}>
+        <div className="pos-root-container" style={{ position: 'relative', width: '100%', minHeight: '100%', paddingTop: '16px', paddingBottom: '32px', boxSizing: 'border-box' }}>
             {/* Top Navigation Tabs for POS: Register, Held Carts, Sales History */}
             <div className="pos-nav-tabs no-print" style={{
                 display: 'flex',
@@ -1567,7 +1567,7 @@ const POS = ({ defaultTab }) => {
             </div>
 
             {activeTab === 'history' ? (
-                <div className="no-print pos-history-view" style={{ minHeight: '650px', width: '100%', overflowX: 'hidden' }}>
+                <div className="no-print pos-history-view" style={{ minHeight: '650px', width: '100%', overflowX: 'auto', boxSizing: 'border-box' }}>
                     <Transactions embedded={true} onStartReplacement={handleStartReplacementFromSale} />
                 </div>
             ) : activeTab === 'held' ? (

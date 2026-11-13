@@ -792,7 +792,7 @@ exports.getSales = async (req, res, next) => {
         const [countRows] = await db.query(countQuery, whereParams);
         const total = countRows[0]?.total || 0;
 
-        // Subquery-optimized pagination: paginate sales first, then join users & sale_items
+        // Subquery-optimized pagination: paginate sales first, then join users & aggregated sale_items
         const dataQuery = `
             SELECT s.id, COALESCE(s.order_number, CONCAT('SO-', s.id)) AS order_number,
                    s.total_amount, s.subtotal_amount, COALESCE(s.discount_amount, 0.00) AS discount_amount,
@@ -802,7 +802,7 @@ exports.getSales = async (req, res, next) => {
                    (SELECT COUNT(*) FROM sale_returns sr WHERE sr.sale_id = s.id) AS return_count,
                    (SELECT GROUP_CONCAT(DISTINCT sri.disposition SEPARATOR ', ') FROM sale_return_items sri JOIN sale_returns sr2 ON sr2.id = sri.sale_return_id WHERE sr2.sale_id = s.id) AS return_dispositions,
                    COALESCE(
-                       GROUP_CONCAT(DISTINCT si.product_name ORDER BY si.product_name SEPARATOR ', '),
+                       items_agg.products_included,
                        CASE 
                            WHEN s.payment_status = 'PENDING_BALANCE' OR s.order_number LIKE '%BAL%' THEN 'Balance Payment'
                            WHEN s.payment_status = 'PENDING_VERIFICATION' OR s.order_number LIKE '%GC%' THEN 'Balance Payment'
@@ -810,7 +810,7 @@ exports.getSales = async (req, res, next) => {
                        END
                    ) as products_included,
                    COALESCE(
-                       GROUP_CONCAT(DISTINCT COALESCE(NULLIF(si.part_number, ''), p.part_number, p.sku) ORDER BY si.part_number SEPARATOR ', '),
+                       items_agg.part_numbers,
                        CASE 
                            WHEN s.payment_status = 'PENDING_BALANCE' OR s.order_number LIKE '%BAL%' THEN 'BAL-SETTLE'
                            WHEN s.payment_status = 'PENDING_VERIFICATION' OR s.order_number LIKE '%GC%' THEN 'GCASH-VERIFY'
@@ -818,15 +818,16 @@ exports.getSales = async (req, res, next) => {
                        END
                    ) as part_numbers,
                    COALESCE(
-                       GROUP_CONCAT(DISTINCT COALESCE(NULLIF(si.part_number, ''), p.part_number, p.sku) ORDER BY si.part_number SEPARATOR ', '),
+                       items_agg.part_numbers,
                        CASE 
                            WHEN s.payment_status = 'PENDING_BALANCE' OR s.order_number LIKE '%BAL%' THEN 'BAL-SETTLE'
                            WHEN s.payment_status = 'PENDING_VERIFICATION' OR s.order_number LIKE '%GC%' THEN 'GCASH-VERIFY'
                            ELSE 'BAL-PAY'
                        END
                    ) as part_number,
-                   GROUP_CONCAT(DISTINCT si.brand ORDER BY si.brand SEPARATOR ', ') as brands,
-                   GROUP_CONCAT(DISTINCT si.size ORDER BY si.size SEPARATOR ', ') as sizes
+                   items_agg.brands,
+                   items_agg.sizes,
+                   COALESCE(items_agg.total_items_count, 1) as item_count
             FROM (
                 SELECT s.id, s.user_id, s.order_number, s.total_amount, s.subtotal_amount, s.discount_amount, s.tendered_amount,
                        s.change_due, s.payment_method, s.payment_reference, s.payment_status, s.cash_amount, s.gcash_amount, s.status, COALESCE(s.refund_amount, 0.00) as refund_amount, s.sale_date, s.sale_date AS created_at
@@ -836,13 +837,52 @@ exports.getSales = async (req, res, next) => {
                 LIMIT ? OFFSET ?
             ) s
             JOIN users u ON s.user_id = u.id
-            LEFT JOIN sale_items si ON s.id = si.sale_id
-            LEFT JOIN products p ON p.id = si.product_id
-            GROUP BY s.id, s.order_number, s.total_amount, s.subtotal_amount, s.discount_amount, s.tendered_amount, s.change_due, s.payment_method, s.payment_reference, s.payment_status, s.status, s.refund_amount, s.sale_date, u.username
+            LEFT JOIN (
+                SELECT 
+                    gi.sale_id,
+                    GROUP_CONCAT(
+                        CONCAT(gi.product_name, IF(gi.total_qty > 1, CONCAT(' ×', gi.total_qty), ''))
+                        ORDER BY gi.min_id SEPARATOR ', '
+                    ) as products_included,
+                    GROUP_CONCAT(
+                        gi.part_number
+                        ORDER BY gi.min_id SEPARATOR ', '
+                    ) as part_numbers,
+                    GROUP_CONCAT(DISTINCT gi.brand ORDER BY gi.brand SEPARATOR ', ') as brands,
+                    GROUP_CONCAT(DISTINCT gi.size ORDER BY gi.size SEPARATOR ', ') as sizes,
+                    SUM(gi.total_qty) as total_items_count
+                FROM (
+                    SELECT 
+                        si.sale_id,
+                        si.product_name,
+                        MIN(si.id) as min_id,
+                        SUM(si.quantity) as total_qty,
+                        COALESCE(NULLIF(MIN(si.part_number), ''), MIN(p.part_number), MIN(p.sku), 'GEN-PART') as part_number,
+                        MIN(si.brand) as brand,
+                        MIN(si.size) as size
+                    FROM sale_items si
+                    LEFT JOIN products p ON p.id = si.product_id
+                    GROUP BY si.sale_id, si.product_name
+                ) gi
+                GROUP BY gi.sale_id
+            ) items_agg ON items_agg.sale_id = s.id
             ORDER BY ${orderSQL}
         `;
 
         const [sales] = await db.query(dataQuery, [...whereParams, limit, offset]);
+
+        // Tag active shift status and void eligibility for each transaction
+        const [activeShiftRows] = await db.query(
+            "SELECT id, shift_code, assigned_at FROM cash_floats WHERE status = 'ACTIVE' ORDER BY assigned_at DESC LIMIT 1"
+        );
+        const activeShift = activeShiftRows[0] || null;
+
+        for (const s of sales) {
+            const isSameShift = activeShift && new Date(s.sale_date).getTime() >= (new Date(activeShift.assigned_at).getTime() - 60000);
+            s.is_active_shift = Boolean(isSameShift);
+            s.active_shift_code = activeShift?.shift_code || null;
+            s.can_void = Boolean(isSameShift && s.status !== 'VOIDED' && s.status !== 'REFUNDED');
+        }
 
         // Payment breakdown totals for current filters (excluding pagination)
         let summary = {
@@ -1154,6 +1194,32 @@ exports.voidAndReopen = async (req, res, next) => {
             return res.status(422).json({ message: 'This transaction has already been refunded and cannot be voided' });
         }
 
+        // Strict Active Shift Lock: Voids are permitted ONLY on transactions belonging to the current active shift
+        const [activeFloats] = await connection.query(
+            `SELECT id, shift_code, current_cash_balance, assigned_at, status 
+             FROM cash_floats 
+             WHERE status = 'ACTIVE' 
+             ORDER BY assigned_at DESC LIMIT 1 FOR UPDATE`
+        );
+
+        if (activeFloats.length === 0) {
+            await connection.rollback();
+            return res.status(400).json({ 
+                message: 'No active cash shift is currently open. Voiding transactions is strictly restricted to the current active shift.' 
+            });
+        }
+
+        const activeFloat = activeFloats[0];
+        const saleTime = new Date(sale.sale_date).getTime();
+        const shiftStartTime = new Date(activeFloat.assigned_at).getTime();
+
+        if (saleTime < shiftStartTime - 60000) {
+            await connection.rollback();
+            return res.status(400).json({ 
+                message: `This transaction belongs to a closed historical shift. Void is only permitted for transactions within the active shift (${activeFloat.shift_code || 'current'}). Please use Item Replace / Swap for historical order adjustments.` 
+            });
+        }
+
         // 2. Fetch all sale items with current product metadata
         const [saleItems] = await connection.query(
             `SELECT si.*, p.name as current_product_name, p.is_serialized, p.cost_price as current_cost_price, p.selling_price, p.retail_price
@@ -1206,38 +1272,28 @@ exports.voidAndReopen = async (req, res, next) => {
 
                 // Deduct physical cash portion from active drawer if voided sale had cash
         const voidCash = Number(sale.cash_amount || (sale.payment_method === 'Cash' ? sale.total_amount : 0));
-        if (voidCash > 0 && userId) {
-            const [activeFloats] = await connection.query(
-                `SELECT id, current_cash_balance FROM cash_floats 
-                 WHERE staff_id = ? AND status = 'ACTIVE' 
-                   AND DATE(CONVERT_TZ(assigned_at, '+00:00', '+08:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+08:00'))
-                 ORDER BY assigned_at DESC LIMIT 1 FOR UPDATE`,
-                [userId]
+        if (voidCash > 0) {
+            const prevBal = Number(activeFloat.current_cash_balance || 0);
+            const newBal = Math.round((prevBal - voidCash) * 100) / 100;
+            await connection.query(
+                `UPDATE cash_floats SET 
+                    current_cash_balance = ?,
+                    expected_cash = ?,
+                    cash_sales = GREATEST(0, cash_sales - ?)
+                 WHERE id = ?`,
+                [newBal, newBal, voidCash, activeFloat.id]
             );
-            if (activeFloats.length > 0) {
-                const activeFloat = activeFloats[0];
-                const prevBal = Number(activeFloat.current_cash_balance || 0);
-                const newBal = Math.round((prevBal - voidCash) * 100) / 100;
-                await connection.query(
-                    `UPDATE cash_floats SET 
-                        current_cash_balance = ?,
-                        expected_cash = ?,
-                        cash_sales = GREATEST(0, cash_sales - ?)
-                     WHERE id = ?`,
-                    [newBal, newBal, voidCash, activeFloat.id]
-                );
-                await logCashMovement(connection, {
-                    cashFloatId: activeFloat.id,
-                    staffId: userId,
-                    staffUsername: req.user?.username || 'Staff',
-                    movementType: 'SALE_VOID',
-                    amount: voidCash,
-                    balanceBefore: prevBal,
-                    balanceAfter: newBal,
-                    referenceId: `VOID-${saleId}`,
-                    notes: `Voided cash sale #${sale.order_number || saleId}: -₱${voidCash.toFixed(2)}`
-                });
-            }
+            await logCashMovement(connection, {
+                cashFloatId: activeFloat.id,
+                staffId: userId,
+                staffUsername: req.user?.username || 'Staff',
+                movementType: 'SALE_VOID',
+                amount: voidCash,
+                balanceBefore: prevBal,
+                balanceAfter: newBal,
+                referenceId: `VOID-${saleId}`,
+                notes: `Voided cash sale #${sale.order_number || saleId}: -₱${voidCash.toFixed(2)}`
+            });
         }
 
         await connection.commit();

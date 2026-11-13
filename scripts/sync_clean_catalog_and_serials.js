@@ -46,7 +46,7 @@ const PART_MAP = {
   13: { part_number: 'FDR-ZEV-9080', name: 'FDR Sport Zevo 90/80-14', brand: 'FDR', category: 'Tires', cost: 1200.00, price: 1600.00, stock: 54, serialized: 0 },
   14: { part_number: 'COR-R26-9080', name: 'Corsa Platinum R26 90/80-14', brand: 'Corsa', category: 'Tires', cost: 1300.00, price: 1750.00, stock: 32, serialized: 0 },
   15: { part_number: 'GAT-PWR-VBELT', name: 'Gates Powerlink V-Belt', brand: 'Gates', category: 'Transmission', cost: 450.00, price: 650.00, stock: 10, serialized: 0 },
-  16: { part_number: 'BAN-VBT-ARX', name: 'Bando V-Belt (Aerox/Nmax)', brand: 'Bando', category: 'Transmission', cost: 400.00, price: 600.00, stock: 16, serialized: 0 },
+  16: { part_number: 'BAN-VBT-ARX', name: 'Bando V-Belt', brand: 'Bando', category: 'Transmission', cost: 400.00, price: 600.00, stock: 16, serialized: 0 },
   17: { part_number: 'MTR-ROL-10G', name: 'MTRT Roller Weights 10g', brand: 'MTRT', category: 'Transmission', cost: 250.00, price: 350.00, stock: 52, serialized: 0 },
   18: { part_number: 'RS8-FLY-12G', name: 'RS8 Flyballs 12g Set', brand: 'RS8', category: 'Transmission', cost: 200.00, price: 300.00, stock: 45, serialized: 0 },
   19: { part_number: 'JVT-CSP-1000', name: 'JVT Center Spring 1000 RPM', brand: 'JVT', category: 'Transmission', cost: 300.00, price: 450.00, stock: 55, serialized: 0 },

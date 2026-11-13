@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { History, Receipt, X, Printer, Search, Calendar, RotateCcw, ArrowDownRight, ArrowUpRight, Filter, Ban, ChevronDown, ArrowLeftRight } from 'lucide-react';
+import { History, Receipt, X, Printer, Search, Calendar, RotateCcw, ArrowDownRight, ArrowUpRight, Filter, Ban, ChevronDown, ArrowLeftRight, Lock } from 'lucide-react';
 import { notifyInventoryChange, subscribeToInventoryChange } from '../utils/syncEvents';
 import Spinner from '../components/Spinner';
 import { getProductSnapshotMatch, normalizeSearchText } from '../utils/productFilter';
@@ -893,19 +893,19 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            padding: '16px 20px',
+                            padding: '14px 18px',
                             borderBottom: '1px solid var(--border)',
                             background: 'rgba(255, 255, 255, 0.015)',
                             gap: '12px',
                             flexWrap: 'wrap'
                         }}>
-                            {/* Left Side: Search & Quick Filters */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: '1 1 320px', flexWrap: 'wrap' }}>
-                                <div style={{ position: 'relative', flex: '1 1 240px' }}>
+                            {/* Left Side: Search & Quick Date Filters */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 400px', flexWrap: 'wrap' }}>
+                                <div style={{ position: 'relative', flex: '1 1 200px', minWidth: '180px' }}>
                                     <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                                     <input
                                         type="text"
-                                        placeholder="Search order #, part number, product, cashier..."
+                                        placeholder="Search order #, SKU, cashier..."
                                         className="input-premium"
                                         style={{ paddingLeft: '36px', width: '100%' }}
                                         value={searchQuery}
@@ -946,7 +946,7 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                     <input
                                         type="date"
                                         className="input-premium"
-                                        style={{ paddingLeft: '36px', paddingRight: '12px' }}
+                                        style={{ paddingLeft: '36px', paddingRight: '12px', width: '135px' }}
                                         value={filterDate || (filterStartDate === filterEndDate ? filterStartDate : '')}
                                         onChange={(e) => {
                                             const val = e.target.value;
@@ -970,12 +970,16 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                     />
                                 </div>
                                 {(filterDate || filterStartDate || filterEndDate) && (
-                                    <button className="btn-secondary" onClick={() => handleSelectTimeframePill('all')} style={{ flex: '0 0 auto', padding: '6px 10px', fontSize: '0.8rem' }}>Clear Date</button>
+                                    <button className="btn-secondary" onClick={() => handleSelectTimeframePill('all')} style={{ flex: '0 0 auto', padding: '5px 10px', fontSize: '0.78rem' }}>Clear Date</button>
                                 )}
+                            </div>
+
+                            {/* Right Side: Cashier, Sort & Filter Dropdown Controls */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                 {isStaff ? (
                                     <select
                                         className="input-premium"
-                                        style={{ width: '150px' }}
+                                        style={{ width: '140px' }}
                                         value={staffScope}
                                         onChange={(e) => setStaffScope(e.target.value)}
                                     >
@@ -985,7 +989,7 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                 ) : (
                                     <select
                                         className="input-premium"
-                                        style={{ width: '165px' }}
+                                        style={{ width: '145px' }}
                                         value={userFilter}
                                         onChange={(e) => {
                                             const val = e.target.value;
@@ -1011,12 +1015,11 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                         ))}
                                     </select>
                                 )}
-                                <select className="input-premium" style={{ width: '155px' }} value={sortBy} onChange={(e) => setFilter('sortBy', e.target.value)}>
+                                <select className="input-premium" style={{ width: '135px' }} value={sortBy} onChange={(e) => setFilter('sortBy', e.target.value)}>
                                     <option value="newest">Sort: Newest</option>
                                     <option value="oldest">Sort: Oldest</option>
                                     <option value="highest">Sort: Highest</option>
                                 </select>
-                            </div>
 
                             {/* Right Side: The Filtering Button & Dropdown (Matching Image 2 & 3 with multi-filtering) */}
                             <div ref={filteringRef} style={{ position: 'relative', flex: '0 0 auto' }}>
@@ -1211,6 +1214,7 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                     </div>
                                 )}
                             </div>
+                            </div>
                         </div>
 
                         {/* Active Filter Pill Bar */}
@@ -1365,16 +1369,16 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                         <div style={{ padding: embedded ? '10px 14px' : '20px' }}>
                             {loading ? <Spinner text="Loading transactions..." /> : (
                                 <>
-                                <div className="table-container" style={{ width: '100%', overflowX: 'hidden', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                                <table style={{ width: '100%', tableLayout: 'fixed' }}>
+                                <div className="table-container" style={{ width: '100%', overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                                <table style={{ width: '100%', minWidth: '1000px', tableLayout: 'fixed' }}>
                                     <thead>
                                         <tr>
-                                            <th style={{ width: '12%', padding: '8px 10px' }}>Order &amp; Payment</th>
-                                            <th style={{ width: '15%', padding: '8px 10px' }}>Date &amp; Cashier</th>
-                                            <th style={{ width: '38%', padding: '8px 10px' }}>Purchased Items</th>
-                                            <th className="text-right" style={{ width: '12%', padding: '8px 10px' }}>Total Amount</th>
-                                            <th style={{ textAlign: 'center', width: '7%', padding: '8px 6px' }}>Status</th>
-                                            <th style={{ textAlign: 'center', width: '16%', padding: '8px 6px' }}>Actions</th>
+                                            <th style={{ width: '14%', minWidth: '140px', padding: '8px 12px' }}>Order &amp; Payment</th>
+                                            <th style={{ width: '15%', minWidth: '140px', padding: '8px 10px' }}>Date &amp; Cashier</th>
+                                            <th style={{ width: '36%', minWidth: '280px', padding: '8px 10px' }}>Purchased Items</th>
+                                            <th className="text-right" style={{ width: '13%', minWidth: '115px', padding: '8px 10px' }}>Total Amount</th>
+                                            <th style={{ textAlign: 'center', width: '8%', minWidth: '85px', padding: '8px 6px' }}>Status</th>
+                                            <th style={{ textAlign: 'center', width: '14%', minWidth: '155px', padding: '8px 6px' }}>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -1387,11 +1391,13 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                                 const shortOrder = formatShortOrderNo(t.order_number || `SO-${t.id}`);
                                                 const hasItems = t.products_included && t.products_included !== '-' && t.products_included !== 'Balance Payment';
                                                 const isVoid = t.status === 'VOIDED';
+                                                const isMultiItem = Boolean((t.part_numbers && t.part_numbers.includes(',')) || (t.products_included && t.products_included.includes(',')));
+                                                const isVoidLocked = t.can_void === false || (!t.is_active_shift && !t.can_void);
 
                                                 return (
                                                     <tr key={t.id}>
                                                         {/* 1. Order & Payment (Stacked) */}
-                                                        <td>
+                                                        <td style={{ padding: '8px 12px' }}>
                                                             <div
                                                                 style={{
                                                                     fontWeight: 700,
@@ -1491,18 +1497,23 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                                                         <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--text-muted)' }}>
                                                                             {t.part_numbers || t.part_number || 'GEN-PART'}
                                                                         </span>
-                                                                        <span>•</span>
-                                                                        <span style={{
-                                                                            fontWeight: 700,
-                                                                            fontSize: '0.66rem',
-                                                                            padding: '1px 5px',
-                                                                            borderRadius: '4px',
-                                                                            background: 'rgba(255, 255, 255, 0.06)',
-                                                                            border: '1px solid var(--border)',
-                                                                            color: 'var(--text-muted)'
-                                                                        }}>
-                                                                            {getLedgerCategoryCode(t.category || t.products_included)}
-                                                                        </span>
+                                                                        {/* Omit misleading single category badge on multi-item orders */}
+                                                                        {!isMultiItem && (
+                                                                            <>
+                                                                                <span>•</span>
+                                                                                <span style={{
+                                                                                    fontWeight: 700,
+                                                                                    fontSize: '0.66rem',
+                                                                                    padding: '1px 5px',
+                                                                                    borderRadius: '4px',
+                                                                                    background: 'rgba(255, 255, 255, 0.06)',
+                                                                                    border: '1px solid var(--border)',
+                                                                                    color: 'var(--text-muted)'
+                                                                                }}>
+                                                                                    {getLedgerCategoryCode(t.category || t.products_included)}
+                                                                                </span>
+                                                                            </>
+                                                                        )}
                                                                     </div>
                                                                 </div>
                                                             )}
@@ -1559,14 +1570,25 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                                                 )}
 
                                                                 {!isVoid && (
-                                                                    <button
-                                                                        onClick={() => handleOpenVoid(t)}
-                                                                        className="btn-secondary"
-                                                                        style={{ padding: '3px 7px', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)', whiteSpace: 'nowrap' }}
-                                                                        title="Void Sale"
-                                                                    >
-                                                                        <Ban size={12} /> Void
-                                                                    </button>
+                                                                    !isVoidLocked ? (
+                                                                        <button
+                                                                            onClick={() => handleOpenVoid(t)}
+                                                                            className="btn-secondary"
+                                                                            style={{ padding: '3px 7px', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)', whiteSpace: 'nowrap' }}
+                                                                            title="Void Sale (Active Shift)"
+                                                                        >
+                                                                            <Ban size={12} /> Void
+                                                                        </button>
+                                                                    ) : (
+                                                                        <button
+                                                                            disabled
+                                                                            className="btn-secondary"
+                                                                            style={{ padding: '3px 7px', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: 'var(--text-muted)', borderColor: 'var(--border)', opacity: 0.45, cursor: 'not-allowed', whiteSpace: 'nowrap' }}
+                                                                            title="Void locked: This transaction belongs to a closed shift. Use Replace for historical order adjustments."
+                                                                        >
+                                                                            <Lock size={11} /> Void
+                                                                        </button>
+                                                                    )
                                                                 )}
                                                             </div>
                                                         </td>
