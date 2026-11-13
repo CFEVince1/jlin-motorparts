@@ -191,7 +191,7 @@ export const Suppliers = () => {
               }}
               onClick={() => handleSubTabChange('list')}
             >
-              <Building2 size={15} /> FB Supplier Directory ({suppliers.length})
+              <Building2 size={15} /> FB Supplier ({suppliers.length})
             </button>
 
             <button
