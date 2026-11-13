@@ -300,6 +300,16 @@ async function sendRestockRequestEmail({ to, staffName, priority, notes, items =
     return await sendViaResend(resendApiKey, process.env.MAIL_FROM, to, subject, htmlContent, text);
   }
 
+  const sender = process.env.MAIL_FROM || `"JLIN Motorparts" <${process.env.SMTP_USER}>`;
+  return await transporter.sendMail({
+    from: sender,
+    to,
+    subject,
+    text,
+    html: htmlContent,
+  });
+}
+
 // Sends POS Shift Handover & Preliminary Count Notification to Admin Gmail
 async function sendShiftClosingSubmittedEmail({
   to,

@@ -195,6 +195,8 @@ async function syncAiven() {
   if (rriCols.length === 0) {
     await db.query("ALTER TABLE receiving_record_items ADD COLUMN item_id INT NULL AFTER product_id");
     await db.query("UPDATE receiving_record_items SET item_id = product_id WHERE item_id IS NULL");
+  }
+
   // Ensure sale_items has cost_price column
   const [siCols] = await db.query("SHOW COLUMNS FROM sale_items LIKE 'cost_price'");
   if (siCols.length === 0) {
