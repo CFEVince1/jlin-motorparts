@@ -2708,7 +2708,7 @@ const POS = ({ defaultTab }) => {
                             <span>
                                 {calculatedDiscount > 0
                                     ? `Discount: -${formatCurrency(calculatedDiscount)} (${discountType === 'percent' ? discountValue + '%' : 'Fixed'}) • Edit`
-                                    : 'Request / Apply Discount'}
+                                    : (user && String(user.role).toLowerCase() === 'admin' ? 'Apply Discount' : 'Request Discount')}
                             </span>
                         </button>
                     </div>
@@ -2864,10 +2864,58 @@ const POS = ({ defaultTab }) => {
                             />
                         </div>
 
-                        {/* Action Buttons: Email OTP Approval Flow */}
-                        {!isOtpRequested ? (
+                        {/* Action Buttons: Admin Direct Apply vs Staff Email OTP Flow */}
+                        {user && String(user.role).toLowerCase() === 'admin' ? (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '2px' }}>
-                                {/* Primary Action: Send OTP to Admin Gmail */}
+                                {/* Admin Direct Apply (No OTP / No Email Needed) */}
+                                <button
+                                    type="button"
+                                    className="btn-primary"
+                                    style={{
+                                        width: '100%',
+                                        height: '34px',
+                                        fontSize: '0.80rem',
+                                        fontWeight: 700,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '6px',
+                                        background: '#059669',
+                                        borderColor: '#059669'
+                                    }}
+                                    onClick={handleApplyDiscountDirect}
+                                >
+                                    <CheckCircle2 size={14} />
+                                    <span>Apply Discount</span>
+                                </button>
+
+                                <div style={{ display: 'flex', gap: '6px' }}>
+                                    {(discountValue || calculatedDiscount > 0) && (
+                                        <button
+                                            type="button"
+                                            className="btn-secondary"
+                                            style={{ flex: 1, height: '28px', fontSize: '0.72rem', color: '#ef4444' }}
+                                            onClick={handleClearDiscount}
+                                        >
+                                            Clear Active
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        className="btn-secondary"
+                                        style={{ flex: (discountValue || calculatedDiscount > 0) ? 'none' : 1, height: '28px', padding: '0 10px', fontSize: '0.72rem' }}
+                                        onClick={() => {
+                                            setShowDiscountRequestModal(false);
+                                            setIsOtpRequested(false);
+                                        }}
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        ) : !isOtpRequested ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '2px' }}>
+                                {/* Primary Action: Send OTP to Admin Gmail for Staff Approval */}
                                 <button
                                     type="button"
                                     className="btn-primary"
@@ -2886,7 +2934,7 @@ const POS = ({ defaultTab }) => {
                                     disabled={sendingDiscountOtp}
                                 >
                                     <Mail size={13} />
-                                    <span>{sendingDiscountOtp ? 'Sending OTP to Admin Gmail...' : 'Send OTP to Admin Gmail'}</span>
+                                    <span>{sendingDiscountOtp ? 'Sending OTP to Admin Gmail...' : 'Request Discount (Send OTP to Admin)'}</span>
                                 </button>
 
                                 <div style={{ display: 'flex', gap: '6px' }}>
