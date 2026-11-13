@@ -1243,14 +1243,19 @@ exports.updateCategory = async (req, res, next) => {
 exports.deleteCategory = async (req, res, next) => {
     try {
         const id = Number(req.params.id);
-        const [catRows] = await db.query('SELECT category_name FROM categories WHERE category_id = ?', [id]);
+        const [catRows] = await db.query('SELECT category_name, category_code FROM categories WHERE category_id = ?', [id]);
         if (catRows.length === 0) {
             return res.status(404).json({ message: 'Category not found' });
         }
-        const catName = catRows[0].category_name;
-        const [prods] = await db.query('SELECT COUNT(*) AS cnt FROM products WHERE (category = ? OR category_id = ?) AND is_active = 1', [catName, id]);
+        const { category_name: catName, category_code: catCode } = catRows[0];
+        const [prods] = await db.query(
+            'SELECT COUNT(*) AS cnt, COALESCE(SUM(stock), 0) AS units FROM products WHERE (category = ? OR category_id = ? OR category = ?) AND is_active = 1',
+            [catName, id, catCode || '']
+        );
         if (prods[0].cnt > 0) {
-            return res.status(400).json({ message: `Cannot delete category "${catName}" because ${prods[0].cnt} products belong to it.` });
+            return res.status(400).json({ 
+                message: `Cannot delete category "${catName}" because ${prods[0].cnt} parts (${prods[0].units} units in stock) are linked to it. Reassign or archive parts first.` 
+            });
         }
         await db.query('DELETE FROM categories WHERE category_id = ?', [id]);
         res.json({ message: `Category "${catName}" removed successfully` });

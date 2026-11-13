@@ -825,6 +825,8 @@ exports.getSales = async (req, res, next) => {
                            ELSE 'BAL-PAY'
                        END
                    ) as part_number,
+                   COALESCE(items_agg.category, 'Parts') as category,
+                   COALESCE(items_agg.categories, 'Parts') as categories,
                    items_agg.brands,
                    items_agg.sizes,
                    COALESCE(items_agg.total_items_count, 1) as item_count
@@ -848,6 +850,8 @@ exports.getSales = async (req, res, next) => {
                         gi.part_number
                         ORDER BY gi.min_id SEPARATOR ', '
                     ) as part_numbers,
+                    GROUP_CONCAT(DISTINCT gi.category ORDER BY gi.min_id SEPARATOR ', ') as categories,
+                    MIN(gi.category) as category,
                     GROUP_CONCAT(DISTINCT gi.brand ORDER BY gi.brand SEPARATOR ', ') as brands,
                     GROUP_CONCAT(DISTINCT gi.size ORDER BY gi.size SEPARATOR ', ') as sizes,
                     SUM(gi.total_qty) as total_items_count
@@ -858,6 +862,7 @@ exports.getSales = async (req, res, next) => {
                         MIN(si.id) as min_id,
                         SUM(si.quantity) as total_qty,
                         COALESCE(NULLIF(MIN(si.part_number), ''), MIN(p.part_number), MIN(p.sku), 'GEN-PART') as part_number,
+                        COALESCE(NULLIF(MIN(p.category), ''), 'Parts') as category,
                         MIN(si.brand) as brand,
                         MIN(si.size) as size
                     FROM sale_items si

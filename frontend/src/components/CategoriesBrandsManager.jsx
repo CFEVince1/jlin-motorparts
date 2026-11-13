@@ -14,7 +14,8 @@ import {
   AlertTriangle,
   Flag,
   Wrench,
-  Globe
+  Globe,
+  Lock
 } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -23,17 +24,37 @@ import Spinner from './Spinner';
 const getCategoryColor = (code) => {
   switch ((code || '').toUpperCase()) {
     case 'ENG':
-      return { bg: 'rgba(239, 68, 68, 0.15)', text: '#ef4444', border: 'rgba(239, 68, 68, 0.3)' };
+      return { bg: 'rgba(245, 158, 11, 0.15)', text: '#f59e0b', border: 'rgba(245, 158, 11, 0.35)' };
     case 'BRK':
-      return { bg: 'rgba(244, 63, 94, 0.15)', text: '#f43f5e', border: 'rgba(244, 63, 94, 0.3)' };
+      return { bg: 'rgba(239, 68, 68, 0.15)', text: '#ef4444', border: 'rgba(239, 68, 68, 0.35)' };
     case 'CHAS':
-      return { bg: 'rgba(6, 182, 212, 0.15)', text: '#06b6d4', border: 'rgba(6, 182, 212, 0.3)' };
+      return { bg: 'rgba(6, 182, 212, 0.15)', text: '#06b6d4', border: 'rgba(6, 182, 212, 0.35)' };
     case 'CVT':
-      return { bg: 'rgba(16, 185, 129, 0.15)', text: '#10b981', border: 'rgba(16, 185, 129, 0.3)' };
+      return { bg: 'rgba(16, 185, 129, 0.15)', text: '#10b981', border: 'rgba(16, 185, 129, 0.35)' };
     case 'ELEC':
-      return { bg: 'rgba(245, 158, 11, 0.15)', text: '#f59e0b', border: 'rgba(245, 158, 11, 0.3)' };
+      return { bg: 'rgba(59, 130, 246, 0.15)', text: '#3b82f6', border: 'rgba(59, 130, 246, 0.35)' };
     case 'OIL':
-      return { bg: 'rgba(139, 92, 246, 0.15)', text: '#8b5cf6', border: 'rgba(139, 92, 246, 0.3)' };
+      return { bg: 'rgba(139, 92, 246, 0.15)', text: '#8b5cf6', border: 'rgba(139, 92, 246, 0.35)' };
+    case 'TIRE':
+      return { bg: 'rgba(6, 182, 212, 0.15)', text: '#06b6d4', border: 'rgba(6, 182, 212, 0.35)' };
+    case 'WHL':
+      return { bg: 'rgba(2, 132, 199, 0.15)', text: '#0284c7', border: 'rgba(2, 132, 199, 0.35)' };
+    case 'SUSP':
+      return { bg: 'rgba(20, 184, 166, 0.15)', text: '#14b8a6', border: 'rgba(20, 184, 166, 0.35)' };
+    case 'EXH':
+      return { bg: 'rgba(249, 115, 22, 0.15)', text: '#f97316', border: 'rgba(249, 115, 22, 0.35)' };
+    case 'CHN':
+      return { bg: 'rgba(132, 204, 22, 0.15)', text: '#84cc16', border: 'rgba(132, 204, 22, 0.35)' };
+    case 'HNDL':
+      return { bg: 'rgba(99, 102, 241, 0.15)', text: '#6366f1', border: 'rgba(99, 102, 241, 0.35)' };
+    case 'LGHT':
+      return { bg: 'rgba(234, 179, 8, 0.15)', text: '#eab308', border: 'rgba(234, 179, 8, 0.35)' };
+    case 'BLT':
+      return { bg: 'rgba(100, 116, 139, 0.15)', text: '#94a3b8', border: 'rgba(100, 116, 139, 0.35)' };
+    case 'BODY':
+      return { bg: 'rgba(236, 72, 153, 0.15)', text: '#ec4899', border: 'rgba(236, 72, 153, 0.35)' };
+    case 'GEAR':
+      return { bg: 'rgba(217, 70, 239, 0.15)', text: '#d946ef', border: 'rgba(217, 70, 239, 0.35)' };
     default:
       return { bg: 'rgba(100, 116, 139, 0.15)', text: '#94a3b8', border: 'rgba(100, 116, 139, 0.3)' };
   }
@@ -288,7 +309,7 @@ const CategoriesBrandsManager = ({ onCatalogUpdated }) => {
             <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input
               type="text"
-              placeholder={activeSubTab === 'categories' ? 'Search category or racing part...' : 'Search brand, country, specialty...'}
+              placeholder={activeSubTab === 'categories' ? 'Search category name, code, or keyword...' : 'Search brand, country, specialty...'}
               className="input-premium"
               style={{ paddingLeft: '32px', width: '100%', height: '36px', fontSize: '0.84rem' }}
               value={searchQuery}
@@ -544,16 +565,34 @@ const CategoriesBrandsManager = ({ onCatalogUpdated }) => {
                       >
                         <Edit2 size={13} style={{ color: '#38bdf8' }} />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteCategory(cat)}
-                        className="btn-secondary"
-                        style={{ padding: '6px', borderRadius: '6px', opacity: cat.product_count > 0 ? 0.35 : 1 }}
-                        title={cat.product_count > 0 ? 'Cannot delete category with linked products' : 'Delete Category'}
-                        disabled={cat.product_count > 0}
-                      >
-                        <Trash2 size={13} style={{ color: '#ef4444' }} />
-                      </button>
+                      {cat.product_count > 0 ? (
+                        <span
+                          style={{
+                            padding: '6px',
+                            borderRadius: '6px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(255, 255, 255, 0.03)',
+                            border: '1px solid var(--border)',
+                            color: 'var(--text-muted)',
+                            cursor: 'not-allowed'
+                          }}
+                          title={`Category locked: ${cat.product_count} active parts linked (${cat.total_units || 0} units stock). Cannot delete while inventory is linked.`}
+                        >
+                          <Lock size={13} />
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCategory(cat)}
+                          className="btn-secondary"
+                          style={{ padding: '6px', borderRadius: '6px', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                          title="Delete Empty Category"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                     </div>
                   </div>
 

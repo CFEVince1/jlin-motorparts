@@ -264,9 +264,33 @@ export const getCategoryBadgeMeta = (catOrCode) => {
  * 3-4 Letter Standard Stock History Category Codes
  */
 export const getLedgerCategoryCode = (rawCategory) => {
-  if (!rawCategory || typeof rawCategory !== 'string') return 'ENG';
+  if (!rawCategory || typeof rawCategory !== 'string') return 'PART';
+  const clean = rawCategory.trim();
+  const upper = clean.toUpperCase();
+
+  // Direct code match
+  if (['ENG', 'BRK', 'CVT', 'ELEC', 'OIL', 'TIRE', 'WHL', 'SUSP', 'EXH', 'CHN', 'HNDL', 'LGHT', 'BLT', 'BODY', 'GEAR', 'CHAS'].includes(upper)) {
+    return upper;
+  }
+
+  const lower = clean.toLowerCase();
+  // Keyword & semantic category detection
+  if (lower.includes('brake') || lower.includes('caliper') || lower.includes('rotor') || lower.includes('pad')) return 'BRK';
+  if (lower.includes('cvt') || lower.includes('belt') || lower.includes('pulley') || lower.includes('flyball')) return 'CVT';
+  if (lower.includes('engine') || lower.includes('piston') || lower.includes('cylinder') || lower.includes('valve') || lower.includes('carburetor')) return 'ENG';
+  if (lower.includes('electric') || lower.includes('ecu') || lower.includes('cdi') || lower.includes('spark') || lower.includes('battery')) return 'ELEC';
+  if (lower.includes('oil') || lower.includes('fluid') || lower.includes('lubricant') || lower.includes('coolant')) return 'OIL';
+  if (lower.includes('tire') || lower.includes('tube')) return 'TIRE';
+  if (lower.includes('wheel') || lower.includes('mag') || lower.includes('hub') || lower.includes('rim')) return 'WHL';
+  if (lower.includes('suspension') || lower.includes('shock') || lower.includes('fork')) return 'SUSP';
+  if (lower.includes('exhaust') || lower.includes('pipe') || lower.includes('muffler')) return 'EXH';
+  if (lower.includes('chain') || lower.includes('sprocket')) return 'CHN';
+  if (lower.includes('handle') || lower.includes('grip') || lower.includes('lever')) return 'HNDL';
+  if (lower.includes('light') || lower.includes('mirror') || lower.includes('bulb') || lower.includes('lamp')) return 'LGHT';
+  if (lower.includes('bolt') || lower.includes('screw') || lower.includes('nut')) return 'BLT';
+
   const short = getShortCategory(rawCategory);
-  return short.skuPrefix || 'ENG';
+  return short.skuPrefix || (clean.length <= 4 ? upper : 'PART');
 };
 
 /**

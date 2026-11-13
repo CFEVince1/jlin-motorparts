@@ -539,7 +539,7 @@ const Inventory = () => {
   };
 
   return (
-    <div className="inventory-page-container" style={{ position: 'relative', width: '100%', minHeight: '100%' }}>
+    <div className="inventory-page-container" style={{ position: 'relative', width: '100%', minHeight: '100%', paddingTop: '16px', paddingBottom: '32px', boxSizing: 'border-box' }}>
       {/* Header */}
       <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '14px' }}>
         <div>
@@ -650,8 +650,21 @@ const Inventory = () => {
           )}
         </div>
       </div>
-      {/* View Switcher Tabs: Products | Categories & Brands | Movements | Physical Audit | Low Stock */}
-      <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
+      {/* View Switcher Tabs: Products | Categories & Brands | Movements | Physical Audit | Low Stock (Sticky Top) */}
+      <div className="no-print inventory-tabs-sticky-bar" style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 10,
+        background: 'var(--bg-canvas, var(--bg-dark))',
+        paddingTop: '8px',
+        paddingBottom: '12px',
+        marginBottom: '20px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        flexWrap: 'wrap',
+        borderBottom: '1px solid var(--border)'
+      }}>
         <button
           type="button"
           className={activeTab === 'catalog' ? 'btn-primary' : 'btn-secondary'}
