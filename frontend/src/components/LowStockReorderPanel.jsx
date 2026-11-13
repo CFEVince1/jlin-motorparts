@@ -6,7 +6,11 @@ import {
   MessageSquare,
   Search,
   PackageCheck,
-  Layers
+  Layers,
+  ChevronDown,
+  ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown
 } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 import { getStockStatus } from '../utils/productFilter';
@@ -17,6 +21,7 @@ const LowStockReorderPanel = ({ products = [], onRefresh }) => {
   const [search, setSearch] = useState('');
   const [supplierFilter, setSupplierFilter] = useState('All');
   const [groupBySupplier, setGroupBySupplier] = useState(true);
+  const [collapsedGroups, setCollapsedGroups] = useState({});
 
   // Filter low and out of stock items
   const reorderItems = useMemo(() => {
@@ -28,7 +33,11 @@ const LowStockReorderPanel = ({ products = [], onRefresh }) => {
 
   // Unique suppliers among reorder items
   const supplierOptions = useMemo(() => {
-    const names = new Set(reorderItems.map(p => p.supplier_name || p.default_facebook_supplier).filter(Boolean));
+    const names = new Set(
+      reorderItems
+        .map(p => p.default_supplier_fb_page || p.default_supplier_name || p.default_facebook_supplier || p.supplier_name)
+        .filter(Boolean)
+    );
     return ['All', ...Array.from(names)];
   }, [reorderItems]);
 
@@ -38,7 +47,7 @@ const LowStockReorderPanel = ({ products = [], onRefresh }) => {
       const pName = (p.product_name || p.name || '').toLowerCase();
       const pSku = (p.part_number || p.sku || '').toLowerCase();
       const pBrand = (p.brand || '').toLowerCase();
-      const suppName = p.supplier_name || p.default_facebook_supplier || '';
+      const suppName = p.default_supplier_fb_page || p.default_supplier_name || p.default_facebook_supplier || p.supplier_name || '';
       const s = search.toLowerCase();
 
       const matchesSearch = !search || pName.includes(s) || pSku.includes(s) || pBrand.includes(s) || suppName.toLowerCase().includes(s);
@@ -52,11 +61,11 @@ const LowStockReorderPanel = ({ products = [], onRefresh }) => {
   const supplierGroups = useMemo(() => {
     const groups = {};
     filteredItems.forEach(p => {
-      const supp = p.default_supplier_fb_page || p.default_facebook_supplier || p.supplier_name || 'Direct / Generic Supplier';
+      const supp = p.default_supplier_fb_page || p.default_supplier_name || p.default_facebook_supplier || p.supplier_name || 'Direct Wholesale';
       if (!groups[supp]) {
         groups[supp] = {
           supplierName: supp,
-          messengerUrl: p.default_supplier_messenger_url || p.messenger_url || null,
+          messengerUrl: p.default_supplier_messenger_url || p.messenger_url || p.default_supplier_facebook_url || null,
           items: [],
           totalEstimatedCost: 0,
           totalSuggestedUnits: 0
@@ -70,12 +79,36 @@ const LowStockReorderPanel = ({ products = [], onRefresh }) => {
       groups[supp].items.push(p);
       groups[supp].totalSuggestedUnits += suggestedOrder;
       groups[supp].totalEstimatedCost += (suggestedOrder * costNum);
-      if (!groups[supp].messengerUrl && (p.default_supplier_messenger_url || p.messenger_url)) {
-        groups[supp].messengerUrl = p.default_supplier_messenger_url || p.messenger_url;
+      if (!groups[supp].messengerUrl && (p.default_supplier_messenger_url || p.messenger_url || p.default_supplier_facebook_url)) {
+        groups[supp].messengerUrl = p.default_supplier_messenger_url || p.messenger_url || p.default_supplier_facebook_url;
       }
     });
     return Object.values(groups).sort((a, b) => b.totalEstimatedCost - a.totalEstimatedCost);
   }, [filteredItems]);
+
+  const toggleGroupCollapse = (suppName) => {
+    setCollapsedGroups(prev => ({
+      ...prev,
+      [suppName]: !prev[suppName]
+    }));
+  };
+
+  const allCollapsed = useMemo(() => {
+    if (supplierGroups.length === 0) return false;
+    return supplierGroups.every(g => Boolean(collapsedGroups[g.supplierName]));
+  }, [supplierGroups, collapsedGroups]);
+
+  const toggleAllCollapse = () => {
+    if (allCollapsed) {
+      setCollapsedGroups({});
+    } else {
+      const next = {};
+      supplierGroups.forEach(g => {
+        next[g.supplierName] = true;
+      });
+      setCollapsedGroups(next);
+    }
+  };
 
   // Statistics
   const outOfStockCount = reorderItems.filter(p => getStockStatus(p) === 'out_of_stock').length;
@@ -101,8 +134,8 @@ const LowStockReorderPanel = ({ products = [], onRefresh }) => {
     const suggestedOrder = Math.max(1, (reorderLvl * 2) - currentStock);
     const costNum = Number(p.cost_price || 0);
     const totalEst = suggestedOrder * costNum;
-    const fbPage = p.default_supplier_fb_page || p.default_facebook_supplier || p.supplier_name || 'Direct Supplier';
-    const messengerUrl = p.default_supplier_messenger_url || p.messenger_url;
+    const fbPage = p.default_supplier_fb_page || p.default_supplier_name || p.default_facebook_supplier || p.supplier_name || 'Direct Wholesale';
+    const messengerUrl = p.default_supplier_messenger_url || p.messenger_url || p.default_supplier_facebook_url;
     const catCode = getLedgerCategoryCode(p.category);
     const catMeta = getCategoryBadgeMeta(catCode);
     const shortBrand = getShortBrand(p.brand);
@@ -383,6 +416,19 @@ const LowStockReorderPanel = ({ products = [], onRefresh }) => {
             >
               <Layers size={13} /> {groupBySupplier ? 'Grouped' : 'Flat'}
             </button>
+
+            {groupBySupplier && (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={toggleAllCollapse}
+                style={{ height: '36px', padding: '0 10px', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}
+                title={allCollapsed ? "Expand all supplier groups" : "Collapse all supplier groups"}
+              >
+                {allCollapsed ? <ChevronsUpDown size={14} /> : <ChevronsDownUp size={14} />}
+                {allCollapsed ? 'Expand All' : 'Collapse All'}
+              </button>
+            )}
           </div>
 
           <div style={{ fontSize: '0.80rem', color: 'var(--text-muted)' }}>
@@ -411,46 +457,73 @@ const LowStockReorderPanel = ({ products = [], onRefresh }) => {
                   </td>
                 </tr>
               ) : groupBySupplier ? (
-                supplierGroups.map(group => (
-                  <React.Fragment key={`group-${group.supplierName}`}>
-                    {/* Supplier Group Header Row */}
-                    <tr style={{ background: 'rgba(255, 255, 255, 0.03)', borderTop: '2px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
-                      <td colSpan={6} style={{ padding: '8px 12px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ width: '18px', height: '18px', borderRadius: '4px', background: '#1877f2', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.70rem', fontWeight: 800 }}>f</span>
-                            <span style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-main)' }}>{group.supplierName}</span>
-                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', background: 'var(--surface-hover)', padding: '1px 6px', borderRadius: '4px', border: '1px solid var(--border)' }}>
-                              {group.items.length} {group.items.length === 1 ? 'part' : 'parts'}
-                            </span>
+                supplierGroups.map(group => {
+                  const isCollapsed = Boolean(collapsedGroups[group.supplierName]);
+                  return (
+                    <React.Fragment key={`group-${group.supplierName}`}>
+                      {/* Supplier Group Header Row (Collapsible) */}
+                      <tr
+                        onClick={() => toggleGroupCollapse(group.supplierName)}
+                        style={{
+                          background: isCollapsed ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.05)',
+                          borderTop: '2px solid var(--border)',
+                          borderBottom: '1px solid var(--border)',
+                          cursor: 'pointer',
+                          userSelect: 'none',
+                          transition: 'background 0.15s ease'
+                        }}
+                        title={`Click to ${isCollapsed ? 'expand' : 'collapse'} ${group.supplierName} items`}
+                      >
+                        <td colSpan={6} style={{ padding: '8px 12px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', color: isCollapsed ? 'var(--text-muted)' : 'var(--primary)' }}>
+                                {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                              </span>
+                              <span style={{ width: '18px', height: '18px', borderRadius: '4px', background: '#1877f2', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.70rem', fontWeight: 800 }}>f</span>
+                              <span style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-main)' }}>{group.supplierName}</span>
+                              <span style={{
+                                fontSize: '0.72rem',
+                                color: isCollapsed ? '#10b981' : 'var(--text-muted)',
+                                background: isCollapsed ? 'rgba(16, 185, 129, 0.12)' : 'var(--surface-hover)',
+                                padding: '1px 8px',
+                                borderRadius: '4px',
+                                border: isCollapsed ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border)',
+                                fontWeight: isCollapsed ? 600 : 500
+                              }}>
+                                {group.items.length} {group.items.length === 1 ? 'part' : 'parts'}
+                                {isCollapsed ? ' (Collapsed • Click to expand)' : ''}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                                Batch Units: <strong style={{ color: 'var(--text-main)' }}>+{group.totalSuggestedUnits} pcs</strong>
+                              </span>
+                              <span style={{ fontSize: '0.76rem', color: 'var(--primary)', fontWeight: 700 }}>
+                                Batch Est: {formatCurrency(group.totalEstimatedCost)}
+                              </span>
+                              {group.messengerUrl && (
+                                <a
+                                  href={group.messengerUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="btn-secondary"
+                                  style={{ padding: '2px 8px', fontSize: '0.72rem', color: '#0ea5e9', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                  title={`Open Messenger to message ${group.supplierName} for batch reorder`}
+                                >
+                                  <MessageSquare size={11} /> Batch Chat
+                                </a>
+                              )}
+                            </div>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                              Batch Units: <strong style={{ color: 'var(--text-main)' }}>+{group.totalSuggestedUnits} pcs</strong>
-                            </span>
-                            <span style={{ fontSize: '0.76rem', color: 'var(--primary)', fontWeight: 700 }}>
-                              Batch Est: {formatCurrency(group.totalEstimatedCost)}
-                            </span>
-                            {group.messengerUrl && (
-                              <a
-                                href={group.messengerUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="btn-secondary"
-                                style={{ padding: '2px 8px', fontSize: '0.72rem', color: '#0ea5e9', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                title={`Open Messenger to message ${group.supplierName} for batch reorder`}
-                              >
-                                <MessageSquare size={11} /> Batch Chat
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                    {/* Product Rows in this Group */}
-                    {group.items.map(p => renderProductRow(p))}
-                  </React.Fragment>
-                ))
+                        </td>
+                      </tr>
+                      {/* Product Rows in this Group (Hidden when collapsed) */}
+                      {!isCollapsed && group.items.map(p => renderProductRow(p))}
+                    </React.Fragment>
+                  );
+                })
               ) : (
                 filteredItems.map(p => renderProductRow(p))
               )}

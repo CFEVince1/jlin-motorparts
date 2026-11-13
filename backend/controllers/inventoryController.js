@@ -28,7 +28,7 @@ exports.getInventory = async (req, res, next) => {
                 COALESCE(p.damaged_stock, 0) AS damaged_stock,
                 p.supplier_id,
                 COALESCE(s.name, p.supplier_name) AS default_supplier_name,
-                s.fb_page_name AS default_supplier_fb_page,
+                COALESCE(s.fb_page_name, s.name, p.supplier_name) AS default_supplier_fb_page,
                 s.messenger_url AS default_supplier_messenger_url,
                 s.facebook_page_url AS default_supplier_facebook_url,
                 p.reorder_level,
