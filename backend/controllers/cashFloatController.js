@@ -189,15 +189,18 @@ exports.getStaffList = async (req, res) => {
             LEFT JOIN cash_floats last_cf ON last_cf.id = (
                 SELECT id FROM cash_floats 
                 WHERE staff_id = u.id 
+                  AND status = 'COMPLETED'
+                  AND TIMESTAMPDIFF(SECOND, assigned_at, COALESCE(completed_at, NOW())) >= 60
                 ORDER BY assigned_at DESC 
                 LIMIT 1
             )
             WHERE LOWER(u.role) IN ('staff', 'cashier')
               AND COALESCE(u.is_active, 1) = 1
-              AND LOWER(u.username) NOT IN ('elena', 'brix', 'gilmoore')
+              AND LOWER(u.username) NOT IN ('elena', 'brix', 'gilmoore', 'test')
               AND LOWER(COALESCE(u.full_name, '')) NOT LIKE '%elena%'
               AND LOWER(COALESCE(u.full_name, '')) NOT LIKE '%brix%'
               AND LOWER(COALESCE(u.full_name, '')) NOT LIKE '%gilmoore%'
+              AND LOWER(COALESCE(u.full_name, '')) NOT LIKE '%test%'
             ORDER BY u.username ASC
         `;
         const [staff] = await db.query(query);
@@ -838,40 +841,16 @@ exports.openShift = async (req, res) => {
         if (existingActive.length > 0) {
             const activeShift = existingActive[0];
             if (Number(activeShift.staff_id) !== Number(targetStaffId)) {
-                if (isAdmin) {
-                    // Admin is opening a shift for a new cashier -> automatically handover and close the previous drawer
-                    await db.query(`
-                        UPDATE cash_floats SET 
-                            status = 'COMPLETED',
-                            completed_at = NOW(),
-                            returned_at = NOW(),
-                            admin_signed_off = 1,
-                            signed_off_by_id = ?,
-                            signed_off_by_name = ?,
-                            signed_off_at = NOW(),
-                            reconciliation_notes = CONCAT(COALESCE(reconciliation_notes, ''), ' | Handover to @', ?, ' by Admin')
-                        WHERE id = ?
-                    `, [currentUserId, currentUsername, staffUser.username, activeShift.id]);
-
-                    if (activeShift.staff_id) {
-                        try {
-                            await db.query('UPDATE users SET is_logged_in = 0, token_version = token_version + 1 WHERE id = ?', [activeShift.staff_id]);
-                        } catch (e) {
-                            console.warn('[openShift handover] Session notice:', e.message);
-                        }
-                    }
-                } else {
-                    return res.status(400).json({
-                        message: `Cannot open shift: Cash drawer is currently active for @${activeShift.staff_username || 'another staff'} (${activeShift.shift_code || 'SHIFT-' + activeShift.id}). Please ask Admin to handover or time-in your drawer.`
-                    });
-                }
-            } else {
-                return res.status(200).json({
-                    message: `Active shift already open for ${staffUser.username} (${activeShift.shift_code || 'SHIFT-' + activeShift.id}).`,
-                    cashFloat: activeShift,
-                    isExisting: true
+                return res.status(400).json({
+                    message: `Cash drawer is currently active for @${activeShift.staff_username || 'another cashier'} (${activeShift.shift_code || 'SHIFT-' + activeShift.id}). Please complete and sign off that shift before opening a new one.`
                 });
             }
+
+            return res.status(200).json({
+                message: `Active shift already open for ${staffUser.username} (${activeShift.shift_code || 'SHIFT-' + activeShift.id}).`,
+                cashFloat: activeShift,
+                isExisting: true
+            });
         }
 
         // Generate shift code e.g. SHIFT-005
