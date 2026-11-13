@@ -545,7 +545,7 @@ const Inventory = () => {
         <div>
           <h1 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
             <Archive size={28} color="var(--primary)" />
-            <span>Inventory (Product Directory & Stock)</span>
+            <span>Inventory (Product & Stock)</span>
           </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0 38px' }}>
             Unified catalog of all motorcycle parts, specifications, live shelf stock counts, and wholesale pricing.
