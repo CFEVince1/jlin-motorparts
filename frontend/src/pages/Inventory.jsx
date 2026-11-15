@@ -87,29 +87,29 @@ const Inventory = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(() => {
     const qTab = searchParams.get('tab');
-    if (!isAdmin && (qTab === 'movements' || qTab === 'reorder' || qTab === 'reorder_list')) return 'catalog';
-    if (isAdmin && (qTab === 'reorder' || qTab === 'reorder_list')) return 'reorder_list';
+    if (!isAdmin) return 'catalog';
+    if (qTab === 'reorder' || qTab === 'reorder_list') return 'reorder_list';
     if (qTab === 'categories_brands') return 'categories_brands';
-    if (isAdmin && qTab === 'movements') return 'movements';
+    if (qTab === 'movements') return 'movements';
     return 'catalog';
   });
 
   useEffect(() => {
     const qTab = searchParams.get('tab');
-    if (!isAdmin && (qTab === 'movements' || qTab === 'reorder' || qTab === 'reorder_list')) {
-      setActiveTab('catalog');
+    if (!isAdmin) {
+      if (activeTab !== 'catalog') setActiveTab('catalog');
       return;
     }
-    if (isAdmin && (qTab === 'reorder' || qTab === 'reorder_list')) {
+    if (qTab === 'reorder' || qTab === 'reorder_list') {
       setActiveTab('reorder_list');
     } else if (qTab === 'categories_brands') {
       setActiveTab('categories_brands');
-    } else if (isAdmin && qTab === 'movements') {
+    } else if (qTab === 'movements') {
       setActiveTab('movements');
     } else {
       setActiveTab('catalog');
     }
-  }, [searchParams, isAdmin]);
+  }, [searchParams, isAdmin, activeTab]);
 
   const handleTabChange = (tab) => {
     setIsAddProductOpen(false);
@@ -617,47 +617,49 @@ const Inventory = () => {
             </button>
           )}
 
-          <button
-            type="button"
-            onClick={() => {
-              if (activeTab !== 'movements') {
-                setActiveTab('movements');
-                setIsAddProductOpen(false);
-                setEditingProductModal(null);
-                setAdjustmentTarget(products[0] || {});
-              } else if (adjustmentTarget !== null) {
-                setAdjustmentTarget(null);
-              } else {
-                setAdjustmentTarget(products[0] || {});
-              }
-            }}
-            className={activeTab === 'movements' && adjustmentTarget !== null ? 'btn-primary' : 'btn-secondary'}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '0.84rem',
-              padding: '8px 14px',
-              height: '38px',
-              cursor: 'pointer',
-              background: activeTab === 'movements' && adjustmentTarget !== null ? 'rgba(245, 158, 11, 0.2)' : undefined,
-              borderColor: activeTab === 'movements' && adjustmentTarget !== null ? '#f59e0b' : undefined,
-              color: activeTab === 'movements' && adjustmentTarget !== null ? '#f59e0b' : undefined
-            }}
-            title={activeTab === 'movements' && adjustmentTarget !== null ? 'Close stock adjustment form' : 'Record manual stock adjustment (Damaged on shelf, Lost/Stolen, Found extra)'}
-          >
-            {activeTab === 'movements' && adjustmentTarget !== null ? (
-              <>
-                <X size={15} style={{ color: '#f59e0b' }} />
-                <span>Close Adjustment</span>
-              </>
-            ) : (
-              <>
-                <AlertTriangle size={15} style={{ color: '#f59e0b' }} />
-                <span>Stock Adjustment</span>
-              </>
-            )}
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                if (activeTab !== 'movements') {
+                  setActiveTab('movements');
+                  setIsAddProductOpen(false);
+                  setEditingProductModal(null);
+                  setAdjustmentTarget(products[0] || {});
+                } else if (adjustmentTarget !== null) {
+                  setAdjustmentTarget(null);
+                } else {
+                  setAdjustmentTarget(products[0] || {});
+                }
+              }}
+              className={activeTab === 'movements' && adjustmentTarget !== null ? 'btn-primary' : 'btn-secondary'}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '0.84rem',
+                padding: '8px 14px',
+                height: '38px',
+                cursor: 'pointer',
+                background: activeTab === 'movements' && adjustmentTarget !== null ? 'rgba(245, 158, 11, 0.2)' : undefined,
+                borderColor: activeTab === 'movements' && adjustmentTarget !== null ? '#f59e0b' : undefined,
+                color: activeTab === 'movements' && adjustmentTarget !== null ? '#f59e0b' : undefined
+              }}
+              title={activeTab === 'movements' && adjustmentTarget !== null ? 'Close stock adjustment form' : 'Record manual stock adjustment (Damaged on shelf, Lost/Stolen, Found extra)'}
+            >
+              {activeTab === 'movements' && adjustmentTarget !== null ? (
+                <>
+                  <X size={15} style={{ color: '#f59e0b' }} />
+                  <span>Close Adjustment</span>
+                </>
+              ) : (
+                <>
+                  <AlertTriangle size={15} style={{ color: '#f59e0b' }} />
+                  <span>Stock Adjustment</span>
+                </>
+              )}
+            </button>
+          )}
 
           {isAdmin && (
             <button
@@ -725,29 +727,31 @@ const Inventory = () => {
           <span>Products (Parts List) ({products.length})</span>
         </button>
 
-        <button
-          type="button"
-          className={activeTab === 'categories_brands' ? 'btn-primary' : 'btn-secondary'}
-          style={{
-            height: '38px',
-            padding: '0 16px',
-            fontSize: '0.84rem',
-            borderRadius: '10px',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            cursor: 'pointer',
-            fontWeight: 700,
-            background: activeTab === 'categories_brands' ? 'var(--primary)' : 'var(--surface)',
-            color: activeTab === 'categories_brands' ? '#ffffff' : 'var(--text-muted)',
-            border: activeTab === 'categories_brands' ? 'none' : '1.5px solid var(--border)',
-            boxShadow: activeTab === 'categories_brands' ? '0 2px 6px rgba(16, 185, 129, 0.25)' : 'none'
-          }}
-          onClick={() => handleTabChange('categories_brands')}
-        >
-          <Tag size={16} />
-          <span>Categories & Brands ({uniqueCategories.length})</span>
-        </button>
+        {isAdmin && (
+          <button
+            type="button"
+            className={activeTab === 'categories_brands' ? 'btn-primary' : 'btn-secondary'}
+            style={{
+              height: '38px',
+              padding: '0 16px',
+              fontSize: '0.84rem',
+              borderRadius: '10px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer',
+              fontWeight: 700,
+              background: activeTab === 'categories_brands' ? 'var(--primary)' : 'var(--surface)',
+              color: activeTab === 'categories_brands' ? '#ffffff' : 'var(--text-muted)',
+              border: activeTab === 'categories_brands' ? 'none' : '1.5px solid var(--border)',
+              boxShadow: activeTab === 'categories_brands' ? '0 2px 6px rgba(16, 185, 129, 0.25)' : 'none'
+            }}
+            onClick={() => handleTabChange('categories_brands')}
+          >
+            <Tag size={16} />
+            <span>Categories & Brands ({uniqueCategories.length})</span>
+          </button>
+        )}
 
         {isAdmin && (
           <button
@@ -1229,9 +1233,9 @@ const Inventory = () => {
                   <th style={{ minWidth: '180px' }}>Product & Part #</th>
                   <th style={{ minWidth: '110px' }}>Brand & Category</th>
                   <th style={{ minWidth: '160px' }}>Default FB Supplier</th>
-                  <th style={{ textAlign: 'right', minWidth: '110px' }}>RETAIL / COST</th>
+                  <th style={{ textAlign: 'right', minWidth: '110px' }}>{isAdmin ? 'RETAIL / COST' : 'RETAIL PRICE'}</th>
                   <th style={{ textAlign: 'center', minWidth: '130px' }}>Stock Status</th>
-                  <th style={{ textAlign: 'center', minWidth: '110px', whiteSpace: 'nowrap' }}>Actions</th>
+                  {isAdmin && <th style={{ textAlign: 'center', minWidth: '110px', whiteSpace: 'nowrap' }}>Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -1446,11 +1450,11 @@ const Inventory = () => {
                           </div>
                         </td>
 
-                        {/* 6. Complete Actions Column */}
-                        <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '5px', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                            {/* Edit Product (Admin only) */}
-                            {isAdmin && (
+                        {/* 6. Complete Actions Column (Admin only) */}
+                        {isAdmin && (
+                          <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '5px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              {/* Edit Product */}
                               <button
                                 type="button"
                                 onClick={() => setEditingProductModal(p)}
@@ -1460,24 +1464,22 @@ const Inventory = () => {
                               >
                                 <Edit2 size={14} style={{ color: '#38bdf8' }} />
                               </button>
-                            )}
 
-                            {/* Adjust Stock (Admin and Staff) */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveTab('movements');
-                                setAdjustmentTarget(p);
-                              }}
-                              className="btn-secondary"
-                              style={{ padding: '5px 7px', borderRadius: '6px' }}
-                              title="Log In-Store Damage Adjustment in Stock Movements"
-                            >
-                              <AlertTriangle size={14} style={{ color: '#f59e0b' }} />
-                            </button>
+                              {/* Adjust Stock */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveTab('movements');
+                                  setAdjustmentTarget(p);
+                                }}
+                                className="btn-secondary"
+                                style={{ padding: '5px 7px', borderRadius: '6px' }}
+                                title="Log In-Store Damage Adjustment in Stock Movements"
+                              >
+                                <AlertTriangle size={14} style={{ color: '#f59e0b' }} />
+                              </button>
 
-                            {/* Delete Product (Admin only) */}
-                            {isAdmin && (
+                              {/* Delete Product */}
                               <button
                                 type="button"
                                 onClick={() => handleDelete(p.id, p.product_name || p.name)}
@@ -1487,15 +1489,15 @@ const Inventory = () => {
                               >
                                 <Trash2 size={14} style={{ color: '#ef4444' }} />
                               </button>
-                            )}
-                          </div>
-                        </td>
+                            </div>
+                          </td>
+                        )}
                       </tr>
 
                       {/* Expandable Serial Lots Breakdown */}
                       {p.is_serialized && expandedSerials.has(p.id) && (
                         <tr key={`${p.id}_serials_breakdown`} style={{ background: 'rgba(255, 255, 255, 0.02)' }}>
-                          <td colSpan={6} style={{ padding: '12px 18px 16px 28px' }}>
+                          <td colSpan={isAdmin ? 6 : 5} style={{ padding: '12px 18px 16px 28px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                               <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>
                                 Serial Lots Breakdown for {p.product_name || p.name}
@@ -1570,7 +1572,7 @@ const Inventory = () => {
 
                 {filteredProducts.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="table-empty-state" style={{ padding: '36px 16px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <td colSpan={isAdmin ? 6 : 5} className="table-empty-state" style={{ padding: '36px 16px', textAlign: 'center', color: 'var(--text-muted)' }}>
                       No inventory products match your search or filter criteria. Try adjusting your query or resetting filters.
                     </td>
                   </tr>

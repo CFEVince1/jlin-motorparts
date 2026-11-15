@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
 import {
   Tag,
   Building2,
@@ -20,6 +20,7 @@ import {
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import Spinner from './Spinner';
+import { AuthContext } from '../context/AuthContextValue';
 
 const getCategoryColor = (code) => {
   switch ((code || '').toUpperCase()) {
@@ -79,6 +80,9 @@ const getCountryFlag = (country) => {
 };
 
 const CategoriesBrandsManager = ({ onCatalogUpdated }) => {
+  const { user } = useContext(AuthContext);
+  const isAdmin = (user?.role || '').toLowerCase() === 'admin';
+
   const [activeSubTab, setActiveSubTab] = useState('categories'); // 'categories' | 'brands'
   const [categories, setCategories] = useState([]);
   const [brands, setBrands] = useState([]);
@@ -305,6 +309,16 @@ const CategoriesBrandsManager = ({ onCatalogUpdated }) => {
     (b.country_origin || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (b.specialty || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  if (!isAdmin) {
+    return (
+      <div className="glass-panel" style={{ padding: '40px 20px', textAlign: 'center', borderRadius: '12px' }}>
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.92rem', fontWeight: 600 }}>
+          🔒 Access restricted. Categories and brands management is restricted to Store Owners and Administrators.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
