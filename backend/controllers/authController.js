@@ -153,8 +153,10 @@ exports.logout = async (req, res) => {
         }
 
         if (userId) {
-            await db.query('UPDATE users SET is_logged_in = 0, token_version = token_version + 1 WHERE id = ?', [userId]);
-            console.log(`[Auth] User ${userId} logged out. Token version incremented.`);
+            // Update logged in flag for presence tracking.
+            // Do NOT increment token_version on routine logout so other independent sessions/devices are not revoked.
+            await db.query('UPDATE users SET is_logged_in = 0 WHERE id = ?', [userId]);
+            console.log(`[Auth] User ${userId} logged out.`);
         }
 
         res.json({ message: 'Logged out successfully' });

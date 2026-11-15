@@ -69,7 +69,7 @@ api.interceptors.response.use(
                 sessionStorage.removeItem('token');
                 sessionStorage.removeItem('user');
                 // Only clear localStorage token if it matches this tab's token, preserving other sessions
-                if (localStorage.getItem('token') === thisToken) {
+                if (thisToken && localStorage.getItem('token') === thisToken) {
                     localStorage.removeItem('token');
                     localStorage.removeItem('user');
                 }

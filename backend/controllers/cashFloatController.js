@@ -1254,12 +1254,12 @@ exports.closeShiftBlindCount = async (req, res) => {
 
         const [updatedRows] = await db.query('SELECT * FROM cash_floats WHERE id = ?', [currentShift.id]);
 
-        // Revoke staff session token immediately when closed by Admin so they are forced to log out
+        // Update staff login status when closed by Admin
         if (isAdmin && currentShift.staff_id) {
             try {
-                await db.query('UPDATE users SET is_logged_in = 0, token_version = token_version + 1 WHERE id = ?', [currentShift.staff_id]);
+                await db.query('UPDATE users SET is_logged_in = 0 WHERE id = ?', [currentShift.staff_id]);
             } catch (e) {
-                console.warn('[closeShiftBlindCount] Session revocation notice:', e.message);
+                console.warn('[closeShiftBlindCount] Session update notice:', e.message);
             }
         }
 
@@ -1370,12 +1370,12 @@ exports.adminSignOff = async (req, res) => {
             WHERE id = ?
         `, [numVerifiedCash, finalVariance, adminId, adminUsername, notes || 'Verified and signed off by Admin', shift.id]);
 
-        // Revoke staff session token immediately upon Admin sign-off
+        // Update staff login status upon Admin sign-off
         if (shift.staff_id) {
             try {
-                await db.query('UPDATE users SET is_logged_in = 0, token_version = token_version + 1 WHERE id = ?', [shift.staff_id]);
+                await db.query('UPDATE users SET is_logged_in = 0 WHERE id = ?', [shift.staff_id]);
             } catch (e) {
-                console.warn('[adminSignOff] Session revocation notice:', e.message);
+                console.warn('[adminSignOff] Session update notice:', e.message);
             }
         }
 
@@ -1423,12 +1423,12 @@ exports.cancelShift = async (req, res) => {
         await db.query('DELETE FROM cash_movements WHERE cash_float_id = ?', [shift.id]);
         await db.query('DELETE FROM cash_floats WHERE id = ?', [shift.id]);
 
-        // Revoke staff session token immediately upon shift cancellation
+        // Update staff login status upon shift cancellation
         if (shift.staff_id) {
             try {
-                await db.query('UPDATE users SET is_logged_in = 0, token_version = token_version + 1 WHERE id = ?', [shift.staff_id]);
+                await db.query('UPDATE users SET is_logged_in = 0 WHERE id = ?', [shift.staff_id]);
             } catch (e) {
-                console.warn('[cancelShift] Session revocation notice:', e.message);
+                console.warn('[cancelShift] Session update notice:', e.message);
             }
         }
 

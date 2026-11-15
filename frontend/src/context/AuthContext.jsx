@@ -38,7 +38,7 @@ const clearStoredToken = () => {
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('user');
     // Only clear localStorage token if it matches this session's token to avoid wiping other active users
-    if (!thisToken || localStorage.getItem('token') === thisToken) {
+    if (thisToken && localStorage.getItem('token') === thisToken) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
     }
