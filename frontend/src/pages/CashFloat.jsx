@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useContext } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useContext, Fragment } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import {
@@ -58,6 +58,7 @@ export const CashFloat = () => {
 
     // Open Shift Form State
     const [showOpenShiftModal, setShowOpenShiftModal] = useState(false);
+    const [expandedStaffTimeInId, setExpandedStaffTimeInId] = useState(null);
     const [openShiftForm, setOpenShiftForm] = useState({
         staff_id: '',
         starting_cash: '2000',
@@ -314,6 +315,7 @@ export const CashFloat = () => {
             const res = await api.post('/cash-float/open-shift', payload);
             toast.success(res.data?.message || 'Shift opened successfully! POS register unlocked.');
             setShowOpenShiftModal(false);
+            setExpandedStaffTimeInId(null);
             if (activeTab === 'open_shift') {
                 setActiveTab('active');
             }
@@ -2027,6 +2029,10 @@ export const CashFloat = () => {
                                                         setSelectedStaffForTimeIn(target);
                                                     }
                                                     setShowOpenShiftModal(true);
+                                                    setExpandedStaffTimeInId(null);
+                                                    setTimeout(() => {
+                                                        document.getElementById('inline-timein-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                    }, 50);
                                                 }
                                             }}
                                             className={showOpenShiftModal ? "btn-secondary" : "btn-primary"}
@@ -2413,8 +2419,10 @@ export const CashFloat = () => {
                                                     const status = s.active_shift_status || (hasActive ? 'ACTIVE' : 'OFF');
                                                     const salesCount = Number(s.active_sales_count || 0);
                                                     const isActionBusy = actionInProgressShiftId === s.active_float_id;
+                                                    const isExpanded = expandedStaffTimeInId === s.id;
 
                                                     return (
+                                                        <Fragment key={s.id}>
                                                         <tr key={s.id}>
                                                             {/* Col 1: Staff & Role */}
                                                             <td style={{ padding: '12px 14px' }}>
@@ -2624,16 +2632,38 @@ export const CashFloat = () => {
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={() => {
-                                                                                    setOpenShiftForm({ ...openShiftForm, staff_id: s.id, starting_cash: '2000' });
-                                                                                    setSelectedStaffForTimeIn(s);
-                                                                                    setShowOpenShiftModal(true);
+                                                                                    if (isExpanded) {
+                                                                                        setExpandedStaffTimeInId(null);
+                                                                                        setSelectedStaffForTimeIn(null);
+                                                                                    } else {
+                                                                                        setOpenShiftForm({ ...openShiftForm, staff_id: s.id, starting_cash: '2000' });
+                                                                                        setSelectedStaffForTimeIn(s);
+                                                                                        setExpandedStaffTimeInId(s.id);
+                                                                                        setShowOpenShiftModal(false);
+                                                                                    }
                                                                                 }}
                                                                                 disabled={isActionBusy}
-                                                                                className="btn-primary"
-                                                                                style={{ padding: '5px 14px', fontSize: '0.76rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '5px' }}
-                                                                                title="Time-in cashier with starting float & immediately unlock register"
+                                                                                className={isExpanded ? "btn-secondary" : "btn-primary"}
+                                                                                style={{
+                                                                                    padding: '5px 14px',
+                                                                                    fontSize: '0.76rem',
+                                                                                    fontWeight: 800,
+                                                                                    display: 'inline-flex',
+                                                                                    alignItems: 'center',
+                                                                                    gap: '5px',
+                                                                                    ...(isExpanded ? { color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.4)' } : {})
+                                                                                }}
+                                                                                title={isExpanded ? "Close Time-In Form" : "Time-in cashier with starting float & immediately unlock register"}
                                                                             >
-                                                                                <Play size={13} fill="currentColor" /> Time-In &amp; Assign Float
+                                                                                {isExpanded ? (
+                                                                                    <>
+                                                                                        <X size={13} /> ✕ Close Form
+                                                                                    </>
+                                                                                ) : (
+                                                                                    <>
+                                                                                        <Play size={13} fill="currentColor" /> Time-In &amp; Assign Float
+                                                                                    </>
+                                                                                )}
                                                                             </button>
                                                                         )
                                                                     )}
@@ -2737,6 +2767,240 @@ export const CashFloat = () => {
                                                                 </div>
                                                             </td>
                                                         </tr>
+
+                                                        {/* Inline In-Row Time-In Expansion Panel */}
+                                                        {isExpanded && (
+                                                            <tr key={`${s.id}_expanded_timein`} style={{ background: 'rgba(16, 185, 129, 0.03)' }}>
+                                                                <td colSpan="6" style={{ padding: '0 0 16px 0', borderBottom: '2px solid var(--border)' }}>
+                                                                    <div style={{
+                                                                        margin: '6px 14px 12px 14px',
+                                                                        backgroundColor: 'var(--surface, #1e2420)',
+                                                                        border: '1.5px solid #10b981',
+                                                                        borderRadius: '12px',
+                                                                        padding: '18px 22px',
+                                                                        boxShadow: '0 4px 18px rgba(16, 185, 129, 0.15)'
+                                                                    }}>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
+                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                                                <div style={{
+                                                                                    width: '36px',
+                                                                                    height: '36px',
+                                                                                    borderRadius: '8px',
+                                                                                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                                                                                    display: 'flex',
+                                                                                    alignItems: 'center',
+                                                                                    justifyContent: 'center'
+                                                                                }}>
+                                                                                    <Banknote size={20} color="#10b981" />
+                                                                                </div>
+                                                                                <div>
+                                                                                    <div style={{ fontSize: '0.96rem', fontWeight: 800, color: 'var(--text-main, #f4f4f5)' }}>
+                                                                                        Time-In Cashier: <span style={{ color: '#10b981' }}>@{s.username || s.full_name}</span> ({s.full_name || s.username})
+                                                                                    </div>
+                                                                                    <div style={{ fontSize: '0.76rem', color: 'var(--text-muted, #a1a1aa)' }}>
+                                                                                        Assign starting change fund (panukli in coins and small bills) and unlock POS terminal for @{s.username || s.full_name}.
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => setExpandedStaffTimeInId(null)}
+                                                                                className="btn-secondary"
+                                                                                style={{ padding: '4px 10px', fontSize: '0.76rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                                                                            >
+                                                                                <X size={13} /> Close
+                                                                            </button>
+                                                                        </div>
+
+                                                                        <form onSubmit={handleOpenShiftSubmit}>
+                                                                            {/* Quick Amount / Preset / Denom options */}
+                                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                                                                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main, #f4f4f5)' }}>
+                                                                                    Starting Cash Fund (panukli):
+                                                                                </label>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => setUseDenomOpen(!useDenomOpen)}
+                                                                                    style={{
+                                                                                        background: 'transparent',
+                                                                                        border: 'none',
+                                                                                        color: '#34d399',
+                                                                                        fontSize: '0.78rem',
+                                                                                        fontWeight: 700,
+                                                                                        cursor: 'pointer',
+                                                                                        display: 'flex',
+                                                                                        alignItems: 'center',
+                                                                                        gap: '5px'
+                                                                                    }}
+                                                                                >
+                                                                                    <Coins size={13} /> {useDenomOpen ? 'Switch to Quick Amount' : 'Use Coin & Bill Breakdown'}
+                                                                                </button>
+                                                                            </div>
+
+                                                                            {!useDenomOpen ? (
+                                                                                <div style={{ marginBottom: '14px' }}>
+                                                                                    <div style={{ position: 'relative' }}>
+                                                                                        <span style={{
+                                                                                            position: 'absolute',
+                                                                                            left: '12px',
+                                                                                            top: '50%',
+                                                                                            transform: 'translateY(-50%)',
+                                                                                            fontWeight: 900,
+                                                                                            fontSize: '1.25rem',
+                                                                                            color: '#10b981'
+                                                                                        }}>₱</span>
+                                                                                        <input
+                                                                                            type="number"
+                                                                                            step="0.01"
+                                                                                            min="1"
+                                                                                            style={{
+                                                                                                width: '100%',
+                                                                                                padding: '8px 14px 8px 34px',
+                                                                                                fontSize: '1.25rem',
+                                                                                                fontWeight: 900,
+                                                                                                fontFamily: 'monospace',
+                                                                                                backgroundColor: '#0f172a',
+                                                                                                color: '#10b981',
+                                                                                                border: '2px solid #10b981',
+                                                                                                borderRadius: '8px',
+                                                                                                outline: 'none',
+                                                                                                boxShadow: '0 0 10px rgba(16, 185, 129, 0.25)'
+                                                                                            }}
+                                                                                            placeholder="2000.00"
+                                                                                            value={openShiftForm.starting_cash}
+                                                                                            onChange={(e) => setOpenShiftForm({ ...openShiftForm, starting_cash: e.target.value })}
+                                                                                            required
+                                                                                            autoFocus
+                                                                                        />
+                                                                                    </div>
+                                                                                    <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                                                                                        {['1000', '1500', '2000', '3000', '5000'].map(preset => {
+                                                                                            const isSelected = String(openShiftForm.starting_cash) === String(preset);
+                                                                                            return (
+                                                                                                <button
+                                                                                                    key={preset}
+                                                                                                    type="button"
+                                                                                                    onClick={() => setOpenShiftForm({ ...openShiftForm, starting_cash: preset })}
+                                                                                                    style={{
+                                                                                                        fontSize: '0.8rem',
+                                                                                                        fontWeight: 800,
+                                                                                                        padding: '5px 12px',
+                                                                                                        borderRadius: '6px',
+                                                                                                        cursor: 'pointer',
+                                                                                                        transition: 'all 0.15s ease',
+                                                                                                        backgroundColor: isSelected ? '#10b981' : '#1e293b',
+                                                                                                        color: '#ffffff',
+                                                                                                        border: isSelected ? '1.5px solid #34d399' : '1px solid #64748b'
+                                                                                                    }}
+                                                                                                >
+                                                                                                    ₱{preset}
+                                                                                                </button>
+                                                                                            );
+                                                                                        })}
+                                                                                    </div>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <div style={{
+                                                                                    backgroundColor: 'var(--surface-active, #242a25)',
+                                                                                    border: '1.5px solid var(--border, #3f4a41)',
+                                                                                    padding: '12px',
+                                                                                    borderRadius: '10px',
+                                                                                    marginBottom: '14px'
+                                                                                }}>
+                                                                                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-main, #f4f4f5)', marginBottom: '8px' }}>
+                                                                                        Itemized Bill & Coin Count:
+                                                                                    </div>
+                                                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', fontSize: '0.76rem' }}>
+                                                                                        {[
+                                                                                            { key: 'bills_1000', label: '₱1,000' },
+                                                                                            { key: 'bills_500', label: '₱500' },
+                                                                                            { key: 'bills_200', label: '₱200' },
+                                                                                            { key: 'bills_100', label: '₱100' },
+                                                                                            { key: 'bills_50', label: '₱50' },
+                                                                                            { key: 'bills_20', label: '₱20' },
+                                                                                            { key: 'coins_10', label: '₱10 coin' },
+                                                                                            { key: 'coins_5', label: '₱5 coin' },
+                                                                                            { key: 'coins_1', label: '₱1 coin' }
+                                                                                        ].map(denom => (
+                                                                                            <div key={denom.key}>
+                                                                                                <label style={{ display: 'block', marginBottom: '2px', color: '#d4d4d8', fontWeight: 600 }}>{denom.label}:</label>
+                                                                                                <input
+                                                                                                    type="number"
+                                                                                                    min="0"
+                                                                                                    style={{
+                                                                                                        width: '100%',
+                                                                                                        padding: '5px 6px',
+                                                                                                        fontSize: '0.84rem',
+                                                                                                        fontWeight: 700,
+                                                                                                        textAlign: 'center',
+                                                                                                        backgroundColor: '#1b201c',
+                                                                                                        color: '#ffffff',
+                                                                                                        border: '1px solid #455047',
+                                                                                                        borderRadius: '5px'
+                                                                                                    }}
+                                                                                                    value={openShiftForm[denom.key] || 0}
+                                                                                                    onChange={(e) => setOpenShiftForm({ ...openShiftForm, [denom.key]: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                                                                                                />
+                                                                                            </div>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                    <div style={{ marginTop: '10px', paddingTop: '6px', borderTop: '1px solid var(--border, #3f4a41)', textAlign: 'right', fontWeight: 800, fontSize: '0.9rem', color: '#34d399' }}>
+                                                                                        Computed Total: {formatCurrency(calculateDenomTotal(openShiftForm))}
+                                                                                    </div>
+                                                                                </div>
+                                                                            )}
+
+                                                                            <div style={{ marginBottom: '14px' }}>
+                                                                                <input
+                                                                                    type="text"
+                                                                                    style={{
+                                                                                        width: '100%',
+                                                                                        padding: '8px 12px',
+                                                                                        fontSize: '0.82rem',
+                                                                                        backgroundColor: 'var(--surface-active, #272d28)',
+                                                                                        color: '#ffffff',
+                                                                                        border: '1px solid var(--border, #3f4a41)',
+                                                                                        borderRadius: '6px',
+                                                                                        outline: 'none'
+                                                                                    }}
+                                                                                    placeholder="Opening Shift Notes (Optional) e.g. Morning float verified"
+                                                                                    value={openShiftForm.notes}
+                                                                                    onChange={(e) => setOpenShiftForm({ ...openShiftForm, notes: e.target.value })}
+                                                                                />
+                                                                            </div>
+
+                                                                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => setExpandedStaffTimeInId(null)}
+                                                                                    className="btn-secondary"
+                                                                                    style={{ padding: '7px 16px', fontSize: '0.8rem', fontWeight: 600 }}
+                                                                                >
+                                                                                    Cancel
+                                                                                </button>
+                                                                                <button
+                                                                                    type="submit"
+                                                                                    disabled={openingShift}
+                                                                                    className="btn-primary"
+                                                                                    style={{
+                                                                                        padding: '7px 20px',
+                                                                                        fontSize: '0.82rem',
+                                                                                        fontWeight: 800,
+                                                                                        display: 'inline-flex',
+                                                                                        alignItems: 'center',
+                                                                                        gap: '5px'
+                                                                                    }}
+                                                                                >
+                                                                                    <Check size={14} />
+                                                                                    {openingShift ? 'Assigning Float...' : `Confirm Time-In @${s.username || s.full_name} & Unlock POS`}
+                                                                                </button>
+                                                                            </div>
+                                                                        </form>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                        </Fragment>
                                                     );
                                                 })
                                             )}
