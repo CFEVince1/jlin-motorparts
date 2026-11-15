@@ -666,9 +666,6 @@ export const CashFloat = () => {
                     <h1 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <Banknote size={24} color="var(--primary)" /> Shifts & Cash Drawer
                     </h1>
-                    <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-                        Holds cashiers accountable for every peso in the cash drawer from opening change fund to closing blind count.
-                    </p>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
@@ -1855,9 +1852,6 @@ export const CashFloat = () => {
                                         <h3 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
                                             <Users size={18} color="var(--primary)" /> Staff Drawer Management &amp; Time Controls
                                         </h3>
-                                        <p style={{ margin: '3px 0 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                                            Time-in staff with starting change fund, monitor real-time drawer totals, log safe drops, and sign off shift remittances.
-                                        </p>
                                     </div>
                                     {!isDrawerOccupied && displayStaffList.length > 0 && (
                                         <button

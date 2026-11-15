@@ -584,9 +584,6 @@ const Inventory = () => {
             <Archive size={28} color="var(--primary)" />
             <span>Inventory (Product & Stock)</span>
           </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0 38px' }}>
-            Unified catalog of all motorcycle parts, specifications, live shelf stock counts, and wholesale pricing.
-          </p>
         </div>
 
         {/* Action Buttons */}
@@ -1747,9 +1744,6 @@ const Inventory = () => {
               <div>
                 <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-main)' }}>
                   Inspect Product Stock Movement History (Stock Card)
-                </div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  Enter any part number or product name to view its complete append-only stock card ledger.
                 </div>
               </div>
             </div>

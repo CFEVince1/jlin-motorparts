@@ -930,11 +930,11 @@ export default function Dashboard() {
                     <h1 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
                         {isAdmin ? 'Admin Dashboard' : 'Staff Counter Dashboard'}
                     </h1>
-                    <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-                        {isAdmin
-                            ? "Overview of today's sales, cashier transactions, and low stock."
-                            : `Welcome back, ${user?.username || 'Staff'}. Review counter transactions and inventory metrics.`}
-                    </p>
+                    {!isAdmin && (
+                        <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                            Welcome back, {user?.username || 'Staff'}. Review counter transactions and inventory metrics.
+                        </p>
+                    )}
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -1817,7 +1817,7 @@ export default function Dashboard() {
                     <div>
                         <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <AlertTriangle size={20} color="#ef4444" />
-                            Low-Stock Alerts {isAdmin ? '& Supplier Restock Shortcuts' : '& Restock Warning'}
+                            Low-Stock Alerts {isAdmin ? '& Supplier Restock' : '& Restock Warning'}
                         </h2>
                     </div>
 

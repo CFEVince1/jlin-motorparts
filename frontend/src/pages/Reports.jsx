@@ -319,9 +319,6 @@ export const Reports = () => {
                     <h1 style={{ fontSize: '1.45rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <DollarSign size={26} style={{ color: 'var(--primary)' }} /> Reports & Financial Intelligence
                     </h1>
-                    <p style={{ margin: '4px 0 0 0', fontSize: '0.84rem', color: 'var(--text-muted)' }}>
-                        Motorshop accounting, genuine unit cost margins, cash flow tracking, and offline bookkeeping sheets.
-                    </p>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -537,9 +534,6 @@ export const Reports = () => {
                                 <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>
                                     Profit Breakdown by Product & Category
                                 </h3>
-                                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
-                                    Itemized margins showing net units sold, wholesale puhunan, and gross profit per SKU.
-                                </p>
                             </div>
 
                             <div style={{ position: 'relative', width: '280px' }}>
@@ -714,9 +708,6 @@ export const Reports = () => {
                             <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>
                                 Daily & Per-Shift Counter Summary
                             </h3>
-                            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
-                                Cashier remittance records splitting physical cash from verified digital GCash collections.
-                            </p>
                         </div>
 
                         <div className="table-container" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflowX: 'auto' }}>

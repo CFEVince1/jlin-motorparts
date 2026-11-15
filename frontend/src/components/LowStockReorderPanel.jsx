@@ -331,9 +331,6 @@ const LowStockReorderPanel = ({ products = [], onRefresh }) => {
             <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)' }}>
               Low Stock & Reorder Shortage List ({reorderItems.length} items needing restock)
             </div>
-            <div style={{ fontSize: '0.80rem', color: 'var(--text-muted)' }}>
-              Consolidated 6-column reorder sheet grouped by Facebook supplier for streamlined batch messaging and stock replenishment.
-            </div>
           </div>
         </div>
 

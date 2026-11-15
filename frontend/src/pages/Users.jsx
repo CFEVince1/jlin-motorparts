@@ -256,9 +256,6 @@ const Users = () => {
                     <h1 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0, fontSize: '1.65rem', fontWeight: 800 }}>
                         <UsersIcon size={28} color="var(--primary)" /> Staff & Audit Log
                     </h1>
-                    <p style={{ margin: '4px 0 0 38px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                        Manage authorized shop staff accounts, assign roles, and inspect tamper-proof system audit logs.
-                    </p>
                 </div>
 
                 <div style={{ display: 'flex', gap: '10px' }}>
@@ -548,9 +545,6 @@ const Users = () => {
                                                         }}>
                                                             {roleMeta.label}
                                                         </span>
-                                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                                            {roleMeta.desc}
-                                                        </div>
                                                     </td>
                                                     <td>
                                                         {!isActive ? (
@@ -683,9 +677,6 @@ const Users = () => {
                                     <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>
                                         {editingUser ? `Edit Staff Account (@${editingUser.username})` : 'Create New Staff Account'}
                                     </h2>
-                                    <p style={{ margin: '2px 0 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                                        Configure credentials, assign role, and manage staff account status.
-                                    </p>
                                 </div>
                             </div>
                             {editingUser && (
