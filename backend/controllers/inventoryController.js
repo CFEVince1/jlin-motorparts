@@ -154,6 +154,8 @@ exports.receiveStock = async (req, res, next) => {
         receiver_name,
         receiverName,
         inspected_by,
+        payment_source,
+        paymentSource,
         notes, 
         items 
     } = req.body;
@@ -367,7 +369,59 @@ exports.receiveStock = async (req, res, next) => {
             });
         }
 
-        // 5. Create receiving_records header
+        // 5. Handle Payment Source & Active Shift Drawer deduction
+        const rawPaymentSource = (payment_source || paymentSource || 'owner_funds').trim().toLowerCase();
+        const finalPaymentSource = (rawPaymentSource === 'cash_drawer' || rawPaymentSource === 'active_shift_cash_drawer' || rawPaymentSource === 'pos_cash_drawer') ? 'cash_drawer' : 'owner_funds';
+
+        let assignedCashFloatId = null;
+        if (finalPaymentSource === 'cash_drawer' && totalCost > 0) {
+            const [activeFloats] = await connection.query(
+                "SELECT * FROM cash_floats WHERE status = 'ACTIVE' ORDER BY id DESC LIMIT 1 FOR UPDATE"
+            );
+            if (activeFloats.length === 0) {
+                await connection.rollback();
+                return res.status(400).json({
+                    message: "Cannot pay from Active Shift Cash Drawer because no cashier shift is currently active. Please select 'Owner Funds' or open a shift first.",
+                    errors: [{ field: 'payment_source', message: 'No active shift found to pull cash from' }]
+                });
+            }
+            const activeFloat = activeFloats[0];
+            const prevBal = Number(activeFloat.current_cash_balance || 0);
+
+            if (totalCost > prevBal) {
+                await connection.rollback();
+                return res.status(400).json({
+                    message: `Insufficient physical cash in active shift drawer! Current balance is ₱${prevBal.toLocaleString('en-US', { minimumFractionDigits: 2 })}, but delivery Net Payable is ₱${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}. Please select 'Owner Funds' or add cash float.`,
+                    errors: [{ field: 'payment_source', message: 'Insufficient cash in drawer' }]
+                });
+            }
+
+            const newBal = Math.round((prevBal - totalCost) * 100) / 100;
+            await connection.query(`
+                UPDATE cash_floats SET
+                    current_cash_balance = ?,
+                    expected_cash = ?,
+                    petty_cash_expenses = COALESCE(petty_cash_expenses, 0) + ?
+                WHERE id = ?
+            `, [newBal, newBal, totalCost, activeFloat.id]);
+
+            assignedCashFloatId = activeFloat.id;
+
+            const { logCashMovement } = require('../services/cashMovementService');
+            await logCashMovement(connection, {
+                cashFloatId: activeFloat.id,
+                staffId: userId || activeFloat.staff_id,
+                staffUsername: req.user?.username || activeFloat.staff_username,
+                movementType: 'SUPPLIER_PAYOUT',
+                amount: totalCost,
+                balanceBefore: prevBal,
+                balanceAfter: newBal,
+                referenceId: refNo,
+                notes: `[Supplier Truck Delivery Payout] DR #${refNo} paid in cash to driver ${driverName} for ${suppliers[0].name} (Net Payable: ₱${totalCost.toFixed(2)})`
+            });
+        }
+
+        // 6. Create receiving_records header
         const combinedInspectedBy = cleanMechanic 
             ? `Mechanic: ${cleanMechanic} | Receiver: ${cleanReceiver}` 
             : (inspected_by || `Receiver: ${cleanReceiver}`);
@@ -376,6 +430,13 @@ exports.receiveStock = async (req, res, next) => {
         if (driverName) {
             const driverPart = `Driver: ${driverName} (${cleanCourier})`;
             finalNotes = finalNotes ? `${driverPart} | ${finalNotes}` : driverPart;
+        }
+        if (finalPaymentSource === 'cash_drawer') {
+            const payPart = `Paid via Active Shift Cash Drawer (₱${totalCost.toFixed(2)})`;
+            finalNotes = finalNotes ? `${payPart} | ${finalNotes}` : payPart;
+        } else {
+            const payPart = `Paid via Owner Funds / GCash / Bank (₱${totalCost.toFixed(2)})`;
+            finalNotes = finalNotes ? `${payPart} | ${finalNotes}` : payPart;
         }
         if (totalRejectedQty > 0) {
             finalNotes += ` [INSPECTION: ${totalRejectedQty} damaged units REJECTED & returned immediately to driver before departure. Deducted ₱${totalRejectedAmount.toFixed(2)}]`;
@@ -387,13 +448,13 @@ exports.receiveStock = async (req, res, next) => {
                 supplier_id, reference_number, reference_no, received_by, inspected_by,
                 delivery_personnel, courier_service, mechanic_name, receiver_name,
                 total_delivered_qty, total_accepted_qty, total_rejected_qty, total_rejected_amount,
-                total_cost, status, notes, received_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received', ?, NOW())`,
+                total_cost, payment_source, cash_float_id, status, notes, received_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received', ?, NOW())`,
             [
                 finalSupplierId, refNo, refNo, userId, combinedInspectedBy,
                 driverName || null, cleanCourier || null, cleanMechanic || null, cleanReceiver || null,
                 totalDeliveredQty, totalAcceptedQty, totalRejectedQty, totalRejectedAmount,
-                totalCost, finalNotes
+                totalCost, finalPaymentSource, assignedCashFloatId, finalNotes
             ]
         );
         const receivingRecordId = recResult.insertId;
@@ -500,6 +561,8 @@ exports.receiveStock = async (req, res, next) => {
                 total_rejected_qty: totalRejectedQty,
                 total_rejected_amount: totalRejectedAmount,
                 total_cost: totalCost,
+                payment_source: finalPaymentSource,
+                cash_float_id: assignedCashFloatId,
                 status: 'received',
                 items: processedItems
             }
@@ -1106,6 +1169,8 @@ exports.getReceivingHistory = async (req, res, next) => {
                 rr.total_rejected_qty,
                 rr.total_rejected_amount,
                 rr.total_cost,
+                rr.payment_source,
+                rr.cash_float_id,
                 rr.status,
                 rr.notes,
                 rr.received_at,

@@ -144,6 +144,7 @@ export const Purchasing = () => {
   const [receiverName, setReceiverName] = useState(user?.username || 'Admin');
   const [receivedDate, setReceivedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [deliveryNotes, setDeliveryNotes] = useState('');
+  const [paymentSource, setPaymentSource] = useState('owner_funds'); // 'owner_funds' | 'cash_drawer'
   const [isAddSupplierOpen, setIsAddSupplierOpen] = useState(false);
   const [mechanicVerified, setMechanicVerified] = useState(false);
 
@@ -856,6 +857,7 @@ export const Purchasing = () => {
         mechanicName: cleanMechanic,
         receiverName: cleanReceiver,
         receivedDate: receivedDate || new Date().toISOString().slice(0, 10),
+        paymentSource: paymentSource,
         notes: deliveryNotes.trim() || undefined,
         items: formattedItems
       });
@@ -870,6 +872,7 @@ export const Purchasing = () => {
           driverName: cleanDriver,
           courierService: cleanCourier,
           receiverName: cleanReceiver,
+          paymentSource: paymentSource,
           totalAcceptedUnits: totalsSummary.totalAcceptedUnits,
           totalAcceptedAmount: totalsSummary.acceptedTotal,
           totalRejectedUnits: totalsSummary.totalRejectedUnits,
@@ -1224,7 +1227,37 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                         </div>
                       </div>
 
-                      {/* 3. Truck Driver / Delivery Personnel */}
+                      {/* 3. Paid From / Payment Source */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
+                          Paid From / Payment Source <span style={{ color: 'var(--danger)' }}>*</span>
+                        </label>
+                        <select
+                          id="delivery-payment-source-select"
+                          className="input-premium"
+                          value={paymentSource}
+                          onChange={(e) => setPaymentSource(e.target.value)}
+                          disabled={submitting}
+                          style={{
+                            width: '100%',
+                            height: '40px',
+                            fontSize: '0.84rem',
+                            fontWeight: 600,
+                            borderColor: paymentSource === 'cash_drawer' ? '#f59e0b' : undefined,
+                            background: paymentSource === 'cash_drawer' ? 'rgba(245, 158, 11, 0.05)' : undefined
+                          }}
+                        >
+                          <option value="owner_funds">💳 Owner Funds (Cash / Bank / GCash)</option>
+                          <option value="cash_drawer">💵 Active Shift Cash Drawer (Pulled from Register)</option>
+                        </select>
+                        <div style={{ fontSize: '0.74rem', color: paymentSource === 'cash_drawer' ? '#d97706' : 'var(--text-muted)', marginTop: '4px', fontWeight: paymentSource === 'cash_drawer' ? 600 : 400 }}>
+                          {paymentSource === 'cash_drawer' 
+                            ? '⚠ Automatically deducts Net Payable from active shift expected cash.' 
+                            : '₱0.00 impact on POS drawer (Owner paid from personal pocket / GCash).'}
+                        </div>
+                      </div>
+
+                      {/* 4. Truck Driver / Delivery Personnel */}
                       <div>
                         <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
                           Truck Driver / Delivery Personnel
@@ -2235,10 +2268,18 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                             )}
                           </td>
 
-                          {/* 4. TOTAL COST (PUHUNAN) */}
+                          {/* 4. TOTAL COST (PUHUNAN) & PAID FROM */}
                           <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                             <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.88rem' }}>
                               {formatCurrency(rec.total_cost || 0)}
+                            </div>
+                            <div style={{
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              color: rec.payment_source === 'cash_drawer' ? '#d97706' : 'var(--text-muted)',
+                              marginTop: '2px'
+                            }}>
+                              {rec.payment_source === 'cash_drawer' ? '💵 POS Cash Drawer' : '💳 Owner Funds'}
                             </div>
                           </td>
 
@@ -2394,6 +2435,12 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
               <div>
                 <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.74rem' }}>Received & Inspected By</span>
                 <strong style={{ color: '#d97706' }}>{driverRejectionModalData.receiverName || 'Staff'}</strong>
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.74rem' }}>Payment Source (Net Settled)</span>
+                <strong style={{ color: driverRejectionModalData.paymentSource === 'cash_drawer' ? '#d97706' : 'var(--text-main)', fontSize: '0.86rem' }}>
+                  {driverRejectionModalData.paymentSource === 'cash_drawer' ? '💵 Active Shift Cash Drawer (Logged on shift cash slip)' : '💳 Owner Funds (Cash / Bank / GCash)'}
+                </strong>
               </div>
             </div>
 
@@ -2581,6 +2628,12 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
               <div>
                 <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Inspection Team</span>
                 <span>{selectedBatch.inspected_by || (selectedBatch.mechanic_name ? `Staff: ${selectedBatch.mechanic_name}` : 'Staff Verified')}</span>
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Paid From / Settlement Source</span>
+                <strong style={{ color: selectedBatch.payment_source === 'cash_drawer' ? '#d97706' : 'var(--text-main)', fontSize: '0.85rem' }}>
+                  {selectedBatch.payment_source === 'cash_drawer' ? '💵 Active Shift Cash Drawer (Logged on shift cash slip)' : '💳 Owner Funds (Cash / Bank / GCash)'}
+                </strong>
               </div>
             </div>
 

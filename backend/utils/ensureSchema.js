@@ -511,6 +511,12 @@ async function ensureSchema() {
       if (!recColNames.includes('total_rejected_amount')) {
         await db.query("ALTER TABLE receiving_records ADD COLUMN total_rejected_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER total_rejected_qty");
       }
+      if (!recColNames.includes('payment_source')) {
+        await db.query("ALTER TABLE receiving_records ADD COLUMN payment_source VARCHAR(50) NOT NULL DEFAULT 'owner_funds' AFTER total_cost");
+      }
+      if (!recColNames.includes('cash_float_id')) {
+        await db.query("ALTER TABLE receiving_records ADD COLUMN cash_float_id INT NULL AFTER payment_source");
+      }
 
       const [rriCols] = await db.query("SHOW COLUMNS FROM receiving_record_items");
       const rriColNames = rriCols.map(c => c.Field);

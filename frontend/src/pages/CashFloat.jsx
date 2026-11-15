@@ -1366,17 +1366,17 @@ export const CashFloat = () => {
                                                                 fontWeight: 700,
                                                                 padding: '2px 8px',
                                                                 borderRadius: '4px',
-                                                                background: m.movement_type === 'CASH_SALE' ? 'rgba(22, 163, 74, 0.12)' : (m.movement_type === 'PETTY_CASH_EXPENSE' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(59, 130, 246, 0.12)'),
-                                                                color: m.movement_type === 'CASH_SALE' ? '#16a34a' : (m.movement_type === 'PETTY_CASH_EXPENSE' ? '#ef4444' : '#3b82f6')
+                                                                background: m.movement_type === 'CASH_SALE' ? 'rgba(22, 163, 74, 0.12)' : (['PETTY_CASH_EXPENSE', 'SUPPLIER_PAYOUT', 'CASH_DROP', 'CASH_REFUND'].includes(m.movement_type) ? 'rgba(239, 68, 68, 0.12)' : 'rgba(59, 130, 246, 0.12)'),
+                                                                color: m.movement_type === 'CASH_SALE' ? '#16a34a' : (['PETTY_CASH_EXPENSE', 'SUPPLIER_PAYOUT', 'CASH_DROP', 'CASH_REFUND'].includes(m.movement_type) ? '#ef4444' : '#3b82f6')
                                                             }}>
-                                                                {m.movement_type}
+                                                                {m.movement_type === 'SUPPLIER_PAYOUT' ? 'SUPPLIER PAYOUT' : m.movement_type}
                                                             </span>
                                                         </td>
                                                         <td style={{ fontFamily: 'monospace', fontSize: '0.8rem', fontWeight: 600 }}>
                                                             {m.reference_id || 'N/A'}
                                                         </td>
-                                                        <td style={{ fontFamily: 'monospace', fontWeight: 700, color: m.movement_type === 'PETTY_CASH_EXPENSE' ? '#ef4444' : 'var(--text-main)' }}>
-                                                            {m.movement_type === 'PETTY_CASH_EXPENSE' ? '-' : '+'}{formatCurrency(m.amount)}
+                                                        <td style={{ fontFamily: 'monospace', fontWeight: 700, color: ['PETTY_CASH_EXPENSE', 'SUPPLIER_PAYOUT', 'CASH_DROP', 'CASH_REFUND'].includes(m.movement_type) ? '#ef4444' : 'var(--text-main)' }}>
+                                                            {['PETTY_CASH_EXPENSE', 'SUPPLIER_PAYOUT', 'CASH_DROP', 'CASH_REFUND'].includes(m.movement_type) ? '-' : '+'}{formatCurrency(m.amount)}
                                                         </td>
                                                         <td style={{ fontFamily: 'monospace', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                                                             {formatCurrency(m.balance_before)}
