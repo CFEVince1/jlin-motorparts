@@ -6,6 +6,7 @@ const MATCH_RANKS = {
     compatibility: 2,
     product_name: 3,
     brand: 4,
+    supplier: 4.5,
     size: 5,
     measurement: 6,
     thread_type: 7,
@@ -86,6 +87,11 @@ export const getProductMatch = (product, query) => {
         return { matchType: 'brand', rank: MATCH_RANKS.brand };
     }
 
+    const supplier = normalizeSearchText(snapshot?.default_supplier_fb_page || snapshot?.default_supplier_name || snapshot?.default_facebook_supplier || snapshot?.supplier_name);
+    if (supplier.includes(normalizedQuery)) {
+        return { matchType: 'supplier', rank: MATCH_RANKS.supplier };
+    }
+
     if (size.includes(normalizedQuery)) {
         return { matchType: 'size', rank: MATCH_RANKS.size };
     }
@@ -160,6 +166,11 @@ export const getProductSnapshotMatch = (snapshot, query) => {
         return { matchType: 'brand', rank: MATCH_RANKS.brand };
     }
 
+    const supplier = normalizeSearchText(snapshot?.default_supplier_fb_page || snapshot?.default_supplier_name || snapshot?.default_facebook_supplier || snapshot?.supplier_name);
+    if (supplier.includes(normalizedQuery)) {
+        return { matchType: 'supplier', rank: MATCH_RANKS.supplier };
+    }
+
     if (size.includes(normalizedQuery)) {
         return { matchType: 'size', rank: MATCH_RANKS.size };
     }
@@ -207,6 +218,7 @@ export const filterProducts = (products, query = '', filters = {}) => {
     const {
         category = 'All',
         brand = 'All',
+        supplier = 'All',
         size = 'All',
         type = 'All',
         compatibilityId = null,
@@ -222,12 +234,15 @@ export const filterProducts = (products, query = '', filters = {}) => {
             const matchesSearch = !normalizedQuery || Number.isFinite(rank);
             const matchesCategory = !category || category === 'All' || product?.category === category;
             const matchesBrand = !brand || brand === 'All' || product?.brand === brand;
+            const suppName = (product?.default_supplier_fb_page || product?.default_supplier_name || product?.default_facebook_supplier || product?.supplier_name || 'Direct Wholesale').trim();
+            const matchesSupplier = !supplier || supplier === 'All' || suppName.toLowerCase() === supplier.toLowerCase() || (product?.supplier_id && String(product.supplier_id) === String(supplier));
             const matchesSize = !size || size === 'All' || product?.size === size;
 
             return (
                 matchesSearch &&
                 matchesCategory &&
                 matchesBrand &&
+                matchesSupplier &&
                 matchesSize &&
                 matchesTypeFilter(product, type) &&
                 matchesCompatibilityFilter(product, compatibilityId) &&

@@ -410,14 +410,23 @@ const Inventory = () => {
     filteredCount
   } = useTableFilter({
     items: products,
-    initialFilters: { category: 'All', brand: 'All', type: 'All', stockStatus: 'All', sortBy: 'name_asc' },
+    initialFilters: { category: 'All', brand: 'All', supplier: 'All', type: 'All', stockStatus: 'All', sortBy: 'name_asc' },
     itemsPerPage: pageSize,
     filterFn: (items, query, f) => {
       let result = filterProducts(items, query, {
         brand: f.brand,
+        supplier: f.supplier,
         type: f.type,
         stockStatus: f.stockStatus
       });
+
+      if (f.supplier && f.supplier !== 'All') {
+        const targetSupp = f.supplier.toLowerCase().trim();
+        result = result.filter(p => {
+          const suppName = (p.default_supplier_fb_page || p.default_supplier_name || p.default_facebook_supplier || p.supplier_name || 'Direct Wholesale').toLowerCase().trim();
+          return suppName === targetSupp || (p.supplier_id && String(p.supplier_id) === String(f.supplier));
+        });
+      }
 
       if (f.category && f.category !== 'All') {
         const target = f.category.toLowerCase();
@@ -460,6 +469,7 @@ const Inventory = () => {
 
   const categoryFilter = filters.category || 'All';
   const brandFilter = filters.brand || 'All';
+  const supplierFilter = filters.supplier || 'All';
   const typeFilter = filters.type || 'All';
   const stockStatusFilter = filters.stockStatus || 'All';
   const sortByFilter = filters.sortBy || 'name_asc';
@@ -537,6 +547,18 @@ const Inventory = () => {
 
   const uniqueBrands = useMemo(() => {
     return ['All', ...new Set(products.map(p => p.brand).filter(Boolean))];
+  }, [products]);
+
+  const { uniqueSuppliers, supplierCounts } = useMemo(() => {
+    const counts = { All: products.length };
+    products.forEach(p => {
+      const supp = (p.default_supplier_fb_page || p.default_supplier_name || p.default_facebook_supplier || p.supplier_name || 'Direct Wholesale').trim();
+      counts[supp] = (counts[supp] || 0) + 1;
+    });
+    const suppliers = Object.keys(counts)
+      .filter(s => s !== 'All')
+      .sort((a, b) => a.localeCompare(b));
+    return { uniqueSuppliers: ['All', ...suppliers], supplierCounts: counts };
   }, [products]);
 
   // KPI Calculations
@@ -924,7 +946,7 @@ const Inventory = () => {
         {/* Filter Controls Row */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(220px, 2fr) minmax(160px, 1.2fr) minmax(160px, 1.2fr) minmax(130px, 1fr) minmax(140px, 1fr) minmax(140px, 1fr)',
+          gridTemplateColumns: 'minmax(200px, 1.8fr) minmax(140px, 1.1fr) minmax(140px, 1.1fr) minmax(120px, 0.9fr) minmax(160px, 1.3fr) minmax(130px, 1fr) minmax(130px, 1fr)',
           gap: '10px',
           alignItems: 'center',
           width: '100%',
@@ -992,9 +1014,28 @@ const Inventory = () => {
               value={brandFilter}
               onChange={(e) => setFilter('brand', e.target.value)}
               style={{ width: '100%', height: '38px', cursor: 'pointer', fontSize: '0.84rem' }}
+              title="Filter by brand"
             >
               {uniqueBrands.map(brand => (
                 <option key={brand} value={brand}>{brand === 'All' ? 'All Brands' : brand}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Supplier Filter */}
+          <div style={{ width: '100%' }}>
+            <select
+              className="input-premium"
+              value={supplierFilter}
+              onChange={(e) => setFilter('supplier', e.target.value)}
+              style={{ width: '100%', height: '38px', cursor: 'pointer', fontSize: '0.84rem' }}
+              title="Filter by Default FB Supplier"
+            >
+              <option value="All">All Suppliers ({supplierCounts.All || products.length})</option>
+              {uniqueSuppliers.filter(s => s !== 'All').map(supp => (
+                <option key={supp} value={supp}>
+                  {supp} ({supplierCounts[supp] || 0})
+                </option>
               ))}
             </select>
           </div>
@@ -1006,6 +1047,7 @@ const Inventory = () => {
               value={stockStatusFilter}
               onChange={(e) => setFilter('stockStatus', e.target.value)}
               style={{ width: '100%', height: '38px', cursor: 'pointer', fontSize: '0.84rem' }}
+              title="Filter by stock status"
             >
               <option value="All">All Stock Levels</option>
               <option value="in_stock">In Stock Only</option>
@@ -1021,6 +1063,7 @@ const Inventory = () => {
               value={typeFilter}
               onChange={(e) => setFilter('type', e.target.value)}
               style={{ width: '100%', height: '38px', cursor: 'pointer', fontSize: '0.84rem' }}
+              title="Filter by serialized type"
             >
               <option value="All">All Product Types</option>
               <option value="Non-Serialized">Standard Parts (No Serial)</option>
@@ -1122,7 +1165,7 @@ const Inventory = () => {
         </div>
 
         {/* Active Filters Display */}
-        {(categoryFilter !== 'All' || brandFilter !== 'All' || stockStatusFilter !== 'All' || typeFilter !== 'All' || searchQuery) && (
+        {(categoryFilter !== 'All' || brandFilter !== 'All' || supplierFilter !== 'All' || stockStatusFilter !== 'All' || typeFilter !== 'All' || searchQuery) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Active Filters:</span>
             {searchQuery && (
@@ -1143,6 +1186,12 @@ const Inventory = () => {
                 <X size={12} style={{ cursor: 'pointer' }} onClick={() => setFilter('brand', 'All')} />
               </span>
             )}
+            {supplierFilter !== 'All' && (
+              <span className="badge-pill" style={{ background: 'rgba(24, 119, 242, 0.15)', border: '1px solid rgba(24, 119, 242, 0.4)', color: '#60a5fa', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                Supplier: {supplierFilter}
+                <X size={12} style={{ cursor: 'pointer' }} onClick={() => setFilter('supplier', 'All')} />
+              </span>
+            )}
             {stockStatusFilter !== 'All' && (
               <span className="badge-pill" style={{ background: 'var(--surface-hover)', border: '1px solid var(--border)', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                 Status: {stockStatusFilter === 'in_stock' ? 'In Stock' : stockStatusFilter === 'low_stock' ? 'Low Stock' : 'Out of Stock'}
@@ -1160,6 +1209,7 @@ const Inventory = () => {
               onClick={() => {
                 setFilter('category', 'All');
                 setFilter('brand', 'All');
+                setFilter('supplier', 'All');
                 setFilter('stockStatus', 'All');
                 setFilter('type', 'All');
                 handleSearchChange({ target: { value: '' } });
