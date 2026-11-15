@@ -556,16 +556,11 @@ export const CashFloat = () => {
             return toast.error('Please enter a valid drop amount');
         }
 
-        if (!isAdmin && (!cashDropAdminPin || !cashDropAdminPin.trim())) {
-            return toast.error('Owner 6-digit PIN is required to authorize safe cash drop');
-        }
-
         setSubmittingCashDrop(true);
         try {
             const res = await api.post(`/cash-float/${shiftId}/cash-drop`, {
                 amount: numAmount,
-                notes: cashDropNotes.trim(),
-                admin_pin: !isAdmin ? cashDropAdminPin.trim() : undefined
+                notes: cashDropNotes.trim()
             });
             toast.success(res.data?.message || `₱${numAmount.toFixed(2)} cash drop logged!`);
             setShowCashDropModal(false);
@@ -3561,27 +3556,6 @@ export const CashFloat = () => {
                                     </span>
                                 )}
                             </div>
-
-                            {!isAdmin && (
-                                <div style={{ marginBottom: '16px' }}>
-                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#f59e0b', marginBottom: '4px' }}>
-                                        Owner 6-Digit PIN Required *:
-                                    </label>
-                                    <input
-                                        type="password"
-                                        maxLength="6"
-                                        className="input-premium"
-                                        style={{ width: '100%', padding: '8px 10px', fontSize: '1.1rem', letterSpacing: '4px', textAlign: 'center', fontWeight: 800 }}
-                                        placeholder="••••••"
-                                        value={cashDropAdminPin}
-                                        onChange={(e) => setCashDropAdminPin(e.target.value)}
-                                        required
-                                    />
-                                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                                        Owner must enter their 6-digit approval PIN to authorize this mid-shift safe drop.
-                                    </span>
-                                </div>
-                            )}
 
                             <div style={{ marginBottom: '18px' }}>
                                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '4px' }}>
