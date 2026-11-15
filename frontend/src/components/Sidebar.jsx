@@ -234,9 +234,7 @@ const Sidebar = ({
                                         Sign-Off
                                     </span>
                                 ) : hasActiveShift ? (
-                                    <span style={{ marginLeft: 'auto', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', fontSize: '0.66rem', fontWeight: 700, padding: '1px 6px', borderRadius: '8px' }} title="Drawer Active">
-                                        Active
-                                    </span>
+                                    <span style={{ marginLeft: 'auto', width: '7px', height: '7px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 6px #10b981', display: 'inline-block' }} title="Cash drawer active"></span>
                                 ) : null
                             )}
                             {!isCollapsed && link.path === '/users' && onlineStaffCount > 0 && (

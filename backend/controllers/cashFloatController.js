@@ -957,6 +957,7 @@ exports.getActiveShift = async (req, res) => {
         }
 
         const shift = shifts[0];
+        const isCallerAdmin = (req.user?.role || '').toLowerCase() === 'admin';
 
         // Fetch recent movements during this shift
         const [movements] = await db.query(`
@@ -965,10 +966,27 @@ exports.getActiveShift = async (req, res) => {
             ORDER BY created_at DESC LIMIT 20
         `, [shift.id]);
 
+        // Redact running drawer totals and balance before/after for staff to preserve blind count
+        const sanitizedMovements = isCallerAdmin
+            ? movements
+            : movements.map(m => {
+                const { balance_before, balance_after, ...safeM } = m;
+                return safeM;
+            });
+
+        const safeShift = isCallerAdmin ? shift : {
+            ...shift,
+            current_cash_balance: null,
+            expected_cash: null,
+            cash_sales: null,
+            petty_cash_expenses: null,
+            cash_drops: null
+        };
+
         return res.json({
             activeShift: {
-                ...shift,
-                movements
+                ...safeShift,
+                movements: sanitizedMovements
             }
         });
     } catch (err) {
@@ -1541,11 +1559,25 @@ exports.logCashDrop = async (req, res) => {
     try {
         await ensureCashFloatsTableExists();
         const shiftId = req.params.id;
-        const { amount, notes } = req.body;
+        const { amount, notes, admin_pin } = req.body;
         const dropAmount = Number(amount);
 
         if (!dropAmount || dropAmount <= 0) {
             return res.status(400).json({ message: 'Please enter a valid cash drop amount.' });
+        }
+
+        // Require Owner 6-digit PIN if staff attempts to log mid-shift safe drop
+        const isCallerAdmin = (req.user?.role || '').toLowerCase() === 'admin';
+        if (!isCallerAdmin) {
+            if (!admin_pin || !String(admin_pin).trim()) {
+                return res.status(403).json({ message: 'Owner 6-digit PIN is required to authorize mid-shift cash drops.' });
+            }
+            const cleanPin = String(admin_pin).trim();
+            const [admins] = await db.query("SELECT id, username, pin FROM users WHERE LOWER(role) = 'admin'");
+            const pinMatch = admins.some(adm => adm.pin && String(adm.pin).trim() === cleanPin);
+            if (!pinMatch) {
+                return res.status(403).json({ message: 'Invalid Owner PIN. Safe drop not authorized.' });
+            }
         }
 
         const [records] = await db.query(

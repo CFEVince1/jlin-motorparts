@@ -956,11 +956,16 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* ========================================== */}
-            {/* TIMEFRAME SELECTOR BAR */}
-            {/* Today | This Week | This Month | Custom Date */}
-            {/* ========================================== */}
-            <div style={{
+            {/* ============================================================ */}
+            {/* ADMIN OPERATIONAL OVERVIEW (ADMIN ONLY)                      */}
+            {/* ============================================================ */}
+            {isAdmin && (
+                <>
+                    {/* ========================================== */}
+                    {/* TIMEFRAME SELECTOR BAR */}
+                    {/* Today | This Week | This Month | Custom Date */}
+                    {/* ========================================== */}
+                    <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -1396,96 +1401,6 @@ export default function Dashboard() {
             </div>
 
             {/* ============================================================ */}
-            {/* STAFF CASH DRAWER OVERVIEW (FULL-WIDTH CURRENT BALANCE)      */}
-            {/* ============================================================ */}
-            {!isAdmin && (
-                <div style={{
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '12px',
-                    padding: '16px 20px',
-                    marginBottom: '20px',
-                    boxShadow: 'var(--glass-shadow)'
-                }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Banknote size={20} color="var(--primary)" />
-                            <span style={{ fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                Today's Sales & Cash Drawer Overview
-                            </span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{
-                                fontSize: '0.72rem',
-                                fontWeight: 600,
-                                padding: '2px 8px',
-                                borderRadius: '8px',
-                                background: myCashFloat ? 'rgba(16, 185, 129, 0.15)' : 'var(--surface-hover)',
-                                color: myCashFloat ? 'var(--primary)' : 'var(--text-muted)',
-                                border: '1px solid',
-                                borderColor: myCashFloat ? 'rgba(16, 185, 129, 0.3)' : 'var(--border)'
-                            }}>
-                                {myCashFloat ? '🟢 Shift Cash Float Active' : '⚪ No Active Float (₱0.00 Starting Cash)'}
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Full-width Current Cash Balance Card */}
-                    <div style={{
-                        background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(16, 185, 129, 0.06) 100%)',
-                        border: '1px solid rgba(59, 130, 246, 0.3)',
-                        borderLeft: '5px solid #3b82f6',
-                        borderRadius: '10px',
-                        padding: '18px 24px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        flexWrap: 'wrap',
-                        gap: '16px'
-                    }}>
-                        <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-                                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                    Current Cash Balance
-                                </span>
-                                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#3b82f6', background: 'rgba(59, 130, 246, 0.15)', padding: '2px 8px', borderRadius: '4px' }}>
-                                    In Drawer (Physical Cash)
-                                </span>
-                            </div>
-                            <div style={{ fontSize: '2.4rem', fontWeight: 900, color: '#3b82f6', fontFamily: 'monospace', lineHeight: 1.1 }}>
-                                {loadingMyFloat ? '...' : formatCurrency(myCashFloat ? myCashFloat.current_cash_balance : 0)}
-                            </div>
-                            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                                {myCashFloat ? (
-                                    <span>
-                                        Starting Panukli: <strong>{formatCurrency(myCashFloat.starting_cash || myCashFloat.total_amount)}</strong>
-                                        {' '}• Cash Sales Added: <strong>+{formatCurrency(myCashFloat.cash_sales || 0)}</strong>
-                                    </span>
-                                ) : (
-                                    <span>
-                                        Starting Panukli: <strong>₱0.00</strong> • <span style={{ color: '#f59e0b', fontWeight: 600 }}>Awaiting Admin Cash Float Assignment</span>
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '54px',
-                            height: '54px',
-                            borderRadius: '12px',
-                            background: 'rgba(59, 130, 246, 0.15)',
-                            color: '#3b82f6'
-                        }}>
-                            <Banknote size={30} />
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* ============================================================ */}
             {/* RECENT VOIDED SALES TRACKER (DIRECT OWNER/ADMIN VISIBILITY)  */}
             {/* Real-time monitoring of cashier voided sales                 */}
             {/* ============================================================ */}
@@ -1811,6 +1726,8 @@ export default function Dashboard() {
                     </table>
                 </div>
             </div>
+            </>
+            )}
 
             <div id="low-stock-section" className="glass-panel" style={{ padding: '20px', borderRadius: '14px', marginBottom: '24px', maxWidth: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
