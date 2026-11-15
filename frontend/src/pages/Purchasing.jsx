@@ -76,9 +76,6 @@ const formatReceivingRef = (rawRef, dateStr, id) => {
 
   return str;
 };
-import PurchaseOrdersManager from '../components/PurchaseOrdersManager';
-import SupplierProofGallery from '../components/SupplierProofGallery';
-import SupplierLedgerView from '../components/SupplierLedgerView';
 
 /**
  * Common Defect / Rejection Reasons for Motorcycle Parts (Returned to Driver)
@@ -96,73 +93,36 @@ const COMMON_REJECTION_REASONS = [
 ];
 
 /**
- * Common Courier Services used by Philippine Facebook Suppliers
- */
-const COURIER_OPTIONS = [
-  'Lalamove',
-  'J&T Express',
-  'Toktok',
-  'Grab Express',
-  'Supplier In-House Rider / Van',
-  'Victory Liner Cargo / Bus',
-  'AP Cargo',
-  'Other Courier'
-];
-
-/**
- * Suppliers & Stock Receive (Unified Supplier Management Module)
+ * Receiving / Stock-In (Inward Truck Delivery Receiving & Inspection Gate)
  * 
- * Tailored for Facebook Suppliers & Rigorous Shop Pre-Acceptance Inspection:
- * - Tab 1: Receive Stock (Multi-Item Delivery Inward Intake with Mandatory Mechanic Physical Inspection)
- * - Tab 2: Restock Orders / Receiving History (Full inspection audit & Driver Return Slips)
- * - Tab 3: Facebook Supplier Directory (Messenger links, GCash accounts, Seller contacts)
+ * Tailored for direct supplier truck deliveries paid on the spot:
+ * - Direct Truck Intake: Select Supplier, Input Paper DR #, Sent/Good/Damaged counts, Instant Net Payable
+ * - On-The-Spot Driver Returns: Rejected items handed immediately back to driver with deduction slip
+ * - Past Deliveries & Restock Orders: Full searchable log of past truck deliveries and DR records
  */
-export const Purchasing = ({ defaultTab }) => {
+export const Purchasing = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const isAdmin = (user?.role || '').toLowerCase() === 'admin';
 
-  const initialTab = useMemo(() => {
-    if (!isAdmin) return 'receive_orders';
-    const qTab = searchParams.get('tab');
-    if (qTab === 'receive_orders' || qTab === 'receive' || defaultTab === 'receive_orders') {
-      return 'receive_orders';
-    }
-    // Default for Admin when clicking Purchasing is Purchase Orders
-    return 'purchase_orders';
-  }, [searchParams, defaultTab, isAdmin]);
-
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const [activeTab, setActiveTab] = useState('receive_orders');
   const [isIntakeExpanded, setIsIntakeExpanded] = useState(true);
-
-  // Section 6: Supplier Command Center (Directory, Proofs, Ledger) subtab states
-  const [supplierSubTab, setSupplierSubTab] = useState('list'); // 'list' | 'proofs' | 'ledger'
-  const [selectedSupplierForLedgerId, setSelectedSupplierForLedgerId] = useState(null);
-  const [selectedSupplierForProofsId, setSelectedSupplierForProofsId] = useState(null);
 
   // Modals for adding products and suppliers
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [addProductRowIndex, setAddProductRowIndex] = useState(null);
 
-  // Keep state synced if URL changes
+  // Auto-select supplier if passed in URL query
   useEffect(() => {
-    if (!isAdmin) {
-      setActiveTab('receive_orders');
-      return;
+    const qSuppId = searchParams.get('supplierId');
+    if (qSuppId) {
+      setSupplierId(qSuppId);
+      setIsIntakeExpanded(true);
     }
-    const qTab = searchParams.get('tab');
-    if (qTab === 'receive_orders' || qTab === 'receive') {
-      setActiveTab('receive_orders');
-    } else {
-      setActiveTab('purchase_orders');
-    }
-  }, [searchParams, isAdmin]);
+  }, [searchParams]);
 
   const handleTabChange = (tab) => {
-    if (!isAdmin && tab !== 'receive_orders') return;
-    setIsAddProductOpen(false);
-    setAddProductRowIndex(null);
     setActiveTab(tab);
     setSearchParams({ tab });
   };
@@ -179,7 +139,7 @@ export const Purchasing = ({ defaultTab }) => {
   const [supplierId, setSupplierId] = useState('');
   const [referenceNo, setReferenceNo] = useState('');
   const [deliveryPersonnel, setDeliveryPersonnel] = useState('');
-  const [courierService, setCourierService] = useState('Lalamove');
+  const [courierService, setCourierService] = useState('Supplier Company Truck');
   const [mechanicName, setMechanicName] = useState(user?.username || 'Staff');
   const [receiverName, setReceiverName] = useState(user?.username || 'Admin');
   const [receivedDate, setReceivedDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -807,8 +767,8 @@ export const Purchasing = ({ defaultTab }) => {
     const activeSupp = suppliers.find(s => s.is_active);
     const finalSupplierId = Number(supplierId) || (activeSupp ? activeSupp.id : 1);
     const finalRefNo = referenceNo.trim() || `RCV-${Date.now().toString().slice(-6)}`;
-    const cleanDriver = (deliveryPersonnel.trim() || 'Direct Restock / Courier Rider');
-    const cleanCourier = (courierService || 'Lalamove');
+    const cleanDriver = (deliveryPersonnel.trim() || 'Supplier Truck Driver');
+    const cleanCourier = (courierService || 'Supplier Company Truck');
     const cleanReceiver = receiverName.trim() || user?.username || 'Admin';
     const cleanMechanic = cleanReceiver;
 
@@ -966,7 +926,7 @@ export const Purchasing = ({ defaultTab }) => {
 
     const text = 
 `Hi ${data.sellerContact || data.supplierName || 'Boss'},
-Regarding our order Ref #${data.referenceNo} delivered by ${data.driverName} via ${data.courierService}:
+Regarding our delivery DR #${data.referenceNo} delivered by ${data.driverName || 'Truck Driver'} via Supplier Company Truck:
 
 Our receiving staff physically inspected the box upon arrival before your driver departed:
 ✅ Accepted into Store Stock: ${data.totalAcceptedUnits} good units (₱${data.totalAcceptedAmount.toLocaleString()})
@@ -1095,90 +1055,32 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
         }
       `}</style>
 
-      {/* Screen Title & Top Navigation Tabs */}
+      {/* Screen Title & Action */}
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
         <div>
           <h1 style={{ margin: 0, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.75rem', fontWeight: 'bold' }}>
-            <Building2 size={28} style={{ color: 'var(--primary)' }} />
-            {isAdmin ? 'Purchasing & Restock Orders' : 'Receive Delivery (Parcel Inspection Gate)'}
+            <Truck size={28} style={{ color: 'var(--primary)' }} />
+            Receiving / Stock-In
           </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0 }}>
-            {isAdmin ? 'Manage Facebook Purchase Orders, inward deliveries, and inventory restock receiving.' : 'Physical parcel counting: count and record Qty Checked & Good vs. Qty Damaged on Arrival.'}
+            Inward truck delivery receiving, on-the-spot physical inspection, driver returns, and delivery logs.
           </p>
         </div>
 
-        {/* View Switcher Tabs & Quick Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'inline-flex', background: 'var(--surface-hover)', padding: '4px', borderRadius: '10px', gap: '6px', flexWrap: 'wrap' }}>
-            {isAdmin && (
-              <button
-                type="button"
-                id="tab-purchase-orders-btn"
-                className={activeTab === 'purchase_orders' ? 'btn-primary' : 'btn-secondary'}
-                style={{
-                  height: '36px',
-                  padding: '0 14px',
-                  fontSize: '0.82rem',
-                  borderRadius: '8px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  background: activeTab === 'purchase_orders' ? 'var(--primary)' : 'transparent',
-                  color: activeTab === 'purchase_orders' ? '#ffffff' : 'var(--text-muted)',
-                  border: 'none'
-                }}
-                onClick={() => handleTabChange('purchase_orders')}
-              >
-                <FileText size={15} /> Purchase Orders
-              </button>
-            )}
-
-            <button
-              type="button"
-              id="tab-receive-delivery-btn"
-              className={activeTab === 'receive_orders' ? 'btn-primary' : 'btn-secondary'}
-              style={{
-                height: '36px',
-                padding: '0 14px',
-                fontSize: '0.82rem',
-                borderRadius: '8px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                cursor: 'pointer',
-                fontWeight: 600,
-                background: activeTab === 'receive_orders' ? 'var(--primary)' : 'transparent',
-                color: activeTab === 'receive_orders' ? '#ffffff' : 'var(--text-muted)',
-                border: 'none'
-              }}
-              onClick={() => handleTabChange('receive_orders')}
-            >
-              <Truck size={15} /> Receive Delivery
-            </button>
-
-          </div>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => setIsIntakeExpanded(!isIntakeExpanded)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', padding: '8px 16px', fontWeight: 600 }}
+          >
+            <Plus size={16} /> {isIntakeExpanded ? '✕ Close Receiving Gate' : '+ Receive Truck Delivery'}
+          </button>
         </div>
       </div>
 
-
-
       {/* =========================================================================
-          TAB 1: PURCHASE ORDERS (FB MESSENGER ORDERS)
-         ========================================================================= */}
-      {activeTab === 'purchase_orders' && isAdmin && (
-        <PurchaseOrdersManager
-          suppliers={suppliers}
-          products={products}
-          onReceiveOrder={handleReceiveOrderFromPO}
-        />
-      )}
-
-      {/* =========================================================================
-          TAB 2: RECEIVE DELIVERY (PRE-ACCEPTANCE INSPECTION GATE) & RESTOCK HISTORY
+          RECEIVE DELIVERY (PRE-ACCEPTANCE INSPECTION GATE) & RESTOCK HISTORY
          ========================================================================= */}
       {activeTab === 'receive_orders' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
@@ -1301,16 +1203,16 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                         )}
                       </div>
 
-                      {/* 2. Invoice / OR Reference No. */}
+                      {/* 2. Delivery Receipt (DR) / Invoice No. */}
                       <div>
                         <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
-                          Invoice / OR Reference No. <span style={{ color: 'var(--danger)' }}>*</span>
+                          Delivery Receipt (DR) / Invoice No. <span style={{ color: 'var(--danger)' }}>*</span>
                         </label>
                         <input
                           type="text"
                           id="delivery-reference-no-input"
                           className="input-premium"
-                          placeholder="e.g. INV-2026-0041, OR-5512, Waybill #"
+                          placeholder="e.g. DR-2026-0041, INV-5512, Paper DR #"
                           value={referenceNo}
                           onChange={(e) => setReferenceNo(e.target.value)}
                           required
@@ -1318,44 +1220,28 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                           style={{ width: '100%', height: '40px', fontSize: '0.86rem', fontFamily: 'monospace', fontWeight: 600 }}
                         />
                         <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                          Official Receipt (OR), Supplier Invoice, or Courier Waybill reference #
+                          Physical paper Delivery Receipt or Invoice handed by driver
                         </div>
                       </div>
 
-                      {/* 3. Courier / Delivery Service */}
+                      {/* 3. Truck Driver / Delivery Personnel */}
                       <div>
                         <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
-                          Courier / Delivery Service
-                        </label>
-                        <select
-                          id="delivery-courier-select"
-                          className="input-premium"
-                          value={courierService}
-                          onChange={(e) => setCourierService(e.target.value)}
-                          disabled={submitting}
-                          style={{ width: '100%', height: '40px', fontSize: '0.86rem' }}
-                        >
-                          {COURIER_OPTIONS.map(c => (
-                            <option key={c} value={c}>{c}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* 4. Delivery Rider / Driver Name */}
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
-                          Delivery Rider / Driver Name
+                          Truck Driver / Delivery Personnel
                         </label>
                         <input
                           type="text"
                           id="delivery-rider-input"
                           className="input-premium"
-                          placeholder="e.g. Kuya Nico (Lalamove Rider)"
+                          placeholder="e.g. Kuya Mark (Supplier Truck Driver)"
                           value={deliveryPersonnel}
                           onChange={(e) => setDeliveryPersonnel(e.target.value)}
                           disabled={submitting}
                           style={{ width: '100%', height: '40px', fontSize: '0.86rem' }}
                         />
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                          Supplier company truck driver who delivered the parts
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2496,14 +2382,14 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                 )}
               </div>
               <div>
-                <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.74rem' }}>Order / Waybill Reference</span>
+                <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.74rem' }}>Delivery Receipt (DR) #</span>
                 <strong style={{ fontFamily: 'monospace', color: 'var(--primary)', fontSize: '0.95rem' }}>
                   {driverRejectionModalData.referenceNo}
                 </strong>
               </div>
               <div>
-                <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.74rem' }}>Delivery Driver & Courier</span>
-                <strong>{driverRejectionModalData.driverName}</strong> ({driverRejectionModalData.courierService})
+                <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.74rem' }}>Supplier Delivery Personnel</span>
+                <strong>{driverRejectionModalData.driverName || 'Truck Driver'}</strong> (Company Truck)
               </div>
               <div>
                 <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.74rem' }}>Received & Inspected By</span>

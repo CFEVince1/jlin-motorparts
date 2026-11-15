@@ -28,9 +28,8 @@ exports.getSuppliers = async (req, res, next) => {
             SELECT s.id, s.name, s.fb_page_name, s.seller_contact_name, s.contact_person, s.email, s.phone, 
                    s.messenger_url, s.facebook_page_url, s.gcash_account_name, s.gcash_account_number, 
                    s.bank_details, s.category_tags, s.address, s.is_active, s.created_at, s.updated_at,
-                   COALESCE((SELECT SUM(total_order_cost) FROM supplier_orders WHERE supplier_id = s.id AND order_status != 'Cancelled'), 0) AS total_po_billed,
-                   COALESCE((SELECT SUM(amount) FROM supplier_payments WHERE supplier_id = s.id), 0) AS total_payments_sent,
-                   0 AS pre_acceptance_credits
+                   COALESCE((SELECT SUM(total_amount) FROM receiving_records WHERE supplier_id = s.id), 0) AS total_spend,
+                   COALESCE((SELECT COUNT(*) FROM receiving_records WHERE supplier_id = s.id), 0) AS total_deliveries
             FROM suppliers s
         `;
         const params = [];
@@ -43,17 +42,16 @@ exports.getSuppliers = async (req, res, next) => {
 
         const [suppliers] = await db.query(query, params);
         const mapped = suppliers.map(s => {
-            const billed = Number(s.total_po_billed || 0);
-            const paid = Number(s.total_payments_sent || 0);
-            const credits = Number(s.pre_acceptance_credits || 0);
-            // Net Balance = What we owe the supplier (Billed - Paid - Credits)
-            const netBalance = billed - paid - credits;
+            const spend = Number(s.total_spend || 0);
+            const deliveries = Number(s.total_deliveries || 0);
             return {
                 ...s,
-                total_po_billed: billed,
-                total_payments_sent: paid,
-                pre_acceptance_credits: credits,
-                net_balance: netBalance
+                total_spend: spend,
+                total_deliveries: deliveries,
+                total_po_billed: spend,
+                total_payments_sent: spend,
+                pre_acceptance_credits: 0,
+                net_balance: 0
             };
         });
         res.json(mapped);
@@ -501,102 +499,31 @@ exports.getSupplierLedger = async (req, res, next) => {
         }
         const supplier = suppliers[0];
 
-        // 1. Fetch Purchase Orders Billed
-        const [orders] = await db.query(
-            `SELECT order_id, po_number, order_date, courier_name, tracking_number, shipping_fee, total_order_cost, order_status, notes, created_at
-             FROM supplier_orders
-             WHERE supplier_id = ? AND order_status != 'Cancelled'
-             ORDER BY order_date ASC, created_at ASC`,
-            [supplierId]
-        );
-
-        // 2. Fetch Payments Sent
-        const [payments] = await db.query(
-            `SELECT id, po_id, payment_date, amount, payment_method, reference_number, proof_img_url, notes, created_by, created_at
-             FROM supplier_payments
+        // Fetch truck deliveries for this supplier from receiving_records
+        const [deliveries] = await db.query(
+            `SELECT id, reference_number, date_received, total_amount, notes, status, created_at
+             FROM receiving_records
              WHERE supplier_id = ?
-             ORDER BY payment_date ASC, created_at ASC`,
+             ORDER BY date_received DESC, created_at DESC`,
             [supplierId]
         );
 
-        // 3. Pre-Acceptance Return Credits (Damaged parts rejected at door - deducted on arrival)
-        const returns = [];
+        const totalSpend = deliveries.reduce((sum, d) => sum + Number(d.total_amount || 0), 0);
 
-        // Aggregate Totals
-        const totalBilled = orders.reduce((sum, o) => sum + Number(o.total_order_cost || 0), 0);
-        const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-        const totalPreAcceptanceCredits = returns.reduce((sum, r) => sum + Number(r.total_value_owed || 0), 0);
-        const activeCreditsOwed = returns
-            .filter(r => r.resolution_status !== 'Refunded via GCash')
-            .reduce((sum, r) => sum + Number(r.total_value_owed || 0), 0);
-
-        // Net Balance = Billed - Payments Sent - Active Credits Owed
-        const netBalance = totalBilled - totalPaid - activeCreditsOwed;
-
-        // Build chronological ledger timeline
-        const statementEntries = [];
-
-        orders.forEach(o => {
-            statementEntries.push({
-                id: `po_${o.order_id}`,
-                date: o.order_date || o.created_at,
-                type: 'PO_BILLED',
-                typeLabel: 'Purchase Order Billed',
-                reference: o.po_number || `PO-#${o.order_id}`,
-                description: `PO Restock (${o.courier_name || 'Courier'}, Track: ${o.tracking_number || 'N/A'})`,
-                debit: Number(o.total_order_cost || 0), // We owe this
-                credit: 0,
-                impact: Number(o.total_order_cost || 0),
-                status: o.order_status,
-                rawDate: new Date(o.order_date || o.created_at).getTime()
-            });
-        });
-
-        payments.forEach(p => {
-            statementEntries.push({
-                id: `pay_${p.id}`,
-                date: p.payment_date || p.created_at,
-                type: 'PAYMENT_SENT',
-                typeLabel: `Payment Sent (${p.payment_method})`,
-                reference: p.reference_number || `PAY-#${p.id}`,
-                description: `Payment via ${p.payment_method} ${p.notes ? '• ' + p.notes : ''}`,
-                debit: 0,
-                credit: Number(p.amount || 0), // Payment reduces what we owe
-                impact: -Number(p.amount || 0),
-                status: 'Completed',
-                proof_url: p.proof_img_url,
-                rawDate: new Date(p.payment_date || p.created_at).getTime()
-            });
-        });
-
-        returns.forEach(r => {
-            statementEntries.push({
-                id: `ret_${r.id}`,
-                date: r.created_at,
-                type: 'RETURN_CREDIT',
-                typeLabel: 'Pre-Acceptance Return Credit',
-                reference: r.return_reference,
-                description: `Rejected ${r.quantity_rejected}x ${r.product_name} (${r.rejection_reason})`,
-                debit: 0,
-                credit: Number(r.total_value_owed || 0), // Return credit reduces what we owe
-                impact: -Number(r.total_value_owed || 0),
-                status: r.resolution_status,
-                rawDate: new Date(r.created_at).getTime()
-            });
-        });
-
-        // Sort chronologically
-        statementEntries.sort((a, b) => a.rawDate - b.rawDate);
-
-        // Compute running balance
-        let running = 0;
-        const timelineWithRunningBalance = statementEntries.map(entry => {
-            running += entry.impact;
-            return {
-                ...entry,
-                running_balance: running
-            };
-        });
+        const statementEntries = deliveries.map(d => ({
+            id: `rcv_${d.id}`,
+            date: d.date_received || d.created_at,
+            type: 'TRUCK_DELIVERY',
+            typeLabel: 'Truck Delivery (Paid On The Spot)',
+            reference: d.reference_number || `DR-#${d.id}`,
+            description: `Delivery received: ${d.notes || 'Accepted units into inventory'}`,
+            debit: Number(d.total_amount || 0),
+            credit: Number(d.total_amount || 0), // Settled upon delivery
+            impact: 0,
+            status: d.status || 'Received',
+            running_balance: 0,
+            rawDate: new Date(d.date_received || d.created_at).getTime()
+        }));
 
         res.json({
             supplier: {
@@ -610,17 +537,20 @@ exports.getSupplierLedger = async (req, res, next) => {
                 gcash_account_name: supplier.gcash_account_name,
                 gcash_account_number: supplier.gcash_account_number,
                 bank_details: supplier.bank_details,
-                category_tags: supplier.category_tags
+                category_tags: supplier.category_tags,
+                total_spend: totalSpend,
+                total_deliveries: deliveries.length,
+                net_balance: 0
             },
             summary: {
-                total_po_billed: totalBilled,
-                total_payments_sent: totalPaid,
-                total_pre_acceptance_credits: totalPreAcceptanceCredits,
-                active_credits_owed: activeCreditsOwed,
-                net_balance: netBalance,
-                balance_status: netBalance > 0 ? 'SHOP_OWES_SUPPLIER' : (netBalance < 0 ? 'SUPPLIER_OWES_SHOP' : 'SETTLED')
+                total_po_billed: totalSpend,
+                total_payments_sent: totalSpend,
+                total_pre_acceptance_credits: 0,
+                active_credits_owed: 0,
+                net_balance: 0,
+                balance_status: 'SETTLED'
             },
-            statement: timelineWithRunningBalance
+            statement: statementEntries
         });
     } catch (err) {
         next(err);
@@ -698,44 +628,43 @@ exports.getGlobalLedgerSummary = async (req, res, next) => {
         const [rows] = await db.query(`
             SELECT 
                 s.id, s.name, s.fb_page_name, s.seller_contact_name, s.phone, s.messenger_url, s.gcash_account_number, s.category_tags,
-                COALESCE((SELECT SUM(total_order_cost) FROM supplier_orders WHERE supplier_id = s.id AND order_status != 'Cancelled'), 0) AS total_po_billed,
-                COALESCE((SELECT SUM(amount) FROM supplier_payments WHERE supplier_id = s.id), 0) AS total_payments_sent,
-                0 AS pre_acceptance_credits
+                COALESCE((SELECT SUM(total_amount) FROM receiving_records WHERE supplier_id = s.id), 0) AS total_spend,
+                COALESCE((SELECT COUNT(*) FROM receiving_records WHERE supplier_id = s.id), 0) AS total_deliveries
             FROM suppliers s
             WHERE s.is_active = TRUE
             ORDER BY s.name ASC
         `);
 
-        let overallBilled = 0;
-        let overallPaid = 0;
-        let overallCredits = 0;
+        let overallSpend = 0;
+        let overallDeliveries = 0;
 
         const suppliersLedger = rows.map(r => {
-            const billed = Number(r.total_po_billed || 0);
-            const paid = Number(r.total_payments_sent || 0);
-            const credits = Number(r.pre_acceptance_credits || 0);
-            const net = billed - paid - credits;
+            const spend = Number(r.total_spend || 0);
+            const deliveries = Number(r.total_deliveries || 0);
 
-            overallBilled += billed;
-            overallPaid += paid;
-            overallCredits += credits;
+            overallSpend += spend;
+            overallDeliveries += deliveries;
 
             return {
                 ...r,
-                total_po_billed: billed,
-                total_payments_sent: paid,
-                pre_acceptance_credits: credits,
-                net_balance: net,
-                status: net > 0 ? 'SHOP_OWES_SUPPLIER' : (net < 0 ? 'SUPPLIER_OWES_SHOP' : 'SETTLED')
+                total_spend: spend,
+                total_deliveries: deliveries,
+                total_po_billed: spend,
+                total_payments_sent: spend,
+                pre_acceptance_credits: 0,
+                net_balance: 0,
+                status: 'SETTLED'
             };
         });
 
         res.json({
             overall: {
-                total_po_billed: overallBilled,
-                total_payments_sent: overallPaid,
-                total_pre_acceptance_credits: overallCredits,
-                net_outstanding_balance: overallBilled - overallPaid - overallCredits
+                total_spend: overallSpend,
+                total_deliveries: overallDeliveries,
+                total_po_billed: overallSpend,
+                total_payments_sent: overallSpend,
+                total_pre_acceptance_credits: 0,
+                net_outstanding_balance: 0
             },
             suppliers: suppliersLedger
         });

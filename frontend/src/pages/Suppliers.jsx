@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useContext } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import {
   Building2,
@@ -11,73 +11,40 @@ import {
   UserX,
   PackagePlus,
   MessageSquare,
-  ExternalLink,
   CreditCard,
-  FileText
+  Truck
 } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { formatCurrency } from '../utils/formatters';
 import QuickAddSupplierModal from '../components/QuickAddSupplierModal';
 import EditSupplierModal from '../components/EditSupplierModal';
-import SupplierProofGallery from '../components/SupplierProofGallery';
-import SupplierLedgerView from '../components/SupplierLedgerView';
 
 /**
- * Module 6: Suppliers (Owner / Admin Exclusive)
+ * Module 6: Supplier Directory (Owner / Admin Exclusive)
  * 
  * Houses:
- * 1. Supplier List (FB Supplier Directory: 11 vendors, Messenger links, GCash accounts, inline Register FB Vendor)
- * 2. Payment Proofs & Messenger Quotes (Middle Branch)
- * 3. Supplier Ledger & Financial Statements (Balances, P&L restock debits & GCash payments)
+ * - Master list of motorcycle parts suppliers and FB vendors
+ * - Direct truck intake shortcuts and delivery history links
+ * - GCash and seller contact directory
  */
 export const Suppliers = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const isAdmin = (user?.role || '').toLowerCase() === 'admin';
 
-  // Sub-tabs: 'list' | 'proofs' | 'ledger'
-  const initialSubTab = useMemo(() => {
-    const qTab = searchParams.get('tab');
-    if (qTab === 'proofs' || qTab === 'quotes') return 'proofs';
-    if (qTab === 'ledger' || qTab === 'statements') return 'ledger';
-    return 'list';
-  }, [searchParams]);
-
-  const [supplierSubTab, setSupplierSubTab] = useState(initialSubTab);
-  const [selectedSupplierForLedgerId, setSelectedSupplierForLedgerId] = useState(null);
-  const [selectedSupplierForProofsId, setSelectedSupplierForProofsId] = useState(null);
   const [selectedSupplierForEdit, setSelectedSupplierForEdit] = useState(null);
-
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isAddSupplierOpen, setIsAddSupplierOpen] = useState(false);
   const [supplierSearchTerm, setSupplierSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  // Sync subtab with URL query
-  useEffect(() => {
-    const qTab = searchParams.get('tab');
-    if (qTab === 'proofs' || qTab === 'quotes') setSupplierSubTab('proofs');
-    else if (qTab === 'ledger' || qTab === 'statements') setSupplierSubTab('ledger');
-    else setSupplierSubTab('list');
-  }, [searchParams]);
-
-  const handleSubTabChange = (tab) => {
-    setSupplierSubTab(tab);
-    if (tab === 'list') {
-      setSearchParams({});
-    } else {
-      setSearchParams({ tab });
-    }
-  };
-
   // Cashier role redirection
   useEffect(() => {
     if (!isAdmin && user) {
-      toast.error('Module 6 (Suppliers Directory & Ledger) is restricted to Owner/Admin.');
-      navigate('/purchasing?tab=receive_orders', { replace: true });
+      toast.error('Supplier Directory is restricted to Owner/Admin.');
+      navigate('/purchasing', { replace: true });
     }
   }, [isAdmin, user, navigate]);
 
@@ -130,7 +97,7 @@ export const Suppliers = () => {
   };
 
   const handleDirectReceiveFromSupplier = (supplier) => {
-    navigate(`/purchasing?tab=receive_orders&supplierId=${supplier.id}`);
+    navigate(`/purchasing?supplierId=${supplier.id}`);
   };
 
   // Filtered Suppliers for Directory
@@ -161,111 +128,35 @@ export const Suppliers = () => {
         <div>
           <h1 style={{ margin: 0, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.75rem', fontWeight: 'bold' }}>
             <Building2 size={28} style={{ color: 'var(--primary)' }} />
-            Suppliers & Vendor Accounts
+            Supplier Directory
           </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0 }}>
-            Manage Facebook seller profiles, GCash details, payment screenshot proofs, quotes, and supplier account ledgers.
+            Master list of motorcycle parts suppliers, seller contacts, FB Messenger links, and truck delivery history.
           </p>
         </div>
 
-        {/* Sub-Tab Navigation Bar & Actions */}
+        {/* Quick Action */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'inline-flex', background: 'var(--surface-hover)', padding: '4px', borderRadius: '10px', gap: '6px', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              id="subtab-supplier-list-btn"
-              className={supplierSubTab === 'list' ? 'btn-primary' : 'btn-secondary'}
-              style={{
-                height: '36px',
-                padding: '0 14px',
-                fontSize: '0.82rem',
-                borderRadius: '8px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                border: 'none',
-                background: supplierSubTab === 'list' ? 'var(--primary)' : 'transparent',
-                color: supplierSubTab === 'list' ? '#ffffff' : 'var(--text-muted)'
-              }}
-              onClick={() => handleSubTabChange('list')}
-            >
-              <Building2 size={15} /> FB Supplier ({suppliers.length})
-            </button>
-
-            <button
-              type="button"
-              id="subtab-supplier-proofs-btn"
-              className={supplierSubTab === 'proofs' ? 'btn-primary' : 'btn-secondary'}
-              style={{
-                height: '36px',
-                padding: '0 14px',
-                fontSize: '0.82rem',
-                borderRadius: '8px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                border: 'none',
-                background: supplierSubTab === 'proofs' ? 'var(--primary)' : 'transparent',
-                color: supplierSubTab === 'proofs' ? '#ffffff' : 'var(--text-muted)'
-              }}
-              onClick={() => handleSubTabChange('proofs')}
-            >
-              <FileText size={15} /> Payment Proofs & Quotes
-            </button>
-
-            <button
-              type="button"
-              id="subtab-supplier-ledger-btn"
-              className={supplierSubTab === 'ledger' ? 'btn-primary' : 'btn-secondary'}
-              style={{
-                height: '36px',
-                padding: '0 14px',
-                fontSize: '0.82rem',
-                borderRadius: '8px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                border: 'none',
-                background: supplierSubTab === 'ledger' ? 'var(--primary)' : 'transparent',
-                color: supplierSubTab === 'ledger' ? '#ffffff' : 'var(--text-muted)'
-              }}
-              onClick={() => handleSubTabChange('ledger')}
-            >
-              <CreditCard size={15} /> Supplier Ledger & Statements
-            </button>
-          </div>
-
-          {supplierSubTab === 'list' && (
-            <button
-              type="button"
-              id="register-fb-vendor-header-btn"
-              className="btn-primary"
-              onClick={() => setIsAddSupplierOpen(!isAddSupplierOpen)}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', padding: '8px 16px', fontWeight: 600 }}
-            >
-              <Plus size={16} /> {isAddSupplierOpen ? '✕ Close Form' : 'Register FB Vendor'}
-            </button>
-          )}
+          <button
+            type="button"
+            id="register-fb-vendor-header-btn"
+            className="btn-primary"
+            onClick={() => setIsAddSupplierOpen(!isAddSupplierOpen)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', padding: '8px 16px', fontWeight: 600 }}
+          >
+            <Plus size={16} /> {isAddSupplierOpen ? '✕ Close Form' : 'Register Supplier'}
+          </button>
         </div>
       </div>
 
-      {/* =========================================================================
-          SUB-VIEW 1: SUPPLIER LIST (DIRECTORY)
-         ========================================================================= */}
-      {supplierSubTab === 'list' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          
-          {/* INLINE FORM: REGISTER FB VENDOR (NO MODAL, NO GLASS PANEL) */}
-          {isAddSupplierOpen && (
-            <QuickAddSupplierModal
-              isOpen={true}
-              asPanel={true}
+      {/* SUPPLIER LIST (DIRECTORY) */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        
+        {/* INLINE FORM: REGISTER SUPPLIER */}
+        {isAddSupplierOpen && (
+          <QuickAddSupplierModal
+            isOpen={true}
+            asPanel={true}
               onClose={() => setIsAddSupplierOpen(false)}
               onSupplierCreated={(newSupplier) => {
                 handleSupplierCreated(newSupplier);
@@ -313,7 +204,7 @@ export const Suppliers = () => {
                     <th style={{ padding: '8px 10px', minWidth: '160px' }}>CONTACT & CHANNELS</th>
                     <th style={{ padding: '8px 10px', minWidth: '130px' }}>SAVED PAYMENT</th>
                     <th style={{ padding: '8px 10px', minWidth: '120px' }}>CATEGORIES</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'right', minWidth: '95px' }}>NET BALANCE</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'right', minWidth: '95px' }}>TOTAL SPEND</th>
                     <th style={{ padding: '8px 12px', textAlign: 'right', minWidth: '100px' }}>ACTIONS</th>
                   </tr>
                 </thead>
@@ -462,21 +353,21 @@ export const Suppliers = () => {
                             </div>
                           </td>
 
-                          {/* 5. Net Financial Balance */}
+                          {/* 5. Total Spend */}
                           <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                             <div style={{
                               fontWeight: 800,
                               fontSize: '0.84rem',
-                              color: net > 0 ? '#f59e0b' : (net < 0 ? '#10b981' : 'var(--text-muted)')
+                              color: 'var(--text-main)'
                             }}>
-                              {formatCurrency(Math.abs(net))}
+                              {formatCurrency(Number(supplier.total_spend || 0))}
                             </div>
                             <span style={{
                               fontSize: '0.66rem',
-                              fontWeight: 700,
-                              color: net > 0 ? '#f59e0b' : (net < 0 ? '#10b981' : 'var(--text-muted)')
+                              fontWeight: 600,
+                              color: 'var(--text-muted)'
                             }}>
-                              {net > 0 ? 'Shop Owes' : (net < 0 ? 'Supplier Owes' : 'Settled')}
+                              {Number(supplier.total_deliveries || 0)} truck {Number(supplier.total_deliveries || 0) === 1 ? 'delivery' : 'deliveries'}
                             </span>
                           </td>
 
@@ -488,7 +379,7 @@ export const Suppliers = () => {
                                 className="btn-primary"
                                 style={{ padding: '3px 7px', fontSize: '0.70rem', display: 'inline-flex', alignItems: 'center', gap: '3px', height: '26px', borderRadius: '5px' }}
                                 onClick={() => handleDirectReceiveFromSupplier(supplier)}
-                                title="Receive delivery from this supplier in Purchasing module"
+                                title="Receive delivery from this supplier in Receiving / Stock-In"
                               >
                                 <PackagePlus size={11} /> Receive
                               </button>
@@ -496,27 +387,11 @@ export const Suppliers = () => {
                               <button
                                 type="button"
                                 className="btn-secondary"
-                                onClick={() => {
-                                  setSelectedSupplierForLedgerId(supplier.id);
-                                  setSupplierSubTab('ledger');
-                                }}
-                                style={{ padding: '3px 6px', fontSize: '0.70rem', display: 'inline-flex', alignItems: 'center', gap: '2px', height: '26px', borderRadius: '5px' }}
-                                title="View Supplier Financial Statement"
+                                onClick={() => navigate(`/purchasing?supplierId=${supplier.id}`)}
+                                style={{ padding: '3px 7px', fontSize: '0.70rem', display: 'inline-flex', alignItems: 'center', gap: '3px', height: '26px', borderRadius: '5px' }}
+                                title="View Truck Deliveries & Restock History"
                               >
-                                <CreditCard size={10} /> Ledger
-                              </button>
-
-                              <button
-                                type="button"
-                                className="btn-secondary"
-                                onClick={() => {
-                                  setSelectedSupplierForProofsId(supplier.id);
-                                  setSupplierSubTab('proofs');
-                                }}
-                                style={{ padding: '3px 6px', fontSize: '0.70rem', display: 'inline-flex', alignItems: 'center', gap: '2px', height: '26px', borderRadius: '5px' }}
-                                title="View Payment Proofs & Messenger Quotes"
-                              >
-                                <FileText size={10} /> Proofs
+                                <Truck size={11} /> Deliveries
                               </button>
 
                               <button
@@ -557,31 +432,8 @@ export const Suppliers = () => {
             </div>
           </div>
         </div>
-      )}
 
-      {/* =========================================================================
-          SUB-VIEW 2: PAYMENT PROOFS & MESSENGER QUOTES
-         ========================================================================= */}
-      {supplierSubTab === 'proofs' && (
-        <SupplierProofGallery
-          suppliers={suppliers}
-          preselectedSupplierId={selectedSupplierForProofsId}
-        />
-      )}
-
-      {/* =========================================================================
-          SUB-VIEW 3: SUPPLIER LEDGER (FINANCIAL STATEMENTS & BALANCES)
-         ========================================================================= */}
-      {supplierSubTab === 'ledger' && (
-        <SupplierLedgerView
-          suppliers={suppliers}
-          preselectedSupplierId={selectedSupplierForLedgerId}
-        />
-      )}
-
-      {/* =========================================================================
-          MODAL: EDIT SUPPLIER MODAL
-         ========================================================================= */}
+      {/* MODAL: EDIT SUPPLIER MODAL */}
       <EditSupplierModal
         isOpen={Boolean(selectedSupplierForEdit)}
         onClose={() => setSelectedSupplierForEdit(null)}
