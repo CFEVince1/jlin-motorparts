@@ -2193,7 +2193,10 @@ const Inventory = () => {
         <PrintInventoryModal
           isOpen={printModalOpen}
           onClose={() => setPrintModalOpen(false)}
+          products={products}
+          initialFilter={printFilterType}
           filterType={printFilterType}
+          user={user}
         />
       )}
     </div>

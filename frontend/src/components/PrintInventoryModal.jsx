@@ -8,15 +8,23 @@ export default function PrintInventoryModal({
   onClose,
   products = [],
   initialFilter = 'out_of_stock', // 'out_of_stock' | 'in_stock' | 'all'
+  filterType: filterTypeProp,
   user
 }) {
-  const [filterType, setFilterType] = useState(initialFilter);
+  const activeInitial = filterTypeProp || initialFilter || 'out_of_stock';
+  const [filterType, setFilterType] = useState(activeInitial);
 
   useEffect(() => {
     if (isOpen) {
-      setFilterType(initialFilter);
+      setFilterType(filterTypeProp || initialFilter || 'out_of_stock');
+      document.body.classList.add('report-print-mode');
+    } else {
+      document.body.classList.remove('report-print-mode');
     }
-  }, [isOpen, initialFilter]);
+    return () => {
+      document.body.classList.remove('report-print-mode');
+    };
+  }, [isOpen, initialFilter, filterTypeProp]);
 
   if (!isOpen) return null;
 

@@ -77,9 +77,15 @@ export default function PrintTransactionsReportModal({
 
   useEffect(() => {
     if (isOpen) {
+      document.body.classList.add('report-print-mode');
       setTimeframe(initialTimeframe);
       fetchTransactionsForReport(initialTimeframe);
+    } else {
+      document.body.classList.remove('report-print-mode');
     }
+    return () => {
+      document.body.classList.remove('report-print-mode');
+    };
   }, [isOpen, initialTimeframe, fetchTransactionsForReport]);
 
   const handleTimeframeChange = (tf) => {

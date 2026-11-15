@@ -14,6 +14,17 @@ export default function PrintSalesReportModal({
   period = 'all',
   user = {}
 }) {
+  useEffect(() => {
+    if (isOpen) {
+      document.body.classList.add('report-print-mode');
+    } else {
+      document.body.classList.remove('report-print-mode');
+    }
+    return () => {
+      document.body.classList.remove('report-print-mode');
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handlePrint = () => {
