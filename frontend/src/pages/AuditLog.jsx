@@ -189,9 +189,37 @@ const AuditLog = ({ asTab = false }) => {
             {/* Print Stylesheet */}
             <style>{`
                 @media print {
+                    @page {
+                        size: A4 landscape;
+                        margin: 8mm;
+                    }
                     body * { visibility: hidden !important; }
                     #audit-print-container, #audit-print-container * { visibility: visible !important; }
-                    #audit-print-container { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; background: #ffffff !important; color: #000000 !important; }
+                    #audit-print-container { 
+                        position: absolute !important; 
+                        left: 0 !important; 
+                        top: 0 !important; 
+                        width: 100% !important; 
+                        background: #ffffff !important; 
+                        color: #000000 !important; 
+                        border: none !important;
+                        box-shadow: none !important;
+                        border-radius: 0 !important;
+                    }
+                    #audit-print-container table {
+                        width: 100% !important;
+                        color: #000000 !important;
+                        border-collapse: collapse !important;
+                    }
+                    #audit-print-container th {
+                        background-color: #f3f4f6 !important;
+                        color: #111827 !important;
+                        border: 1px solid #d1d5db !important;
+                    }
+                    #audit-print-container td {
+                        color: #111827 !important;
+                        border: 1px solid #e5e7eb !important;
+                    }
                     .no-print { display: none !important; }
                 }
             `}</style>

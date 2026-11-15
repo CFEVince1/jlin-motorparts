@@ -1923,16 +1923,41 @@ export const ItemSwap = () => {
             {/* THERMAL PRINTABLE ITEM SWAP SLIP MODAL                   */}
             {/* ========================================================= */}
             {showSlipModal && completedSwap && (
-                <div style={{
-                    position: 'fixed',
-                    inset: 0,
-                    zIndex: 9999,
-                    background: 'rgba(0,0,0,0.65)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '16px'
-                }}>
+                <div
+                    className="no-print"
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: 9999,
+                        background: 'rgba(0,0,0,0.65)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '16px'
+                    }}
+                >
+                    <style>{`
+                        @media print {
+                            body * { visibility: hidden !important; }
+                            #swap-slip-print, #swap-slip-print * { visibility: visible !important; }
+                            #swap-slip-print {
+                                position: absolute !important;
+                                left: 0 !important;
+                                top: 0 !important;
+                                width: 80mm !important;
+                                margin: 0 auto !important;
+                                padding: 6mm !important;
+                                background: #ffffff !important;
+                                color: #000000 !important;
+                                border: none !important;
+                            }
+                            #swap-slip-print * {
+                                color: #000000 !important;
+                                border-color: #000000 !important;
+                            }
+                            .no-print { display: none !important; }
+                        }
+                    `}</style>
                     <div className="glass-panel" style={{
                         maxWidth: '460px',
                         width: '100%',

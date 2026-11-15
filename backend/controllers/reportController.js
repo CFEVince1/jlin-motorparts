@@ -1128,6 +1128,7 @@ exports.getSalesNetProfitReport = async (req, res) => {
                 COALESCE(u.full_name, u.username, 'Admin') AS cashier_name,
                 COALESCE(s.customer_name, 'Walk-in Customer') AS customer_name,
                 s.payment_method,
+                s.payment_reference,
                 s.total_amount,
                 s.status,
                 COUNT(si.id) AS item_count,
@@ -1137,7 +1138,7 @@ exports.getSalesNetProfitReport = async (req, res) => {
             LEFT JOIN sale_items si ON si.sale_id = s.id
             LEFT JOIN products p ON si.product_id = p.id
             WHERE ${salesDateCondition} AND (s.status IS NULL OR s.status != 'VOIDED')
-            GROUP BY s.id, s.order_number, s.receipt_no, s.sale_date, u.full_name, u.username, s.customer_name, s.payment_method, s.total_amount, s.status
+            GROUP BY s.id, s.order_number, s.receipt_no, s.sale_date, u.full_name, u.username, s.customer_name, s.payment_method, s.payment_reference, s.total_amount, s.status
             ORDER BY s.sale_date DESC
             LIMIT 150
         `, salesParams);
@@ -1254,6 +1255,7 @@ exports.getSalesNetProfitReport = async (req, res) => {
                 cashier_name: r.cashier_name,
                 customer_name: r.customer_name,
                 payment_method: r.payment_method,
+                payment_reference: r.payment_reference,
                 total_amount: roundToTwo(Number(r.total_amount || 0)),
                 status: r.status,
                 item_count: Number(r.item_count || 0),

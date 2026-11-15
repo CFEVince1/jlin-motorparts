@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -216,9 +217,9 @@ export const Reports = () => {
     // 1-Click Exports
     const exportSalesGCashLog = () => {
         const txns = salesProfitData?.sales_transactions || [];
-        let csv = 'Transaction #,Sale Date,Cashier,Customer,Payment Method,Total Amount (PHP),Status,Items Summary\n';
+        let csv = 'Transaction #,Sale Date,Cashier,Customer,Payment Method,GCash Ref #,Total Amount (PHP),Status,Items Summary\n';
         txns.forEach(t => {
-            csv += `"${t.order_number}","${t.sale_date}","${t.cashier_name}","${t.customer_name}","${t.payment_method}","${t.total_amount}","${t.status}","${(t.items_summary || '').replace(/"/g, '""')}"\n`;
+            csv += `"${t.order_number}","${t.sale_date}","${t.cashier_name}","${t.customer_name}","${t.payment_method}","${t.payment_reference || ''}","${t.total_amount}","${t.status}","${(t.items_summary || '').replace(/"/g, '""')}"\n`;
         });
         downloadCSV('Sales_and_GCash_Reference_Log', csv);
     };
@@ -270,6 +271,20 @@ export const Reports = () => {
         });
     };
 
+    const handlePrintActiveTab = () => {
+        if (activeTab === 'profit_report') {
+            handleOpenPrintModal('profit_summary', 'Profit & COGS Summary');
+        } else if (activeTab === 'sales_report') {
+            handleOpenPrintModal('sales_log', 'Sales & GCash Reference Log');
+        } else if (activeTab === 'inventory_report') {
+            handleOpenPrintModal('inventory_val', 'Inventory Valuation & Velocity Sheet');
+        } else if (activeTab === 'cashflow_report') {
+            handleOpenPrintModal('truck_deliveries', 'Supplier Truck Deliveries Log');
+        } else {
+            handleOpenPrintModal('sales_log', 'Sales & GCash Reference Log');
+        }
+    };
+
     // Security Check: Reports are strictly Admin/Owner only
     if (!isAdmin) {
         return (
@@ -299,6 +314,16 @@ export const Reports = () => {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <button
+                        type="button"
+                        onClick={handlePrintActiveTab}
+                        className="btn-secondary"
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', padding: '7px 14px' }}
+                        title="Print or export PDF of current report"
+                    >
+                        <Printer size={14} />
+                        Print Report
+                    </button>
                     <button
                         type="button"
                         onClick={fetchActiveReport}
@@ -435,7 +460,7 @@ export const Reports = () => {
                                 Net Retail Revenue
                             </div>
                             <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-main)' }}>
-                                ₱{formatCurrency(salesProfitData?.financials?.net_retail_sales || 0)}
+                                {formatCurrency(salesProfitData?.financials?.net_retail_sales || 0)}
                             </div>
                             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                                 Counter Sales − OTP Discounts (excl. voided)
@@ -448,7 +473,7 @@ export const Reports = () => {
                                 Total Active COGS (Puhunan)
                             </div>
                             <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#f59e0b' }}>
-                                ₱{formatCurrency(salesProfitData?.financials?.cost_of_goods_sold || 0)}
+                                {formatCurrency(salesProfitData?.financials?.cost_of_goods_sold || 0)}
                             </div>
                             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                                 Supplier wholesale cost of all parts sold
@@ -461,7 +486,7 @@ export const Reports = () => {
                                 In-Store Damage Write-Offs
                             </div>
                             <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--danger)' }}>
-                                ₱{formatCurrency(salesProfitData?.financials?.shrinkage_losses || 0)}
+                                {formatCurrency(salesProfitData?.financials?.shrinkage_losses || 0)}
                             </div>
                             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                                 Parts damaged/dropped on shelf (cost × qty)
@@ -486,7 +511,7 @@ export const Reports = () => {
                                 </span>
                             </div>
                             <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--primary)' }}>
-                                ₱{formatCurrency(salesProfitData?.financials?.true_net_profit || 0)}
+                                {formatCurrency(salesProfitData?.financials?.true_net_profit || 0)}
                             </div>
                             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                                 Revenue − COGS − Damage − OpEx
@@ -586,18 +611,18 @@ export const Reports = () => {
 
                                                     {/* 4. Net Revenue */}
                                                     <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 600 }}>
-                                                        ₱{formatCurrency(p.total_revenue)}
+                                                        {formatCurrency(p.total_revenue)}
                                                     </td>
 
                                                     {/* 5. Total COGS */}
                                                     <td style={{ padding: '10px 10px', textAlign: 'right', color: '#f59e0b', fontWeight: 600 }}>
-                                                        ₱{formatCurrency(Number(p.avg_unit_cost) * Number(p.total_qty_sold))}
+                                                        {formatCurrency(Number(p.avg_unit_cost) * Number(p.total_qty_sold))}
                                                     </td>
 
                                                     {/* 6. Gross Profit & Margin % */}
                                                     <td style={{ padding: '10px 12px', textAlign: 'right' }}>
                                                         <div style={{ fontWeight: 800, color: profit >= 0 ? 'var(--primary)' : 'var(--danger)' }}>
-                                                            ₱{formatCurrency(profit)}
+                                                            {formatCurrency(profit)}
                                                         </div>
                                                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                                                             ({margin}%)
@@ -638,7 +663,7 @@ export const Reports = () => {
                                 Cash Collected at Counter
                             </div>
                             <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--primary)' }}>
-                                ₱{formatCurrency(salesProfitData?.payment_channels?.cash?.amount || 0)}
+                                {formatCurrency(salesProfitData?.payment_channels?.cash?.amount || 0)}
                             </div>
                             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                                 {salesProfitData?.payment_channels?.cash?.count || 0} Cash Transactions
@@ -651,7 +676,7 @@ export const Reports = () => {
                                 GCash Collected
                             </div>
                             <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#38bdf8' }}>
-                                ₱{formatCurrency(salesProfitData?.payment_channels?.gcash?.amount || 0)}
+                                {formatCurrency(salesProfitData?.payment_channels?.gcash?.amount || 0)}
                             </div>
                             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                                 {salesProfitData?.payment_channels?.gcash?.count || 0} Verified GCash Payments
@@ -664,7 +689,7 @@ export const Reports = () => {
                                 Discounts & Exceptions
                             </div>
                             <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#f59e0b' }}>
-                                ₱{formatCurrency(salesProfitData?.financials?.discounts || 0)}
+                                {formatCurrency(salesProfitData?.financials?.discounts || 0)}
                             </div>
                             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                                 Admin OTP Authorized Price Reductions
@@ -722,21 +747,21 @@ export const Reports = () => {
 
                                                 {/* 4. Gross Sales */}
                                                 <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 600 }}>
-                                                    ₱{formatCurrency(s.gross_sales)}
+                                                    {formatCurrency(s.gross_sales)}
                                                 </td>
 
                                                 {/* 5. OTP Discounts */}
                                                 <td style={{ padding: '10px 10px', textAlign: 'right', color: '#f59e0b', fontWeight: 600 }}>
-                                                    ₱{formatCurrency(s.otp_discounts)}
+                                                    {formatCurrency(s.otp_discounts)}
                                                 </td>
 
                                                 {/* 6. Net Collected (Cash vs GCash Split) */}
                                                 <td style={{ padding: '10px 14px', textAlign: 'right' }}>
                                                     <div style={{ fontWeight: 800, color: 'var(--primary)' }}>
-                                                        ₱{formatCurrency(s.net_collected)}
+                                                        {formatCurrency(s.net_collected)}
                                                     </div>
                                                     <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                                                        💵 ₱{formatCurrency(s.cash_collected)} • 📱 ₱{formatCurrency(s.gcash_collected)}
+                                                        💵 {formatCurrency(s.cash_collected)} • 📱 {formatCurrency(s.gcash_collected)}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -760,7 +785,7 @@ export const Reports = () => {
                                 Total Inventory Value at Cost
                             </div>
                             <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#f59e0b' }}>
-                                ₱{formatCurrency(fastDeadStockData?.summary?.total_inventory_cost || 0)}
+                                {formatCurrency(fastDeadStockData?.summary?.total_inventory_cost || 0)}
                             </div>
                             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                                 Total shop capital invested in inventory (Cost × Stock)
@@ -773,7 +798,7 @@ export const Reports = () => {
                                 Expected Retail Value
                             </div>
                             <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--primary)' }}>
-                                ₱{formatCurrency(fastDeadStockData?.summary?.total_inventory_retail || 0)}
+                                {formatCurrency(fastDeadStockData?.summary?.total_inventory_retail || 0)}
                             </div>
                             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                                 Potential revenue when all current shelf stock sells
@@ -791,7 +816,7 @@ export const Reports = () => {
                                 </span>
                             </div>
                             <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--danger)' }}>
-                                ₱{formatCurrency(fastDeadStockData?.summary?.dead_stock_capital || 0)}
+                                {formatCurrency(fastDeadStockData?.summary?.dead_stock_capital || 0)}
                             </div>
                             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                                 Cost tied up in parts with 0 sales in 60+ days
@@ -926,7 +951,7 @@ export const Reports = () => {
 
                                                     {/* 6. Tied-Up Capital */}
                                                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: '#f59e0b' }}>
-                                                        ₱{formatCurrency(tiedCapital)}
+                                                        {formatCurrency(tiedCapital)}
                                                     </td>
                                                 </tr>
                                             );
@@ -950,10 +975,10 @@ export const Reports = () => {
                                 Total Counter Inflow
                             </div>
                             <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--primary)' }}>
-                                +₱{formatCurrency(cashflowData?.summary?.total_inflow || 0)}
+                                +{formatCurrency(cashflowData?.summary?.total_inflow || 0)}
                             </div>
                             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                                Cash: ₱{formatCurrency(cashflowData?.summary?.cash_inflow || 0)} • GCash: ₱{formatCurrency(cashflowData?.summary?.gcash_inflow || 0)}
+                                Cash: {formatCurrency(cashflowData?.summary?.cash_inflow || 0)} • GCash: {formatCurrency(cashflowData?.summary?.gcash_inflow || 0)}
                             </div>
                         </div>
 
@@ -963,7 +988,7 @@ export const Reports = () => {
                                 Supplier Truck Payouts
                             </div>
                             <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--danger)' }}>
-                                -₱{formatCurrency(cashflowData?.summary?.supplier_truck_payouts || 0)}
+                                -{formatCurrency(cashflowData?.summary?.supplier_truck_payouts || 0)}
                             </div>
                             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                                 {cashflowData?.summary?.deliveries_count || 0} Truck Deliveries Paid on Arrival
@@ -976,7 +1001,7 @@ export const Reports = () => {
                                 Shop Operating Expenses
                             </div>
                             <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#f59e0b' }}>
-                                -₱{formatCurrency(cashflowData?.summary?.shop_operating_expenses || 0)}
+                                -{formatCurrency(cashflowData?.summary?.shop_operating_expenses || 0)}
                             </div>
                             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                                 Rent, utilities, packaging & petty cash
@@ -989,7 +1014,7 @@ export const Reports = () => {
                                 Net Cash Flow
                             </div>
                             <div style={{ fontSize: '1.6rem', fontWeight: 800, color: Number(cashflowData?.summary?.net_cash_flow || 0) >= 0 ? 'var(--primary)' : 'var(--danger)' }}>
-                                {Number(cashflowData?.summary?.net_cash_flow || 0) >= 0 ? '+' : ''}₱{formatCurrency(cashflowData?.summary?.net_cash_flow || 0)}
+                                {Number(cashflowData?.summary?.net_cash_flow || 0) >= 0 ? '+' : ''}{formatCurrency(cashflowData?.summary?.net_cash_flow || 0)}
                             </div>
                             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                                 Counter Inflow − Truck Payouts − OpEx
@@ -1073,7 +1098,7 @@ export const Reports = () => {
 
                                                     {/* 6. Amount */}
                                                     <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, color: isInflow ? 'var(--primary)' : 'var(--danger)' }}>
-                                                        {isInflow ? '+' : '-'}₱{formatCurrency(entry.amount)}
+                                                        {isInflow ? '+' : '-'}{formatCurrency(entry.amount)}
                                                     </td>
                                                 </tr>
                                             );
@@ -1272,222 +1297,714 @@ export const Reports = () => {
                 </div>
             )}
 
-            {/* PRINT MODAL (CLEAN PRINTABLE VIEW FOR TAB 5) */}
+            {/* PRINT MODAL (HIGH CONTRAST PREVIEW MODAL + ISOLATED PORTAL PRINT SHEET) */}
             {printModalState.isOpen && (
-                <div style={{
-                    position: 'fixed',
-                    inset: 0,
-                    background: 'rgba(0, 0, 0, 0.8)',
-                    zIndex: 2000,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '20px'
-                }}>
-                    <div style={{
-                        background: '#ffffff',
-                        color: '#111827',
-                        borderRadius: '12px',
-                        width: '100%',
-                        maxWidth: '900px',
-                        maxHeight: '90vh',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        overflow: 'hidden',
-                        boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
-                    }}>
-                        {/* Modal Header */}
-                        <div style={{
-                            padding: '16px 20px',
-                            borderBottom: '1px solid #e5e7eb',
+                <>
+                    {/* DYNAMIC PRINT CSS: Hides #root and renders only #printable-bookkeeping-report */}
+                    <style>{`
+                        #printable-bookkeeping-report {
+                            display: none;
+                        }
+                        @media print {
+                            @page {
+                                size: A4 portrait;
+                                margin: 10mm 8mm;
+                            }
+                            #root {
+                                display: none !important;
+                                height: 0 !important;
+                                overflow: hidden !important;
+                            }
+                            #printable-bookkeeping-report,
+                            #printable-bookkeeping-report * {
+                                visibility: visible !important;
+                            }
+                            #printable-bookkeeping-report {
+                                display: block !important;
+                                position: static !important;
+                                width: 100% !important;
+                                margin: 0 !important;
+                                padding: 0 !important;
+                                background: #ffffff !important;
+                                color: #000000 !important;
+                                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+                                font-size: 9.5px !important;
+                                line-height: 1.35 !important;
+                            }
+                            .no-print {
+                                display: none !important;
+                            }
+                        }
+                    `}</style>
+
+                    {/* 1. ON-SCREEN MODAL PREVIEW DIALOG */}
+                    <div
+                        className="no-print"
+                        style={{
+                            position: 'fixed',
+                            inset: 0,
+                            background: 'rgba(0, 0, 0, 0.75)',
+                            zIndex: 2000,
                             display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                        }}>
-                            <div>
-                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#111827' }}>
-                                    {printModalState.title}
-                                </h3>
-                                <div style={{ fontSize: '0.78rem', color: '#6b7280' }}>
-                                    J-Lin Motor Parts • Generated for: {activeTimeframeLabel}
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '20px'
+                        }}
+                        onClick={() => setPrintModalState({ isOpen: false, title: '', type: '' })}
+                    >
+                        <div
+                            style={{
+                                background: '#ffffff',
+                                color: '#111827',
+                                borderRadius: '12px',
+                                width: '100%',
+                                maxWidth: '980px',
+                                maxHeight: '90vh',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                overflow: 'hidden',
+                                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)'
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Modal Header */}
+                            <div style={{
+                                padding: '16px 22px',
+                                borderBottom: '1px solid #e5e7eb',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                background: '#f9fafb'
+                            }}>
+                                <div>
+                                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#111827' }}>
+                                        {printModalState.title}
+                                    </h3>
+                                    <div style={{ fontSize: '0.78rem', color: '#6b7280', marginTop: '2px' }}>
+                                        J-Lin Motor Parts • Filter: <strong>{activeTimeframeLabel}</strong>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => window.print()}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            padding: '8px 16px',
+                                            background: '#10b981',
+                                            color: '#ffffff',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            fontWeight: 700,
+                                            fontSize: '0.84rem',
+                                            cursor: 'pointer',
+                                            boxShadow: '0 2px 4px rgba(16, 185, 129, 0.3)'
+                                        }}
+                                    >
+                                        <Printer size={15} /> Print / Save as PDF
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPrintModalState({ isOpen: false, title: '', type: '' })}
+                                        style={{
+                                            background: '#e5e7eb',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            padding: '7px',
+                                            cursor: 'pointer',
+                                            color: '#374151',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                    >
+                                        <X size={18} />
+                                    </button>
                                 </div>
                             </div>
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                <button
-                                    type="button"
-                                    onClick={() => window.print()}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        padding: '6px 14px',
-                                        background: '#10b981',
-                                        color: '#ffffff',
-                                        border: 'none',
-                                        borderRadius: '6px',
-                                        fontWeight: 700,
-                                        fontSize: '0.82rem',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    <Printer size={15} /> Print / Save as PDF
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setPrintModalState({ isOpen: false, title: '', type: '' })}
-                                    style={{
-                                        background: '#f3f4f6',
-                                        border: 'none',
-                                        borderRadius: '6px',
-                                        padding: '6px',
-                                        cursor: 'pointer',
-                                        color: '#374151'
-                                    }}
-                                >
-                                    <X size={18} />
-                                </button>
+
+                            {/* Modal Table Content */}
+                            <div style={{ padding: '20px', overflowY: 'auto', flex: 1, fontSize: '0.82rem', color: '#111827' }}>
+                                {printModalState.type === 'sales_log' && (
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#111827' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '2px solid #d1d5db', background: '#f3f4f6' }}>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>Ref / Order #</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>Date & Time</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>Cashier</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>Customer</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>Payment Mode</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>GCash Ref #</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700, textAlign: 'right' }}>Amount</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {(salesProfitData?.sales_transactions || []).length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="7" style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>
+                                                        No transactions recorded for this timeframe.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                (salesProfitData?.sales_transactions || []).map((t, idx) => (
+                                                    <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                                        <td style={{ padding: '8px', fontFamily: 'monospace', fontWeight: 700, color: '#111827' }}>{t.order_number}</td>
+                                                        <td style={{ padding: '8px', color: '#374151' }}>{formatAuditDate(t.sale_date)}</td>
+                                                        <td style={{ padding: '8px', color: '#374151' }}>{t.cashier_name}</td>
+                                                        <td style={{ padding: '8px', color: '#374151' }}>{t.customer_name || 'Walk-in'}</td>
+                                                        <td style={{ padding: '8px', color: '#111827', fontWeight: 600 }}>{t.payment_method}</td>
+                                                        <td style={{ padding: '8px', fontFamily: 'monospace', color: '#4b5563' }}>{t.payment_reference || '-'}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{formatCurrency(t.total_amount)}</td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                        {(salesProfitData?.sales_transactions || []).length > 0 && (
+                                            <tfoot>
+                                                <tr style={{ borderTop: '2px solid #111827', background: '#f9fafb', fontWeight: 800 }}>
+                                                    <td colSpan="4" style={{ padding: '10px 8px', color: '#111827' }}>
+                                                        Total Transactions: {(salesProfitData?.sales_transactions || []).length}
+                                                    </td>
+                                                    <td colSpan="2" style={{ padding: '10px 8px', textAlign: 'right', color: '#4b5563', fontSize: '0.78rem' }}>
+                                                        Cash: {formatCurrency((salesProfitData?.sales_transactions || []).filter(t => (t.payment_method || '').toLowerCase() === 'cash').reduce((sum, t) => sum + Number(t.total_amount || 0), 0))} • GCash: {formatCurrency((salesProfitData?.sales_transactions || []).filter(t => (t.payment_method || '').toLowerCase() === 'gcash').reduce((sum, t) => sum + Number(t.total_amount || 0), 0))}
+                                                    </td>
+                                                    <td style={{ padding: '10px 8px', textAlign: 'right', color: '#059669', fontSize: '0.95rem' }}>
+                                                        {formatCurrency((salesProfitData?.sales_transactions || []).reduce((sum, t) => sum + Number(t.total_amount || 0), 0))}
+                                                    </td>
+                                                </tr>
+                                            </tfoot>
+                                        )}
+                                    </table>
+                                )}
+
+                                {printModalState.type === 'profit_summary' && (
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#111827' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '2px solid #d1d5db', background: '#f3f4f6' }}>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>Part Name & SKU</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>Cat Code</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700, textAlign: 'center' }}>Units Sold</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700, textAlign: 'right' }}>Wholesale Cost</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700, textAlign: 'right' }}>Revenue</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700, textAlign: 'right' }}>Total COGS</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700, textAlign: 'right' }}>Gross Profit</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {(salesProfitData?.sold_products || []).length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="7" style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>
+                                                        No sold parts logged for this timeframe.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                (salesProfitData?.sold_products || []).map((p, idx) => (
+                                                    <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                                        <td style={{ padding: '8px', fontWeight: 600, color: '#111827' }}>
+                                                            {p.product_name} <span style={{ color: '#6b7280', fontSize: '0.74rem' }}>({p.part_number})</span>
+                                                        </td>
+                                                        <td style={{ padding: '8px', color: '#4b5563' }}>{getLedgerCategoryCode(p.category)}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'center', fontWeight: 600 }}>{p.total_qty_sold}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'right', color: '#4b5563' }}>{formatCurrency(p.avg_unit_cost)}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(p.total_revenue)}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'right', color: '#d97706' }}>{formatCurrency(Number(p.avg_unit_cost) * Number(p.total_qty_sold))}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'right', fontWeight: 700, color: '#16a34a' }}>{formatCurrency(p.total_gross_profit)}</td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                        {(salesProfitData?.sold_products || []).length > 0 && (
+                                            <tfoot>
+                                                <tr style={{ borderTop: '2px solid #111827', background: '#f9fafb', fontWeight: 800 }}>
+                                                    <td colSpan="2" style={{ padding: '10px 8px', color: '#111827' }}>
+                                                        Total Items Sold: {(salesProfitData?.sold_products || []).length} SKUs
+                                                    </td>
+                                                    <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                                                        {(salesProfitData?.sold_products || []).reduce((sum, p) => sum + Number(p.total_qty_sold || 0), 0)}
+                                                    </td>
+                                                    <td></td>
+                                                    <td style={{ padding: '10px 8px', textAlign: 'right', color: '#111827' }}>
+                                                        {formatCurrency((salesProfitData?.sold_products || []).reduce((sum, p) => sum + Number(p.total_revenue || 0), 0))}
+                                                    </td>
+                                                    <td style={{ padding: '10px 8px', textAlign: 'right', color: '#d97706' }}>
+                                                        {formatCurrency((salesProfitData?.sold_products || []).reduce((sum, p) => sum + (Number(p.avg_unit_cost || 0) * Number(p.total_qty_sold || 0)), 0))}
+                                                    </td>
+                                                    <td style={{ padding: '10px 8px', textAlign: 'right', color: '#16a34a', fontSize: '0.95rem' }}>
+                                                        {formatCurrency((salesProfitData?.sold_products || []).reduce((sum, p) => sum + Number(p.total_gross_profit || 0), 0))}
+                                                    </td>
+                                                </tr>
+                                            </tfoot>
+                                        )}
+                                    </table>
+                                )}
+
+                                {printModalState.type === 'inventory_val' && (
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#111827' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '2px solid #d1d5db', background: '#f3f4f6' }}>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>Part Name & SKU</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>Rack / Location</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700, textAlign: 'center' }}>Stock</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700, textAlign: 'right' }}>Wholesale Cost</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700, textAlign: 'right' }}>Retail Price</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700, textAlign: 'right' }}>Tied Capital</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {[...(fastDeadStockData?.fast_moving?.items || []), ...(fastDeadStockData?.slow_moving?.items || []), ...(fastDeadStockData?.dead_stock?.items || [])].length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="6" style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>
+                                                        No inventory catalog items loaded.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                [...(fastDeadStockData?.fast_moving?.items || []), ...(fastDeadStockData?.slow_moving?.items || []), ...(fastDeadStockData?.dead_stock?.items || [])].map((i, idx) => (
+                                                    <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                                        <td style={{ padding: '8px', fontWeight: 600, color: '#111827' }}>
+                                                            {i.part_name} <span style={{ color: '#6b7280', fontSize: '0.74rem' }}>({i.sku})</span>
+                                                        </td>
+                                                        <td style={{ padding: '8px', color: '#4b5563' }}>{i.shelf_location || 'Main Floor'}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'center', fontWeight: 700 }}>{i.sellable_stock}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'right', color: '#4b5563' }}>{formatCurrency(i.supplier_cost)}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'right', color: '#4b5563' }}>{formatCurrency(i.retail_price)}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{formatCurrency(i.capital_tied_up || (i.sellable_stock * i.supplier_cost))}</td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                        {[...(fastDeadStockData?.fast_moving?.items || []), ...(fastDeadStockData?.slow_moving?.items || []), ...(fastDeadStockData?.dead_stock?.items || [])].length > 0 && (
+                                            <tfoot>
+                                                <tr style={{ borderTop: '2px solid #111827', background: '#f9fafb', fontWeight: 800 }}>
+                                                    <td colSpan="2" style={{ padding: '10px 8px', color: '#111827' }}>
+                                                        Total Catalog Items: {[...(fastDeadStockData?.fast_moving?.items || []), ...(fastDeadStockData?.slow_moving?.items || []), ...(fastDeadStockData?.dead_stock?.items || [])].length} SKUs
+                                                    </td>
+                                                    <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                                                        {[...(fastDeadStockData?.fast_moving?.items || []), ...(fastDeadStockData?.slow_moving?.items || []), ...(fastDeadStockData?.dead_stock?.items || [])].reduce((sum, i) => sum + Number(i.sellable_stock || 0), 0)} pcs
+                                                    </td>
+                                                    <td colSpan="2"></td>
+                                                    <td style={{ padding: '10px 8px', textAlign: 'right', color: '#d97706', fontSize: '0.95rem' }}>
+                                                        {formatCurrency([...(fastDeadStockData?.fast_moving?.items || []), ...(fastDeadStockData?.slow_moving?.items || []), ...(fastDeadStockData?.dead_stock?.items || [])].reduce((sum, i) => sum + Number(i.capital_tied_up || (Number(i.sellable_stock || 0) * Number(i.supplier_cost || 0))), 0))}
+                                                    </td>
+                                                </tr>
+                                            </tfoot>
+                                        )}
+                                    </table>
+                                )}
+
+                                {printModalState.type === 'truck_deliveries' && (
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#111827' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '2px solid #d1d5db', background: '#f3f4f6' }}>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>Paper DR #</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>Date Received</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>Supplier</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>Truck Driver</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700, textAlign: 'center' }}>Good Qty</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700, textAlign: 'center' }}>Rejected Qty</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700, textAlign: 'right' }}>Net Paid on Spot</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {(cashflowData?.receiving_records || []).length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="7" style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>
+                                                        No supplier truck deliveries logged for this timeframe.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                (cashflowData?.receiving_records || []).map((r, idx) => (
+                                                    <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                                        <td style={{ padding: '8px', fontFamily: 'monospace', fontWeight: 700, color: '#111827' }}>{r.reference_no}</td>
+                                                        <td style={{ padding: '8px', color: '#374151' }}>{formatAuditDate(r.received_at)}</td>
+                                                        <td style={{ padding: '8px', fontWeight: 600, color: '#111827' }}>{r.supplier_name}</td>
+                                                        <td style={{ padding: '8px', color: '#4b5563' }}>{r.delivery_personnel}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'center', fontWeight: 700, color: '#059669' }}>{r.total_accepted_qty} pcs</td>
+                                                        <td style={{ padding: '8px', textAlign: 'center', color: Number(r.total_rejected_qty) > 0 ? '#dc2626' : '#6b7280' }}>{r.total_rejected_qty || 0} pcs</td>
+                                                        <td style={{ padding: '8px', textAlign: 'right', fontWeight: 800, color: '#dc2626' }}>{formatCurrency(r.total_cost)}</td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                        {(cashflowData?.receiving_records || []).length > 0 && (
+                                            <tfoot>
+                                                <tr style={{ borderTop: '2px solid #111827', background: '#f9fafb', fontWeight: 800 }}>
+                                                    <td colSpan="4" style={{ padding: '10px 8px', color: '#111827' }}>
+                                                        Total Deliveries: {(cashflowData?.receiving_records || []).length}
+                                                    </td>
+                                                    <td style={{ padding: '10px 8px', textAlign: 'center', color: '#059669' }}>
+                                                        {(cashflowData?.receiving_records || []).reduce((sum, r) => sum + Number(r.total_accepted_qty || 0), 0)} pcs
+                                                    </td>
+                                                    <td style={{ padding: '10px 8px', textAlign: 'center', color: '#dc2626' }}>
+                                                        {(cashflowData?.receiving_records || []).reduce((sum, r) => sum + Number(r.total_rejected_qty || 0), 0)} pcs
+                                                    </td>
+                                                    <td style={{ padding: '10px 8px', textAlign: 'right', color: '#dc2626', fontSize: '0.95rem' }}>
+                                                        {formatCurrency((cashflowData?.receiving_records || []).reduce((sum, r) => sum + Number(r.total_cost || 0), 0))}
+                                                    </td>
+                                                </tr>
+                                            </tfoot>
+                                        )}
+                                    </table>
+                                )}
+
+                                {printModalState.type === 'shift_variance' && (
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#111827' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '2px solid #d1d5db', background: '#f3f4f6' }}>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>Shift Date</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>Cashier</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700, textAlign: 'center' }}>Txns</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700, textAlign: 'right' }}>Gross Sales</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700, textAlign: 'right' }}>OTP Discounts</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700, textAlign: 'right' }}>Cash Remitted</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700, textAlign: 'right' }}>GCash Remitted</th>
+                                                <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700, textAlign: 'right' }}>Total Remitted</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {(salesProfitData?.daily_shift_summary || []).length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="8" style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>
+                                                        No shift summaries recorded for this timeframe.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                (salesProfitData?.daily_shift_summary || []).map((s, idx) => (
+                                                    <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                                        <td style={{ padding: '8px', fontWeight: 600, color: '#111827' }}>{formatAuditDate(s.shift_date)}</td>
+                                                        <td style={{ padding: '8px', color: '#374151' }}>{s.cashier_name}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'center', fontWeight: 600 }}>{s.txns_count}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'right', color: '#4b5563' }}>{formatCurrency(s.gross_sales)}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'right', color: '#f59e0b' }}>{formatCurrency(s.otp_discounts)}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>{formatCurrency(s.cash_collected)}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'right', fontWeight: 700, color: '#0284c7' }}>{formatCurrency(s.gcash_collected)}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'right', fontWeight: 800, color: '#059669' }}>{formatCurrency(s.net_collected)}</td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                        {(salesProfitData?.daily_shift_summary || []).length > 0 && (
+                                            <tfoot>
+                                                <tr style={{ borderTop: '2px solid #111827', background: '#f9fafb', fontWeight: 800 }}>
+                                                    <td colSpan="2" style={{ padding: '10px 8px', color: '#111827' }}>
+                                                        Total Shifts: {(salesProfitData?.daily_shift_summary || []).length}
+                                                    </td>
+                                                    <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                                                        {(salesProfitData?.daily_shift_summary || []).reduce((sum, s) => sum + Number(s.txns_count || 0), 0)}
+                                                    </td>
+                                                    <td style={{ padding: '10px 8px', textAlign: 'right', color: '#4b5563' }}>
+                                                        {formatCurrency((salesProfitData?.daily_shift_summary || []).reduce((sum, s) => sum + Number(s.gross_sales || 0), 0))}
+                                                    </td>
+                                                    <td style={{ padding: '10px 8px', textAlign: 'right', color: '#f59e0b' }}>
+                                                        {formatCurrency((salesProfitData?.daily_shift_summary || []).reduce((sum, s) => sum + Number(s.otp_discounts || 0), 0))}
+                                                    </td>
+                                                    <td style={{ padding: '10px 8px', textAlign: 'right', color: '#111827' }}>
+                                                        {formatCurrency((salesProfitData?.daily_shift_summary || []).reduce((sum, s) => sum + Number(s.cash_collected || 0), 0))}
+                                                    </td>
+                                                    <td style={{ padding: '10px 8px', textAlign: 'right', color: '#0284c7' }}>
+                                                        {formatCurrency((salesProfitData?.daily_shift_summary || []).reduce((sum, s) => sum + Number(s.gcash_collected || 0), 0))}
+                                                    </td>
+                                                    <td style={{ padding: '10px 8px', textAlign: 'right', color: '#059669', fontSize: '0.95rem' }}>
+                                                        {formatCurrency((salesProfitData?.daily_shift_summary || []).reduce((sum, s) => sum + Number(s.net_collected || 0), 0))}
+                                                    </td>
+                                                </tr>
+                                            </tfoot>
+                                        )}
+                                    </table>
+                                )}
                             </div>
                         </div>
+                    </div>
 
-                        {/* Modal Printable Content */}
-                        <div style={{ padding: '20px', overflowY: 'auto', flex: 1, fontSize: '0.82rem' }}>
+                    {/* 2. DEDICATED PORTAL PRINTABLE DOCUMENT (RENDERED OUTSIDE #root ON document.body) */}
+                    {typeof document !== 'undefined' && createPortal(
+                        <div id="printable-bookkeeping-report">
+                            {/* Document Header */}
+                            <div style={{ borderBottom: '2px solid #000000', paddingBottom: '8px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div>
+                                    <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                        JLIN MOTO PARTS
+                                    </h1>
+                                    <div style={{ fontSize: '9px', color: '#333333', textTransform: 'uppercase', marginTop: '2px' }}>
+                                        Motorparts Inventory, Genuine Spare Parts & Retail Sales • Philippines
+                                    </div>
+                                    <div style={{ fontSize: '13px', fontWeight: 900, marginTop: '6px', textTransform: 'uppercase', color: '#000000' }}>
+                                        {printModalState.title}
+                                    </div>
+                                </div>
+                                <div style={{ textAlign: 'right', fontSize: '9px', color: '#333333', lineHeight: 1.4 }}>
+                                    <div><strong>Filter / Period:</strong> {activeTimeframeLabel}</div>
+                                    <div><strong>Printed Date:</strong> {new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                                    <div><strong>Prepared By:</strong> {user?.username || 'Owner / Admin'} ({isAdmin ? 'Store Admin' : 'Staff'})</div>
+                                </div>
+                            </div>
+
+                            {/* Printable Tables */}
                             {printModalState.type === 'sales_log' && (
-                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '9px' }}>
                                     <thead>
-                                        <tr style={{ borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>
-                                            <th style={{ padding: '8px' }}>Ref / Order #</th>
-                                            <th style={{ padding: '8px' }}>Date</th>
-                                            <th style={{ padding: '8px' }}>Cashier</th>
-                                            <th style={{ padding: '8px' }}>Payment Mode</th>
-                                            <th style={{ padding: '8px', textAlign: 'right' }}>Amount</th>
+                                        <tr style={{ borderBottom: '1.5px solid #000000', background: '#f2f2f2' }}>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', width: '30px' }}>#</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', width: '110px' }}>Order / Ref #</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000' }}>Date & Time</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000' }}>Cashier</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000' }}>Customer</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', width: '70px' }}>Mode</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', width: '100px' }}>GCash Ref #</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', textAlign: 'right', width: '85px' }}>Amount</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {(salesProfitData?.sales_transactions || []).map((t, idx) => (
-                                            <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                                <td style={{ padding: '8px', fontFamily: 'monospace', fontWeight: 600 }}>{t.order_number}</td>
-                                                <td style={{ padding: '8px' }}>{formatAuditDate(t.sale_date)}</td>
-                                                <td style={{ padding: '8px' }}>{t.cashier_name}</td>
-                                                <td style={{ padding: '8px' }}>{t.payment_method}</td>
-                                                <td style={{ padding: '8px', textAlign: 'right', fontWeight: 700 }}>₱{formatCurrency(t.total_amount)}</td>
+                                            <tr key={idx} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc' }}>#{idx + 1}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', fontFamily: 'monospace', fontWeight: 'bold' }}>{t.order_number}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc' }}>{formatAuditDate(t.sale_date)}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc' }}>{t.cashier_name}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc' }}>{t.customer_name || 'Walk-in'}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', fontWeight: 600 }}>{t.payment_method}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', fontFamily: 'monospace' }}>{t.payment_reference || '-'}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(t.total_amount)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
+                                    <tfoot>
+                                        <tr style={{ borderTop: '2px solid #000000', background: '#f5f5f5', fontWeight: 'bold' }}>
+                                            <td colSpan="5" style={{ padding: '5px', border: '1px solid #000000' }}>
+                                                Total Transactions: {(salesProfitData?.sales_transactions || []).length}
+                                            </td>
+                                            <td colSpan="2" style={{ padding: '5px', border: '1px solid #000000', textAlign: 'right', fontSize: '8.5px' }}>
+                                                Cash: {formatCurrency((salesProfitData?.sales_transactions || []).filter(t => (t.payment_method || '').toLowerCase() === 'cash').reduce((sum, t) => sum + Number(t.total_amount || 0), 0))} | GCash: {formatCurrency((salesProfitData?.sales_transactions || []).filter(t => (t.payment_method || '').toLowerCase() === 'gcash').reduce((sum, t) => sum + Number(t.total_amount || 0), 0))}
+                                            </td>
+                                            <td style={{ padding: '5px', border: '1px solid #000000', textAlign: 'right', fontSize: '10.5px' }}>
+                                                {formatCurrency((salesProfitData?.sales_transactions || []).reduce((sum, t) => sum + Number(t.total_amount || 0), 0))}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
                                 </table>
                             )}
 
                             {printModalState.type === 'profit_summary' && (
-                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '9px' }}>
                                     <thead>
-                                        <tr style={{ borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>
-                                            <th style={{ padding: '8px' }}>Part Name</th>
-                                            <th style={{ padding: '8px' }}>Cat Code</th>
-                                            <th style={{ padding: '8px', textAlign: 'center' }}>Units Sold</th>
-                                            <th style={{ padding: '8px', textAlign: 'right' }}>Revenue</th>
-                                            <th style={{ padding: '8px', textAlign: 'right' }}>COGS</th>
-                                            <th style={{ padding: '8px', textAlign: 'right' }}>Gross Profit</th>
+                                        <tr style={{ borderBottom: '1.5px solid #000000', background: '#f2f2f2' }}>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', width: '25px' }}>#</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000' }}>Part Name</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', width: '85px' }}>SKU</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', width: '45px' }}>Cat</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', textAlign: 'center', width: '45px' }}>Sold</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', textAlign: 'right', width: '65px' }}>Cost</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', textAlign: 'right', width: '75px' }}>Revenue</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', textAlign: 'right', width: '75px' }}>COGS</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', textAlign: 'right', width: '75px' }}>Profit</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {(salesProfitData?.sold_products || []).map((p, idx) => (
-                                            <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                                <td style={{ padding: '8px', fontWeight: 600 }}>{p.product_name}</td>
-                                                <td style={{ padding: '8px' }}>{getLedgerCategoryCode(p.category)}</td>
-                                                <td style={{ padding: '8px', textAlign: 'center' }}>{p.total_qty_sold}</td>
-                                                <td style={{ padding: '8px', textAlign: 'right' }}>₱{formatCurrency(p.total_revenue)}</td>
-                                                <td style={{ padding: '8px', textAlign: 'right' }}>₱{formatCurrency(Number(p.avg_unit_cost) * Number(p.total_qty_sold))}</td>
-                                                <td style={{ padding: '8px', textAlign: 'right', fontWeight: 700, color: '#16a34a' }}>₱{formatCurrency(p.total_gross_profit)}</td>
+                                            <tr key={idx} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc' }}>#{idx + 1}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', fontWeight: 'bold' }}>{p.product_name}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', fontFamily: 'monospace' }}>{p.part_number}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc' }}>{getLedgerCategoryCode(p.category)}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', textAlign: 'center', fontWeight: 'bold' }}>{p.total_qty_sold}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', textAlign: 'right' }}>{formatCurrency(p.avg_unit_cost)}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', textAlign: 'right' }}>{formatCurrency(p.total_revenue)}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', textAlign: 'right' }}>{formatCurrency(Number(p.avg_unit_cost) * Number(p.total_qty_sold))}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(p.total_gross_profit)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
+                                    <tfoot>
+                                        <tr style={{ borderTop: '2px solid #000000', background: '#f5f5f5', fontWeight: 'bold' }}>
+                                            <td colSpan="4" style={{ padding: '5px', border: '1px solid #000000' }}>
+                                                Total Products Sold: {(salesProfitData?.sold_products || []).length} SKUs
+                                            </td>
+                                            <td style={{ padding: '5px', border: '1px solid #000000', textAlign: 'center' }}>
+                                                {(salesProfitData?.sold_products || []).reduce((sum, p) => sum + Number(p.total_qty_sold || 0), 0)}
+                                            </td>
+                                            <td style={{ border: '1px solid #000000' }}></td>
+                                            <td style={{ padding: '5px', border: '1px solid #000000', textAlign: 'right' }}>
+                                                {formatCurrency((salesProfitData?.sold_products || []).reduce((sum, p) => sum + Number(p.total_revenue || 0), 0))}
+                                            </td>
+                                            <td style={{ padding: '5px', border: '1px solid #000000', textAlign: 'right' }}>
+                                                {formatCurrency((salesProfitData?.sold_products || []).reduce((sum, p) => sum + (Number(p.avg_unit_cost || 0) * Number(p.total_qty_sold || 0)), 0))}
+                                            </td>
+                                            <td style={{ padding: '5px', border: '1px solid #000000', textAlign: 'right', fontSize: '10.5px' }}>
+                                                {formatCurrency((salesProfitData?.sold_products || []).reduce((sum, p) => sum + Number(p.total_gross_profit || 0), 0))}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
                                 </table>
                             )}
 
                             {printModalState.type === 'inventory_val' && (
-                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '9px' }}>
                                     <thead>
-                                        <tr style={{ borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>
-                                            <th style={{ padding: '8px' }}>Part Name & SKU</th>
-                                            <th style={{ padding: '8px' }}>Rack</th>
-                                            <th style={{ padding: '8px', textAlign: 'center' }}>Stock</th>
-                                            <th style={{ padding: '8px', textAlign: 'right' }}>Wholesale Cost</th>
-                                            <th style={{ padding: '8px', textAlign: 'right' }}>Retail Price</th>
-                                            <th style={{ padding: '8px', textAlign: 'right' }}>Tied Capital</th>
+                                        <tr style={{ borderBottom: '1.5px solid #000000', background: '#f2f2f2' }}>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', width: '25px' }}>#</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000' }}>Part Name & Description</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', width: '90px' }}>SKU</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', width: '70px' }}>Location</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', textAlign: 'center', width: '45px' }}>Stock</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', textAlign: 'right', width: '70px' }}>Unit Cost</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', textAlign: 'right', width: '70px' }}>Retail</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', textAlign: 'right', width: '85px' }}>Tied Capital</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {[...(fastDeadStockData?.fast_moving?.items || []), ...(fastDeadStockData?.slow_moving?.items || []), ...(fastDeadStockData?.dead_stock?.items || [])].map((i, idx) => (
-                                            <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                                <td style={{ padding: '8px', fontWeight: 600 }}>{i.part_name} <span style={{ color: '#6b7280', fontSize: '0.74rem' }}>({i.sku})</span></td>
-                                                <td style={{ padding: '8px' }}>{i.shelf_location || 'Main Floor'}</td>
-                                                <td style={{ padding: '8px', textAlign: 'center' }}>{i.sellable_stock}</td>
-                                                <td style={{ padding: '8px', textAlign: 'right' }}>₱{formatCurrency(i.supplier_cost)}</td>
-                                                <td style={{ padding: '8px', textAlign: 'right' }}>₱{formatCurrency(i.retail_price)}</td>
-                                                <td style={{ padding: '8px', textAlign: 'right', fontWeight: 700 }}>₱{formatCurrency(i.capital_tied_up || (i.sellable_stock * i.supplier_cost))}</td>
+                                            <tr key={idx} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc' }}>#{idx + 1}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', fontWeight: 'bold' }}>{i.part_name}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', fontFamily: 'monospace' }}>{i.sku}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc' }}>{i.shelf_location || 'Main Floor'}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', textAlign: 'center', fontWeight: 'bold' }}>{i.sellable_stock}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', textAlign: 'right' }}>{formatCurrency(i.supplier_cost)}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', textAlign: 'right' }}>{formatCurrency(i.retail_price)}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(i.capital_tied_up || (i.sellable_stock * i.supplier_cost))}</td>
                                             </tr>
                                         ))}
                                     </tbody>
+                                    <tfoot>
+                                        <tr style={{ borderTop: '2px solid #000000', background: '#f5f5f5', fontWeight: 'bold' }}>
+                                            <td colSpan="4" style={{ padding: '5px', border: '1px solid #000000' }}>
+                                                Total Inventory Catalog: {[...(fastDeadStockData?.fast_moving?.items || []), ...(fastDeadStockData?.slow_moving?.items || []), ...(fastDeadStockData?.dead_stock?.items || [])].length} SKUs
+                                            </td>
+                                            <td style={{ padding: '5px', border: '1px solid #000000', textAlign: 'center' }}>
+                                                {[...(fastDeadStockData?.fast_moving?.items || []), ...(fastDeadStockData?.slow_moving?.items || []), ...(fastDeadStockData?.dead_stock?.items || [])].reduce((sum, i) => sum + Number(i.sellable_stock || 0), 0)} pcs
+                                            </td>
+                                            <td colSpan="2" style={{ border: '1px solid #000000' }}></td>
+                                            <td style={{ padding: '5px', border: '1px solid #000000', textAlign: 'right', fontSize: '10.5px' }}>
+                                                {formatCurrency([...(fastDeadStockData?.fast_moving?.items || []), ...(fastDeadStockData?.slow_moving?.items || []), ...(fastDeadStockData?.dead_stock?.items || [])].reduce((sum, i) => sum + Number(i.capital_tied_up || (Number(i.sellable_stock || 0) * Number(i.supplier_cost || 0))), 0))}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
                                 </table>
                             )}
 
                             {printModalState.type === 'truck_deliveries' && (
-                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '9px' }}>
                                     <thead>
-                                        <tr style={{ borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>
-                                            <th style={{ padding: '8px' }}>Paper DR #</th>
-                                            <th style={{ padding: '8px' }}>Date Received</th>
-                                            <th style={{ padding: '8px' }}>Supplier</th>
-                                            <th style={{ padding: '8px' }}>Truck Driver</th>
-                                            <th style={{ padding: '8px', textAlign: 'center' }}>Good Qty</th>
-                                            <th style={{ padding: '8px', textAlign: 'right' }}>Net Paid on Spot</th>
+                                        <tr style={{ borderBottom: '1.5px solid #000000', background: '#f2f2f2' }}>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', width: '25px' }}>#</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', width: '100px' }}>DR / Invoice #</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000' }}>Date Received</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000' }}>Supplier</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000' }}>Driver</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', textAlign: 'center', width: '60px' }}>Good Qty</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', textAlign: 'center', width: '60px' }}>Rejected</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', textAlign: 'right', width: '90px' }}>Paid on Spot</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {(cashflowData?.receiving_records || []).map((r, idx) => (
-                                            <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                                <td style={{ padding: '8px', fontFamily: 'monospace', fontWeight: 700 }}>{r.reference_no}</td>
-                                                <td style={{ padding: '8px' }}>{formatAuditDate(r.received_at)}</td>
-                                                <td style={{ padding: '8px', fontWeight: 600 }}>{r.supplier_name}</td>
-                                                <td style={{ padding: '8px' }}>{r.delivery_personnel}</td>
-                                                <td style={{ padding: '8px', textAlign: 'center' }}>{r.total_accepted_qty} pcs</td>
-                                                <td style={{ padding: '8px', textAlign: 'right', fontWeight: 800, color: '#dc2626' }}>₱{formatCurrency(r.total_cost)}</td>
+                                            <tr key={idx} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc' }}>#{idx + 1}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', fontFamily: 'monospace', fontWeight: 'bold' }}>{r.reference_no}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc' }}>{formatAuditDate(r.received_at)}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', fontWeight: 'bold' }}>{r.supplier_name}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc' }}>{r.delivery_personnel}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', textAlign: 'center', fontWeight: 'bold' }}>{r.total_accepted_qty} pcs</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', textAlign: 'center' }}>{r.total_rejected_qty || 0} pcs</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(r.total_cost)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
+                                    <tfoot>
+                                        <tr style={{ borderTop: '2px solid #000000', background: '#f5f5f5', fontWeight: 'bold' }}>
+                                            <td colSpan="5" style={{ padding: '5px', border: '1px solid #000000' }}>
+                                                Total Deliveries: {(cashflowData?.receiving_records || []).length}
+                                            </td>
+                                            <td style={{ padding: '5px', border: '1px solid #000000', textAlign: 'center' }}>
+                                                {(cashflowData?.receiving_records || []).reduce((sum, r) => sum + Number(r.total_accepted_qty || 0), 0)} pcs
+                                            </td>
+                                            <td style={{ padding: '5px', border: '1px solid #000000', textAlign: 'center' }}>
+                                                {(cashflowData?.receiving_records || []).reduce((sum, r) => sum + Number(r.total_rejected_qty || 0), 0)} pcs
+                                            </td>
+                                            <td style={{ padding: '5px', border: '1px solid #000000', textAlign: 'right', fontSize: '10.5px' }}>
+                                                {formatCurrency((cashflowData?.receiving_records || []).reduce((sum, r) => sum + Number(r.total_cost || 0), 0))}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
                                 </table>
                             )}
 
                             {printModalState.type === 'shift_variance' && (
-                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '9px' }}>
                                     <thead>
-                                        <tr style={{ borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>
-                                            <th style={{ padding: '8px' }}>Shift Date</th>
-                                            <th style={{ padding: '8px' }}>Cashier</th>
-                                            <th style={{ padding: '8px', textAlign: 'center' }}>Txns</th>
-                                            <th style={{ padding: '8px', textAlign: 'right' }}>Gross Sales</th>
-                                            <th style={{ padding: '8px', textAlign: 'right' }}>OTP Discounts</th>
-                                            <th style={{ padding: '8px', textAlign: 'right' }}>Cash Collected</th>
-                                            <th style={{ padding: '8px', textAlign: 'right' }}>GCash Collected</th>
+                                        <tr style={{ borderBottom: '1.5px solid #000000', background: '#f2f2f2' }}>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', width: '25px' }}>#</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000' }}>Shift Date</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000' }}>Cashier</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', textAlign: 'center', width: '45px' }}>Txns</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', textAlign: 'right', width: '70px' }}>Gross</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', textAlign: 'right', width: '60px' }}>Discounts</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', textAlign: 'right', width: '75px' }}>Cash</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', textAlign: 'right', width: '75px' }}>GCash</th>
+                                            <th style={{ padding: '4px', border: '1px solid #000000', textAlign: 'right', width: '80px' }}>Net Remitted</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {(salesProfitData?.daily_shift_summary || []).map((s, idx) => (
-                                            <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                                <td style={{ padding: '8px', fontWeight: 600 }}>{formatAuditDate(s.shift_date)}</td>
-                                                <td style={{ padding: '8px' }}>{s.cashier_name}</td>
-                                                <td style={{ padding: '8px', textAlign: 'center' }}>{s.txns_count}</td>
-                                                <td style={{ padding: '8px', textAlign: 'right' }}>₱{formatCurrency(s.gross_sales)}</td>
-                                                <td style={{ padding: '8px', textAlign: 'right' }}>₱{formatCurrency(s.otp_discounts)}</td>
-                                                <td style={{ padding: '8px', textAlign: 'right', fontWeight: 700 }}>₱{formatCurrency(s.cash_collected)}</td>
-                                                <td style={{ padding: '8px', textAlign: 'right', fontWeight: 700, color: '#0284c7' }}>₱{formatCurrency(s.gcash_collected)}</td>
+                                            <tr key={idx} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc' }}>#{idx + 1}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', fontWeight: 'bold' }}>{formatAuditDate(s.shift_date)}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc' }}>{s.cashier_name}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', textAlign: 'center', fontWeight: 'bold' }}>{s.txns_count}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', textAlign: 'right' }}>{formatCurrency(s.gross_sales)}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', textAlign: 'right' }}>{formatCurrency(s.otp_discounts)}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', textAlign: 'right' }}>{formatCurrency(s.cash_collected)}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', textAlign: 'right' }}>{formatCurrency(s.gcash_collected)}</td>
+                                                <td style={{ padding: '4px', border: '1px solid #cccccc', textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(s.net_collected)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
+                                    <tfoot>
+                                        <tr style={{ borderTop: '2px solid #000000', background: '#f5f5f5', fontWeight: 'bold' }}>
+                                            <td colSpan="3" style={{ padding: '5px', border: '1px solid #000000' }}>
+                                                Total Shifts: {(salesProfitData?.daily_shift_summary || []).length}
+                                            </td>
+                                            <td style={{ padding: '5px', border: '1px solid #000000', textAlign: 'center' }}>
+                                                {(salesProfitData?.daily_shift_summary || []).reduce((sum, s) => sum + Number(s.txns_count || 0), 0)}
+                                            </td>
+                                            <td style={{ padding: '5px', border: '1px solid #000000', textAlign: 'right' }}>
+                                                {formatCurrency((salesProfitData?.daily_shift_summary || []).reduce((sum, s) => sum + Number(s.gross_sales || 0), 0))}
+                                            </td>
+                                            <td style={{ padding: '5px', border: '1px solid #000000', textAlign: 'right' }}>
+                                                {formatCurrency((salesProfitData?.daily_shift_summary || []).reduce((sum, s) => sum + Number(s.otp_discounts || 0), 0))}
+                                            </td>
+                                            <td style={{ padding: '5px', border: '1px solid #000000', textAlign: 'right' }}>
+                                                {formatCurrency((salesProfitData?.daily_shift_summary || []).reduce((sum, s) => sum + Number(s.cash_collected || 0), 0))}
+                                            </td>
+                                            <td style={{ padding: '5px', border: '1px solid #000000', textAlign: 'right' }}>
+                                                {formatCurrency((salesProfitData?.daily_shift_summary || []).reduce((sum, s) => sum + Number(s.gcash_collected || 0), 0))}
+                                            </td>
+                                            <td style={{ padding: '5px', border: '1px solid #000000', textAlign: 'right', fontSize: '10.5px' }}>
+                                                {formatCurrency((salesProfitData?.daily_shift_summary || []).reduce((sum, s) => sum + Number(s.net_collected || 0), 0))}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
                                 </table>
                             )}
-                        </div>
-                    </div>
-                </div>
+
+                            {/* Signatures Block for Official Compliance & Audit */}
+                            <div style={{ marginTop: '28px', paddingTop: '12px', borderTop: '1px solid #000000', display: 'flex', justifyContent: 'space-between', breakInside: 'avoid' }}>
+                                <div style={{ width: '220px', textAlign: 'center' }}>
+                                    <div style={{ borderBottom: '1px solid #000000', height: '35px' }}></div>
+                                    <div style={{ fontSize: '9.5px', fontWeight: 'bold', marginTop: '4px' }}>Prepared By: {user?.username || 'Staff'}</div>
+                                    <div style={{ fontSize: '8.5px', color: '#555555' }}>Staff / Cashier / Bookkeeper Signature</div>
+                                </div>
+                                <div style={{ width: '220px', textAlign: 'center' }}>
+                                    <div style={{ borderBottom: '1px solid #000000', height: '35px' }}></div>
+                                    <div style={{ fontSize: '9.5px', fontWeight: 'bold', marginTop: '4px' }}>Verified & Approved By: Store Owner</div>
+                                    <div style={{ fontSize: '8.5px', color: '#555555' }}>Owner / Admin Signature</div>
+                                </div>
+                            </div>
+                        </div>,
+                        document.body
+                    )}
+                </>
             )}
         </div>
     );
