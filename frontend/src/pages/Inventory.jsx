@@ -601,8 +601,10 @@ const Inventory = () => {
           <button
             type="button"
             onClick={() => {
-              if (activeTab !== 'catalog') {
-                handleTabChange('catalog');
+              if (activeTab !== 'movements') {
+                setActiveTab('movements');
+                setIsAddProductOpen(false);
+                setEditingProductModal(null);
                 setAdjustmentTarget(products[0] || {});
               } else if (adjustmentTarget !== null) {
                 setAdjustmentTarget(null);
@@ -610,7 +612,7 @@ const Inventory = () => {
                 setAdjustmentTarget(products[0] || {});
               }
             }}
-            className={activeTab === 'catalog' && adjustmentTarget !== null ? 'btn-primary' : 'btn-secondary'}
+            className={activeTab === 'movements' && adjustmentTarget !== null ? 'btn-primary' : 'btn-secondary'}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -619,13 +621,13 @@ const Inventory = () => {
               padding: '8px 14px',
               height: '38px',
               cursor: 'pointer',
-              background: activeTab === 'catalog' && adjustmentTarget !== null ? 'rgba(245, 158, 11, 0.2)' : undefined,
-              borderColor: activeTab === 'catalog' && adjustmentTarget !== null ? '#f59e0b' : undefined,
-              color: activeTab === 'catalog' && adjustmentTarget !== null ? '#f59e0b' : undefined
+              background: activeTab === 'movements' && adjustmentTarget !== null ? 'rgba(245, 158, 11, 0.2)' : undefined,
+              borderColor: activeTab === 'movements' && adjustmentTarget !== null ? '#f59e0b' : undefined,
+              color: activeTab === 'movements' && adjustmentTarget !== null ? '#f59e0b' : undefined
             }}
-            title={activeTab === 'catalog' && adjustmentTarget !== null ? 'Close stock adjustment form' : 'Record manual stock adjustment (Damaged on shelf, Lost/Stolen, Found extra)'}
+            title={activeTab === 'movements' && adjustmentTarget !== null ? 'Close stock adjustment form' : 'Record manual stock adjustment (Damaged on shelf, Lost/Stolen, Found extra)'}
           >
-            {activeTab === 'catalog' && adjustmentTarget !== null ? (
+            {activeTab === 'movements' && adjustmentTarget !== null ? (
               <>
                 <X size={15} style={{ color: '#f59e0b' }} />
                 <span>Close Adjustment</span>
@@ -795,20 +797,6 @@ const Inventory = () => {
               onSuccess={() => {
                 fetchInventory();
                 setIsAddProductOpen(false);
-              }}
-            />
-          )}
-
-          {/* INLINE FORM: STOCK COUNT ADJUSTMENT (NO MODAL, NO GLASS OVERLAY) */}
-          {adjustmentTarget !== null && (
-            <AdjustmentModal
-              isOpen={true}
-              asPanel={true}
-              onClose={() => setAdjustmentTarget(null)}
-              product={adjustmentTarget}
-              onSuccess={() => {
-                fetchInventory();
-                setAdjustmentTarget(null);
               }}
             />
           )}
@@ -1409,10 +1397,13 @@ const Inventory = () => {
                             {/* Adjust Stock (Admin and Staff) */}
                             <button
                               type="button"
-                              onClick={() => setAdjustmentTarget(p)}
+                              onClick={() => {
+                                setActiveTab('movements');
+                                setAdjustmentTarget(p);
+                              }}
                               className="btn-secondary"
                               style={{ padding: '5px 7px', borderRadius: '6px' }}
-                              title="Log In-Store Damage Adjustment (Pre-Sale Defect / Shelf Damage Write-Off)"
+                              title="Log In-Store Damage Adjustment in Stock Movements"
                             >
                               <AlertTriangle size={14} style={{ color: '#f59e0b' }} />
                             </button>
@@ -1481,8 +1472,11 @@ const Inventory = () => {
                                   {isAdmin && (
                                     <button
                                       type="button"
-                                      onClick={() => setAdjustmentTarget({ ...p, serial_id: s.id, serial_number: s.serial_number })}
-                                      title={`Adjust lot ${s.serial_number}`}
+                                      onClick={() => {
+                                        setActiveTab('movements');
+                                        setAdjustmentTarget({ ...p, serial_id: s.id, serial_number: s.serial_number });
+                                      }}
+                                      title={`Adjust lot ${s.serial_number} in Stock Movements`}
                                       style={{
                                         background: 'none',
                                         border: 'none',
@@ -1629,6 +1623,21 @@ const Inventory = () => {
          ========================================================================= */}
       {isAdmin && activeTab === 'movements' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingTop: '8px' }}>
+          {/* INLINE STOCK COUNT ADJUSTMENT PANEL (LOCATED IN STOCK MOVEMENTS) */}
+          {adjustmentTarget !== null && (
+            <AdjustmentModal
+              isOpen={true}
+              asPanel={true}
+              onClose={() => setAdjustmentTarget(null)}
+              product={adjustmentTarget}
+              onSuccess={() => {
+                fetchMovements(1, movementsLimit);
+                fetchInventory();
+                setAdjustmentTarget(null);
+              }}
+            />
+          )}
+
           {/* INLINE STOCK CARD HISTORY (NO MODAL, NO BORDER BOX) */}
           {ledgerTarget !== null && (
             <ItemLedgerDrawer
@@ -1709,17 +1718,40 @@ const Inventory = () => {
                 </p>
               </div>
 
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => fetchMovements(movementsPage, movementsLimit)}
-                disabled={loadingMovements}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '6px 12px' }}
-                title="Refresh stock movements"
-              >
-                <RefreshCw size={13} className={loadingMovements ? 'animate-spin' : ''} />
-                <span>Refresh</span>
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  className={adjustmentTarget !== null ? 'btn-primary' : 'btn-secondary'}
+                  onClick={() => setAdjustmentTarget(prev => prev ? null : (products[0] || {}))}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '0.8rem',
+                    padding: '6px 12px',
+                    cursor: 'pointer',
+                    background: adjustmentTarget !== null ? 'rgba(245, 158, 11, 0.2)' : undefined,
+                    borderColor: adjustmentTarget !== null ? '#f59e0b' : undefined,
+                    color: adjustmentTarget !== null ? '#f59e0b' : undefined
+                  }}
+                  title={adjustmentTarget !== null ? 'Close Adjustment Panel' : 'Open Stock Adjustment Panel'}
+                >
+                  <AlertTriangle size={13} style={{ color: '#f59e0b' }} />
+                  <span>{adjustmentTarget !== null ? 'Close Adjustment' : '+ Adjust Stock Count'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => fetchMovements(movementsPage, movementsLimit)}
+                  disabled={loadingMovements}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '6px 12px' }}
+                  title="Refresh stock movements"
+                >
+                  <RefreshCw size={13} className={loadingMovements ? 'animate-spin' : ''} />
+                  <span>Refresh</span>
+                </button>
+              </div>
             </div>
 
             {/* Quick Adjustment & Movement Filter Chips */}
