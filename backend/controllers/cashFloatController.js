@@ -123,6 +123,19 @@ async function ensureCashFloatsTableExists() {
             // Ignore if already VARCHAR
         }
 
+        // Align cash_floats collation with users table
+        try {
+            const [uCollRows] = await db.query(
+                `SELECT TABLE_COLLATION FROM information_schema.TABLES
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'`
+            );
+            const userCollation = uCollRows[0]?.TABLE_COLLATION || 'utf8mb4_unicode_ci';
+            await db.query(`ALTER TABLE cash_floats CONVERT TO CHARACTER SET utf8mb4 COLLATE ${userCollation}`);
+            await db.query(`ALTER TABLE cash_movements CONVERT TO CHARACTER SET utf8mb4 COLLATE ${userCollation}`);
+        } catch (collErr) {
+            // Ignore if already aligned
+        }
+
         // Ensure active cashiers including @caron (gilmoore) are active and not deactivated
         try {
             await db.query(`
@@ -179,14 +192,14 @@ exports.getStaffList = async (req, res) => {
             FROM users u
             LEFT JOIN cash_floats cf ON cf.id = (
                 SELECT id FROM cash_floats 
-                WHERE (staff_id = u.id OR LOWER(staff_username) = LOWER(u.username))
+                WHERE (staff_id = u.id OR CONVERT(staff_username USING utf8mb4) = CONVERT(u.username USING utf8mb4))
                   AND status IN ('ACTIVE', 'PENDING_REMIT')
                 ORDER BY assigned_at DESC 
                 LIMIT 1
             )
             LEFT JOIN cash_floats last_cf ON last_cf.id = (
                 SELECT id FROM cash_floats 
-                WHERE (staff_id = u.id OR LOWER(staff_username) = LOWER(u.username))
+                WHERE (staff_id = u.id OR CONVERT(staff_username USING utf8mb4) = CONVERT(u.username USING utf8mb4))
                   AND status = 'COMPLETED'
                   AND TIMESTAMPDIFF(SECOND, assigned_at, COALESCE(completed_at, NOW())) >= 60
                 ORDER BY assigned_at DESC 

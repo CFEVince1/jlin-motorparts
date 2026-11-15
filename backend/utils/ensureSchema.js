@@ -674,7 +674,13 @@ async function ensureSchema() {
       await db.query(`ALTER TABLE brands MODIFY COLUMN brand_name VARCHAR(100) CHARACTER SET utf8mb4 COLLATE ${prodCollation} NOT NULL`);
       await db.query(`ALTER TABLE categories CONVERT TO CHARACTER SET utf8mb4 COLLATE ${prodCollation}`);
       await db.query(`ALTER TABLE categories MODIFY COLUMN category_name VARCHAR(100) CHARACTER SET utf8mb4 COLLATE ${prodCollation} NOT NULL`);
-      console.log('[Schema] Aligned brands and categories table collations.');
+
+      // Align cash_floats and cash_movements with users table collation
+      const [uCol] = await db.query("SHOW FULL COLUMNS FROM users LIKE 'username'");
+      const userCollation = uCol[0]?.Collation || 'utf8mb4_unicode_ci';
+      await db.query(`ALTER TABLE cash_floats CONVERT TO CHARACTER SET utf8mb4 COLLATE ${userCollation}`);
+      await db.query(`ALTER TABLE cash_movements CONVERT TO CHARACTER SET utf8mb4 COLLATE ${userCollation}`);
+      console.log('[Schema] Aligned brands, categories, and cash_floats table collations.');
     } catch (collateErr) {
       console.warn('[Schema] Collation alignment notice:', collateErr.message);
     }
