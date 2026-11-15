@@ -43,6 +43,7 @@ import { formatCurrency, formatAuditDate } from '../utils/formatters';
 import { getShortBrand, getLedgerCategoryCode } from '../utils/categoryTaxonomy';
 import QuickAddSupplierModal from '../components/QuickAddSupplierModal';
 import AddProductModal from '../components/AddProductModal';
+import Suppliers from './Suppliers';
 import { notifyInventoryChange } from '../utils/syncEvents';
 
 const formatReceivingRef = (rawRef, dateStr, id) => {
@@ -107,7 +108,7 @@ export const Purchasing = () => {
   const isAdmin = (user?.role || '').toLowerCase() === 'admin';
 
   const qTab = searchParams.get('tab');
-  const initialTab = (qTab === 'directory' || qTab === 'history') ? qTab : 'receive';
+  const initialTab = (qTab === 'directory' || qTab === 'suppliers' || qTab === 'history') ? qTab : 'receive';
   const [activeTab, setActiveTab] = useState(initialTab);
   const [isIntakeExpanded, setIsIntakeExpanded] = useState(true);
 
@@ -123,7 +124,7 @@ export const Purchasing = () => {
       setIsIntakeExpanded(true);
     }
     const tabParam = searchParams.get('tab');
-    if (tabParam === 'directory' || tabParam === 'history' || tabParam === 'receive') {
+    if (tabParam === 'directory' || tabParam === 'suppliers' || tabParam === 'history' || tabParam === 'receive') {
       setActiveTab(tabParam);
     } else if (tabParam === 'receive_orders') {
       setActiveTab('receive');
@@ -1241,29 +1242,28 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
         <div>
           <h1 style={{ margin: 0, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.75rem', fontWeight: 'bold' }}>
             <Truck size={28} style={{ color: 'var(--primary)' }} />
-            Stock-In (Receiving)
+            Stock-In & Suppliers
           </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0 }}>
-            Inward truck delivery inspection, on-the-spot driver returns, and delivery logs.
-          </p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => {
-              if (activeTab !== 'receive' && activeTab !== 'receive_orders') handleTabChange('receive');
-              setIsIntakeExpanded(!isIntakeExpanded);
-            }}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', padding: '8px 16px', fontWeight: 600 }}
-          >
-            <Plus size={16} /> {isIntakeExpanded && (activeTab === 'receive' || activeTab === 'receive_orders') ? '✕ Close Receiving Gate' : '+ Receive Truck Delivery'}
-          </button>
+          {(activeTab !== 'suppliers' && activeTab !== 'directory') && (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => {
+                if (activeTab !== 'receive' && activeTab !== 'receive_orders') handleTabChange('receive');
+                setIsIntakeExpanded(!isIntakeExpanded);
+              }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', padding: '8px 16px', fontWeight: 600 }}
+            >
+              <Plus size={16} /> {isIntakeExpanded && (activeTab === 'receive' || activeTab === 'receive_orders') ? '✕ Close Receiving Gate' : '+ Receive Truck Delivery'}
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Top 2 Tabs Navigation Bar */}
+      {/* Top 3 Tabs Navigation Bar */}
       <div className="no-print" style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border)', paddingBottom: '8px', marginBottom: '22px', overflowX: 'auto' }}>
         <button
           type="button"
@@ -1305,6 +1305,27 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
           }}
         >
           <History size={17} /> Tab 2: Past Deliveries History
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange('suppliers')}
+          style={{
+            padding: '10px 18px',
+            fontSize: '0.88rem',
+            fontWeight: activeTab === 'suppliers' || activeTab === 'directory' ? 700 : 500,
+            background: activeTab === 'suppliers' || activeTab === 'directory' ? 'rgba(var(--primary-rgb), 0.12)' : 'transparent',
+            color: activeTab === 'suppliers' || activeTab === 'directory' ? 'var(--primary)' : 'var(--text-muted)',
+            border: activeTab === 'suppliers' || activeTab === 'directory' ? '1px solid var(--primary)' : '1px solid transparent',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <Building2 size={17} /> Tab 3: Supplier Directory ({suppliers.length})
         </button>
       </div>
 
@@ -3078,6 +3099,24 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
             </div>
           </div>
         </div>
+      )}
+
+      {/* =========================================================================
+          TAB 3: SUPPLIER DIRECTORY
+         ========================================================================= */}
+      {(activeTab === 'suppliers' || activeTab === 'directory') && (
+        <Suppliers
+          asTab={true}
+          onDirectReceive={(supp) => {
+            setSupplierId(String(supp.id));
+            setIsIntakeExpanded(true);
+            handleTabChange('receive');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onSupplierCreated={() => {
+            fetchSuppliersAndProducts();
+          }}
+        />
       )}
 
 

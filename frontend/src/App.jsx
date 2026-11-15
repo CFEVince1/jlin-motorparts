@@ -36,6 +36,14 @@ const TransactionsRoute = () => {
   return <Navigate to={`/pos?${params.toString()}`} replace />;
 };
 
+// Backward-compatible redirect for /suppliers -> /purchasing?tab=suppliers
+const SuppliersRedirect = () => {
+  const [searchParams] = useSearchParams();
+  const search = searchParams.get('search') || searchParams.get('supplier');
+  const target = search ? `/purchasing?tab=suppliers&search=${encodeURIComponent(search)}` : '/purchasing?tab=suppliers';
+  return <Navigate to={target} replace />;
+};
+
 const RoleBasedHome = () => {
   const { user } = useContext(AuthContext);
   const isAdmin = (user?.role || '').toLowerCase() === 'admin';
@@ -82,7 +90,7 @@ function App() {
               <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/purchasing" element={<Purchasing />} />
-                <Route path="/suppliers" element={<Suppliers />} />
+                <Route path="/suppliers" element={<SuppliersRedirect />} />
                 <Route path="/suppliers-stock-in" element={<Navigate to="/purchasing" replace />} />
                 <Route path="/stock-receive" element={<Navigate to="/purchasing" replace />} />
                 <Route path="/products" element={<Navigate to="/inventory" replace />} />

@@ -28,7 +28,7 @@ import EditSupplierModal from '../components/EditSupplierModal';
  * - Direct truck intake shortcuts and delivery history links
  * - Phone, email, address, and spend analytics
  */
-export const Suppliers = () => {
+export const Suppliers = ({ asTab = false, onDirectReceive, onSupplierCreated: parentOnCreated }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useContext(AuthContext);
@@ -51,11 +51,11 @@ export const Suppliers = () => {
 
   // Cashier role redirection
   useEffect(() => {
-    if (!isAdmin && user) {
+    if (!isAdmin && user && !asTab) {
       toast.error('Supplier Directory is restricted to Owner/Admin.');
       navigate('/purchasing', { replace: true });
     }
-  }, [isAdmin, user, navigate]);
+  }, [isAdmin, user, navigate, asTab]);
 
   // Data fetching
   const fetchSuppliers = async () => {
@@ -79,6 +79,7 @@ export const Suppliers = () => {
     setSuppliers(prev => [newSupplier, ...prev]);
     setIsAddSupplierOpen(false);
     toast.success(`Supplier "${newSupplier.name}" registered successfully!`);
+    if (parentOnCreated) parentOnCreated(newSupplier);
   };
 
   const handleSupplierUpdated = (updatedSupplier) => {
@@ -106,7 +107,11 @@ export const Suppliers = () => {
   };
 
   const handleDirectReceiveFromSupplier = (supplier) => {
-    navigate(`/purchasing?supplierId=${supplier.id}`);
+    if (onDirectReceive) {
+      onDirectReceive(supplier);
+    } else {
+      navigate(`/purchasing?supplierId=${supplier.id}&tab=receive`);
+    }
   };
 
   // Filtered Suppliers for Directory
@@ -129,32 +134,31 @@ export const Suppliers = () => {
   });
 
   return (
-    <div style={{ width: '100%', minWidth: 0, paddingBottom: '32px' }}>
-      {/* Top Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
-        <div>
-          <h1 style={{ margin: 0, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.75rem', fontWeight: 'bold' }}>
-            <Building2 size={28} style={{ color: 'var(--primary)' }} />
-            Supplier Directory
-          </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0 }}>
-            Master list of motorcycle parts suppliers, FB shop profiles, phone contacts, and truck delivery history.
-          </p>
-        </div>
+    <div style={{ width: '100%', minWidth: 0, paddingBottom: asTab ? '16px' : '32px' }}>
+      {/* Top Header (Standalone Mode only) */}
+      {!asTab && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
+          <div>
+            <h1 style={{ margin: 0, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.75rem', fontWeight: 'bold' }}>
+              <Building2 size={28} style={{ color: 'var(--primary)' }} />
+              Supplier Directory
+            </h1>
+          </div>
 
-        {/* Quick Action */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            id="register-fb-vendor-header-btn"
-            className="btn-primary"
-            onClick={() => setIsAddSupplierOpen(!isAddSupplierOpen)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', padding: '8px 16px', fontWeight: 600 }}
-          >
-            <Plus size={16} /> {isAddSupplierOpen ? '✕ Close Form' : 'Register Supplier'}
-          </button>
+          {/* Quick Action */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              id="register-fb-vendor-header-btn"
+              className="btn-primary"
+              onClick={() => setIsAddSupplierOpen(!isAddSupplierOpen)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', padding: '8px 16px', fontWeight: 600 }}
+            >
+              <Plus size={16} /> {isAddSupplierOpen ? '✕ Close Form' : 'Register Supplier'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* SUPPLIER LIST (DIRECTORY) */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -199,6 +203,15 @@ export const Suppliers = () => {
               <option value="inactive">Inactive Only</option>
             </select>
           </div>
+
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => setIsAddSupplierOpen(!isAddSupplierOpen)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', padding: '8px 16px', fontWeight: 600 }}
+          >
+            <Plus size={16} /> {isAddSupplierOpen ? '✕ Close Form' : '+ Register Supplier'}
+          </button>
         </div>
 
         {/* Supplier Directory Table */}
