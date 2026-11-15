@@ -42,7 +42,6 @@ import toast from 'react-hot-toast';
 import { formatCurrency, formatAuditDate } from '../utils/formatters';
 import { getShortBrand, getLedgerCategoryCode } from '../utils/categoryTaxonomy';
 import QuickAddSupplierModal from '../components/QuickAddSupplierModal';
-import EditSupplierModal from '../components/EditSupplierModal';
 import AddProductModal from '../components/AddProductModal';
 
 const formatReceivingRef = (rawRef, dateStr, id) => {
@@ -262,12 +261,7 @@ export const Purchasing = () => {
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [activeModalSlipView, setActiveModalSlipView] = useState('receiving'); // 'receiving' | 'rejection'
 
-  // -------------------------------------------------------------
-  // TAB 3: SUPPLIER DIRECTORY STATE
-  // -------------------------------------------------------------
-  const [supplierSearchTerm, setSupplierSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'inactive' | 'facebook'
-  const [selectedSupplierForEdit, setSelectedSupplierForEdit] = useState(null);
+
 
   // -------------------------------------------------------------
   // DATA FETCHING
@@ -943,8 +937,8 @@ export const Purchasing = () => {
         toast.success(`Pre-acceptance inspection recorded! ${totalsSummary.totalAcceptedUnits} good units added to inventory. ${totalsSummary.totalRejectedUnits} damaged units rejected & claim opened.`);
         // Open Driver Rejection modal view
         setDriverRejectionModalData({
-          supplierName: selectedSupplierObj?.name || 'Facebook Supplier',
-          sellerContact: selectedSupplierObj?.seller_contact_name || selectedSupplierObj?.contact_person || 'Seller',
+          supplierName: selectedSupplierObj?.name || 'Supplier',
+          sellerContact: selectedSupplierObj?.name || 'Supplier',
           referenceNo: finalRefNo,
           driverName: cleanDriver,
           courierService: cleanCourier,
@@ -1024,61 +1018,12 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
     toast.success('Driver return summary copied! Ready to paste into FB Messenger.');
   };
 
-  // -------------------------------------------------------------
-  // TAB 3 ACTIONS (SUPPLIER DIRECTORY)
-  // -------------------------------------------------------------
   const handleSupplierCreated = (newSupplier) => {
     setSuppliers(prev => [newSupplier, ...prev]);
     setSupplierId(newSupplier.id);
   };
 
-  const handleSupplierUpdated = (updatedSupplier) => {
-    setSuppliers(prev => prev.map(s => s.id === updatedSupplier.id ? updatedSupplier : s));
-  };
 
-  const handleToggleStatus = async (supplier) => {
-    const nextStatus = !supplier.is_active;
-    const actionLabel = nextStatus ? 'activate' : 'deactivate';
-
-    if (!window.confirm(`Are you sure you want to ${actionLabel} supplier "${supplier.name}"?`)) {
-      return;
-    }
-
-    try {
-      await api.put(`/suppliers/${supplier.id}`, { is_active: nextStatus });
-      toast.success(`Supplier "${supplier.name}" marked as ${nextStatus ? 'active' : 'inactive'}`);
-      fetchSuppliersAndProducts();
-    } catch (err) {
-      console.error('Failed to toggle supplier status', err);
-      toast.error(err.response?.data?.message || 'Failed to update supplier status');
-    }
-  };
-
-  const handleDirectReceiveFromSupplier = (supplier) => {
-    setSupplierId(supplier.id);
-    handleTabChange('receive');
-  };
-
-  // Filtered Suppliers for Directory
-  const filteredSuppliers = suppliers.filter(s => {
-    const term = supplierSearchTerm.toLowerCase();
-    const matchesSearch = (
-      (s.name && s.name.toLowerCase().includes(term)) ||
-      (s.fb_page_name && s.fb_page_name.toLowerCase().includes(term)) ||
-      (s.seller_contact_name && s.seller_contact_name.toLowerCase().includes(term)) ||
-      (s.contact_person && s.contact_person.toLowerCase().includes(term)) ||
-      (s.phone && s.phone.toLowerCase().includes(term)) ||
-      (s.gcash_account_number && s.gcash_account_number.toLowerCase().includes(term)) ||
-      (s.address && s.address.toLowerCase().includes(term))
-    );
-
-    if (!matchesSearch) return false;
-
-    if (statusFilter === 'active') return Boolean(s.is_active);
-    if (statusFilter === 'inactive') return !s.is_active;
-    if (statusFilter === 'facebook') return Boolean(s.messenger_url || s.fb_page_name);
-    return true;
-  });
 
   if (!isAdmin) {
     return (
@@ -2884,15 +2829,7 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
         />
       )}
 
-      {/* =========================================================================
-          MODAL 4: EDIT SUPPLIER MODAL
-         ========================================================================= */}
-      <EditSupplierModal
-        isOpen={Boolean(selectedSupplierForEdit)}
-        onClose={() => setSelectedSupplierForEdit(null)}
-        supplier={selectedSupplierForEdit}
-        onSupplierUpdated={handleSupplierUpdated}
-      />
+
     </div>
   );
 };

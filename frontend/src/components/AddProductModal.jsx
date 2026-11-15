@@ -1228,9 +1228,6 @@ export const AddProductModal = ({
                 <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>
                   🏢 {selectedSupplierObj.name}
                 </span>
-                {selectedSupplierObj.seller_contact_name && (
-                  <span><strong>Contact:</strong> {selectedSupplierObj.seller_contact_name}</span>
-                )}
                 {selectedSupplierObj.fb_page_name && (
                   <span style={{ color: '#1877f2', fontWeight: 600 }}>
                     f {selectedSupplierObj.fb_page_name}
@@ -1238,6 +1235,9 @@ export const AddProductModal = ({
                 )}
                 {selectedSupplierObj.phone && (
                   <span><strong>Phone:</strong> {selectedSupplierObj.phone}</span>
+                )}
+                {selectedSupplierObj.address && (
+                  <span><strong>Location:</strong> {selectedSupplierObj.address}</span>
                 )}
               </div>
             )}
