@@ -90,7 +90,10 @@ function App() {
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/reports/adjustments" element={<AdjustmentsReport />} />
                 <Route path="/users" element={<Users />} />
+                <Route path="/staff" element={<Navigate to="/users" replace />} />
+                <Route path="/staff-audit-log" element={<Navigate to="/users" replace />} />
                 <Route path="/audit-log" element={<Navigate to="/users?tab=audit" replace />} />
+                <Route path="/audit" element={<Navigate to="/users?tab=audit" replace />} />
               </Route>
             </Route>
           </Route>

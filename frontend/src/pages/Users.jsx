@@ -254,22 +254,27 @@ const Users = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '22px', flexWrap: 'wrap', gap: '14px' }}>
                 <div>
                     <h1 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0, fontSize: '1.65rem', fontWeight: 800 }}>
-                        <UsersIcon size={28} color="var(--primary)" /> Staff & Users Management
+                        <UsersIcon size={28} color="var(--primary)" /> Staff & Audit Log
                     </h1>
                     <p style={{ margin: '4px 0 0 38px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                        Manage authorized shop staff accounts, assign roles, and control active login credentials.
+                        Manage authorized shop staff accounts, assign roles, and inspect tamper-proof system audit logs.
                     </p>
                 </div>
 
                 <div style={{ display: 'flex', gap: '10px' }}>
-                    <button
-                        type="button"
-                        onClick={handleOpenAddModal}
-                        className="btn-primary"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '9px 18px', fontWeight: 700 }}
-                    >
-                        <UserPlus size={16} /> + Add New Staff Account
-                    </button>
+                    {activeTab !== 'audit' && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                handleOpenAddModal();
+                                handleTabChange('add_staff');
+                            }}
+                            className="btn-primary"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '9px 18px', fontWeight: 700 }}
+                        >
+                            <UserPlus size={16} /> + Add New Staff Account
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -826,7 +831,7 @@ const Users = () => {
             {/* ============================================================ */}
             {activeTab === 'audit' && (
                 <div>
-                    <AuditLog />
+                    <AuditLog asTab={true} />
                 </div>
             )}
         </div>

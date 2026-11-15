@@ -48,7 +48,7 @@ const ROLE_BADGES = {
     system: { bg: 'rgba(113, 113, 122, 0.15)', text: '#a1a1aa', label: 'System' }
 };
 
-const AuditLog = () => {
+const AuditLog = ({ asTab = false }) => {
     const { user } = useContext(AuthContext);
     const isAdmin = ['admin', 'Admin'].includes(user?.role);
 
@@ -197,31 +197,50 @@ const AuditLog = () => {
             `}</style>
 
             {/* Page Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '22px' }} className="no-print">
-                <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-                        <ShieldCheck size={26} color="var(--primary)" />
-                        <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 900 }}>
-                            Audit Log • Tamper-Proof Black Box
-                        </h1>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }} className="no-print">
+                {!asTab ? (
+                    <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                            <ShieldCheck size={26} color="var(--primary)" />
+                            <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 900 }}>
+                                Audit Log • Tamper-Proof Black Box
+                            </h1>
+                            <span style={{
+                                fontSize: '0.72rem',
+                                fontWeight: 800,
+                                background: 'rgba(22, 163, 74, 0.12)',
+                                color: 'var(--primary)',
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                border: '1px solid rgba(22, 163, 74, 0.3)'
+                            }}>
+                                🔒 Read-Only Ledger
+                            </span>
+                        </div>
+                        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                            Records every sensitive action in the system so nobody can secretly alter stock, delete a sale, or change a price without leaving an unalterable trail.
+                        </p>
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <span style={{
-                            fontSize: '0.72rem',
+                            fontSize: '0.74rem',
                             fontWeight: 800,
                             background: 'rgba(22, 163, 74, 0.12)',
                             color: 'var(--primary)',
-                            padding: '3px 8px',
+                            padding: '4px 10px',
                             borderRadius: '6px',
-                            border: '1px solid rgba(22, 163, 74, 0.3)'
+                            border: '1px solid rgba(22, 163, 74, 0.3)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px'
                         }}>
-                            🔒 Read-Only Ledger
+                            🔒 Tamper-Proof Black Box • Read-Only Security Ledger
                         </span>
                     </div>
-                    <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-                        Records every sensitive action in the system so nobody can secretly alter stock, delete a sale, or change a price without leaving an unalterable trail.
-                    </p>
-                </div>
+                )}
 
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginLeft: asTab ? 'auto' : undefined }}>
                     <button
                         type="button"
                         onClick={handleExportCSV}
