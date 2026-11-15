@@ -28,7 +28,7 @@ exports.getSuppliers = async (req, res, next) => {
             SELECT s.id, s.name, s.fb_page_name, s.seller_contact_name, s.contact_person, s.email, s.phone, 
                    s.messenger_url, s.facebook_page_url, s.gcash_account_name, s.gcash_account_number, 
                    s.bank_details, s.category_tags, s.address, s.is_active, s.created_at, s.updated_at,
-                   COALESCE((SELECT SUM(total_amount) FROM receiving_records WHERE supplier_id = s.id), 0) AS total_spend,
+                   COALESCE((SELECT SUM(total_cost) FROM receiving_records WHERE supplier_id = s.id), 0) AS total_spend,
                    COALESCE((SELECT COUNT(*) FROM receiving_records WHERE supplier_id = s.id), 0) AS total_deliveries
             FROM suppliers s
         `;
@@ -501,28 +501,28 @@ exports.getSupplierLedger = async (req, res, next) => {
 
         // Fetch truck deliveries for this supplier from receiving_records
         const [deliveries] = await db.query(
-            `SELECT id, reference_number, date_received, total_amount, notes, status, created_at
+            `SELECT id, COALESCE(reference_no, reference_number) AS reference_number, received_at, total_cost, notes, status, created_at
              FROM receiving_records
              WHERE supplier_id = ?
-             ORDER BY date_received DESC, created_at DESC`,
+             ORDER BY received_at DESC, created_at DESC`,
             [supplierId]
         );
 
-        const totalSpend = deliveries.reduce((sum, d) => sum + Number(d.total_amount || 0), 0);
+        const totalSpend = deliveries.reduce((sum, d) => sum + Number(d.total_cost || 0), 0);
 
         const statementEntries = deliveries.map(d => ({
             id: `rcv_${d.id}`,
-            date: d.date_received || d.created_at,
+            date: d.received_at || d.created_at,
             type: 'TRUCK_DELIVERY',
             typeLabel: 'Truck Delivery (Paid On The Spot)',
             reference: d.reference_number || `DR-#${d.id}`,
             description: `Delivery received: ${d.notes || 'Accepted units into inventory'}`,
-            debit: Number(d.total_amount || 0),
-            credit: Number(d.total_amount || 0), // Settled upon delivery
+            debit: Number(d.total_cost || 0),
+            credit: Number(d.total_cost || 0), // Settled upon delivery
             impact: 0,
             status: d.status || 'Received',
             running_balance: 0,
-            rawDate: new Date(d.date_received || d.created_at).getTime()
+            rawDate: new Date(d.received_at || d.created_at).getTime()
         }));
 
         res.json({
@@ -628,7 +628,7 @@ exports.getGlobalLedgerSummary = async (req, res, next) => {
         const [rows] = await db.query(`
             SELECT 
                 s.id, s.name, s.fb_page_name, s.seller_contact_name, s.phone, s.messenger_url, s.gcash_account_number, s.category_tags,
-                COALESCE((SELECT SUM(total_amount) FROM receiving_records WHERE supplier_id = s.id), 0) AS total_spend,
+                COALESCE((SELECT SUM(total_cost) FROM receiving_records WHERE supplier_id = s.id), 0) AS total_spend,
                 COALESCE((SELECT COUNT(*) FROM receiving_records WHERE supplier_id = s.id), 0) AS total_deliveries
             FROM suppliers s
             WHERE s.is_active = TRUE
