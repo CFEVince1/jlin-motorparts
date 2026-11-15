@@ -1910,6 +1910,20 @@ const Inventory = () => {
                                 }}>
                                   {catCode}
                                 </span>
+                                {m.serial_number && (
+                                  <span style={{
+                                    fontFamily: 'monospace',
+                                    fontWeight: 700,
+                                    fontSize: '0.70rem',
+                                    padding: '1px 6px',
+                                    borderRadius: '4px',
+                                    background: 'rgba(59, 130, 246, 0.15)',
+                                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                                    color: '#60a5fa'
+                                  }}>
+                                    SN: {m.serial_number}
+                                  </span>
+                                )}
                               </div>
                             </td>
 
@@ -1953,15 +1967,37 @@ const Inventory = () => {
 
                             {/* 7. Action */}
                             <td style={{ textAlign: 'center', paddingRight: '14px', whiteSpace: 'nowrap' }}>
-                              <button
-                                type="button"
-                                onClick={() => setLedgerTarget({ id: m.product_id, name: m.product_name, part_number: m.part_number })}
-                                className="btn-secondary"
-                                style={{ padding: '3px 8px', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                                title="View complete stock card history for this item"
-                              >
-                                <History size={12} /> Card
-                              </button>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setLedgerTarget({ id: m.product_id, name: m.product_name, part_number: m.part_number })}
+                                  className="btn-secondary"
+                                  style={{ padding: '3px 8px', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                  title="View complete stock card history for this item"
+                                >
+                                  <History size={12} /> Card
+                                </button>
+                                {isAdmin && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setAdjustmentTarget({
+                                        id: m.product_id,
+                                        name: m.product_name,
+                                        part_number: m.part_number,
+                                        serial_id: m.serial_id,
+                                        serial_number: m.serial_number,
+                                        is_serialized: Boolean(m.is_serialized || m.serial_number)
+                                      });
+                                    }}
+                                    className="btn-secondary"
+                                    style={{ padding: '3px 8px', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer', whiteSpace: 'nowrap', color: '#f59e0b', borderColor: 'rgba(245, 158, 11, 0.4)' }}
+                                    title={m.serial_number ? `Adjust serial lot ${m.serial_number}` : 'Adjust product stock'}
+                                  >
+                                    <AlertTriangle size={12} /> Adjust
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );

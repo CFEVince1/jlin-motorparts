@@ -593,7 +593,7 @@ exports.recordAdjustment = async (req, res, next) => {
 
         // 1. Lock item row FIRST
         const [itemRows] = await connection.query(
-            'SELECT id, name, sku, part_number, stock, current_stock, cost_price FROM products WHERE id = ? FOR UPDATE',
+            'SELECT id, name, sku, part_number, stock, current_stock, cost_price, is_serialized FROM products WHERE id = ? FOR UPDATE',
             [resolvedId]
         );
         if (itemRows.length === 0) {
@@ -605,26 +605,44 @@ exports.recordAdjustment = async (req, res, next) => {
         let quantityChange;
 
         // Check if serialized and handle specific serial lot
-        const resolvedSerialId = req.body.serial_id || req.body.serialId || null;
+        const rawSerialId = req.body.serial_id || req.body.serialId || null;
+        const newSerialNum = (req.body.new_serial_number || req.body.serial_number || '').trim();
         let targetSerialRow = null;
-        if (item.is_serialized && !resolvedSerialId) {
-            await connection.rollback();
-            return res.status(422).json({
-                message: `Product "${item.name}" is a serialized item. Serial lot selection (serial_id) is required for stock adjustments.`,
-                errors: [{ field: 'serial_id', message: 'Target serial lot required' }]
-            });
-        }
-        if (resolvedSerialId) {
-            const [sRows] = await connection.query(
-                'SELECT id, serial_number, quantity, status FROM product_serials WHERE id = ? AND product_id = ? FOR UPDATE',
-                [resolvedSerialId, resolvedId]
-            );
-            if (sRows.length === 0) {
-                await connection.rollback();
-                return res.status(404).json({ message: `Serial ID ${resolvedSerialId} not found for this product` });
+
+        if (item.is_serialized) {
+            if (rawSerialId && rawSerialId !== '__NEW_SERIAL__') {
+                const [sRows] = await connection.query(
+                    'SELECT id, serial_number, quantity, status FROM product_serials WHERE id = ? AND product_id = ? FOR UPDATE',
+                    [rawSerialId, resolvedId]
+                );
+                if (sRows.length > 0) {
+                    targetSerialRow = sRows[0];
+                }
+            } else if (newSerialNum) {
+                const [sRows] = await connection.query(
+                    'SELECT id, serial_number, quantity, status FROM product_serials WHERE serial_number = ? AND product_id = ? FOR UPDATE',
+                    [newSerialNum, resolvedId]
+                );
+                if (sRows.length > 0) {
+                    targetSerialRow = sRows[0];
+                } else if (resolvedType === 'FOUND' || resolvedType === 'ADJUSTMENT_ADD') {
+                    const [insertRes] = await connection.query(
+                        "INSERT INTO product_serials (product_id, serial_number, quantity, status, created_at) VALUES (?, ?, 0, 'available', NOW())",
+                        [resolvedId, newSerialNum]
+                    );
+                    targetSerialRow = { id: insertRes.insertId, serial_number: newSerialNum, quantity: 0, status: 'available' };
+                }
             }
-            targetSerialRow = sRows[0];
-            if (resolvedType !== 'FOUND' && resolvedType !== 'ADJUSTMENT_ADD') {
+
+            if (!targetSerialRow && (resolvedType !== 'FOUND' && resolvedType !== 'ADJUSTMENT_ADD')) {
+                await connection.rollback();
+                return res.status(422).json({
+                    message: `Product "${item.name}" is a serialized item. Serial lot selection (serial_id) is required for stock adjustments.`,
+                    errors: [{ field: 'serial_id', message: 'Target serial lot required' }]
+                });
+            }
+
+            if (targetSerialRow && resolvedType !== 'FOUND' && resolvedType !== 'ADJUSTMENT_ADD') {
                 const availLotQty = Number(targetSerialRow.quantity || 0);
                 if (availLotQty < qty) {
                     await connection.rollback();
@@ -921,12 +939,13 @@ exports.getAllMovements = async (req, res, next) => {
                 OR p.name LIKE ?
                 OR p.part_number LIKE ?
                 OR p.brand LIKE ?
+                OR ps.serial_number LIKE ?
                 OR it.remarks LIKE ?
                 OR it.notes LIKE ?
                 OR u.username LIKE ?
                 ${aliasClause}
             )`);
-            whereParams.push(pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern, ...aliasParams);
+            whereParams.push(pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern, ...aliasParams);
         }
 
         // Filter out zero-quantity baseline opening balance rows (e.g. Change 0, Balance 0->0)
@@ -937,6 +956,7 @@ exports.getAllMovements = async (req, res, next) => {
         const [countResult] = await db.query(
             `SELECT COUNT(*) as total FROM inventory_transactions it
              LEFT JOIN products p ON p.id = it.product_id
+             LEFT JOIN product_serials ps ON ps.id = it.serial_id
              LEFT JOIN users u ON u.id = it.created_by
              ${whereSQL}`,
             whereParams
@@ -950,6 +970,9 @@ exports.getAllMovements = async (req, res, next) => {
                 it.reference_no,
                 it.product_id,
                 it.product_id AS item_id,
+                it.serial_id,
+                ps.serial_number,
+                p.is_serialized,
                 p.name AS product_name,
                 p.part_number,
                 p.brand,
@@ -970,6 +993,7 @@ exports.getAllMovements = async (req, res, next) => {
                 u.username AS created_by_username
              FROM inventory_transactions it
              LEFT JOIN products p ON p.id = it.product_id
+             LEFT JOIN product_serials ps ON ps.id = it.serial_id
              LEFT JOIN users u ON u.id = it.created_by
              ${whereSQL}
              ORDER BY it.id DESC
