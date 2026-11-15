@@ -74,6 +74,7 @@ export const CashFloat = () => {
     });
     const [openingShift, setOpeningShift] = useState(false);
     const [useDenomOpen, setUseDenomOpen] = useState(false);
+    const [selectedStaffForTimeIn, setSelectedStaffForTimeIn] = useState(null);
 
     // Petty Cash Expense Modal State
     const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -302,10 +303,14 @@ export const CashFloat = () => {
             };
 
             const res = await api.post('/cash-float/open-shift', payload);
-            toast.success(res.data?.message || 'Shift opened successfully!');
-            setActiveTab('active');
+            toast.success(res.data?.message || 'Shift opened successfully! POS register unlocked.');
+            setShowOpenShiftModal(false);
+            if (activeTab === 'open_shift') {
+                setActiveTab('active');
+            }
             fetchActiveShift();
             fetchRecords();
+            fetchStaffList();
             fetchSummary();
             notifyInventoryChange('shift_open');
         } catch (err) {
@@ -653,7 +658,8 @@ export const CashFloat = () => {
                             type="button"
                             onClick={() => {
                                 setOpenShiftForm({ ...openShiftForm, staff_id: user?.id || '' });
-                                setActiveTab('open_shift');
+                                setSelectedStaffForTimeIn(null);
+                                setShowOpenShiftModal(true);
                             }}
                             className="btn-primary"
                             style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '0.84rem' }}
@@ -1080,13 +1086,14 @@ export const CashFloat = () => {
                             <button
                                 type="button"
                                 onClick={() => {
-                                    setOpenShiftForm({ ...openShiftForm, staff_id: user?.id || '' });
-                                    setActiveTab('open_shift');
+                                    setOpenShiftForm({ ...openShiftForm, staff_id: user?.id || '', starting_cash: '2000' });
+                                    setSelectedStaffForTimeIn(null);
+                                    setShowOpenShiftModal(true);
                                 }}
                                 className="btn-primary"
                                 style={{ padding: '10px 24px', fontSize: '0.92rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '8px' }}
                             >
-                                <Plus size={18} /> Open Shift & Enter Starting Float
+                                <Plus size={18} /> Open Shift &amp; Enter Starting Float
                             </button>
                         </div>
                     ) : (
@@ -1813,11 +1820,15 @@ export const CashFloat = () => {
                                             type="button"
                                             onClick={() => {
                                                 const target = displayStaffList.find(s => !s.active_float_id) || displayStaffList[0];
-                                                if (target) handleDirectTimeIn(target, 2000);
+                                                if (target) {
+                                                    setOpenShiftForm({ ...openShiftForm, staff_id: target.id, starting_cash: '2000' });
+                                                    setSelectedStaffForTimeIn(target);
+                                                }
+                                                setShowOpenShiftModal(true);
                                             }}
                                             className="btn-primary"
                                             style={{ padding: '7px 16px', fontSize: '0.82rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}
-                                            title="Immediately time-in cashier with standard ₱2,000 float and unlock POS terminal"
+                                            title="Time-in cashier with starting float and unlock POS terminal"
                                         >
                                             <Plus size={15} /> Time-In Cashier &amp; Assign Float
                                         </button>
@@ -2076,11 +2087,15 @@ export const CashFloat = () => {
                                                                         ) : (
                                                                             <button
                                                                                 type="button"
-                                                                                onClick={() => handleDirectTimeIn(s, 2000)}
+                                                                                onClick={() => {
+                                                                                    setOpenShiftForm({ ...openShiftForm, staff_id: s.id, starting_cash: '2000' });
+                                                                                    setSelectedStaffForTimeIn(s);
+                                                                                    setShowOpenShiftModal(true);
+                                                                                }}
                                                                                 disabled={isActionBusy}
                                                                                 className="btn-primary"
                                                                                 style={{ padding: '5px 14px', fontSize: '0.76rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '5px' }}
-                                                                                title="Start shift with default ₱2,000 float & immediately unlock register"
+                                                                                title="Time-in cashier with starting float & immediately unlock register"
                                                                             >
                                                                                 <Play size={13} fill="currentColor" /> Time-In &amp; Assign Float
                                                                             </button>
@@ -2195,6 +2210,302 @@ export const CashFloat = () => {
                             </div>
                         );
                     })()}
+                </div>
+            )}
+
+            {/* ============================================================ */}
+            {/* MODAL: TIME-IN CASHIER & ASSIGN STARTING FLOAT               */}
+            {/* ============================================================ */}
+            {showOpenShiftModal && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0, 0, 0, 0.75)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 99999, padding: '20px',
+                    overflowY: 'auto'
+                }}>
+                    <div className="glass-panel" style={{
+                        width: '100%',
+                        maxWidth: '520px',
+                        borderRadius: '16px',
+                        padding: '24px 26px',
+                        position: 'relative',
+                        border: '1.5px solid #10b981',
+                        backgroundColor: '#1a1f1b',
+                        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.65)'
+                    }}>
+                        <button
+                            type="button"
+                            onClick={() => setShowOpenShiftModal(false)}
+                            style={{ position: 'absolute', right: '16px', top: '16px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                            title="Close"
+                        >
+                            <X size={20} />
+                        </button>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                            <div style={{
+                                width: '42px',
+                                height: '42px',
+                                borderRadius: '10px',
+                                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}>
+                                <Banknote size={24} color="#10b981" />
+                            </div>
+                            <div>
+                                <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#f4f4f5' }}>
+                                    {selectedStaffForTimeIn
+                                        ? `Time-In @${selectedStaffForTimeIn.username || selectedStaffForTimeIn.full_name}`
+                                        : (isAdmin ? 'Time-In Cashier & Assign Float' : 'Open Shift (Starting Float)')
+                                    }
+                                </h2>
+                                <p style={{ margin: '3px 0 0 0', fontSize: '0.8rem', color: '#a1a1aa' }}>
+                                    Record starting change fund (panukli) and unlock POS terminal.
+                                </p>
+                            </div>
+                        </div>
+
+                        <form onSubmit={handleOpenShiftSubmit} style={{ marginTop: '18px' }}>
+                            {/* If Admin, allow selecting staff member */}
+                            {isAdmin && staffList.length > 0 && (
+                                <div style={{ marginBottom: '16px' }}>
+                                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#f4f4f5', marginBottom: '6px' }}>
+                                        Assign To Cashier / Staff:
+                                    </label>
+                                    <select
+                                        value={openShiftForm.staff_id}
+                                        onChange={(e) => {
+                                            const sId = e.target.value;
+                                            setOpenShiftForm({ ...openShiftForm, staff_id: sId });
+                                            const match = staffList.find(s => String(s.id) === String(sId));
+                                            setSelectedStaffForTimeIn(match || null);
+                                        }}
+                                        style={{
+                                            width: '100%',
+                                            padding: '10px 14px',
+                                            fontSize: '0.88rem',
+                                            backgroundColor: '#272d28',
+                                            color: '#ffffff',
+                                            border: '1.5px solid #3f4a41',
+                                            borderRadius: '8px',
+                                            outline: 'none',
+                                            fontWeight: 600
+                                        }}
+                                    >
+                                        <option value={user?.id}>Me ({user?.username} - Admin)</option>
+                                        {staffList.filter(s => s.id !== user?.id).map(s => (
+                                            <option key={s.id} value={s.id}>
+                                                {s.full_name || s.username} ({s.role})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Denomination Counter Toggle */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                <label style={{ fontSize: '0.84rem', fontWeight: 700, color: '#f4f4f5' }}>
+                                    Starting Cash Fund:
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => setUseDenomOpen(!useDenomOpen)}
+                                    style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: '#34d399',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '5px'
+                                    }}
+                                >
+                                    <Coins size={14} /> {useDenomOpen ? 'Switch to Quick Amount' : 'Use Coin & Bill Breakdown'}
+                                </button>
+                            </div>
+
+                            {!useDenomOpen ? (
+                                <div style={{ marginBottom: '16px' }}>
+                                    <div style={{ position: 'relative' }}>
+                                        <span style={{
+                                            position: 'absolute',
+                                            left: '14px',
+                                            top: '50%',
+                                            transform: 'translateY(-50%)',
+                                            fontWeight: 900,
+                                            fontSize: '1.4rem',
+                                            color: '#10b981'
+                                        }}>₱</span>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="1"
+                                            style={{
+                                                width: '100%',
+                                                padding: '10px 16px 10px 38px',
+                                                fontSize: '1.4rem',
+                                                fontWeight: 900,
+                                                fontFamily: 'monospace',
+                                                backgroundColor: '#0f172a',
+                                                color: '#10b981',
+                                                border: '2px solid #10b981',
+                                                borderRadius: '10px',
+                                                outline: 'none',
+                                                boxShadow: '0 0 12px rgba(16, 185, 129, 0.35)'
+                                            }}
+                                            placeholder="2000.00"
+                                            value={openShiftForm.starting_cash}
+                                            onChange={(e) => setOpenShiftForm({ ...openShiftForm, starting_cash: e.target.value })}
+                                            required
+                                            autoFocus
+                                        />
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
+                                        {['1000', '1500', '2000', '3000', '5000'].map(preset => {
+                                            const isSelected = String(openShiftForm.starting_cash) === String(preset);
+                                            return (
+                                                <button
+                                                    key={preset}
+                                                    type="button"
+                                                    onClick={() => setOpenShiftForm({ ...openShiftForm, starting_cash: preset })}
+                                                    style={{
+                                                        fontSize: '0.84rem',
+                                                        fontWeight: 800,
+                                                        padding: '6px 14px',
+                                                        borderRadius: '8px',
+                                                        cursor: 'pointer',
+                                                        transition: 'all 0.15s ease',
+                                                        backgroundColor: isSelected ? '#10b981' : '#1e293b',
+                                                        color: '#ffffff',
+                                                        border: isSelected ? '2px solid #34d399' : '1.5px solid #64748b',
+                                                        boxShadow: isSelected ? '0 2px 10px rgba(16, 185, 129, 0.55)' : 'none'
+                                                    }}
+                                                >
+                                                    ₱{preset}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div style={{
+                                    backgroundColor: '#242a25',
+                                    border: '1.5px solid #3f4a41',
+                                    padding: '14px',
+                                    borderRadius: '12px',
+                                    marginBottom: '16px'
+                                }}>
+                                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f4f4f5', marginBottom: '8px' }}>
+                                        Itemized Bill & Coin Count:
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', fontSize: '0.78rem' }}>
+                                        {[
+                                            { key: 'bills_1000', label: '₱1,000' },
+                                            { key: 'bills_500', label: '₱500' },
+                                            { key: 'bills_200', label: '₱200' },
+                                            { key: 'bills_100', label: '₱100' },
+                                            { key: 'bills_50', label: '₱50' },
+                                            { key: 'bills_20', label: '₱20' },
+                                            { key: 'coins_10', label: '₱10 coin' },
+                                            { key: 'coins_5', label: '₱5 coin' },
+                                            { key: 'coins_1', label: '₱1 coin' }
+                                        ].map(denom => (
+                                            <div key={denom.key}>
+                                                <label style={{ display: 'block', marginBottom: '3px', color: '#d4d4d8', fontWeight: 600 }}>{denom.label}:</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '6px 8px',
+                                                        fontSize: '0.88rem',
+                                                        fontWeight: 700,
+                                                        textAlign: 'center',
+                                                        backgroundColor: '#1b201c',
+                                                        color: '#ffffff',
+                                                        border: '1px solid #455047',
+                                                        borderRadius: '6px'
+                                                    }}
+                                                    value={openShiftForm[denom.key] || 0}
+                                                    onChange={(e) => setOpenShiftForm({ ...openShiftForm, [denom.key]: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px solid #3f4a41', textAlign: 'right', fontWeight: 800, fontSize: '0.94rem', color: '#34d399' }}>
+                                        Computed Total: {formatCurrency(calculateDenomTotal(openShiftForm))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div style={{ marginBottom: '20px' }}>
+                                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#f4f4f5', marginBottom: '6px' }}>
+                                    Opening Shift Notes (Optional):
+                                </label>
+                                <input
+                                    type="text"
+                                    style={{
+                                        width: '100%',
+                                        padding: '9px 12px',
+                                        fontSize: '0.86rem',
+                                        backgroundColor: '#272d28',
+                                        color: '#ffffff',
+                                        border: '1.5px solid #3f4a41',
+                                        borderRadius: '8px',
+                                        outline: 'none'
+                                    }}
+                                    placeholder="e.g. Standard morning float assigned; coins verified."
+                                    value={openShiftForm.notes}
+                                    onChange={(e) => setOpenShiftForm({ ...openShiftForm, notes: e.target.value })}
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '12px', borderTop: '1px solid #333d35' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowOpenShiftModal(false)}
+                                    style={{
+                                        padding: '9px 18px',
+                                        fontSize: '0.84rem',
+                                        fontWeight: 600,
+                                        backgroundColor: '#353c37',
+                                        color: '#f4f4f5',
+                                        borderRadius: '8px',
+                                        border: 'none',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    style={{
+                                        padding: '9px 22px',
+                                        fontSize: '0.86rem',
+                                        fontWeight: 800,
+                                        backgroundColor: '#10b981',
+                                        color: '#ffffff',
+                                        borderRadius: '8px',
+                                        border: 'none',
+                                        cursor: openingShift ? 'not-allowed' : 'pointer',
+                                        boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px'
+                                    }}
+                                    disabled={openingShift}
+                                >
+                                    <Play size={14} fill="currentColor" /> {openingShift ? 'Opening Shift...' : 'Confirm Time-In & Unlock POS'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             )}
 
