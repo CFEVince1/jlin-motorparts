@@ -161,9 +161,6 @@ export default function PrintInventoryModal({
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>Print Inventory Stock</h3>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  Preview and print official stock audit reports
-                </span>
               </div>
             </div>
 

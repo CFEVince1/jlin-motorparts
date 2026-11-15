@@ -195,6 +195,7 @@ export const CashFloat = () => {
 
     // Fetch shift history records
     const fetchRecords = useCallback(async (silent = false) => {
+        if (!isAdmin) return;
         if (!silent) setLoadingRecords(true);
         try {
             const params = {};
@@ -215,7 +216,7 @@ export const CashFloat = () => {
         } finally {
             if (!silent) setLoadingRecords(false);
         }
-    }, [statusFilter, staffFilter, dateFilter, searchTerm]);
+    }, [isAdmin, statusFilter, staffFilter, dateFilter, searchTerm]);
 
     // Fetch staff list for Admin
     const fetchStaffList = useCallback(async () => {
@@ -246,31 +247,37 @@ export const CashFloat = () => {
 
     useEffect(() => {
         fetchActiveShift();
-        fetchRecords();
-        fetchStaffList();
-        fetchSummary();
+        if (isAdmin) {
+            fetchRecords();
+            fetchStaffList();
+            fetchSummary();
+        }
 
         // Real-time cross-tab & live sync
         const unsubscribe = subscribeToInventoryChange(() => {
             fetchActiveShift(true);
-            fetchRecords(true);
-            fetchStaffList();
-            fetchSummary();
+            if (isAdmin) {
+                fetchRecords(true);
+                fetchStaffList();
+                fetchSummary();
+            }
         });
 
         // 5-second gentle background polling so shift submissions / remittances appear live without restarting or flashing
         const poll = setInterval(() => {
             if (typeof document !== 'undefined' && document.hidden) return;
             fetchActiveShift(true);
-            fetchRecords(true);
-            fetchSummary();
+            if (isAdmin) {
+                fetchRecords(true);
+                fetchSummary();
+            }
         }, 5000);
 
         return () => {
             unsubscribe();
             clearInterval(poll);
         };
-    }, [fetchActiveShift, fetchRecords, fetchStaffList, fetchSummary]);
+    }, [isAdmin, fetchActiveShift, fetchRecords, fetchStaffList, fetchSummary]);
 
     // ==========================================
     // ACTION HANDLERS
@@ -290,6 +297,7 @@ export const CashFloat = () => {
                 starting_cash: startingAmount,
                 notes: openShiftForm.notes,
                 staff_id: openShiftForm.staff_id || undefined,
+                auto_sign_off_pending: summaryStats.pendingSignOffCount > 0,
                 ...(useDenomOpen ? {
                     bills_1000: openShiftForm.bills_1000,
                     bills_500: openShiftForm.bills_500,
@@ -316,7 +324,12 @@ export const CashFloat = () => {
             notifyInventoryChange('shift_open');
         } catch (err) {
             console.error('Failed to open shift:', err);
-            toast.error(err.response?.data?.message || 'Failed to open shift');
+            const errMsg = err.response?.data?.message || 'Failed to open shift';
+            toast.error(errMsg);
+            if (err.response?.data?.isPendingRemit) {
+                fetchSummary();
+                fetchStaffList();
+            }
         } finally {
             setOpeningShift(false);
         }
@@ -1920,6 +1933,69 @@ export const CashFloat = () => {
                         </div>
                     </div>
 
+                    {/* Pending Remittances Alert Banner (Unmissable verification prompt for Owner) */}
+                    {summaryStats.pendingSignOffCount > 0 && (
+                        <div style={{
+                            background: 'rgba(245, 158, 11, 0.12)',
+                            border: '1.5px solid #f59e0b',
+                            borderRadius: '12px',
+                            padding: '14px 18px',
+                            marginBottom: '16px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: '12px',
+                            boxShadow: '0 4px 16px rgba(245, 158, 11, 0.15)'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{
+                                    width: '38px',
+                                    height: '38px',
+                                    borderRadius: '8px',
+                                    background: 'rgba(245, 158, 11, 0.25)',
+                                    color: '#f59e0b',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0
+                                }}>
+                                    <Clock size={20} />
+                                </div>
+                                <div>
+                                    <div style={{ fontWeight: 800, fontSize: '0.90rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span>{summaryStats.pendingSignOffCount} Shift Remittance{summaryStats.pendingSignOffCount > 1 ? 's' : ''} Awaiting Owner Verification</span>
+                                        <span style={{ fontSize: '0.68rem', background: '#f59e0b', color: '#000', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                                            ACTION NEEDED
+                                        </span>
+                                    </div>
+                                    <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                        Physical cash waiting: <strong style={{ color: '#f59e0b' }}>{formatCurrency(summaryStats.pendingSignOffAmount || 0)}</strong>. Cashier submitted preliminary blind count. Verify and sign off to complete shift and unlock drawer.
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleQuickSignOffPending}
+                                disabled={isQuickSigningOff}
+                                className="btn-primary"
+                                style={{
+                                    padding: '7px 16px',
+                                    fontSize: '0.80rem',
+                                    fontWeight: 800,
+                                    background: '#059669',
+                                    borderColor: '#059669',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <Check size={15} /> {isQuickSigningOff ? 'Signing Off...' : `Sign Off & Unlock Drawer (${formatCurrency(summaryStats.pendingSignOffAmount || 0)})`}
+                            </button>
+                        </div>
+                    )}
+
                     {/* 6-Column Control Table */}
                     {(() => {
                         const displayStaffList = (staffList || []).filter(s => {
@@ -2393,6 +2469,45 @@ export const CashFloat = () => {
                         </div>
 
                         <form onSubmit={handleOpenShiftSubmit} style={{ marginTop: '18px' }}>
+                            {/* Previous shift pending remittance alert */}
+                            {isAdmin && summaryStats.pendingSignOffCount > 0 && (
+                                <div style={{
+                                    background: 'rgba(245, 158, 11, 0.12)',
+                                    border: '1px solid #f59e0b',
+                                    borderRadius: '8px',
+                                    padding: '10px 14px',
+                                    marginBottom: '16px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '10px'
+                                }}>
+                                    <div style={{ fontSize: '0.78rem', color: '#f59e0b', fontWeight: 600 }}>
+                                        ⚠️ {summaryStats.pendingSignOffCount} shift remittance is awaiting sign-off ({formatCurrency(summaryStats.pendingSignOffAmount || 0)}). It will be verified and completed automatically when you open this shift.
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            await handleQuickSignOffPending();
+                                        }}
+                                        disabled={isQuickSigningOff}
+                                        style={{
+                                            background: '#059669',
+                                            color: '#fff',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            padding: '5px 10px',
+                                            fontSize: '0.74rem',
+                                            fontWeight: 800,
+                                            cursor: 'pointer',
+                                            whiteSpace: 'nowrap'
+                                        }}
+                                    >
+                                        {isQuickSigningOff ? 'Signing Off...' : 'Sign Off Now'}
+                                    </button>
+                                </div>
+                            )}
+
                             {/* If Admin, allow selecting staff member */}
                             {isAdmin && staffList.length > 0 && (
                                 <div style={{ marginBottom: '16px' }}>

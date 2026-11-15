@@ -179,27 +179,64 @@ exports.getStaffList = async (req, res) => {
             FROM users u
             LEFT JOIN cash_floats cf ON cf.id = (
                 SELECT id FROM cash_floats 
-                WHERE staff_id = u.id 
+                WHERE (staff_id = u.id OR LOWER(staff_username) = LOWER(u.username))
                   AND status IN ('ACTIVE', 'PENDING_REMIT')
                 ORDER BY assigned_at DESC 
                 LIMIT 1
             )
             LEFT JOIN cash_floats last_cf ON last_cf.id = (
                 SELECT id FROM cash_floats 
-                WHERE staff_id = u.id 
+                WHERE (staff_id = u.id OR LOWER(staff_username) = LOWER(u.username))
                   AND status = 'COMPLETED'
                   AND TIMESTAMPDIFF(SECOND, assigned_at, COALESCE(completed_at, NOW())) >= 60
                 ORDER BY assigned_at DESC 
                 LIMIT 1
             )
-            WHERE LOWER(u.role) IN ('staff', 'cashier')
-              AND (
-                  (COALESCE(u.is_active, 1) = 1 AND LOWER(u.username) NOT IN ('test') AND LOWER(COALESCE(u.full_name, '')) NOT LIKE '%test%')
-                  OR cf.id IS NOT NULL
-              )
+            WHERE (
+                (LOWER(COALESCE(u.role, '')) NOT LIKE '%admin%' AND LOWER(u.username) NOT IN ('test') AND LOWER(COALESCE(u.full_name, '')) NOT LIKE '%test%')
+                OR cf.id IS NOT NULL
+            )
             ORDER BY (cf.status = 'PENDING_REMIT') DESC, (cf.status = 'ACTIVE') DESC, u.username ASC
         `;
         const [staff] = await db.query(query);
+
+        // Ensure any active or pending_remit cash_floats whose staff_id might be orphaned or unlinked are also included
+        const returnedFloatIds = new Set(staff.map(s => s.active_float_id).filter(Boolean));
+        const [orphanFloats] = await db.query(`
+            SELECT 
+                cf.id AS active_float_id,
+                cf.shift_code AS active_shift_code,
+                cf.status AS active_shift_status,
+                cf.staff_id AS id,
+                COALESCE(cf.staff_username, 'staff') AS username,
+                COALESCE(cf.staff_username, 'Staff Member') AS full_name,
+                'cashier' AS role,
+                COALESCE(cf.starting_cash, cf.total_amount, 0) AS active_starting_cash,
+                COALESCE(cf.current_cash_balance, cf.starting_cash, cf.total_amount, 0) AS active_cash_balance,
+                COALESCE(cf.cash_sales, 0) AS active_cash_sales,
+                COALESCE(cf.gcash_sales, 0) AS active_gcash_sales,
+                COALESCE(cf.change_given, 0) AS active_change_given,
+                COALESCE(cf.cash_refunds, 0) AS active_cash_refunds,
+                COALESCE(cf.cash_drops, 0) AS active_cash_drops,
+                COALESCE(cf.sales_count, 0) AS active_sales_count,
+                cf.expected_cash AS active_expected_cash,
+                cf.actual_cash AS active_actual_cash,
+                cf.shortage_overage AS active_shortage_overage,
+                cf.admin_signed_off AS active_admin_signed_off,
+                cf.notes AS active_notes,
+                cf.assigned_at AS active_float_assigned_at,
+                cf.completed_at AS active_float_completed_at,
+                cf.assigned_by_username AS active_float_assigned_by
+            FROM cash_floats cf
+            WHERE cf.status IN ('ACTIVE', 'PENDING_REMIT')
+        `);
+
+        for (const orphan of orphanFloats) {
+            if (!returnedFloatIds.has(orphan.active_float_id)) {
+                staff.unshift(orphan);
+            }
+        }
+
         res.json(staff);
     } catch (err) {
         console.error('Error fetching staff list for cash float:', err);
@@ -836,17 +873,53 @@ exports.openShift = async (req, res) => {
 
         if (existingActive.length > 0) {
             const activeShift = existingActive[0];
-            if (Number(activeShift.staff_id) !== Number(targetStaffId)) {
+
+            // If existing shift is in PENDING_REMIT (cashier submitted preliminary closing count)
+            // and Admin requested to auto-sign off the pending remittance before opening the new shift
+            if (activeShift.status === 'PENDING_REMIT' && (req.body.auto_sign_off_pending || req.body.sign_off_pending_first)) {
+                const numVerifiedCash = Number(activeShift.actual_cash || activeShift.blind_count_entered || activeShift.expected_cash || 0);
+                const expCash = Number(activeShift.expected_cash || 0);
+                const variance = Math.round((numVerifiedCash - expCash) * 100) / 100;
+
+                await db.query(`
+                    UPDATE cash_floats SET
+                        actual_cash = ?,
+                        shortage_overage = ?,
+                        status = 'COMPLETED',
+                        admin_signed_off = 1,
+                        signed_off_by_id = ?,
+                        signed_off_by_name = ?,
+                        signed_off_at = NOW(),
+                        completed_at = COALESCE(completed_at, NOW()),
+                        returned_at = COALESCE(returned_at, NOW()),
+                        returned_notes = CONCAT(COALESCE(returned_notes, ''), ' | Auto Signed-Off by Admin upon opening new shift')
+                    WHERE id = ?
+                `, [numVerifiedCash, variance, currentUserId, currentUsername, activeShift.id]);
+
+                if (activeShift.staff_id) {
+                    try {
+                        await db.query('UPDATE users SET is_logged_in = 0 WHERE id = ?', [activeShift.staff_id]);
+                    } catch (e) {}
+                }
+            } else if (activeShift.status === 'PENDING_REMIT') {
                 return res.status(400).json({
-                    message: `Cash drawer is currently active for @${activeShift.staff_username || 'another cashier'} (${activeShift.shift_code || 'SHIFT-' + activeShift.id}). Please complete and sign off that shift before opening a new one.`
+                    message: `Cash drawer is currently awaiting Admin sign-off for @${activeShift.staff_username || 'cashier'} (${activeShift.shift_code || 'SHIFT-' + activeShift.id}). Please verify and sign off that shift before opening a new one.`,
+                    isPendingRemit: true,
+                    pendingShift: activeShift
+                });
+            } else if (Number(activeShift.staff_id) !== Number(targetStaffId)) {
+                return res.status(400).json({
+                    message: `Cash drawer is currently active for @${activeShift.staff_username || 'another cashier'} (${activeShift.shift_code || 'SHIFT-' + activeShift.id}). Please complete and sign off that shift before opening a new one.`,
+                    isPendingRemit: false,
+                    pendingShift: activeShift
+                });
+            } else {
+                return res.status(200).json({
+                    message: `Active shift already open for ${staffUser.username} (${activeShift.shift_code || 'SHIFT-' + activeShift.id}).`,
+                    cashFloat: activeShift,
+                    isExisting: true
                 });
             }
-
-            return res.status(200).json({
-                message: `Active shift already open for ${staffUser.username} (${activeShift.shift_code || 'SHIFT-' + activeShift.id}).`,
-                cashFloat: activeShift,
-                isExisting: true
-            });
         }
 
         // Generate shift code e.g. SHIFT-005
