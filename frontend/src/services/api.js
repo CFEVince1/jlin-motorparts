@@ -35,9 +35,14 @@ const api = axios.create({
     timeout: 30000 // 30s to allow Render cold-start wake-up
 });
 
+export const getActiveAuthToken = () => {
+    if (typeof window === 'undefined') return null;
+    return sessionStorage.getItem('token') || localStorage.getItem('token');
+};
+
 api.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('token');
+        const token = getActiveAuthToken();
         if (token) {
             config.headers['Authorization'] = `Bearer ${token}`;
         }
@@ -53,20 +58,20 @@ api.interceptors.response.use(
     (error) => {
         const status = error.response?.status;
         const url = error.config?.url || '';
-        const data = error.response?.data;
 
-        // Check if shift ended by admin (403 with code SHIFT_ENDED) or 401 unauthorized (session revoked via token_version)
-        const isShiftEnded = status === 403 && (data?.code === 'SHIFT_ENDED' || data?.message?.includes('shift has been ended'));
-        const isUnauthorized = status === 401 && !url.includes('/auth/login');
+        // Only redirect on genuine 401 Unauthorized (session revoked or expired), NEVER on 403 business logic errors
+        const isUnauthorized = status === 401 && !url.includes('/auth/login') && !url.includes('/auth/logout');
 
-        if ((isShiftEnded || isUnauthorized) && !url.includes('/auth/login')) {
+        if (isUnauthorized) {
             if (!isLoggingOut) {
                 isLoggingOut = true;
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                sessionStorage.clear();
-                if (isShiftEnded || data?.message?.includes('shift has been ended')) {
-                    sessionStorage.setItem('loginMessage', 'Your shift has been ended by the Admin.');
+                const thisToken = sessionStorage.getItem('token');
+                sessionStorage.removeItem('token');
+                sessionStorage.removeItem('user');
+                // Only clear localStorage token if it matches this tab's token, preserving other sessions
+                if (localStorage.getItem('token') === thisToken) {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
                 }
                 if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
                     window.location.href = '/login';

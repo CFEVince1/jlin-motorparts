@@ -21,16 +21,42 @@ const decodeToken = (token) => {
     }
 };
 
+const getStoredToken = () => {
+    if (typeof window === 'undefined') return null;
+    return sessionStorage.getItem('token') || localStorage.getItem('token');
+};
+
+const setStoredToken = (token) => {
+    if (typeof window === 'undefined') return;
+    sessionStorage.setItem('token', token);
+    localStorage.setItem('token', token);
+};
+
+const clearStoredToken = () => {
+    if (typeof window === 'undefined') return;
+    const thisToken = sessionStorage.getItem('token');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
+    // Only clear localStorage token if it matches this session's token to avoid wiping other active users
+    if (!thisToken || localStorage.getItem('token') === thisToken) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+    }
+};
+
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(() => {
         if (typeof window === 'undefined') return null;
         const urlParams = new URLSearchParams(window.location.search);
         const paramToken = urlParams.get('auth_token');
         if (paramToken) {
-            localStorage.setItem('token', paramToken);
+            setStoredToken(paramToken);
             return decodeToken(paramToken);
         }
-        const t = localStorage.getItem('token');
+        const t = getStoredToken();
+        if (t && !sessionStorage.getItem('token')) {
+            sessionStorage.setItem('token', t);
+        }
         return t ? decodeToken(t) : null;
     });
     const [loading, setLoading] = useState(false);
@@ -40,15 +66,15 @@ export const AuthProvider = ({ children }) => {
             const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
             const paramToken = urlParams?.get('auth_token');
             if (paramToken) {
-                localStorage.setItem('token', paramToken);
+                setStoredToken(paramToken);
             }
-            const token = localStorage.getItem('token');
+            const token = getStoredToken();
             if (token) {
                 const decodedUser = decodeToken(token);
                 if (decodedUser) {
                     setUser(decodedUser);
                 } else {
-                    localStorage.removeItem('token');
+                    clearStoredToken();
                     setUser(null);
                     setLoading(false);
                     return;
@@ -58,45 +84,12 @@ export const AuthProvider = ({ children }) => {
                     const res = await api.get('/auth/verify');
                     const verifiedUser = res.data.user;
                     const role = normalizeRole(verifiedUser.role);
-
-                    // Confidentiality & Shift-Lock Check for Staff
-                    if (role !== 'admin') {
-                        try {
-                            const floatRes = await api.get('/cash-float/my-float');
-                            const shiftData = floatRes.data;
-                            const activeFloat = shiftData?.activeFloat;
-                            const shiftStatus = activeFloat?.status || shiftData?.status;
-                            const hasValidActiveShift = Boolean(activeFloat && shiftStatus === 'ACTIVE');
-
-                            if (!hasValidActiveShift) {
-                                localStorage.removeItem('token');
-                                const msg = shiftStatus === 'PENDING_REMIT'
-                                    ? 'Shift Closing in Progress: Your preliminary count has been submitted and is awaiting Admin verification.'
-                                    : 'Login Restricted: No active shift has been opened by the Admin.';
-                                sessionStorage.setItem('loginMessage', msg);
-                                setUser(null);
-                                setLoading(false);
-                                return;
-                            }
-                        } catch (floatErr) {
-                            const status = floatErr.response?.status;
-                            if (status === 401 || status === 403) {
-                                localStorage.removeItem('token');
-                                sessionStorage.setItem('loginMessage', 'Login Restricted: No active shift has been opened by the Admin.');
-                                setUser(null);
-                                setLoading(false);
-                                return;
-                            }
-                            // On network error or cold-start, do not abruptly wipe session; wait for heartbeat
-                        }
-                    }
-
                     setUser({ ...verifiedUser, role });
                 } catch (error) {
                     const status = error.response?.status;
-                    if (status === 401 || status === 403) {
+                    if (status === 401) {
                         console.warn('Session expired or invalidated by server. Logging out.');
-                        localStorage.removeItem('token');
+                        clearStoredToken();
                         setUser(null);
                     } else {
                         console.warn('Auth verification encountered network or server delay. Retaining active session:', error.message);
@@ -107,34 +100,6 @@ export const AuthProvider = ({ children }) => {
         };
         initAuth();
     }, []);
-
-    // Continuous 15-second heartbeat: Verify staff shift is actively open. If Admin ends shift or shifts someone else, kick out immediately.
-    useEffect(() => {
-        if (!user || user.role === 'admin') return;
-
-        const interval = setInterval(async () => {
-            try {
-                const floatRes = await api.get('/cash-float/my-float');
-                const shiftData = floatRes.data;
-                const activeFloat = shiftData?.activeFloat;
-                const shiftStatus = activeFloat?.status || shiftData?.status;
-                const hasValidActiveShift = Boolean(activeFloat && shiftStatus === 'ACTIVE');
-
-                if (!hasValidActiveShift) {
-                    localStorage.removeItem('token');
-                    sessionStorage.setItem('loginMessage', 'Your shift has ended. Logged out for system confidentiality.');
-                    setUser(null);
-                }
-            } catch (err) {
-                if (err.response?.status === 401 || err.response?.status === 403) {
-                    localStorage.removeItem('token');
-                    setUser(null);
-                }
-            }
-        }, 15000);
-
-        return () => clearInterval(interval);
-    }, [user]);
 
     const login = async (username, password) => {
         const res = await api.post('/auth/login', { username, password });
@@ -153,7 +118,7 @@ export const AuthProvider = ({ children }) => {
                 const hasValidActiveShift = Boolean(activeFloat && shiftStatus === 'ACTIVE');
 
                 if (!hasValidActiveShift) {
-                    localStorage.removeItem('token');
+                    clearStoredToken();
                     setUser(null);
                     const msg = shiftStatus === 'PENDING_REMIT'
                         ? 'Shift Closing in Progress: Your preliminary count has been submitted and is awaiting Admin verification.'
@@ -163,7 +128,7 @@ export const AuthProvider = ({ children }) => {
                     throw err;
                 }
             } catch (floatErr) {
-                localStorage.removeItem('token');
+                clearStoredToken();
                 setUser(null);
                 const errMsg = floatErr.response?.data?.message || floatErr.message || 'Login Restricted: No active shift has been opened by the Admin.';
                 const err = new Error(errMsg);
@@ -172,7 +137,7 @@ export const AuthProvider = ({ children }) => {
             }
         }
 
-        localStorage.setItem('token', res.data.token);
+        setStoredToken(res.data.token);
         setUser({ ...loggedInUser, role: normalizedRole });
         return res.data;
     };
@@ -183,7 +148,7 @@ export const AuthProvider = ({ children }) => {
         } catch (err) {
             console.warn('Backend logout notification failed or session already invalid:', err.message);
         } finally {
-            localStorage.removeItem('token');
+            clearStoredToken();
             setUser(null);
         }
     };

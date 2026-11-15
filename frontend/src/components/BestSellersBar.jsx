@@ -24,7 +24,7 @@ export default function BestSellersBar({ onAddToCart }) {
         const res = await api.get(`/sales/best-sellers${query}`);
         data = res.data;
       } catch (axiosErr) {
-        const token = localStorage.getItem('token');
+        const token = sessionStorage.getItem('token') || localStorage.getItem('token');
         const fetchUrl = `/api/sales/best-sellers${query}`;
         const res = await fetch(fetchUrl, {
           headers: { Authorization: `Bearer ${token}` }

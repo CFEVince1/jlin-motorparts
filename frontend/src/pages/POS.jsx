@@ -101,11 +101,8 @@ const POS = ({ defaultTab }) => {
             } else {
                 setActiveCashFloat(null);
                 setPendingRemitShift(null);
-                const isStaff = user && (user.role || '').toLowerCase() !== 'admin';
-                if (isStaff) {
-                    sessionStorage.setItem('loginMessage', 'Your shift has been ended by the Admin.');
-                    logout();
-                }
+                // Note: Do not auto-logout staff when off-shift.
+                // POS UI displays the locked drawer state ("No Active Shift - POS LOCKED") safely.
             }
         } catch (err) {
             console.error('Failed to load active cash float in POS:', err);
