@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import {
   Building2,
@@ -30,6 +30,7 @@ import EditSupplierModal from '../components/EditSupplierModal';
  */
 export const Suppliers = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useContext(AuthContext);
   const isAdmin = (user?.role || '').toLowerCase() === 'admin';
 
@@ -37,8 +38,16 @@ export const Suppliers = () => {
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isAddSupplierOpen, setIsAddSupplierOpen] = useState(false);
-  const [supplierSearchTerm, setSupplierSearchTerm] = useState('');
+  const urlSearch = searchParams.get('search') || searchParams.get('supplier') || '';
+  const [supplierSearchTerm, setSupplierSearchTerm] = useState(urlSearch);
   const [statusFilter, setStatusFilter] = useState('all');
+
+  useEffect(() => {
+    const q = searchParams.get('search') || searchParams.get('supplier') || '';
+    if (q) {
+      setSupplierSearchTerm(q);
+    }
+  }, [searchParams]);
 
   // Cashier role redirection
   useEffect(() => {

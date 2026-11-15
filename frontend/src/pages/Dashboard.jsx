@@ -223,17 +223,6 @@ export default function Dashboard() {
     const [flagReason, setFlagReason] = useState('');
     const [flagSubmitting, setFlagSubmitting] = useState(false);
 
-    // Quick Purchase Order Modal State (from Low Stock Alert)
-    const [quickPOModal, setQuickPOModal] = useState(null);
-    const [poSubmitting, setPoSubmitting] = useState(false);
-    const [poFormData, setPoFormData] = useState({
-        quantity: 5,
-        unit_cost: 0,
-        shipping_fee: 0,
-        courier_name: 'Lalamove',
-        notes: ''
-    });
-
     // ==========================================
     // STAFF RESTOCK REQUESTS & ADMIN APPROVALS
     // ==========================================
@@ -611,45 +600,12 @@ export default function Dashboard() {
         }
     };
 
-    const handleOpenQuickPO = (item) => {
-        setQuickPOModal(item);
-        setPoFormData({
-            quantity: item.suggested_order_qty || Math.max(1, (item.reorder_level || 5) * 2),
-            unit_cost: Number(item.cost_price || 0),
-            shipping_fee: 0,
-            courier_name: 'Lalamove',
-            notes: `Restock PO for ${item.part_number} - ${item.product_name}`
-        });
-    };
-
-    const handleCreateQuickPO = async (e) => {
-        e.preventDefault();
-        if (!quickPOModal) return;
-        if (Number(poFormData.quantity) <= 0) {
-            toast.error('Quantity must be greater than 0');
-            return;
-        }
-
-        setPoSubmitting(true);
-        try {
-            const res = await api.post('/reports/create-quick-po', {
-                product_id: quickPOModal.id,
-                supplier_id: quickPOModal.supplier_id || null,
-                quantity: Number(poFormData.quantity),
-                unit_cost: Number(poFormData.unit_cost),
-                shipping_fee: Number(poFormData.shipping_fee || 0),
-                courier_name: poFormData.courier_name || 'Lalamove',
-                notes: poFormData.notes || ''
-            });
-
-            toast.success(res.data?.message || 'Purchase Order created successfully!');
-            setQuickPOModal(null);
-            fetchOwnerAlerts(true);
-        } catch (err) {
-            console.error('Failed to create quick PO:', err);
-            toast.error(err.response?.data?.message || 'Failed to create Purchase Order');
-        } finally {
-            setPoSubmitting(false);
+    const handleGoToSupplier = (item) => {
+        const suppName = (item?.supplier_name || item?.fb_page_name || '').trim();
+        if (suppName && suppName !== 'Direct Wholesale Hub') {
+            navigate(`/suppliers?search=${encodeURIComponent(suppName)}`);
+        } else {
+            navigate('/suppliers');
         }
     };
 
@@ -2733,7 +2689,7 @@ export default function Dashboard() {
                                     <th style={{ padding: '10px 10px', textAlign: 'center' }}>Reorder Level</th>
                                     <th style={{ padding: '10px 10px', textAlign: 'right' }}>Unit Cost</th>
                                     <th style={{ padding: '10px 12px' }}>Linked FB Supplier</th>
-                                    <th style={{ padding: '10px 12px', textAlign: 'center' }}>{isAdmin ? 'Action / Quick PO' : 'Restock Action'}</th>
+                                    <th style={{ padding: '10px 12px', textAlign: 'center' }}>{isAdmin ? 'Supplier Action' : 'Restock Action'}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -2817,12 +2773,16 @@ export default function Dashboard() {
                                                 <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 700 }}>
                                                     {formatCurrency(item.cost_price || 0)}
                                                 </td>
-                                                <td style={{ padding: '10px 12px' }}>
+                                                <td
+                                                    style={{ padding: '10px 12px', cursor: 'pointer' }}
+                                                    onClick={() => handleGoToSupplier(item)}
+                                                    title={`View ${item.supplier_name || 'supplier'} in Supplier Directory`}
+                                                >
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                        <strong style={{ color: 'var(--primary)' }}>{item.supplier_name || 'Brembo & RCB Hub'}</strong>
+                                                        <strong style={{ color: 'var(--primary)', textDecoration: 'underline' }}>{item.supplier_name || 'Brembo & RCB Hub'}</strong>
                                                         <span style={{ background: 'rgba(24, 119, 242, 0.15)', color: '#1877f2', padding: '1px 5px', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 700 }}>FB</span>
                                                     </div>
-                                                    <div style={{ fontSize: '0.70rem', color: 'var(--text-muted)' }}>{item.contact_person || 'Leo Bautista'} • Fast Delivery</div>
+                                                    <div style={{ fontSize: '0.70rem', color: 'var(--text-muted)' }}>{item.contact_person ? `${item.contact_person} • ` : ''}View Supplier ➔</div>
                                                 </td>
                                                 <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                                                     {isAdmin ? (
@@ -2853,7 +2813,7 @@ export default function Dashboard() {
                                                         ) : (
                                                             <button
                                                                 type="button"
-                                                                onClick={() => handleOpenQuickPO(item)}
+                                                                onClick={() => handleGoToSupplier(item)}
                                                                 className="btn-primary"
                                                                 style={{
                                                                     padding: '5px 12px',
@@ -2862,10 +2822,10 @@ export default function Dashboard() {
                                                                     alignItems: 'center',
                                                                     gap: '5px'
                                                                 }}
-                                                                title="Create instant PO for this supplier"
+                                                                title={`View ${item.supplier_name || 'supplier'} in Supplier Directory`}
                                                             >
-                                                                <PackagePlus size={13} />
-                                                                <span>+ Create PO</span>
+                                                                <Building2 size={13} />
+                                                                <span>Go to Supplier</span>
                                                             </button>
                                                         )
                                                     ) : (
@@ -3219,169 +3179,8 @@ export default function Dashboard() {
             </div>
 
             {/* ============================================================ */}
-            {/* MODAL: QUICK PURCHASE ORDER (FROM LOW STOCK SHORTCUT)         */}
+            {/* MODAL: APPROVE SUPPLIER PO PAYMENT                           */}
             {/* ============================================================ */}
-            {quickPOModal && (
-                <div style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: 'rgba(0, 0, 0, 0.75)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 9999,
-                    padding: '20px'
-                }}>
-                    <div className="glass-panel" style={{
-                        maxWidth: '520px',
-                        width: '100%',
-                        borderRadius: '14px',
-                        padding: '24px',
-                        border: '1px solid var(--border)',
-                        boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
-                    }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <PackagePlus size={20} color="var(--primary)" />
-                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>Create Instant Restock PO</h3>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setQuickPOModal(null)}
-                                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleCreateQuickPO}>
-                            {/* Product & Supplier Summary Card */}
-                            <div style={{ background: 'var(--surface-hover)', padding: '12px 14px', borderRadius: '8px', marginBottom: '16px', border: '1px solid var(--border)' }}>
-                                <div style={{ fontSize: '0.90rem', fontWeight: 800, color: 'var(--text-main)' }}>{quickPOModal.product_name}</div>
-                                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                    Part #{quickPOModal.part_number} • Brand: {quickPOModal.brand || 'Generic'}
-                                </div>
-                                <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem' }}>
-                                    <span>Linked Supplier:</span>
-                                    <strong style={{ color: 'var(--primary)' }}>{quickPOModal.supplier_name || 'Brembo & RCB Online Hub'}</strong>
-                                    <span style={{ background: 'rgba(24, 119, 242, 0.15)', color: '#1877f2', padding: '1px 5px', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 700 }}>FB</span>
-                                </div>
-                                <div style={{ marginTop: '4px', fontSize: '0.74rem', color: 'var(--danger)' }}>
-                                    Current Sellable Stock: <strong>{quickPOModal.stock} units</strong> (Reorder threshold: {quickPOModal.reorder_level || 5})
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '5px' }}>
-                                        Order Quantity *
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        className="input-premium"
-                                        style={{ width: '100%', height: '36px' }}
-                                        value={poFormData.quantity}
-                                        onChange={(e) => setPoFormData({ ...poFormData, quantity: e.target.value })}
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '5px' }}>
-                                        Supplier Unit Cost (₱) *
-                                    </label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        className="input-premium"
-                                        style={{ width: '100%', height: '36px' }}
-                                        value={poFormData.unit_cost}
-                                        onChange={(e) => setPoFormData({ ...poFormData, unit_cost: e.target.value })}
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '5px' }}>
-                                        Courier / Delivery Service
-                                    </label>
-                                    <select
-                                        className="input-premium"
-                                        style={{ width: '100%', height: '36px' }}
-                                        value={poFormData.courier_name}
-                                        onChange={(e) => setPoFormData({ ...poFormData, courier_name: e.target.value })}
-                                    >
-                                        <option value="Lalamove">Lalamove</option>
-                                        <option value="GrabExpress">GrabExpress</option>
-                                        <option value="J&T Express">J&T Express</option>
-                                        <option value="Supplier Truck">Supplier Truck Delivery</option>
-                                        <option value="Direct Pickup">Direct Pickup</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '5px' }}>
-                                        Estimated Shipping Fee (₱)
-                                    </label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        className="input-premium"
-                                        style={{ width: '100%', height: '36px' }}
-                                        value={poFormData.shipping_fee}
-                                        onChange={(e) => setPoFormData({ ...poFormData, shipping_fee: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div style={{ marginBottom: '16px' }}>
-                                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '5px' }}>
-                                    Purchase Order Notes / Instructions
-                                </label>
-                                <textarea
-                                    className="input-premium"
-                                    rows={2}
-                                    style={{ width: '100%', resize: 'none' }}
-                                    value={poFormData.notes}
-                                    onChange={(e) => setPoFormData({ ...poFormData, notes: e.target.value })}
-                                />
-                            </div>
-
-                            {/* Estimated Total Calculation */}
-                            <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '8px', padding: '10px 14px', marginBottom: '18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)' }}>Estimated PO Total:</span>
-                                <span style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--primary)', fontFamily: 'monospace' }}>
-                                    {formatCurrency((Number(poFormData.quantity || 0) * Number(poFormData.unit_cost || 0)) + Number(poFormData.shipping_fee || 0))}
-                                </span>
-                            </div>
-
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                                <button
-                                    type="button"
-                                    onClick={() => setQuickPOModal(null)}
-                                    className="btn-secondary"
-                                    disabled={poSubmitting}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="btn-primary"
-                                    disabled={poSubmitting}
-                                    style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                                >
-                                    <Send size={14} />
-                                    <span>{poSubmitting ? 'Creating PO...' : 'Confirm & Generate PO'}</span>
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
 
             {/* ============================================================ */}
             {/* MODAL: APPROVE SUPPLIER PO PAYMENT                           */}
