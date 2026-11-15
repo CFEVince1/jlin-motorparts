@@ -749,7 +749,7 @@ const Inventory = () => {
           onClick={() => handleTabChange('categories_brands')}
         >
           <Tag size={16} />
-          <span>Categories & Brands</span>
+          <span>Categories & Brands ({uniqueCategories.length})</span>
         </button>
 
         {isAdmin && (

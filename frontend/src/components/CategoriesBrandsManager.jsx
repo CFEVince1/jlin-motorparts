@@ -109,6 +109,16 @@ const CategoriesBrandsManager = ({ onCatalogUpdated }) => {
   const [editedBrandName, setEditedBrandName] = useState('');
   const [savingEditBrand, setSavingEditBrand] = useState(false);
 
+  // Delete Category & Reassign Modal State
+  const [deletingCatTarget, setDeletingCatTarget] = useState(null);
+  const [reassignCategoryTarget, setReassignCategoryTarget] = useState('Uncategorized');
+  const [submittingDeleteCat, setSubmittingDeleteCat] = useState(false);
+
+  // Delete Brand & Reassign Modal State
+  const [deletingBrandTarget, setDeletingBrandTarget] = useState(null);
+  const [reassignBrandTarget, setReassignBrandTarget] = useState('Generic / Aftermarket');
+  const [submittingDeleteBrand, setSubmittingDeleteBrand] = useState(false);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -202,31 +212,65 @@ const CategoriesBrandsManager = ({ onCatalogUpdated }) => {
     }
   };
 
-  const handleDeleteCategory = async (cat) => {
-    if (!window.confirm(`Are you sure you want to delete category "${cat.category_name}"?`)) return;
+  const handleInitiateDeleteCategory = (cat) => {
+    if (cat.product_count > 0) {
+      const otherCats = categories.filter(c => c.category_id !== cat.category_id);
+      const defaultTarget = otherCats.length > 0 ? otherCats[0].category_name : 'Uncategorized';
+      setReassignCategoryTarget(defaultTarget);
+      setDeletingCatTarget(cat);
+    } else {
+      if (window.confirm(`Are you sure you want to delete category "${cat.category_name}"?`)) {
+        executeDeleteCategory(cat, '');
+      }
+    }
+  };
+
+  const executeDeleteCategory = async (cat, reassignTo) => {
+    setSubmittingDeleteCat(true);
     try {
-      await api.delete(`/inventory/categories/${cat.category_id}`);
-      toast.success(`Category "${cat.category_name}" deleted.`);
+      const res = await api.delete(`/inventory/categories/${cat.category_id}`, {
+        params: reassignTo ? { reassignTo } : {},
+        data: reassignTo ? { reassignTo } : {}
+      });
+      toast.success(res.data?.message || `Category "${cat.category_name}" deleted.`);
+      setDeletingCatTarget(null);
       fetchData();
       if (onCatalogUpdated) onCatalogUpdated();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to delete category');
+    } finally {
+      setSubmittingDeleteCat(false);
     }
   };
 
-  const handleDeleteBrand = async (b) => {
+  const handleInitiateDeleteBrand = (b) => {
     if (b.product_count > 0) {
-      toast.error(`Cannot delete brand "${b.brand_name}" because ${b.product_count} products are linked to it.`);
-      return;
+      const otherBrands = brands.filter(other => other.brand_name !== b.brand_name);
+      const defaultTarget = otherBrands.length > 0 ? otherBrands[0].brand_name : 'Generic / Aftermarket';
+      setReassignBrandTarget(defaultTarget);
+      setDeletingBrandTarget(b);
+    } else {
+      if (window.confirm(`Are you sure you want to delete brand "${b.brand_name}"?`)) {
+        executeDeleteBrand(b, '');
+      }
     }
-    if (!window.confirm(`Are you sure you want to delete brand "${b.brand_name}"?`)) return;
+  };
+
+  const executeDeleteBrand = async (b, reassignTo) => {
+    setSubmittingDeleteBrand(true);
     try {
-      await api.delete(`/inventory/brands/${b.brand_id}`);
-      toast.success(`Brand "${b.brand_name}" deleted.`);
+      const res = await api.delete(`/inventory/brands/${b.brand_id}`, {
+        params: reassignTo ? { reassignTo } : {},
+        data: reassignTo ? { reassignTo } : {}
+      });
+      toast.success(res.data?.message || `Brand "${b.brand_name}" deleted.`);
+      setDeletingBrandTarget(null);
       fetchData();
       if (onCatalogUpdated) onCatalogUpdated();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to delete brand');
+    } finally {
+      setSubmittingDeleteBrand(false);
     }
   };
 
@@ -565,34 +609,15 @@ const CategoriesBrandsManager = ({ onCatalogUpdated }) => {
                       >
                         <Edit2 size={13} style={{ color: '#38bdf8' }} />
                       </button>
-                      {cat.product_count > 0 ? (
-                        <span
-                          style={{
-                            padding: '6px',
-                            borderRadius: '6px',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            background: 'rgba(255, 255, 255, 0.03)',
-                            border: '1px solid var(--border)',
-                            color: 'var(--text-muted)',
-                            cursor: 'not-allowed'
-                          }}
-                          title={`Category locked: ${cat.product_count} active parts linked (${cat.total_units || 0} units stock). Cannot delete while inventory is linked.`}
-                        >
-                          <Lock size={13} />
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteCategory(cat)}
-                          className="btn-secondary"
-                          style={{ padding: '6px', borderRadius: '6px', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
-                          title="Delete Empty Category"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleInitiateDeleteCategory(cat)}
+                        className="btn-secondary"
+                        style={{ padding: '6px', borderRadius: '6px', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                        title={cat.product_count > 0 ? `Delete & Reassign (${cat.product_count} parts linked)` : "Delete Empty Category"}
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     </div>
                   </div>
 
@@ -691,13 +716,12 @@ const CategoriesBrandsManager = ({ onCatalogUpdated }) => {
                     {b.brand_id ? (
                       <button
                         type="button"
-                        onClick={() => handleDeleteBrand(b)}
+                        onClick={() => handleInitiateDeleteBrand(b)}
                         className="btn-secondary"
-                        style={{ padding: '5px', borderRadius: '6px', opacity: b.product_count > 0 ? 0.35 : 1 }}
-                        title={b.product_count > 0 ? 'Cannot delete brand with catalog products' : 'Delete Brand'}
-                        disabled={b.product_count > 0}
+                        style={{ padding: '5px', borderRadius: '6px', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                        title={b.product_count > 0 ? `Delete & Reassign (${b.product_count} parts linked)` : 'Delete Brand'}
                       >
-                        <Trash2 size={12} style={{ color: '#ef4444' }} />
+                        <Trash2 size={12} />
                       </button>
                     ) : null}
                   </div>
@@ -804,6 +828,245 @@ const CategoriesBrandsManager = ({ onCatalogUpdated }) => {
                 <button type="button" className="btn-secondary" onClick={() => setEditingBrand(null)}>Cancel</button>
                 <button type="submit" className="btn-primary" disabled={savingEditBrand}>
                   {savingEditBrand ? 'Saving...' : 'Rename Everywhere'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Category & Reassign Modal */}
+      {deletingCatTarget && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: '16px'
+        }}>
+          <div style={{
+            background: 'var(--surface)', borderRadius: '14px', border: '1px solid rgba(239, 68, 68, 0.4)',
+            boxShadow: '0 12px 36px rgba(0,0,0,0.6)', width: '100%', maxWidth: '460px', padding: '24px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '36px', height: '36px', borderRadius: '8px',
+                  background: 'rgba(239, 68, 68, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#ef4444'
+                }}>
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#ef4444' }}>
+                    Reassign & Delete Category
+                  </h3>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    Deleting "{deletingCatTarget.category_name}"
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setDeletingCatTarget(null)}
+                style={{ padding: '4px' }}
+                disabled={submittingDeleteCat}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.08)',
+              border: '1px solid rgba(239, 68, 68, 0.25)',
+              borderRadius: '8px',
+              padding: '12px 14px',
+              marginBottom: '16px',
+              fontSize: '0.82rem',
+              lineHeight: 1.45,
+              color: 'var(--text)'
+            }}>
+              <strong>{deletingCatTarget.product_count} catalog parts</strong> ({deletingCatTarget.total_units || 0} units stock) are currently categorized under <strong>"{deletingCatTarget.category_name}"</strong>.
+              <div style={{ marginTop: '6px', color: 'var(--text-muted)', fontSize: '0.77rem' }}>
+                Parts will NOT be deleted. Select a target category to safely reassign them so your catalog stays organized.
+              </div>
+            </div>
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              executeDeleteCategory(deletingCatTarget, reassignCategoryTarget);
+            }}>
+              <div style={{ marginBottom: '18px' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                  REASSIGN LINKED PARTS TO:
+                </label>
+                <select
+                  className="input-premium"
+                  value={reassignCategoryTarget}
+                  onChange={(e) => setReassignCategoryTarget(e.target.value)}
+                  style={{ width: '100%', height: '42px', fontSize: '0.88rem' }}
+                  required
+                >
+                  <option value="Uncategorized">Uncategorized / Miscellaneous</option>
+                  {categories
+                    .filter(c => c.category_id !== deletingCatTarget.category_id)
+                    .map(c => (
+                      <option key={c.category_id} value={c.category_name}>
+                        {c.category_name} ({c.product_count} existing parts)
+                      </option>
+                    ))
+                  }
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setDeletingCatTarget(null)}
+                  disabled={submittingDeleteCat}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    backgroundColor: '#ef4444',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '8px 16px',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    cursor: submittingDeleteCat ? 'not-allowed' : 'pointer',
+                    opacity: submittingDeleteCat ? 0.7 : 1,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                  disabled={submittingDeleteCat}
+                >
+                  <Trash2 size={14} />
+                  {submittingDeleteCat ? 'Reassigning & Deleting...' : 'Reassign & Delete'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Brand & Reassign Modal */}
+      {deletingBrandTarget && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: '16px'
+        }}>
+          <div style={{
+            background: 'var(--surface)', borderRadius: '14px', border: '1px solid rgba(239, 68, 68, 0.4)',
+            boxShadow: '0 12px 36px rgba(0,0,0,0.6)', width: '100%', maxWidth: '460px', padding: '24px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '36px', height: '36px', borderRadius: '8px',
+                  background: 'rgba(239, 68, 68, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#ef4444'
+                }}>
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#ef4444' }}>
+                    Reassign & Delete Brand
+                  </h3>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    Deleting "{deletingBrandTarget.brand_name}"
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setDeletingBrandTarget(null)}
+                style={{ padding: '4px' }}
+                disabled={submittingDeleteBrand}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.08)',
+              border: '1px solid rgba(239, 68, 68, 0.25)',
+              borderRadius: '8px',
+              padding: '12px 14px',
+              marginBottom: '16px',
+              fontSize: '0.82rem',
+              lineHeight: 1.45,
+              color: 'var(--text)'
+            }}>
+              <strong>{deletingBrandTarget.product_count} products</strong> ({deletingBrandTarget.total_units || 0} units stock) are currently branded as <strong>"{deletingBrandTarget.brand_name}"</strong>.
+              <div style={{ marginTop: '6px', color: 'var(--text-muted)', fontSize: '0.77rem' }}>
+                Products will NOT be deleted. Select a target brand to reassign them to before deletion.
+              </div>
+            </div>
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              executeDeleteBrand(deletingBrandTarget, reassignBrandTarget);
+            }}>
+              <div style={{ marginBottom: '18px' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                  REASSIGN PRODUCTS TO:
+                </label>
+                <select
+                  className="input-premium"
+                  value={reassignBrandTarget}
+                  onChange={(e) => setReassignBrandTarget(e.target.value)}
+                  style={{ width: '100%', height: '42px', fontSize: '0.88rem' }}
+                  required
+                >
+                  <option value="Generic / Aftermarket">Generic / Aftermarket</option>
+                  <option value="Unbranded">Unbranded / OEM Replacement</option>
+                  {brands
+                    .filter(b => b.brand_name !== deletingBrandTarget.brand_name)
+                    .map(b => (
+                      <option key={b.brand_id || b.brand_name} value={b.brand_name}>
+                        {b.brand_name} ({b.product_count} existing parts)
+                      </option>
+                    ))
+                  }
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setDeletingBrandTarget(null)}
+                  disabled={submittingDeleteBrand}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    backgroundColor: '#ef4444',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '8px 16px',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    cursor: submittingDeleteBrand ? 'not-allowed' : 'pointer',
+                    opacity: submittingDeleteBrand ? 0.7 : 1,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                  disabled={submittingDeleteBrand}
+                >
+                  <Trash2 size={14} />
+                  {submittingDeleteBrand ? 'Reassigning & Deleting...' : 'Reassign & Delete'}
                 </button>
               </div>
             </form>

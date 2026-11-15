@@ -1280,13 +1280,30 @@ exports.deleteCategory = async (req, res, next) => {
             'SELECT COUNT(*) AS cnt, COALESCE(SUM(stock), 0) AS units FROM products WHERE (category = ? OR category_id = ? OR category = ?) AND is_active = 1',
             [catName, id, catCode || '']
         );
+
+        const reassignTarget = (req.body?.reassignTo || req.query?.reassignTo || req.body?.reassign_category_name || '').trim();
+
         if (prods[0].cnt > 0) {
-            return res.status(400).json({ 
-                message: `Cannot delete category "${catName}" because ${prods[0].cnt} parts (${prods[0].units} units in stock) are linked to it. Reassign or archive parts first.` 
-            });
+            if (!reassignTarget) {
+                return res.status(400).json({ 
+                    message: `Category "${catName}" has ${prods[0].cnt} parts linked (${prods[0].units} units). Please specify a category to reassign them to.`,
+                    linkedCount: prods[0].cnt
+                });
+            }
+
+            // Reassign linked products to target category
+            await db.query(
+                'UPDATE products SET category = ? WHERE (category = ? OR category_id = ? OR category = ?) AND is_active = 1',
+                [reassignTarget, catName, id, catCode || '']
+            );
         }
+
         await db.query('DELETE FROM categories WHERE category_id = ?', [id]);
-        res.json({ message: `Category "${catName}" removed successfully` });
+        res.json({ 
+            message: prods[0].cnt > 0 
+                ? `Category "${catName}" removed. ${prods[0].cnt} parts reassigned to "${reassignTarget}".`
+                : `Category "${catName}" removed successfully` 
+        });
     } catch (err) {
         next(err);
     }
@@ -1352,11 +1369,27 @@ exports.deleteBrand = async (req, res, next) => {
         }
         const bName = brandRows[0].brand_name;
         const [prods] = await db.query('SELECT COUNT(*) AS cnt FROM products WHERE TRIM(brand) = ? AND is_active = 1', [bName]);
+
+        const reassignTarget = (req.body?.reassignTo || req.query?.reassignTo || req.body?.reassign_brand_name || '').trim();
+
         if (prods[0].cnt > 0) {
-            return res.status(400).json({ message: `Cannot delete brand "${bName}" because ${prods[0].cnt} products belong to it.` });
+            if (!reassignTarget) {
+                return res.status(400).json({ 
+                    message: `Brand "${bName}" has ${prods[0].cnt} products linked. Please specify a brand to reassign them to.`,
+                    linkedCount: prods[0].cnt
+                });
+            }
+
+            // Reassign linked products to target brand
+            await db.query('UPDATE products SET brand = ? WHERE TRIM(brand) = ? AND is_active = 1', [reassignTarget, bName]);
         }
+
         await db.query('DELETE FROM brands WHERE brand_id = ?', [id]);
-        res.json({ message: `Brand "${bName}" removed successfully` });
+        res.json({ 
+            message: prods[0].cnt > 0 
+                ? `Brand "${bName}" removed. ${prods[0].cnt} products reassigned to "${reassignTarget}".`
+                : `Brand "${bName}" removed successfully` 
+        });
     } catch (err) {
         next(err);
     }
