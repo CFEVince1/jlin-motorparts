@@ -1729,7 +1729,7 @@ export default function Dashboard() {
             </>
             )}
 
-            <div id="low-stock-section" className="glass-panel" style={{ padding: '20px', borderRadius: '14px', marginBottom: '24px', maxWidth: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
+            <div id="low-stock-section" className="glass-panel" style={{ padding: '20px', borderRadius: '14px', marginBottom: '24px', maxWidth: '100%', boxSizing: 'border-box' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
                     <div>
                         <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -2587,12 +2587,20 @@ export default function Dashboard() {
                     )}
 
                     {/* Low Stock Table */}
-                    <div className="table-container" style={{ border: '1px solid var(--border)', borderRadius: '10px', overflowX: 'auto', maxWidth: '100%', boxSizing: 'border-box' }}>
-                        <table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.84rem' }}>
-                            <thead>
+                    <div className="table-container" style={{
+                        border: '1px solid var(--border)',
+                        borderRadius: '10px',
+                        overflowX: 'auto',
+                        overflowY: 'auto',
+                        maxHeight: '480px',
+                        maxWidth: '100%',
+                        boxSizing: 'border-box'
+                    }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.84rem' }}>
+                            <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                                 <tr style={{ background: 'var(--surface-hover)', borderBottom: '1px solid var(--border)' }}>
                                     {!isAdmin && (
-                                        <th style={{ padding: '10px 8px', textAlign: 'center', width: '40px' }}>
+                                        <th style={{ padding: '10px 8px', textAlign: 'center', width: '38px' }}>
                                             <input
                                                 type="checkbox"
                                                 checked={selectableLowStockItems.length > 0 && selectedLowStockIds.length === selectableLowStockItems.length}
@@ -2603,9 +2611,7 @@ export default function Dashboard() {
                                         </th>
                                     )}
                                     <th style={{ padding: '10px 12px' }}>Part # & Product</th>
-                                    <th style={{ padding: '10px 10px' }}>Brand & Category</th>
-                                    <th style={{ padding: '10px 10px', textAlign: 'center' }}>Sellable Stock</th>
-                                    <th style={{ padding: '10px 10px', textAlign: 'center' }}>Reorder Level</th>
+                                    <th style={{ padding: '10px 10px', textAlign: 'center' }}>Stock / Limit</th>
                                     {isAdmin && <th style={{ padding: '10px 10px', textAlign: 'right' }}>Unit Cost</th>}
                                     <th style={{ padding: '10px 12px' }}>Linked FB Supplier</th>
                                     <th style={{ padding: '10px 12px', textAlign: 'center' }}>{isAdmin ? 'Supplier Action' : 'Restock Action'}</th>
@@ -2614,7 +2620,7 @@ export default function Dashboard() {
                             <tbody>
                                 {filteredLowStock.length === 0 ? (
                                     <tr>
-                                        <td colSpan={!isAdmin ? 8 : 7} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
+                                        <td colSpan={!isAdmin ? 6 : 5} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
                                             {lowStockSearch ? 'No low stock items match your search.' : 'All motorparts are currently above their reorder thresholds.'}
                                         </td>
                                     </tr>
@@ -2646,7 +2652,7 @@ export default function Dashboard() {
                                                                 background: 'rgba(245, 158, 11, 0.15)',
                                                                 color: '#f59e0b',
                                                                 border: '1px solid rgba(245, 158, 11, 0.35)',
-                                                                padding: '2px 8px',
+                                                                padding: '1px 6px',
                                                                 borderRadius: '4px',
                                                                 fontSize: '0.68rem',
                                                                 fontWeight: 700
@@ -2655,15 +2661,15 @@ export default function Dashboard() {
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{item.part_number}</div>
-                                                </td>
-                                                <td style={{ padding: '10px 10px' }}>
-                                                    <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{getShortBrand(item.brand)}</div>
-                                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px', flexWrap: 'wrap' }}>
+                                                        <span style={{ fontFamily: 'monospace', fontWeight: 500 }}>{item.part_number}</span>
+                                                        <span>•</span>
+                                                        <span>{getShortBrand(item.brand)}</span>
+                                                        <span>•</span>
                                                         <span style={{
                                                             padding: '1px 5px',
                                                             borderRadius: '4px',
-                                                            fontSize: '0.68rem',
+                                                            fontSize: '0.65rem',
                                                             fontWeight: 700,
                                                             background: 'rgba(255, 255, 255, 0.06)',
                                                             border: '1px solid var(--border)'
@@ -2672,7 +2678,7 @@ export default function Dashboard() {
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td style={{ padding: '10px 10px', textAlign: 'center' }}>
+                                                <td style={{ padding: '10px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                                     <span style={{
                                                         display: 'inline-block',
                                                         padding: '2px 8px',
@@ -2685,12 +2691,12 @@ export default function Dashboard() {
                                                     }}>
                                                         {stockQty} {isCritical ? '(OUT)' : '(LOW)'}
                                                     </span>
-                                                </td>
-                                                <td style={{ padding: '10px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)' }}>
-                                                    {item.reorder_level || 5}
+                                                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                                        Limit: {item.reorder_level || 5}
+                                                    </div>
                                                 </td>
                                                 {isAdmin && (
-                                                    <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 700 }}>
+                                                    <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>
                                                         {formatCurrency(item.cost_price || 0)}
                                                     </td>
                                                 )}
