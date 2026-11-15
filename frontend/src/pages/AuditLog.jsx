@@ -31,6 +31,8 @@ import { formatCurrency, formatAuditDate } from '../utils/formatters';
 
 const ACTION_COLORS = {
     'Price Changed': { bg: 'rgba(234, 179, 8, 0.15)', text: '#eab308', border: 'rgba(234, 179, 8, 0.35)', icon: DollarSign },
+    'Price_Auto_Updated': { bg: 'rgba(234, 179, 8, 0.15)', text: '#eab308', border: 'rgba(234, 179, 8, 0.35)', icon: DollarSign },
+    'Price Auto Updated': { bg: 'rgba(234, 179, 8, 0.15)', text: '#eab308', border: 'rgba(234, 179, 8, 0.35)', icon: DollarSign },
     'Stock Adjusted': { bg: 'rgba(59, 130, 246, 0.15)', text: '#3b82f6', border: 'rgba(59, 130, 246, 0.35)', icon: Package },
     'Void Approved': { bg: 'rgba(16, 185, 129, 0.15)', text: '#10b981', border: 'rgba(16, 185, 129, 0.35)', icon: CheckCircle2 },
     'Discount Approved': { bg: 'rgba(168, 85, 247, 0.15)', text: '#a855f7', border: 'rgba(168, 85, 247, 0.35)', icon: Tag },

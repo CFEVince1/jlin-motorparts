@@ -384,8 +384,9 @@ exports.checkout = async (req, res, next) => {
         for (const item of validatedItems) {
             const [saleItemResult] = await connection.query(
                 `INSERT INTO sale_items (
-                    sale_id, product_id, part_number, product_name, brand, size, quantity, price, cost_price, subtotal
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    sale_id, product_id, part_number, product_name, brand, size, quantity, price, cost_price, subtotal,
+                    unit_cost_snapshot, retail_price_snapshot, unit_price_snapshot
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     saleId,
                     item.product_id,
@@ -396,7 +397,10 @@ exports.checkout = async (req, res, next) => {
                     item.quantity,
                     item.unit_price,
                     item.cost_price,
-                    item.subtotal
+                    item.subtotal,
+                    item.cost_price,
+                    item.unit_price,
+                    item.unit_price
                 ]
             );
             const saleItemId = saleItemResult.insertId;

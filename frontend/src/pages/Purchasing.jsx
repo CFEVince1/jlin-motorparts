@@ -43,6 +43,7 @@ import { formatCurrency, formatAuditDate } from '../utils/formatters';
 import { getShortBrand, getLedgerCategoryCode } from '../utils/categoryTaxonomy';
 import QuickAddSupplierModal from '../components/QuickAddSupplierModal';
 import AddProductModal from '../components/AddProductModal';
+import { notifyInventoryChange } from '../utils/syncEvents';
 
 const formatReceivingRef = (rawRef, dateStr, id) => {
   if (!rawRef) return id ? `RCV-${String(id).padStart(4, '0')}` : '-';
@@ -540,11 +541,14 @@ export const Purchasing = () => {
           serialId: null,
           serialNumber: '',
           newSerialNumber: '',
+          serials: [],
           deliveredQuantity: '',
           quantity: '',
           rejectedQuantity: 0,
           rejectionReason: '',
           costPrice: '',
+          newSellingPrice: '',
+          isPriceHike: false,
           lotStock: 0
         }
       ];
@@ -589,6 +593,7 @@ export const Purchasing = () => {
       const serialNumber = foundOpt ? foundOpt.serialNumber : '';
       const lotStock = foundOpt ? foundOpt.lotStock : Number(product.stock ?? product.current_stock ?? 0);
 
+      const oldPrice = parseFloat(product.selling_price || product.retail_price) || 0;
       const newRow = {
         optionValue,
         itemId: product.id,
@@ -596,11 +601,14 @@ export const Purchasing = () => {
         serialId,
         serialNumber,
         newSerialNumber: '',
+        serials: [],
         deliveredQuantity: '1',
         quantity: '1',
         rejectedQuantity: 0,
         rejectionReason: '',
         costPrice: product.cost_price || (foundOpt ? foundOpt.costPrice : '') || '',
+        newSellingPrice: String(oldPrice > 0 ? oldPrice.toFixed(2) : ''),
+        isPriceHike: false,
         lotStock
       };
 
@@ -769,6 +777,8 @@ export const Purchasing = () => {
             }
           }
 
+          const prod = products.find(p => String(p.id) === String(selected.productId));
+          const oldPrice = parseFloat(prod?.selling_price || prod?.retail_price) || 0;
           row.optionValue = value;
           row.itemId = selected.productId;
           row.targetType = selected.targetType;
@@ -777,6 +787,8 @@ export const Purchasing = () => {
           row.newSerialNumber = selected.targetType === 'new_serial' ? (row.newSerialNumber || '') : '';
           row.lotStock = selected.lotStock;
           row.costPrice = row.costPrice || selected.costPrice || '';
+          row.newSellingPrice = String(oldPrice > 0 ? oldPrice.toFixed(2) : '');
+          row.isPriceHike = false;
         } else {
           row.optionValue = '';
           row.itemId = '';
@@ -785,8 +797,33 @@ export const Purchasing = () => {
           row.serialNumber = '';
           row.newSerialNumber = '';
           row.costPrice = '';
+          row.newSellingPrice = '';
+          row.isPriceHike = false;
           row.lotStock = 0;
         }
+      } else if (field === 'costPrice') {
+        row.costPrice = value;
+        const newCost = parseFloat(value) || 0;
+        const prod = products.find(p => String(p.id) === String(row.itemId));
+        if (prod) {
+          const oldCost = parseFloat(prod.cost_price) || 0;
+          const oldPrice = parseFloat(prod.selling_price || prod.retail_price) || 0;
+          const markup = parseFloat(prod.markup_percentage) || 0;
+
+          if (newCost > oldCost && markup > 0) {
+            const rawNewPrice = newCost * (1 + markup / 100);
+            // CEIL to nearest ₱5.00
+            const roundedPrice = Math.ceil(rawNewPrice / 5) * 5;
+            row.newSellingPrice = String(roundedPrice.toFixed(2));
+            row.isPriceHike = true;
+          } else {
+            // Keep current selling price locked if cost drops or stays same
+            row.newSellingPrice = String(oldPrice.toFixed(2));
+            row.isPriceHike = false;
+          }
+        }
+      } else if (field === 'newSellingPrice') {
+        row.newSellingPrice = value;
       } else if (field === 'deliveredQuantity') {
         const deliv = Math.max(0, parseInt(value, 10) || 0);
         row.deliveredQuantity = value;
@@ -1006,6 +1043,7 @@ export const Purchasing = () => {
         rejected_quantity: rej,
         rejection_reason: rej > 0 ? (row.rejectionReason || COMMON_REJECTION_REASONS[0]) : null,
         costPrice: cost,
+        new_selling_price: row.newSellingPrice ? parseFloat(row.newSellingPrice) : null,
         serial_id: row.targetType === 'existing_serial' ? Number(row.serialId) : null,
         serial_number: rowSerials.length > 0 ? rowSerials[0] : (row.newSerialNumber ? String(row.newSerialNumber).trim().toUpperCase() : null),
         serials: rowSerials
@@ -1079,6 +1117,8 @@ export const Purchasing = () => {
       } else {
         toast.success(`Delivery accepted! ${totalsSummary.totalAcceptedUnits} units verified 100% good and stocked into inventory.`);
       }
+
+      notifyInventoryChange('stock_in_received');
 
       setLineItems([{
         optionValue: '',
@@ -1990,9 +2030,43 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                                       required
                                       disabled={submitting}
                                     />
-                                    {prod && Number(prod.markup_percentage) > 0 && cost > 0 && (
-                                      <div style={{ fontSize: '0.68rem', color: '#10b981', marginTop: '3px' }} title={`Preview selling price via saved markup (${prod.markup_percentage}%)`}>
-                                        Retail: ₱{(cost * (1 + Number(prod.markup_percentage) / 100)).toFixed(2)}
+                                    {prod && (
+                                      <div style={{ marginTop: '4px', textAlign: 'right' }}>
+                                        {row.isPriceHike ? (
+                                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                                            <div style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                              <span style={{ textDecoration: 'line-through', color: 'var(--text-muted)' }}>
+                                                ₱{Number(prod.selling_price || prod.retail_price || 0).toFixed(2)}
+                                              </span>
+                                              <span>→</span>
+                                              <span>₱{Number(row.newSellingPrice || 0).toFixed(2)}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                              <span>Retail: ₱</span>
+                                              <input
+                                                type="number"
+                                                step="1"
+                                                className="input-premium"
+                                                style={{ width: '60px', padding: '2px 4px', fontSize: '0.72rem', textAlign: 'right', fontWeight: 700, color: '#10b981' }}
+                                                value={row.newSellingPrice || ''}
+                                                onChange={(e) => updateRow(index, 'newSellingPrice', e.target.value)}
+                                                title="Editable new retail price (rounded to nearest ₱5.00)"
+                                              />
+                                            </div>
+                                            <div style={{ fontSize: '0.64rem', color: '#10b981' }}>
+                                              ({prod.markup_percentage || 0}% • ceil ₱5)
+                                            </div>
+                                          </div>
+                                        ) : (cost < Number(prod.cost_price || 0) && cost > 0) ? (
+                                          <div style={{ fontSize: '0.68rem', color: '#60a5fa', lineHeight: 1.2 }} title="Supplier cost dropped - retail price preserved to retain profit margin">
+                                            Retail locked ₱{Number(prod.selling_price || prod.retail_price || 0).toFixed(2)}<br />
+                                            <span style={{ fontSize: '0.64rem', color: '#93c5fd' }}>(Discount retained)</span>
+                                          </div>
+                                        ) : Number(prod.selling_price || prod.retail_price || 0) > 0 ? (
+                                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                            Retail: ₱{Number(prod.selling_price || prod.retail_price || 0).toFixed(2)}
+                                          </div>
+                                        ) : null}
                                       </div>
                                     )}
                                   </td>

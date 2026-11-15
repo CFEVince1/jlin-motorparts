@@ -145,7 +145,8 @@ async function ensureSchema() {
       { col: 'qty_sold', def: 'INT NOT NULL DEFAULT 1' },
       { col: 'qty_swapped', def: 'INT NOT NULL DEFAULT 0' },
       { col: 'retail_price_snapshot', def: 'DECIMAL(10,2) NULL' },
-      { col: 'unit_cost_snapshot', def: 'DECIMAL(10,2) NULL' }
+      { col: 'unit_cost_snapshot', def: 'DECIMAL(10,2) NULL' },
+      { col: 'unit_price_snapshot', def: 'DECIMAL(10,2) NULL' }
     ];
     for (const item of ensureSaleItemsCols) {
       try {

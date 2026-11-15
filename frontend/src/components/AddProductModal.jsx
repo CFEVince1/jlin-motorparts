@@ -80,7 +80,6 @@ export const AddProductModal = ({
   const isAdmin = user?.role === 'admin';
 
   if (!isAdmin || !isOpen) return null;
-  const [isAutoSku, setIsAutoSku] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
     part_number: '',
@@ -110,11 +109,10 @@ export const AddProductModal = ({
     if (isOpen) {
       const initialCat = initialCategory || 'Engine';
       const initialBrand = '';
-      const autoPartNo = `${CATEGORY_SKU_CODES[initialCat] || 'ENG'}-GEN-001`;
 
       setFormData({
         name: '',
-        part_number: autoPartNo,
+        part_number: '',
         brand: initialBrand,
         category: initialCat,
         cost_price: '',
@@ -128,10 +126,9 @@ export const AddProductModal = ({
         measurement: '',
         thread_type: ''
       });
-      setIsAutoSku(true);
       setSupplierSearch('');
-      setPartNumberStatus('validating');
-      setPartNumberMessage('Checking availability...');
+      setPartNumberStatus('idle');
+      setPartNumberMessage('');
 
       api.get('/suppliers')
         .then(res => {
@@ -186,31 +183,11 @@ export const AddProductModal = ({
   };
 
   const handleBrandChange = (brand) => {
-    setFormData(prev => {
-      const updated = { ...prev, brand };
-      if (isAutoSku) {
-        const catCode = CATEGORY_SKU_CODES[prev.category] || 'ENG';
-        const brandCode = getBrandSkuCode(brand);
-        const autoSku = `${catCode}-${brandCode}-001`;
-        updated.part_number = autoSku;
-        handlePartNumberChange(autoSku);
-      }
-      return updated;
-    });
+    setFormData(prev => ({ ...prev, brand }));
   };
 
   const handleCategoryChange = (category) => {
-    setFormData(prev => {
-      const updated = { ...prev, category };
-      if (isAutoSku) {
-        const catCode = CATEGORY_SKU_CODES[category] || 'ENG';
-        const brandCode = getBrandSkuCode(prev.brand);
-        const autoSku = `${catCode}-${brandCode}-001`;
-        updated.part_number = autoSku;
-        handlePartNumberChange(autoSku);
-      }
-      return updated;
-    });
+    setFormData(prev => ({ ...prev, category }));
   };
 
   // Debounced backend validation for Part Number
@@ -516,37 +493,9 @@ export const AddProductModal = ({
             }}>
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-                      Part Number / SKU *
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsAutoSku(true);
-                        const catCode = CATEGORY_SKU_CODES[formData.category] || 'ENG';
-                        const brandCode = getBrandSkuCode(formData.brand);
-                        const seq = Math.floor(100 + Math.random() * 900);
-                        const autoSku = `${catCode}-${brandCode}-${seq}`;
-                        setFormData(prev => ({ ...prev, part_number: autoSku }));
-                        handlePartNumberChange(autoSku);
-                        toast.success(`Generated SKU: ${autoSku}`);
-                      }}
-                      style={{
-                        background: 'rgba(var(--primary-rgb), 0.12)',
-                        border: '1px solid var(--primary)',
-                        color: 'var(--primary)',
-                        borderRadius: '4px',
-                        padding: '1px 6px',
-                        fontSize: '0.68rem',
-                        fontWeight: 600,
-                        cursor: 'pointer'
-                      }}
-                      title="Auto-generate clean SKU from category & brand"
-                    >
-                      ⚡ Auto-Generate
-                    </button>
-                  </div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                    Part Number / SKU *
+                  </label>
                   {partNumberStatus === 'validating' && (
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <RefreshCw size={11} className="animate-spin" /> Checking...
@@ -566,12 +515,9 @@ export const AddProductModal = ({
                 <input
                   type="text"
                   className="input-premium part-number-input"
-                  placeholder="e.g., K59-A11 or ENG-YAM-001"
+                  placeholder="e.g., K59-A11, 2DP-E4451-00"
                   value={formData.part_number}
-                  onChange={(e) => {
-                    setIsAutoSku(false);
-                    handlePartNumberChange(e.target.value);
-                  }}
+                  onChange={(e) => handlePartNumberChange(e.target.value)}
                   required
                   disabled={submitting}
                   style={{
@@ -592,11 +538,6 @@ export const AddProductModal = ({
                         : undefined
                   }}
                 />
-                {isAutoSku && (
-                  <div style={{ fontSize: '0.69rem', color: 'var(--primary)', marginTop: '3px', fontWeight: 500 }}>
-                    ✨ Auto-generated SKU (Type over to override with box code)
-                  </div>
-                )}
                 {partNumberMessage && (
                   <div style={{
                     fontSize: '0.72rem',

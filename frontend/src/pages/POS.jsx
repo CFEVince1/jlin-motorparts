@@ -1009,7 +1009,28 @@ const POS = ({ defaultTab }) => {
                 return;
             }
         }
-        setCart(heldItem.items || []);
+
+        let hasPriceUpdate = false;
+        const refreshedItems = (heldItem.items || []).map(item => {
+            const liveProd = products.find(p => p.id === item.product_id || p.id === item.id);
+            if (liveProd) {
+                const livePrice = Number(liveProd.retail_price || liveProd.selling_price || item.price);
+                const heldPrice = Number(item.price);
+                if (Math.abs(livePrice - heldPrice) > 0.009) {
+                    hasPriceUpdate = true;
+                    return {
+                        ...item,
+                        price: livePrice,
+                        cost_price: Number(liveProd.cost_price ?? item.cost_price),
+                        price_updated_flag: true,
+                        old_held_price: heldPrice
+                    };
+                }
+            }
+            return item;
+        });
+
+        setCart(refreshedItems);
         setCustomerName(heldItem.customer_name !== 'Walk-in Customer' ? heldItem.customer_name : '');
         if (heldItem.discount_value) {
             setDiscountValue(heldItem.discount_value);
@@ -1019,7 +1040,11 @@ const POS = ({ defaultTab }) => {
         saveHeldTransactions(updated);
         setShowHeldQueueModal(false);
         setActiveTab('register');
-        toast.success(`Resumed cart for ${heldItem.customer_name} (${heldItem.items?.length || 0} items)`);
+
+        if (hasPriceUpdate) {
+            toast('⚠️ Some items had catalog price updates applied.', { icon: '🏷️' });
+        }
+        toast.success(`Resumed cart for ${heldItem.customer_name} (${refreshedItems.length} items)`);
     };
 
     const handleDeleteHeldCart = (heldId) => {
@@ -1867,6 +1892,15 @@ const POS = ({ defaultTab }) => {
                                                 Note: {held.note}
                                             </div>
 
+                                            {held.items?.some(item => {
+                                                const liveProd = products.find(p => p.id === item.product_id || p.id === item.id);
+                                                return liveProd && Math.abs(Number(liveProd.retail_price || liveProd.selling_price || item.price) - Number(item.price)) > 0.009;
+                                            }) && (
+                                                <div style={{ fontSize: '0.7rem', color: '#eab308', background: 'rgba(234, 179, 8, 0.12)', border: '1px solid rgba(234, 179, 8, 0.25)', padding: '2px 8px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                                                    ⚠️ Price Updated in Catalog
+                                                </div>
+                                            )}
+
                                             <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
                                                 <strong>{held.item_count || held.items?.length || 0} items:</strong> {held.items?.map(i => `${i.quantity}x ${i.name}`).slice(0, 3).join(', ')}{held.items?.length > 3 ? '...' : ''}
                                             </div>
@@ -2542,6 +2576,11 @@ const POS = ({ defaultTab }) => {
                                                 <span>•</span>
                                                 <span>{formatCurrency(item.price)} each</span>
                                             </div>
+                                            {item.price_updated_flag && (
+                                                <div style={{ fontSize: '0.7rem', color: '#eab308', marginTop: '3px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    <span>🏷️ Catalog Price Updated: {formatCurrency(item.old_held_price)} → {formatCurrency(item.price)}</span>
+                                                </div>
+                                            )}
                                             {item.is_serialized && (
                                                 <div style={{ fontSize: '0.75rem', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                                     <span style={{ color: 'var(--text-muted)' }}>Serial:</span>
@@ -3492,6 +3531,14 @@ const POS = ({ defaultTab }) => {
                                                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                                                     {held.item_count || held.items?.length || 0} items: {held.items?.map(i => `${i.quantity}x ${i.name}`).slice(0, 3).join(', ')}{held.items?.length > 3 ? '...' : ''}
                                                 </div>
+                                                {held.items?.some(item => {
+                                                    const liveProd = products.find(p => p.id === item.product_id || p.id === item.id);
+                                                    return liveProd && Math.abs(Number(liveProd.retail_price || liveProd.selling_price || item.price) - Number(item.price)) > 0.009;
+                                                }) && (
+                                                    <div style={{ fontSize: '0.7rem', color: '#eab308', background: 'rgba(234, 179, 8, 0.12)', border: '1px solid rgba(234, 179, 8, 0.25)', padding: '2px 8px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 600, marginTop: '4px' }}>
+                                                        ⚠️ Price Updated in Catalog
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

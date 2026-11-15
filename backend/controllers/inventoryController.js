@@ -236,7 +236,7 @@ exports.receiveStock = async (req, res, next) => {
         // 4. Calculate total cost, fetch product definitions, and validate line items
         const productIds = [...new Set(sortedItems.map(it => Number(it.itemId || it.item_id || it.product_id)))];
         const [productRows] = await connection.query(
-            `SELECT id, name, part_number, is_serialized FROM products WHERE id IN (?)`,
+            `SELECT id, name, part_number, is_serialized, cost_price, selling_price, retail_price, markup_percentage FROM products WHERE id IN (?)`,
             [productIds]
         );
         const productMap = new Map(productRows.map(p => [p.id, p]));
@@ -366,7 +366,8 @@ exports.receiveStock = async (req, res, next) => {
                 targetSerialId,
                 targetSerialNum,
                 serialsList,
-                lotIncrement
+                lotIncrement,
+                newSellingPrice: item.new_selling_price ?? item.newSellingPrice
             });
         }
 
@@ -481,6 +482,62 @@ exports.receiveStock = async (req, res, next) => {
                     remarks: finalNotes || `Stock receiving ref: ${refNo}`,
                     createdBy: userId
                 });
+
+                // Auto-Repricing & Rounding Rule:
+                // 1. Only trigger automatic price hike when newCost > oldCost (or explicit new retail price provided).
+                // 2. If newCost <= oldCost (supplier discount), keep current retail price locked to retain profit margin.
+                // 3. Clean Peso Rounding: CEIL to nearest ₱5.00 (e.g. ₱337.50 -> ₱340.00).
+                const oldCost = Number(prod.cost_price || 0);
+                const oldPrice = Number(prod.selling_price || prod.retail_price || 0);
+                const markup = Number(prod.markup_percentage || 0);
+                const rawNewSelling = item.newSellingPrice;
+                let finalNewPrice = rawNewSelling !== undefined && rawNewSelling !== null && !isNaN(Number(rawNewSelling)) && Number(rawNewSelling) > 0
+                    ? Number(rawNewSelling)
+                    : (costPrice > oldCost && markup > 0 ? Math.ceil(costPrice * (1 + markup / 100) / 5) * 5 : oldPrice);
+
+                const shouldAutoReprice = (costPrice > oldCost && finalNewPrice > 0) || 
+                    (rawNewSelling !== undefined && rawNewSelling !== null && Number(rawNewSelling) > 0 && Number(rawNewSelling) !== oldPrice);
+
+                if (shouldAutoReprice) {
+                    await connection.query(
+                        `UPDATE products 
+                         SET cost_price = ?, supplier_cost = ?, selling_price = ?, retail_price = ?, updated_at = NOW() 
+                         WHERE id = ?`,
+                        [costPrice, costPrice, finalNewPrice, finalNewPrice, resolvedId]
+                    );
+
+                    // Write Price_Auto_Updated into audit_logs
+                    try {
+                        await connection.query(
+                            `INSERT INTO audit_logs (
+                                user_id, user_name, user_role, module, action_type, entity_type, entity_id, reference_id,
+                                old_value, new_value, reason, metadata, created_at
+                            ) VALUES (?, ?, ?, 'PURCHASING', 'Price_Auto_Updated', 'product', ?, ?, ?, ?, ?, ?, NOW())`,
+                            [
+                                userId,
+                                cleanReceiver || req.user?.username || 'Owner',
+                                req.user?.role || 'admin',
+                                resolvedId,
+                                refNo,
+                                JSON.stringify({ cost_price: oldCost, retail_price: oldPrice }),
+                                JSON.stringify({ cost_price: costPrice, retail_price: finalNewPrice }),
+                                `Auto-repriced from supplier stock-in DR #${refNo}: Cost ₱${oldCost.toFixed(2)} → ₱${costPrice.toFixed(2)}, Retail ₱${oldPrice.toFixed(2)} → ₱${finalNewPrice.toFixed(2)} (${markup}% markup, rounded ₱5)`,
+                                JSON.stringify({
+                                    supplier_id: finalSupplierId,
+                                    reference_no: refNo,
+                                    old_cost: oldCost,
+                                    new_cost: costPrice,
+                                    old_price: oldPrice,
+                                    new_price: finalNewPrice,
+                                    markup_percentage: markup,
+                                    rounding_rule: 'CEIL_5'
+                                })
+                            ]
+                        );
+                    } catch (auditErr) {
+                        console.error('Failed to log Price_Auto_Updated:', auditErr);
+                    }
+                }
             }
 
             // Rejected quantity is deducted on the spot and stored in receiving_records / receiving_record_items
