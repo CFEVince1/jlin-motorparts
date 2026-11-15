@@ -655,7 +655,21 @@ export const Purchasing = () => {
 
   const removeRow = (index) => {
     if (lineItems.length === 1) {
-      toast.error('Receiving record must contain at least one line item');
+      setLineItems([{
+        optionValue: '',
+        itemId: '',
+        targetType: '',
+        serialId: null,
+        serialNumber: '',
+        newSerialNumber: '',
+        deliveredQuantity: '',
+        quantity: '',
+        rejectedQuantity: 0,
+        rejectionReason: '',
+        costPrice: '',
+        lotStock: 0
+      }]);
+      toast('Row cleared', { icon: '🧹' });
       return;
     }
     setLineItems(prev => prev.filter((_, i) => i !== index));
@@ -1126,40 +1140,29 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
         <div>
           <h1 style={{ margin: 0, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.75rem', fontWeight: 'bold' }}>
             <Truck size={28} style={{ color: 'var(--primary)' }} />
-            Suppliers & Stock-In
+            Stock-In (Receiving)
           </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0 }}>
-            Inward truck delivery inspection, on-the-spot driver returns, delivery history, and master supplier directory.
+            Inward truck delivery inspection, on-the-spot driver returns, and delivery logs.
           </p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {activeTab === 'directory' ? (
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => setIsAddSupplierOpen(true)}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', padding: '8px 16px', fontWeight: 600 }}
-            >
-              <Plus size={16} /> + Add New Supplier
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => {
-                if (activeTab !== 'receive' && activeTab !== 'receive_orders') handleTabChange('receive');
-                setIsIntakeExpanded(!isIntakeExpanded);
-              }}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', padding: '8px 16px', fontWeight: 600 }}
-            >
-              <Plus size={16} /> {isIntakeExpanded && (activeTab === 'receive' || activeTab === 'receive_orders') ? '✕ Close Receiving Gate' : '+ Receive Truck Delivery'}
-            </button>
-          )}
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => {
+              if (activeTab !== 'receive' && activeTab !== 'receive_orders') handleTabChange('receive');
+              setIsIntakeExpanded(!isIntakeExpanded);
+            }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', padding: '8px 16px', fontWeight: 600 }}
+          >
+            <Plus size={16} /> {isIntakeExpanded && (activeTab === 'receive' || activeTab === 'receive_orders') ? '✕ Close Receiving Gate' : '+ Receive Truck Delivery'}
+          </button>
         </div>
       </div>
 
-      {/* Top 3 Tabs Navigation Bar */}
+      {/* Top 2 Tabs Navigation Bar */}
       <div className="no-print" style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border)', paddingBottom: '8px', marginBottom: '22px', overflowX: 'auto' }}>
         <button
           type="button"
@@ -1202,27 +1205,6 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
         >
           <History size={17} /> Tab 2: Past Deliveries History
         </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange('directory')}
-          style={{
-            padding: '10px 18px',
-            fontSize: '0.88rem',
-            fontWeight: activeTab === 'directory' ? 700 : 500,
-            background: activeTab === 'directory' ? 'rgba(var(--primary-rgb), 0.12)' : 'transparent',
-            color: activeTab === 'directory' ? 'var(--primary)' : 'var(--text-muted)',
-            border: activeTab === 'directory' ? '1px solid var(--primary)' : '1px solid transparent',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            whiteSpace: 'nowrap'
-          }}
-        >
-          <Building2 size={17} /> Tab 3: Supplier Directory
-        </button>
       </div>
 
       {/* =========================================================================
@@ -1236,6 +1218,8 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
             <AddProductModal
               isOpen={true}
               asPanel={true}
+              defaultSupplierId={supplierId}
+              defaultReferenceNo={referenceNo}
               onClose={() => {
                 setIsAddProductOpen(false);
                 setAddProductRowIndex(null);
@@ -1748,6 +1732,21 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                             title="Consolidate duplicate rows of the same product into a single line item"
                           >
                             <Layers size={14} /> Merge Duplicates
+                          </button>
+                        )}
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            className="btn-primary"
+                            onClick={() => {
+                              setAddProductRowIndex(lineItems.length);
+                              setIsAddProductOpen(true);
+                            }}
+                            disabled={submitting}
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '6px 12px' }}
+                            title="Register a brand-new motorcycle part not yet in catalog"
+                          >
+                            <PackagePlus size={15} /> + Quick-Add New Part
                           </button>
                         )}
                         <button
@@ -2462,255 +2461,6 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
         </div>
       </div>
     )}
-
-      {/* =========================================================================
-          TAB 3: MASTER SUPPLIER DIRECTORY
-         ========================================================================= */}
-      {activeTab === 'directory' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Top 4 KPI Summary Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
-            <div className="glass-panel" style={{ padding: '16px', borderRadius: '10px' }}>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem', display: 'block', marginBottom: '4px' }}>Total Suppliers</span>
-              <strong style={{ fontSize: '1.4rem', color: 'var(--text-main)' }}>{suppliers.length}</strong>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>Registered vendor accounts</div>
-            </div>
-
-            <div className="glass-panel" style={{ padding: '16px', borderRadius: '10px' }}>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem', display: 'block', marginBottom: '4px' }}>Active Vendors</span>
-              <strong style={{ fontSize: '1.4rem', color: '#10b981' }}>{suppliers.filter(s => s.is_active).length}</strong>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>Eligible for truck deliveries</div>
-            </div>
-
-            <div className="glass-panel" style={{ padding: '16px', borderRadius: '10px' }}>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem', display: 'block', marginBottom: '4px' }}>FB Messenger Suppliers</span>
-              <strong style={{ fontSize: '1.4rem', color: '#3b82f6' }}>{suppliers.filter(s => s.messenger_url || s.fb_page_name).length}</strong>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>1-click chat links enabled</div>
-            </div>
-
-            <div className="glass-panel" style={{ padding: '16px', borderRadius: '10px' }}>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem', display: 'block', marginBottom: '4px' }}>Lifetime Delivery Spend</span>
-              <strong style={{ fontSize: '1.4rem', color: '#f59e0b' }}>
-                {formatCurrency(historySummary.total_received_value || 0)}
-              </strong>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>Across {historySummary.total_batches || receivingHistory.length} completed truck deliveries</div>
-            </div>
-          </div>
-
-          {/* Search & Filter Toolbar */}
-          <div className="glass-panel" style={{ padding: '14px 18px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '240px', maxWidth: '420px', position: 'relative' }}>
-              <Search size={16} style={{ position: 'absolute', left: '12px', color: 'var(--text-muted)' }} />
-              <input
-                type="text"
-                className="input-premium"
-                placeholder="Search supplier, FB page, contact, phone..."
-                value={supplierSearchTerm}
-                onChange={(e) => setSupplierSearchTerm(e.target.value)}
-                style={{ width: '100%', paddingLeft: '36px', height: '38px', fontSize: '0.84rem' }}
-              />
-              {supplierSearchTerm && (
-                <button
-                  type="button"
-                  onClick={() => setSupplierSearchTerm('')}
-                  style={{ position: 'absolute', right: '10px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}
-                >
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-              <select
-                className="input-premium"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                style={{ height: '38px', fontSize: '0.82rem', padding: '0 10px' }}
-              >
-                <option value="all">All Vendors ({suppliers.length})</option>
-                <option value="active">Active Only ({suppliers.filter(s => s.is_active).length})</option>
-                <option value="inactive">Inactive Only ({suppliers.filter(s => !s.is_active).length})</option>
-                <option value="facebook">FB Suppliers ({suppliers.filter(s => s.messenger_url || s.fb_page_name).length})</option>
-              </select>
-
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => setIsAddSupplierOpen(true)}
-                style={{ height: '38px', padding: '0 16px', fontSize: '0.84rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-              >
-                <Plus size={16} /> + Quick-Add Supplier
-              </button>
-            </div>
-          </div>
-
-          {/* 6-Column Master Supplier Directory Table */}
-          <div className="table-container" style={{ border: '1px solid var(--border)', borderRadius: '10px', overflowX: 'auto', width: '100%' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.84rem' }}>
-              <thead>
-                <tr style={{ background: 'var(--surface-hover)', borderBottom: '1px solid var(--border)' }}>
-                  <th style={{ padding: '10px 14px', minWidth: '220px' }}>Supplier / Page Name</th>
-                  <th style={{ padding: '10px 12px', minWidth: '150px' }}>Contact Person</th>
-                  <th style={{ padding: '10px 12px', minWidth: '140px' }}>Phone / GCash</th>
-                  <th style={{ padding: '10px 12px', minWidth: '160px' }}>FB Messenger Link</th>
-                  <th style={{ padding: '10px 12px', minWidth: '160px' }}>Total Deliveries & Spend</th>
-                  <th style={{ padding: '10px 14px', minWidth: '200px', textAlign: 'center' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSuppliers.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} style={{ padding: '36px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                      <Building2 size={32} style={{ opacity: 0.3, marginBottom: '8px', display: 'block', margin: '0 auto 8px auto' }} />
-                      No suppliers found matching your filter.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredSuppliers.map((s) => {
-                    const suppRecords = receivingHistory.filter(r => Number(r.supplier_id) === Number(s.id));
-                    const suppDeliveriesCount = suppRecords.length;
-                    const suppSpend = suppRecords.reduce((sum, r) => sum + (parseFloat(r.total_amount || r.total_cost) || 0), 0);
-                    const cleanMessengerUrl = s.messenger_url ? (
-                      s.messenger_url.startsWith('http') ? s.messenger_url : `https://${s.messenger_url}`
-                    ) : null;
-
-                    return (
-                      <tr key={s.id} style={{ borderBottom: '1px solid var(--border)', opacity: s.is_active ? 1 : 0.65 }}>
-                        {/* 1. Supplier / Page Name */}
-                        <td style={{ padding: '10px 14px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <strong>{s.name}</strong>
-                            <span style={{ fontSize: '0.7rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.06)', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                              SUP-{String(s.id).padStart(3, '0')}
-                            </span>
-                            {!s.is_active && (
-                              <span style={{ fontSize: '0.68rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', fontWeight: 600 }}>
-                                Inactive
-                              </span>
-                            )}
-                          </div>
-                          {s.fb_page_name && (
-                            <div style={{ fontSize: '0.76rem', color: '#3b82f6', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <span>FB: {s.fb_page_name}</span>
-                            </div>
-                          )}
-                          {s.address && (
-                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <MapPin size={11} /> {s.address}
-                            </div>
-                          )}
-                        </td>
-
-                        {/* 2. Contact Person */}
-                        <td style={{ padding: '10px 12px' }}>
-                          <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>
-                            {s.seller_contact_name || s.contact_person || '—'}
-                          </div>
-                        </td>
-
-                        {/* 3. Phone / GCash */}
-                        <td style={{ padding: '10px 12px' }}>
-                          {s.phone ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <Phone size={12} color="var(--primary)" />
-                              <span>{s.phone}</span>
-                            </div>
-                          ) : (
-                            <span style={{ color: 'var(--text-muted)' }}>—</span>
-                          )}
-                          {s.gcash_account_number && (
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                              GCash: {s.gcash_account_number}
-                            </div>
-                          )}
-                        </td>
-
-                        {/* 4. FB Messenger Link */}
-                        <td style={{ padding: '10px 12px' }}>
-                          {cleanMessengerUrl ? (
-                            <a
-                              href={cleanMessengerUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '5px',
-                                fontSize: '0.78rem',
-                                color: '#3b82f6',
-                                background: 'rgba(59, 130, 246, 0.1)',
-                                padding: '4px 8px',
-                                borderRadius: '6px',
-                                textDecoration: 'none',
-                                fontWeight: 600
-                              }}
-                            >
-                              <MessageSquare size={12} /> Open Messenger <ExternalLink size={11} />
-                            </a>
-                          ) : (
-                            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>No link configured</span>
-                          )}
-                        </td>
-
-                        {/* 5. Total Deliveries & Spend */}
-                        <td style={{ padding: '10px 12px' }}>
-                          <div style={{ fontWeight: 700, color: '#10b981' }}>
-                            {formatCurrency(suppSpend)}
-                          </div>
-                          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                            {suppDeliveriesCount} {suppDeliveriesCount === 1 ? 'delivery' : 'deliveries'} logged
-                          </div>
-                        </td>
-
-                        {/* 6. Actions */}
-                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                            <button
-                              type="button"
-                              className="btn-primary"
-                              onClick={() => handleDirectReceiveFromSupplier(s)}
-                              title="Switch to Tab 1 with this supplier pre-selected"
-                              style={{ padding: '5px 10px', fontSize: '0.76rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
-                            >
-                              <Truck size={12} /> + Receive Truck
-                            </button>
-
-                            <button
-                              type="button"
-                              className="btn-secondary"
-                              onClick={() => setSelectedSupplierForEdit(s)}
-                              title="Edit Supplier Details"
-                              style={{ padding: '5px 8px', fontSize: '0.76rem', display: 'inline-flex', alignItems: 'center' }}
-                            >
-                              <Edit3 size={12} />
-                            </button>
-
-                            <button
-                              type="button"
-                              className="btn-secondary"
-                              onClick={() => handleToggleSupplierStatus(s)}
-                              title={s.is_active ? 'Mark as Inactive' : 'Activate Supplier'}
-                              style={{
-                                padding: '5px 8px',
-                                fontSize: '0.76rem',
-                                color: s.is_active ? 'var(--text-muted)' : '#10b981',
-                                display: 'inline-flex',
-                                alignItems: 'center'
-                              }}
-                            >
-                              {s.is_active ? <UserX size={12} /> : <UserCheck size={12} />}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       {/* =========================================================================
           MODAL 1: DRIVER ON-THE-SPOT REJECTION & RETURN SLIP (TRIGGERED ON REJECTIONS)

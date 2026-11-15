@@ -17,11 +17,70 @@ const STANDARD_BRANDS = [
   'Yamaha', 'Yamalube', 'YBN', 'YSS', 'Yy Pang', 'Generic / Aftermarket'
 ];
 
-export const AddProductModal = ({ isOpen, onClose, onSuccess, initialCategory = '', asPanel = false }) => {
+export const CATEGORY_SKU_CODES = {
+  'Engine': 'ENG',
+  'Brakes': 'BRK',
+  'Electrical': 'ELC',
+  'CVT / Transmission': 'CVT',
+  'Chassis & Body': 'CHS',
+  'Oils & Fluids': 'OIL',
+  'Tires': 'TIRE',
+  'Suspension': 'SUSP',
+  'Wheels': 'WHL',
+  'Drive & Chain': 'CHN',
+  'Exhaust': 'EXH'
+};
+
+export const getBrandSkuCode = (brand) => {
+  if (!brand) return 'GEN';
+  const clean = brand.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!clean) return 'GEN';
+  if (clean.length <= 4) return clean;
+  const BRAND_CODES = {
+    'YAMAHA': 'YAM',
+    'HONDA': 'HON',
+    'BANDO': 'BND',
+    'BENDIX': 'BDX',
+    'BREMBO': 'BRM',
+    'AKRAPOVIC': 'AKR',
+    'ARACER': 'ARC',
+    'BOSCH': 'BSH',
+    'CASTROL': 'CST',
+    'CORSA': 'CRS',
+    'DAENG': 'DNG',
+    'DOMINO': 'DMN',
+    'EARLS': 'ERL',
+    'ENDURANCEPRO': 'END',
+    'ENGINEICE': 'ICE',
+    'FAITO': 'FAI',
+    'GATES': 'GTS',
+    'KAWASAKI': 'KAW',
+    'MAXXIS': 'MAX',
+    'MICHELIN': 'MCH',
+    'SUZUKI': 'SUZ',
+    'NAMBAN': 'NAM',
+    'PIRELLI': 'PIR',
+    'REPSOL': 'REP',
+    'YAMALUBE': 'YAM',
+    'UMARACING': 'UMA'
+  };
+  return BRAND_CODES[clean] || clean.slice(0, 3);
+};
+
+export const AddProductModal = ({
+  isOpen,
+  onClose,
+  onSuccess,
+  initialCategory = '',
+  asPanel = false,
+  defaultSupplierId = '',
+  defaultReferenceNo = ''
+}) => {
   const { user } = useContext(AuthContext);
   const isAdmin = user?.role === 'admin';
 
   if (!isAdmin || !isOpen) return null;
+  const [isAutoSku, setIsAutoSku] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
     part_number: '',
@@ -32,9 +91,9 @@ export const AddProductModal = ({ isOpen, onClose, onSuccess, initialCategory = 
     markup_percentage: '',
     initial_stock: '',
     reorder_level: '5',
-    supplier_id: '',
+    supplier_id: defaultSupplierId || '',
     supplier_name: '',
-    supplier_ref_no: '',
+    supplier_ref_no: defaultReferenceNo || '',
     is_serialized: false,
     serial_numbers: '',
     size: '',
@@ -57,28 +116,33 @@ export const AddProductModal = ({ isOpen, onClose, onSuccess, initialCategory = 
 
   useEffect(() => {
     if (isOpen) {
+      const initialCat = initialCategory || 'Engine';
+      const initialBrand = '';
+      const autoPartNo = `${CATEGORY_SKU_CODES[initialCat] || 'ENG'}-GEN-001`;
+
       setFormData({
         name: '',
-        part_number: '',
-        brand: '',
-        category: initialCategory || 'Engine',
+        part_number: autoPartNo,
+        brand: initialBrand,
+        category: initialCat,
         cost_price: '',
         selling_price: '',
         markup_percentage: '',
         initial_stock: '',
         reorder_level: '5',
-        supplier_id: '',
+        supplier_id: defaultSupplierId || '',
         supplier_name: '',
-        supplier_ref_no: '',
+        supplier_ref_no: defaultReferenceNo || '',
         is_serialized: false,
         serial_numbers: '',
         size: '',
         measurement: '',
         thread_type: ''
       });
+      setIsAutoSku(true);
       setSupplierSearch('');
-      setPartNumberStatus('idle');
-      setPartNumberMessage('');
+      setPartNumberStatus('validating');
+      setPartNumberMessage('Checking availability...');
       setSerialStatus('idle');
       setSerialMessage('');
       setParsedSerials([]);
@@ -87,13 +151,19 @@ export const AddProductModal = ({ isOpen, onClose, onSuccess, initialCategory = 
         .then(res => {
           if (Array.isArray(res.data)) {
             setSuppliers(res.data);
+            if (defaultSupplierId) {
+              const matched = res.data.find(s => String(s.id) === String(defaultSupplierId));
+              if (matched) {
+                setFormData(prev => ({ ...prev, supplier_name: matched.name }));
+              }
+            }
           }
         })
         .catch(err => {
           console.error('Failed to load suppliers in modal', err);
         });
     }
-  }, [isOpen, initialCategory]);
+  }, [isOpen, initialCategory, defaultSupplierId, defaultReferenceNo]);
 
   const handlePartNumberChange = (rawVal) => {
     const sanitized = rawVal.toUpperCase().replace(/\s+/g, '-');
@@ -127,6 +197,34 @@ export const AddProductModal = ({ isOpen, onClose, onSuccess, initialCategory = 
 
     setPartNumberStatus('validating');
     setPartNumberMessage('Checking catalog availability...');
+  };
+
+  const handleBrandChange = (brand) => {
+    setFormData(prev => {
+      const updated = { ...prev, brand };
+      if (isAutoSku) {
+        const catCode = CATEGORY_SKU_CODES[prev.category] || 'ENG';
+        const brandCode = getBrandSkuCode(brand);
+        const autoSku = `${catCode}-${brandCode}-001`;
+        updated.part_number = autoSku;
+        handlePartNumberChange(autoSku);
+      }
+      return updated;
+    });
+  };
+
+  const handleCategoryChange = (category) => {
+    setFormData(prev => {
+      const updated = { ...prev, category };
+      if (isAutoSku) {
+        const catCode = CATEGORY_SKU_CODES[category] || 'ENG';
+        const brandCode = getBrandSkuCode(prev.brand);
+        const autoSku = `${catCode}-${brandCode}-001`;
+        updated.part_number = autoSku;
+        handlePartNumberChange(autoSku);
+      }
+      return updated;
+    });
   };
 
   // Debounced backend validation for Part Number
@@ -528,9 +626,37 @@ export const AddProductModal = ({ isOpen, onClose, onSuccess, initialCategory = 
             }}>
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-                    Part Number *
-                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                      Part Number / SKU *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAutoSku(true);
+                        const catCode = CATEGORY_SKU_CODES[formData.category] || 'ENG';
+                        const brandCode = getBrandSkuCode(formData.brand);
+                        const seq = Math.floor(100 + Math.random() * 900);
+                        const autoSku = `${catCode}-${brandCode}-${seq}`;
+                        setFormData(prev => ({ ...prev, part_number: autoSku }));
+                        handlePartNumberChange(autoSku);
+                        toast.success(`Generated SKU: ${autoSku}`);
+                      }}
+                      style={{
+                        background: 'rgba(var(--primary-rgb), 0.12)',
+                        border: '1px solid var(--primary)',
+                        color: 'var(--primary)',
+                        borderRadius: '4px',
+                        padding: '1px 6px',
+                        fontSize: '0.68rem',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                      title="Auto-generate clean SKU from category & brand"
+                    >
+                      ⚡ Auto-Generate
+                    </button>
+                  </div>
                   {partNumberStatus === 'validating' && (
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <RefreshCw size={11} className="animate-spin" /> Checking...
@@ -550,9 +676,12 @@ export const AddProductModal = ({ isOpen, onClose, onSuccess, initialCategory = 
                 <input
                   type="text"
                   className="input-premium part-number-input"
-                  placeholder="e.g., K59-A11"
+                  placeholder="e.g., K59-A11 or ENG-YAM-001"
                   value={formData.part_number}
-                  onChange={(e) => handlePartNumberChange(e.target.value)}
+                  onChange={(e) => {
+                    setIsAutoSku(false);
+                    handlePartNumberChange(e.target.value);
+                  }}
                   required
                   disabled={submitting}
                   style={{
@@ -573,6 +702,11 @@ export const AddProductModal = ({ isOpen, onClose, onSuccess, initialCategory = 
                         : undefined
                   }}
                 />
+                {isAutoSku && (
+                  <div style={{ fontSize: '0.69rem', color: 'var(--primary)', marginTop: '3px', fontWeight: 500 }}>
+                    ✨ Auto-generated SKU (Type over to override with box code)
+                  </div>
+                )}
                 {partNumberMessage && (
                   <div style={{
                     fontSize: '0.72rem',
@@ -612,7 +746,7 @@ export const AddProductModal = ({ isOpen, onClose, onSuccess, initialCategory = 
                 <select
                   className="input-premium"
                   value={formData.brand}
-                  onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                  onChange={(e) => handleBrandChange(e.target.value)}
                   disabled={submitting}
                   style={{ height: '36px', fontSize: '0.82rem', width: '100%', cursor: 'pointer' }}
                 >
@@ -637,7 +771,7 @@ export const AddProductModal = ({ isOpen, onClose, onSuccess, initialCategory = 
                 <select
                   className="input-premium"
                   value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  onChange={(e) => handleCategoryChange(e.target.value)}
                   required
                   disabled={submitting}
                   style={{ height: '36px', fontSize: '0.82rem', width: '100%', cursor: 'pointer' }}
