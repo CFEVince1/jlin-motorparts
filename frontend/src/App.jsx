@@ -81,15 +81,16 @@ function App() {
               {/* Admin Roles ONLY */}
               <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
                 <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/purchasing" element={<Purchasing />} />
-                <Route path="/suppliers" element={<Suppliers />} />
-                <Route path="/stock-receive" element={<Navigate to="/purchasing?tab=receive_orders" replace />} />
+                <Route path="/suppliers-stock-in" element={<Purchasing />} />
+                <Route path="/purchasing" element={<Navigate to="/suppliers-stock-in" replace />} />
+                <Route path="/suppliers" element={<Navigate to="/suppliers-stock-in?tab=directory" replace />} />
+                <Route path="/stock-receive" element={<Navigate to="/suppliers-stock-in?tab=receive" replace />} />
                 <Route path="/products" element={<Navigate to="/inventory" replace />} />
                 <Route path="/manage-compatibility" element={<ManageCompatibility />} />
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/reports/adjustments" element={<AdjustmentsReport />} />
                 <Route path="/users" element={<Users />} />
-                <Route path="/audit-log" element={<AuditLog />} />
+                <Route path="/audit-log" element={<Navigate to="/users?tab=audit" replace />} />
               </Route>
             </Route>
           </Route>

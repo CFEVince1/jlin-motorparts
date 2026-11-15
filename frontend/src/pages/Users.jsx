@@ -4,11 +4,12 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import {
     UserPlus, Trash2, Edit2, Eye, EyeOff,
-    Users as UsersIcon, CheckCircle2, XCircle
+    Users as UsersIcon, CheckCircle2, XCircle, ShieldCheck
 } from 'lucide-react';
 import Spinner from '../components/Spinner';
 import { AuthContext } from '../context/AuthContextValue';
 import { notifyInventoryChange, subscribeToInventoryChange } from '../utils/syncEvents';
+import AuditLog from './AuditLog';
 
 const ROLE_LABELS = {
     admin: { label: 'Owner / Admin', badge: '#8b5cf6', desc: 'Full control over pricing, inventory, approvals & financials' },
@@ -297,6 +298,26 @@ const Users = () => {
                     }}
                 >
                     <UsersIcon size={18} color={activeTab === 'staff' ? 'var(--primary)' : 'inherit'} /> Staff Accounts ({users.length})
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => handleTabChange('audit')}
+                    style={{
+                        padding: '12px 20px',
+                        fontSize: '0.92rem',
+                        fontWeight: activeTab === 'audit' ? 800 : 600,
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom: activeTab === 'audit' ? '3px solid var(--primary)' : '3px solid transparent',
+                        color: activeTab === 'audit' ? 'var(--text-main)' : 'var(--text-muted)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}
+                >
+                    <ShieldCheck size={18} color={activeTab === 'audit' ? 'var(--primary)' : 'inherit'} /> Security Audit Log
                 </button>
 
                 <button
@@ -797,6 +818,15 @@ const Users = () => {
                             </div>
                         </form>
                     </div>
+                </div>
+            )}
+
+            {/* ============================================================ */}
+            {/* TAB: SECURITY AUDIT LOG                                      */}
+            {/* ============================================================ */}
+            {activeTab === 'audit' && (
+                <div>
+                    <AuditLog />
                 </div>
             )}
         </div>

@@ -117,15 +117,13 @@ const Sidebar = ({
         { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={19} />, roles: ['admin'] },
         { name: 'Sale (POS)', path: '/pos', icon: <ShoppingCart size={19} />, roles: ['admin', 'cashier'] },
         { name: 'Inventory', path: '/inventory', icon: <Archive size={19} />, roles: ['admin', 'cashier'] },
-        { name: 'Receiving / Stock-In', path: '/purchasing', icon: <Truck size={19} />, roles: ['admin'] },
-        { name: 'Suppliers', path: '/suppliers', icon: <Building2 size={19} />, roles: ['admin'] },
+        { name: 'Suppliers & Stock-In', path: '/suppliers-stock-in', icon: <Truck size={19} />, roles: ['admin'] },
     ];
 
     const secondaryLinks = [
         { name: 'Shifts & Cash Drawer', path: '/shifts', icon: <Banknote size={19} />, roles: ['admin', 'cashier'] },
         { name: 'Reports', path: '/reports', icon: <TrendingUp size={19} />, roles: ['admin'] },
-        { name: 'Staff & Users', path: '/users', icon: <Users size={19} />, roles: ['admin'] },
-        { name: 'Audit Log', path: '/audit-log', icon: <ShieldCheck size={19} />, roles: ['admin'] },
+        { name: 'Staff & Audit Log', path: '/users', icon: <Users size={19} />, roles: ['admin'] },
     ];
 
     const handleLinkClick = (e, targetPath) => {

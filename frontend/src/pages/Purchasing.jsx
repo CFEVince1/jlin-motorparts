@@ -106,7 +106,9 @@ export const Purchasing = () => {
   const { user } = useContext(AuthContext);
   const isAdmin = (user?.role || '').toLowerCase() === 'admin';
 
-  const [activeTab, setActiveTab] = useState('receive_orders');
+  const qTab = searchParams.get('tab');
+  const initialTab = (qTab === 'directory' || qTab === 'history') ? qTab : 'receive';
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [isIntakeExpanded, setIsIntakeExpanded] = useState(true);
 
   // Modals for adding products and suppliers
@@ -120,11 +122,21 @@ export const Purchasing = () => {
       setSupplierId(qSuppId);
       setIsIntakeExpanded(true);
     }
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'directory' || tabParam === 'history' || tabParam === 'receive') {
+      setActiveTab(tabParam);
+    } else if (tabParam === 'receive_orders') {
+      setActiveTab('receive');
+    }
   }, [searchParams]);
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    setSearchParams({ tab });
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', tab);
+      return next;
+    });
   };
 
   // Shared Data States
@@ -316,8 +328,15 @@ export const Purchasing = () => {
   const handleProductCreated = (newProd) => {
     fetchSuppliersAndProducts();
 
-    if (addProductRowIndex !== null && addProductRowIndex >= 0 && addProductRowIndex < lineItems.length) {
-      setLineItems(prev => {
+    setLineItems(prev => {
+      // Check if product is already in the list to prevent duplicates
+      const existingIdx = prev.findIndex(r => String(r.itemId) === String(newProd.id));
+      if (existingIdx !== -1) {
+        toast.success(`"${newProd.name}" is already in Row #${existingIdx + 1}`);
+        return prev;
+      }
+
+      if (addProductRowIndex !== null && addProductRowIndex >= 0 && addProductRowIndex < prev.length) {
         const next = [...prev];
         next[addProductRowIndex] = {
           ...next[addProductRowIndex],
@@ -326,52 +345,51 @@ export const Purchasing = () => {
           targetType: newProd.is_serialized ? 'new_serial' : 'non_serialized',
           costPrice: newProd.cost_price || '',
           lotStock: 0,
-          deliveredQuantity: '',
-          quantity: '',
+          deliveredQuantity: '1',
+          quantity: '1',
           rejectedQuantity: 0,
           rejectionReason: ''
         };
         return next;
-      });
-      setAddProductRowIndex(null);
-    } else {
-      setLineItems(prev => {
-        if (prev.length === 1 && !prev[0].optionValue) {
-          return [{
-            optionValue: newProd.is_serialized ? `ns:${newProd.id}` : `p:${newProd.id}`,
-            itemId: newProd.id,
-            targetType: newProd.is_serialized ? 'new_serial' : 'non_serialized',
-            serialId: null,
-            serialNumber: '',
-            newSerialNumber: '',
-            deliveredQuantity: '',
-            quantity: '',
-            rejectedQuantity: 0,
-            rejectionReason: '',
-            costPrice: newProd.cost_price || '',
-            lotStock: 0
-          }];
-        }
-        return [
-          ...prev,
-          {
-            optionValue: newProd.is_serialized ? `ns:${newProd.id}` : `p:${newProd.id}`,
-            itemId: newProd.id,
-            targetType: newProd.is_serialized ? 'new_serial' : 'non_serialized',
-            serialId: null,
-            serialNumber: '',
-            newSerialNumber: '',
-            deliveredQuantity: '',
-            quantity: '',
-            rejectedQuantity: 0,
-            rejectionReason: '',
-            costPrice: newProd.cost_price || '',
-            lotStock: 0
-          }
-        ];
-      });
-    }
+      }
 
+      if (prev.length === 1 && !prev[0].optionValue) {
+        return [{
+          optionValue: newProd.is_serialized ? `ns:${newProd.id}` : `p:${newProd.id}`,
+          itemId: newProd.id,
+          targetType: newProd.is_serialized ? 'new_serial' : 'non_serialized',
+          serialId: null,
+          serialNumber: '',
+          newSerialNumber: '',
+          deliveredQuantity: '1',
+          quantity: '1',
+          rejectedQuantity: 0,
+          rejectionReason: '',
+          costPrice: newProd.cost_price || '',
+          lotStock: 0
+        }];
+      }
+
+      return [
+        ...prev,
+        {
+          optionValue: newProd.is_serialized ? `ns:${newProd.id}` : `p:${newProd.id}`,
+          itemId: newProd.id,
+          targetType: newProd.is_serialized ? 'new_serial' : 'non_serialized',
+          serialId: null,
+          serialNumber: '',
+          newSerialNumber: '',
+          deliveredQuantity: '1',
+          quantity: '1',
+          rejectedQuantity: 0,
+          rejectionReason: '',
+          costPrice: newProd.cost_price || '',
+          lotStock: 0
+        }
+      ];
+    });
+
+    setAddProductRowIndex(null);
     setIsIntakeExpanded(true);
     toast.success(`Brand-new part "${newProd.name}" registered and added to delivery!`);
   };
@@ -460,28 +478,36 @@ export const Purchasing = () => {
       setLineItems(mapped);
     }
     setIsIntakeExpanded(true);
-    handleTabChange('receive_orders');
+    handleTabChange('receive');
     toast.success(`PO ${po.po_number} loaded into Pre-Acceptance Inspection Gate! Inspect each piece before accepting.`);
   };
 
   const addRow = () => {
-    setLineItems(prev => [
-      ...prev,
-      {
-        optionValue: '',
-        itemId: '',
-        targetType: '',
-        serialId: null,
-        serialNumber: '',
-        newSerialNumber: '',
-        deliveredQuantity: '',
-        quantity: '',
-        rejectedQuantity: 0,
-        rejectionReason: '',
-        costPrice: '',
-        lotStock: 0
+    setLineItems(prev => {
+      // If the last line is still empty/unselected, don't create multiple empty duplicate lines
+      const last = prev[prev.length - 1];
+      if (last && !last.optionValue && !last.itemId) {
+        toast('Please select a motorcycle part for the current line first.', { icon: 'ℹ' });
+        return prev;
       }
-    ]);
+      return [
+        ...prev,
+        {
+          optionValue: '',
+          itemId: '',
+          targetType: '',
+          serialId: null,
+          serialNumber: '',
+          newSerialNumber: '',
+          deliveredQuantity: '',
+          quantity: '',
+          rejectedQuantity: 0,
+          rejectionReason: '',
+          costPrice: '',
+          lotStock: 0
+        }
+      ];
+    });
   };
 
   /**
@@ -491,15 +517,19 @@ export const Purchasing = () => {
    */
   const handleQuickRestock = (product) => {
     const isSerialized = Boolean(product.is_serialized);
+    let foundExisting = false;
+    let targetIndex = -1;
 
-    // Check if this product is already in the list (prevents duplicates)
-    const existingIndex = lineItems.findIndex(r => {
-      if (!r.itemId || String(r.itemId) !== String(product.id)) return false;
-      return !isSerialized || r.targetType === 'new_serial';
-    });
+    setLineItems(prev => {
+      // Check if this product is already in the list (prevents duplicates)
+      const existingIndex = prev.findIndex(r => {
+        if (!r.itemId || String(r.itemId) !== String(product.id)) return false;
+        return !isSerialized || r.targetType === 'new_serial';
+      });
 
-    if (existingIndex !== -1) {
-      setLineItems(prev => {
+      if (existingIndex !== -1) {
+        foundExisting = true;
+        targetIndex = existingIndex;
         const next = [...prev];
         const row = { ...next[existingIndex] };
         const currentDeliv = parseInt(row.deliveredQuantity, 10) || 0;
@@ -509,46 +539,30 @@ export const Purchasing = () => {
         row.quantity = String(Math.max(0, newDeliv - currentRej));
         next[existingIndex] = row;
         return next;
-      });
+      }
 
-      setIsIntakeExpanded(true);
-      toast.success(`"${product.product_name || product.name}" already in delivery check (Row #${existingIndex + 1}) — incremented quantity!`);
+      const foundOpt = receiveOptions.find(o => o.productId === product.id && o.targetType !== '__NEW_PRODUCT__');
+      const optionValue = foundOpt ? foundOpt.value : (product.is_serialized ? `ns:${product.id}` : `p:${product.id}`);
+      const targetType = foundOpt ? foundOpt.targetType : (product.is_serialized ? 'new_serial' : 'non_serialized');
+      const serialId = foundOpt ? foundOpt.serialId : null;
+      const serialNumber = foundOpt ? foundOpt.serialNumber : '';
+      const lotStock = foundOpt ? foundOpt.lotStock : Number(product.stock ?? product.current_stock ?? 0);
 
-      setTimeout(() => {
-        const input = document.getElementById(`delivered-qty-${existingIndex}`);
-        if (input) {
-          input.focus();
-          input.select?.();
-          input.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-      }, 100);
-      return;
-    }
+      const newRow = {
+        optionValue,
+        itemId: product.id,
+        targetType,
+        serialId,
+        serialNumber,
+        newSerialNumber: '',
+        deliveredQuantity: '1',
+        quantity: '1',
+        rejectedQuantity: 0,
+        rejectionReason: '',
+        costPrice: product.cost_price || (foundOpt ? foundOpt.costPrice : '') || '',
+        lotStock
+      };
 
-    const foundOpt = receiveOptions.find(o => o.productId === product.id && o.targetType !== '__NEW_PRODUCT__');
-    const optionValue = foundOpt ? foundOpt.value : (product.is_serialized ? `ns:${product.id}` : `p:${product.id}`);
-    const targetType = foundOpt ? foundOpt.targetType : (product.is_serialized ? 'new_serial' : 'non_serialized');
-    const serialId = foundOpt ? foundOpt.serialId : null;
-    const serialNumber = foundOpt ? foundOpt.serialNumber : '';
-    const lotStock = foundOpt ? foundOpt.lotStock : Number(product.stock ?? product.current_stock ?? 0);
-
-    const newRow = {
-      optionValue,
-      itemId: product.id,
-      targetType,
-      serialId,
-      serialNumber,
-      newSerialNumber: '',
-      deliveredQuantity: '1',
-      quantity: '1',
-      rejectedQuantity: 0,
-      rejectionReason: '',
-      costPrice: product.cost_price || '',
-      lotStock
-    };
-
-    let targetIndex = 0;
-    setLineItems(prev => {
       if (prev.length === 1 && !prev[0].optionValue) {
         targetIndex = 0;
         return [newRow];
@@ -558,10 +572,15 @@ export const Purchasing = () => {
     });
 
     setIsIntakeExpanded(true);
-    toast.success(`Added "${product.product_name || product.name}" to delivery check!`);
+    if (foundExisting) {
+      toast.success(`"${product.product_name || product.name}" already in delivery check (Row #${targetIndex + 1}) — incremented quantity!`);
+    } else {
+      toast.success(`Added "${product.product_name || product.name}" to delivery check!`);
+    }
 
     setTimeout(() => {
-      const input = document.getElementById(`delivered-qty-${targetIndex}`);
+      const idx = targetIndex >= 0 ? targetIndex : 0;
+      const input = document.getElementById(`delivered-qty-${idx}`);
       if (input) {
         input.focus();
         input.select?.();
@@ -670,7 +689,28 @@ export const Purchasing = () => {
             if (dupIndex !== -1) {
               const prodName = selected.label?.split('•')?.[0] || 'This product';
               toast.error(`${prodName} is already selected in Row #${dupIndex + 1}. Please combine quantities into that row.`);
-              return prev;
+              setTimeout(() => {
+                const input = document.getElementById(`delivered-qty-${dupIndex}`);
+                if (input) {
+                  input.focus();
+                  input.select?.();
+                  input.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+              }, 100);
+              // Cleanly reset current row to empty so React forces the select dropdown back to unselected
+              const cleanNext = [...prev];
+              cleanNext[index] = {
+                ...cleanNext[index],
+                optionValue: '',
+                itemId: '',
+                targetType: '',
+                costPrice: '',
+                deliveredQuantity: '',
+                quantity: '',
+                rejectedQuantity: 0,
+                lotStock: 0
+              };
+              return cleanNext;
             }
           }
 
@@ -689,6 +729,7 @@ export const Purchasing = () => {
           row.serialId = null;
           row.serialNumber = '';
           row.newSerialNumber = '';
+          row.costPrice = '';
           row.lotStock = 0;
         }
       } else if (field === 'deliveredQuantity') {
@@ -847,6 +888,28 @@ export const Purchasing = () => {
       });
     }
 
+    // Deduplicate non-serialized items to guarantee clean atomic stock-in
+    const deduplicatedItems = [];
+    const itemMap = new Map();
+    for (const item of formattedItems) {
+      if (item.serial_id || item.serial_number) {
+        deduplicatedItems.push(item);
+        continue;
+      }
+      const key = `p_${item.product_id}`;
+      if (itemMap.has(key)) {
+        const ex = itemMap.get(key);
+        ex.delivered_quantity += item.delivered_quantity;
+        ex.quantity += item.quantity;
+        ex.accepted_quantity += item.accepted_quantity;
+        ex.rejected_quantity += item.rejected_quantity;
+      } else {
+        const cloned = { ...item };
+        itemMap.set(key, cloned);
+        deduplicatedItems.push(cloned);
+      }
+    }
+
     setSubmitting(true);
     try {
       await api.post('/inventory/receive', {
@@ -859,7 +922,7 @@ export const Purchasing = () => {
         receivedDate: receivedDate || new Date().toISOString().slice(0, 10),
         paymentSource: paymentSource,
         notes: deliveryNotes.trim() || undefined,
-        items: formattedItems
+        items: deduplicatedItems
       });
 
       if (totalsSummary.totalRejectedUnits > 0) {
@@ -1059,33 +1122,113 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
       `}</style>
 
       {/* Screen Title & Action */}
-      <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
+      <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '18px' }}>
         <div>
           <h1 style={{ margin: 0, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.75rem', fontWeight: 'bold' }}>
             <Truck size={28} style={{ color: 'var(--primary)' }} />
-            Receiving / Stock-In
+            Suppliers & Stock-In
           </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0 }}>
-            Inward truck delivery receiving, on-the-spot physical inspection, driver returns, and delivery logs.
+            Inward truck delivery inspection, on-the-spot driver returns, delivery history, and master supplier directory.
           </p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => setIsIntakeExpanded(!isIntakeExpanded)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', padding: '8px 16px', fontWeight: 600 }}
-          >
-            <Plus size={16} /> {isIntakeExpanded ? '✕ Close Receiving Gate' : '+ Receive Truck Delivery'}
-          </button>
+          {activeTab === 'directory' ? (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => setIsAddSupplierOpen(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', padding: '8px 16px', fontWeight: 600 }}
+            >
+              <Plus size={16} /> + Add New Supplier
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => {
+                if (activeTab !== 'receive' && activeTab !== 'receive_orders') handleTabChange('receive');
+                setIsIntakeExpanded(!isIntakeExpanded);
+              }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', padding: '8px 16px', fontWeight: 600 }}
+            >
+              <Plus size={16} /> {isIntakeExpanded && (activeTab === 'receive' || activeTab === 'receive_orders') ? '✕ Close Receiving Gate' : '+ Receive Truck Delivery'}
+            </button>
+          )}
         </div>
       </div>
 
+      {/* Top 3 Tabs Navigation Bar */}
+      <div className="no-print" style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border)', paddingBottom: '8px', marginBottom: '22px', overflowX: 'auto' }}>
+        <button
+          type="button"
+          onClick={() => handleTabChange('receive')}
+          style={{
+            padding: '10px 18px',
+            fontSize: '0.88rem',
+            fontWeight: activeTab === 'receive' || activeTab === 'receive_orders' ? 700 : 500,
+            background: activeTab === 'receive' || activeTab === 'receive_orders' ? 'rgba(var(--primary-rgb), 0.12)' : 'transparent',
+            color: activeTab === 'receive' || activeTab === 'receive_orders' ? 'var(--primary)' : 'var(--text-muted)',
+            border: activeTab === 'receive' || activeTab === 'receive_orders' ? '1px solid var(--primary)' : '1px solid transparent',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <Truck size={17} /> Tab 1: Receive Truck Delivery
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange('history')}
+          style={{
+            padding: '10px 18px',
+            fontSize: '0.88rem',
+            fontWeight: activeTab === 'history' ? 700 : 500,
+            background: activeTab === 'history' ? 'rgba(var(--primary-rgb), 0.12)' : 'transparent',
+            color: activeTab === 'history' ? 'var(--primary)' : 'var(--text-muted)',
+            border: activeTab === 'history' ? '1px solid var(--primary)' : '1px solid transparent',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <History size={17} /> Tab 2: Past Deliveries History
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange('directory')}
+          style={{
+            padding: '10px 18px',
+            fontSize: '0.88rem',
+            fontWeight: activeTab === 'directory' ? 700 : 500,
+            background: activeTab === 'directory' ? 'rgba(var(--primary-rgb), 0.12)' : 'transparent',
+            color: activeTab === 'directory' ? 'var(--primary)' : 'var(--text-muted)',
+            border: activeTab === 'directory' ? '1px solid var(--primary)' : '1px solid transparent',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <Building2 size={17} /> Tab 3: Supplier Directory
+        </button>
+      </div>
+
       {/* =========================================================================
-          RECEIVE DELIVERY (PRE-ACCEPTANCE INSPECTION GATE) & RESTOCK HISTORY
+          TAB 1: RECEIVE TRUCK DELIVERY (PRE-ACCEPTANCE INSPECTION GATE)
          ========================================================================= */}
-      {activeTab === 'receive_orders' && (
+      {(activeTab === 'receive' || activeTab === 'receive_orders') && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
           
           {/* INLINE FORM: PUT NEW PRODUCT / REGISTER NEW PART (ADMIN ONLY, NO MODAL, NO GLASS PANEL) */}
@@ -1182,22 +1325,35 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                         <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
                           Supplier / FB Source <span style={{ color: 'var(--danger)' }}>*</span>
                         </label>
-                        <select
-                          id="delivery-supplier-select"
-                          className="input-premium"
-                          value={supplierId}
-                          onChange={(e) => setSupplierId(e.target.value)}
-                          required
-                          disabled={submitting}
-                          style={{ width: '100%', height: '40px', fontSize: '0.84rem', maxWidth: '100%', textOverflow: 'ellipsis' }}
-                        >
-                          <option value="">-- Select Supplier --</option>
-                          {suppliers.map(s => (
-                            <option key={s.id} value={s.id}>
-                              {s.fb_page_name ? `${s.fb_page_name} • ${s.name}` : s.name}
-                            </option>
-                          ))}
-                        </select>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <select
+                            id="delivery-supplier-select"
+                            className="input-premium"
+                            value={supplierId}
+                            onChange={(e) => setSupplierId(e.target.value)}
+                            required
+                            disabled={submitting}
+                            style={{ flex: 1, minWidth: 0, height: '40px', fontSize: '0.84rem', textOverflow: 'ellipsis' }}
+                          >
+                            <option value="">-- Select Supplier --</option>
+                            {suppliers.map(s => (
+                              <option key={s.id} value={s.id}>
+                                {s.fb_page_name ? `${s.fb_page_name} • ${s.name}` : s.name}
+                              </option>
+                            ))}
+                          </select>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={() => setIsAddSupplierOpen(true)}
+                              title="Quick-Add New Supplier"
+                              style={{ height: '40px', padding: '0 12px', fontSize: '0.8rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+                            >
+                              <Plus size={14} /> Add
+                            </button>
+                          )}
+                        </div>
                         {selectedSupplierObj && (
                           <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                             {selectedSupplierObj.fb_page_name && <span>FB: <strong style={{ color: 'var(--text-main)' }}>{selectedSupplierObj.fb_page_name}</strong></span>}
@@ -1685,16 +1841,17 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                                   >
                                     <option value="">-- Select Motorcycle Part --</option>
                                     {receiveOptions.map(opt => {
-                                      const isDuplicate = opt.targetType !== '__NEW_PRODUCT__' && opt.targetType !== 'new_serial' && lineItems.some((r, i) => 
+                                      const existingIdx = lineItems.findIndex((r, i) => 
                                         i !== index && (
                                           (opt.targetType === 'non_serialized' && String(r.itemId) === String(opt.productId)) ||
                                           (opt.targetType === 'existing_serial' && r.serialId && Number(r.serialId) === Number(opt.serialId))
                                         )
                                       );
+                                      const isDuplicate = opt.targetType !== '__NEW_PRODUCT__' && opt.targetType !== 'new_serial' && existingIdx !== -1;
 
                                       return (
                                         <option key={opt.value} value={opt.value} disabled={isDuplicate}>
-                                          {opt.label}{isDuplicate ? ' — [Already in List]' : ''}
+                                          {opt.label}{isDuplicate ? ` — [Already in Row #${existingIdx + 1}]` : ''}
                                         </option>
                                       );
                                     })}
@@ -1989,8 +2146,15 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
               </div>
             )}
           </div>
+        </div>
+      )}
 
-          {/* Section 2: Restock Orders History & Inflow Audit Ledger */}
+      {/* =========================================================================
+          TAB 2: PAST DELIVERIES HISTORY (SEARCHABLE DELIVERY & DR LOGS)
+         ========================================================================= */}
+      {activeTab === 'history' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+          {/* Restock Orders History & Inflow Audit Ledger */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
               <div>
@@ -2298,6 +2462,255 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
         </div>
       </div>
     )}
+
+      {/* =========================================================================
+          TAB 3: MASTER SUPPLIER DIRECTORY
+         ========================================================================= */}
+      {activeTab === 'directory' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Top 4 KPI Summary Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+            <div className="glass-panel" style={{ padding: '16px', borderRadius: '10px' }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem', display: 'block', marginBottom: '4px' }}>Total Suppliers</span>
+              <strong style={{ fontSize: '1.4rem', color: 'var(--text-main)' }}>{suppliers.length}</strong>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>Registered vendor accounts</div>
+            </div>
+
+            <div className="glass-panel" style={{ padding: '16px', borderRadius: '10px' }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem', display: 'block', marginBottom: '4px' }}>Active Vendors</span>
+              <strong style={{ fontSize: '1.4rem', color: '#10b981' }}>{suppliers.filter(s => s.is_active).length}</strong>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>Eligible for truck deliveries</div>
+            </div>
+
+            <div className="glass-panel" style={{ padding: '16px', borderRadius: '10px' }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem', display: 'block', marginBottom: '4px' }}>FB Messenger Suppliers</span>
+              <strong style={{ fontSize: '1.4rem', color: '#3b82f6' }}>{suppliers.filter(s => s.messenger_url || s.fb_page_name).length}</strong>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>1-click chat links enabled</div>
+            </div>
+
+            <div className="glass-panel" style={{ padding: '16px', borderRadius: '10px' }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem', display: 'block', marginBottom: '4px' }}>Lifetime Delivery Spend</span>
+              <strong style={{ fontSize: '1.4rem', color: '#f59e0b' }}>
+                {formatCurrency(historySummary.total_received_value || 0)}
+              </strong>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>Across {historySummary.total_batches || receivingHistory.length} completed truck deliveries</div>
+            </div>
+          </div>
+
+          {/* Search & Filter Toolbar */}
+          <div className="glass-panel" style={{ padding: '14px 18px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '240px', maxWidth: '420px', position: 'relative' }}>
+              <Search size={16} style={{ position: 'absolute', left: '12px', color: 'var(--text-muted)' }} />
+              <input
+                type="text"
+                className="input-premium"
+                placeholder="Search supplier, FB page, contact, phone..."
+                value={supplierSearchTerm}
+                onChange={(e) => setSupplierSearchTerm(e.target.value)}
+                style={{ width: '100%', paddingLeft: '36px', height: '38px', fontSize: '0.84rem' }}
+              />
+              {supplierSearchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSupplierSearchTerm('')}
+                  style={{ position: 'absolute', right: '10px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <select
+                className="input-premium"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={{ height: '38px', fontSize: '0.82rem', padding: '0 10px' }}
+              >
+                <option value="all">All Vendors ({suppliers.length})</option>
+                <option value="active">Active Only ({suppliers.filter(s => s.is_active).length})</option>
+                <option value="inactive">Inactive Only ({suppliers.filter(s => !s.is_active).length})</option>
+                <option value="facebook">FB Suppliers ({suppliers.filter(s => s.messenger_url || s.fb_page_name).length})</option>
+              </select>
+
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => setIsAddSupplierOpen(true)}
+                style={{ height: '38px', padding: '0 16px', fontSize: '0.84rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Plus size={16} /> + Quick-Add Supplier
+              </button>
+            </div>
+          </div>
+
+          {/* 6-Column Master Supplier Directory Table */}
+          <div className="table-container" style={{ border: '1px solid var(--border)', borderRadius: '10px', overflowX: 'auto', width: '100%' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.84rem' }}>
+              <thead>
+                <tr style={{ background: 'var(--surface-hover)', borderBottom: '1px solid var(--border)' }}>
+                  <th style={{ padding: '10px 14px', minWidth: '220px' }}>Supplier / Page Name</th>
+                  <th style={{ padding: '10px 12px', minWidth: '150px' }}>Contact Person</th>
+                  <th style={{ padding: '10px 12px', minWidth: '140px' }}>Phone / GCash</th>
+                  <th style={{ padding: '10px 12px', minWidth: '160px' }}>FB Messenger Link</th>
+                  <th style={{ padding: '10px 12px', minWidth: '160px' }}>Total Deliveries & Spend</th>
+                  <th style={{ padding: '10px 14px', minWidth: '200px', textAlign: 'center' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredSuppliers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ padding: '36px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <Building2 size={32} style={{ opacity: 0.3, marginBottom: '8px', display: 'block', margin: '0 auto 8px auto' }} />
+                      No suppliers found matching your filter.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredSuppliers.map((s) => {
+                    const suppRecords = receivingHistory.filter(r => Number(r.supplier_id) === Number(s.id));
+                    const suppDeliveriesCount = suppRecords.length;
+                    const suppSpend = suppRecords.reduce((sum, r) => sum + (parseFloat(r.total_amount || r.total_cost) || 0), 0);
+                    const cleanMessengerUrl = s.messenger_url ? (
+                      s.messenger_url.startsWith('http') ? s.messenger_url : `https://${s.messenger_url}`
+                    ) : null;
+
+                    return (
+                      <tr key={s.id} style={{ borderBottom: '1px solid var(--border)', opacity: s.is_active ? 1 : 0.65 }}>
+                        {/* 1. Supplier / Page Name */}
+                        <td style={{ padding: '10px 14px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <strong>{s.name}</strong>
+                            <span style={{ fontSize: '0.7rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.06)', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                              SUP-{String(s.id).padStart(3, '0')}
+                            </span>
+                            {!s.is_active && (
+                              <span style={{ fontSize: '0.68rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', fontWeight: 600 }}>
+                                Inactive
+                              </span>
+                            )}
+                          </div>
+                          {s.fb_page_name && (
+                            <div style={{ fontSize: '0.76rem', color: '#3b82f6', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span>FB: {s.fb_page_name}</span>
+                            </div>
+                          )}
+                          {s.address && (
+                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <MapPin size={11} /> {s.address}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* 2. Contact Person */}
+                        <td style={{ padding: '10px 12px' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>
+                            {s.seller_contact_name || s.contact_person || '—'}
+                          </div>
+                        </td>
+
+                        {/* 3. Phone / GCash */}
+                        <td style={{ padding: '10px 12px' }}>
+                          {s.phone ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Phone size={12} color="var(--primary)" />
+                              <span>{s.phone}</span>
+                            </div>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)' }}>—</span>
+                          )}
+                          {s.gcash_account_number && (
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                              GCash: {s.gcash_account_number}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* 4. FB Messenger Link */}
+                        <td style={{ padding: '10px 12px' }}>
+                          {cleanMessengerUrl ? (
+                            <a
+                              href={cleanMessengerUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                fontSize: '0.78rem',
+                                color: '#3b82f6',
+                                background: 'rgba(59, 130, 246, 0.1)',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                textDecoration: 'none',
+                                fontWeight: 600
+                              }}
+                            >
+                              <MessageSquare size={12} /> Open Messenger <ExternalLink size={11} />
+                            </a>
+                          ) : (
+                            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>No link configured</span>
+                          )}
+                        </td>
+
+                        {/* 5. Total Deliveries & Spend */}
+                        <td style={{ padding: '10px 12px' }}>
+                          <div style={{ fontWeight: 700, color: '#10b981' }}>
+                            {formatCurrency(suppSpend)}
+                          </div>
+                          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                            {suppDeliveriesCount} {suppDeliveriesCount === 1 ? 'delivery' : 'deliveries'} logged
+                          </div>
+                        </td>
+
+                        {/* 6. Actions */}
+                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <button
+                              type="button"
+                              className="btn-primary"
+                              onClick={() => handleDirectReceiveFromSupplier(s)}
+                              title="Switch to Tab 1 with this supplier pre-selected"
+                              style={{ padding: '5px 10px', fontSize: '0.76rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+                            >
+                              <Truck size={12} /> + Receive Truck
+                            </button>
+
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={() => setSelectedSupplierForEdit(s)}
+                              title="Edit Supplier Details"
+                              style={{ padding: '5px 8px', fontSize: '0.76rem', display: 'inline-flex', alignItems: 'center' }}
+                            >
+                              <Edit3 size={12} />
+                            </button>
+
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={() => handleToggleSupplierStatus(s)}
+                              title={s.is_active ? 'Mark as Inactive' : 'Activate Supplier'}
+                              style={{
+                                padding: '5px 8px',
+                                fontSize: '0.76rem',
+                                color: s.is_active ? 'var(--text-muted)' : '#10b981',
+                                display: 'inline-flex',
+                                alignItems: 'center'
+                              }}
+                            >
+                              {s.is_active ? <UserX size={12} /> : <UserCheck size={12} />}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* =========================================================================
           MODAL 1: DRIVER ON-THE-SPOT REJECTION & RETURN SLIP (TRIGGERED ON REJECTIONS)
@@ -2703,6 +3116,23 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
 
 
 
+
+      {/* =========================================================================
+          MODAL: QUICK-ADD SUPPLIER MODAL
+         ========================================================================= */}
+      {isAddSupplierOpen && (
+        <QuickAddSupplierModal
+          isOpen={isAddSupplierOpen}
+          onClose={() => setIsAddSupplierOpen(false)}
+          onSuccess={(newSupp) => {
+            fetchSuppliersAndProducts();
+            if (newSupp?.id) {
+              setSupplierId(newSupp.id);
+            }
+            setIsAddSupplierOpen(false);
+          }}
+        />
+      )}
 
       {/* =========================================================================
           MODAL 4: EDIT SUPPLIER MODAL
