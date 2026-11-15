@@ -525,10 +525,45 @@ export const Purchasing = ({ defaultTab }) => {
 
   /**
    * One-Click Low Stock Restock Shortcut handler:
-   * Appends a new line item, pre-selects the product, sets its unit cost,
-   * and focuses the "Sent by Supplier" input field.
+   * Appends a new line item or increments existing item quantity without creating duplicates,
+   * pre-selects the product, sets its unit cost, and focuses the "Sent by Supplier" input field.
    */
   const handleQuickRestock = (product) => {
+    const isSerialized = Boolean(product.is_serialized);
+
+    // Check if this product is already in the list (prevents duplicates)
+    const existingIndex = lineItems.findIndex(r => {
+      if (!r.itemId || String(r.itemId) !== String(product.id)) return false;
+      return !isSerialized || r.targetType === 'new_serial';
+    });
+
+    if (existingIndex !== -1) {
+      setLineItems(prev => {
+        const next = [...prev];
+        const row = { ...next[existingIndex] };
+        const currentDeliv = parseInt(row.deliveredQuantity, 10) || 0;
+        const newDeliv = currentDeliv + 1;
+        row.deliveredQuantity = String(newDeliv);
+        const currentRej = Math.max(0, parseInt(row.rejectedQuantity, 10) || 0);
+        row.quantity = String(Math.max(0, newDeliv - currentRej));
+        next[existingIndex] = row;
+        return next;
+      });
+
+      setIsIntakeExpanded(true);
+      toast.success(`"${product.product_name || product.name}" already in delivery check (Row #${existingIndex + 1}) — incremented quantity!`);
+
+      setTimeout(() => {
+        const input = document.getElementById(`delivered-qty-${existingIndex}`);
+        if (input) {
+          input.focus();
+          input.select?.();
+          input.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }, 100);
+      return;
+    }
+
     const foundOpt = receiveOptions.find(o => o.productId === product.id && o.targetType !== '__NEW_PRODUCT__');
     const optionValue = foundOpt ? foundOpt.value : (product.is_serialized ? `ns:${product.id}` : `p:${product.id}`);
     const targetType = foundOpt ? foundOpt.targetType : (product.is_serialized ? 'new_serial' : 'non_serialized');
@@ -543,8 +578,8 @@ export const Purchasing = ({ defaultTab }) => {
       serialId,
       serialNumber,
       newSerialNumber: '',
-      deliveredQuantity: '',
-      quantity: '',
+      deliveredQuantity: '1',
+      quantity: '1',
       rejectedQuantity: 0,
       rejectionReason: '',
       costPrice: product.cost_price || '',
@@ -568,10 +603,75 @@ export const Purchasing = ({ defaultTab }) => {
       const input = document.getElementById(`delivered-qty-${targetIndex}`);
       if (input) {
         input.focus();
+        input.select?.();
         input.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     }, 120);
   };
+
+  /**
+   * Consolidate duplicate rows of the exact same product into a single line item
+   */
+  const consolidateDuplicates = () => {
+    setLineItems(prev => {
+      const mergedMap = new Map();
+      const uniqueRows = [];
+
+      prev.forEach(row => {
+        const isUniqueTrackable = row.targetType === 'new_serial';
+        const key = isUniqueTrackable 
+          ? `new_sn_${row.itemId}_${row.newSerialNumber || Math.random()}`
+          : (row.targetType === 'existing_serial' ? `sn_${row.serialId}` : `prod_${row.itemId}`);
+
+        if (!row.itemId || isUniqueTrackable) {
+          uniqueRows.push(row);
+          return;
+        }
+
+        if (mergedMap.has(key)) {
+          const existing = mergedMap.get(key);
+          const exDeliv = parseInt(existing.deliveredQuantity, 10) || 0;
+          const thisDeliv = parseInt(row.deliveredQuantity, 10) || 0;
+          const combinedDeliv = exDeliv + thisDeliv;
+          
+          const exRej = parseInt(existing.rejectedQuantity, 10) || 0;
+          const thisRej = parseInt(row.rejectedQuantity, 10) || 0;
+          const combinedRej = exRej + thisRej;
+
+          existing.deliveredQuantity = combinedDeliv > 0 ? String(combinedDeliv) : (existing.deliveredQuantity || row.deliveredQuantity || '');
+          existing.rejectedQuantity = combinedRej;
+          existing.quantity = combinedDeliv > 0 ? String(Math.max(0, combinedDeliv - combinedRej)) : (existing.quantity || row.quantity || '');
+          if (row.rejectionReason && !existing.rejectionReason) {
+            existing.rejectionReason = row.rejectionReason;
+          }
+        } else {
+          const cloned = { ...row };
+          mergedMap.set(key, cloned);
+          uniqueRows.push(cloned);
+        }
+      });
+
+      return uniqueRows.length > 0 ? uniqueRows : prev;
+    });
+    toast.success('Duplicate line items merged successfully!');
+  };
+
+  const hasDuplicateItems = useMemo(() => {
+    const seen = new Set();
+    for (const r of lineItems) {
+      if (!r.itemId) continue;
+      if (r.targetType === 'non_serialized') {
+        const key = `p:${r.itemId}`;
+        if (seen.has(key)) return true;
+        seen.add(key);
+      } else if (r.targetType === 'existing_serial') {
+        const key = `s:${r.serialId}`;
+        if (seen.has(key)) return true;
+        seen.add(key);
+      }
+    }
+    return false;
+  }, [lineItems]);
 
   const removeRow = (index) => {
     if (lineItems.length === 1) {
@@ -598,6 +698,21 @@ export const Purchasing = ({ defaultTab }) => {
         }
         const selected = receiveOptions.find(o => o.value === value);
         if (selected) {
+          // Check if this item is already chosen in another row to prevent duplicates
+          if (selected.targetType === 'non_serialized' || selected.targetType === 'existing_serial') {
+            const dupIndex = prev.findIndex((r, idx) => 
+              idx !== index && (
+                (selected.targetType === 'non_serialized' && String(r.itemId) === String(selected.productId)) ||
+                (selected.targetType === 'existing_serial' && r.serialId && Number(r.serialId) === Number(selected.serialId))
+              )
+            );
+            if (dupIndex !== -1) {
+              const prodName = selected.label?.split('•')?.[0] || 'This product';
+              toast.error(`${prodName} is already selected in Row #${dupIndex + 1}. Please combine quantities into that row.`);
+              return prev;
+            }
+          }
+
           row.optionValue = value;
           row.itemId = selected.productId;
           row.targetType = selected.targetType;
@@ -1567,6 +1682,29 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {hasDuplicateItems && (
+                          <button
+                            type="button"
+                            onClick={consolidateDuplicates}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              fontSize: '0.8rem',
+                              padding: '6px 12px',
+                              background: '#f59e0b',
+                              color: '#000',
+                              border: 'none',
+                              borderRadius: '6px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 6px rgba(245, 158, 11, 0.3)'
+                            }}
+                            title="Consolidate duplicate rows of the same product into a single line item"
+                          >
+                            <Layers size={14} /> Merge Duplicates
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="btn-secondary"
@@ -1578,6 +1716,48 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                         </button>
                       </div>
                     </div>
+
+                    {hasDuplicateItems && (
+                      <div style={{
+                        background: 'rgba(245, 158, 11, 0.12)',
+                        border: '1.5px solid #f59e0b',
+                        borderRadius: '8px',
+                        padding: '10px 14px',
+                        marginBottom: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '10px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f59e0b', fontSize: '0.84rem' }}>
+                          <AlertTriangle size={18} />
+                          <span>
+                            <strong>Duplicate Items Detected:</strong> Multiple rows have the exact same product selected. Click <strong>Merge Duplicates</strong> to consolidate them into single rows.
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={consolidateDuplicates}
+                          style={{
+                            height: '30px',
+                            padding: '0 12px',
+                            fontSize: '0.78rem',
+                            background: '#f59e0b',
+                            border: 'none',
+                            color: '#000',
+                            fontWeight: 700,
+                            borderRadius: '6px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Layers size={13} /> Merge Duplicates
+                        </button>
+                      </div>
+                    )}
 
                     <div className="table-container" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflowX: 'auto', width: '100%' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.84rem' }}>
@@ -1615,11 +1795,20 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                                     style={{ width: '100%', fontSize: '0.8rem' }}
                                   >
                                     <option value="">-- Select Motorcycle Part --</option>
-                                    {receiveOptions.map(opt => (
-                                      <option key={opt.value} value={opt.value}>
-                                        {opt.label}
-                                      </option>
-                                    ))}
+                                    {receiveOptions.map(opt => {
+                                      const isDuplicate = opt.targetType !== '__NEW_PRODUCT__' && opt.targetType !== 'new_serial' && lineItems.some((r, i) => 
+                                        i !== index && (
+                                          (opt.targetType === 'non_serialized' && String(r.itemId) === String(opt.productId)) ||
+                                          (opt.targetType === 'existing_serial' && r.serialId && Number(r.serialId) === Number(opt.serialId))
+                                        )
+                                      );
+
+                                      return (
+                                        <option key={opt.value} value={opt.value} disabled={isDuplicate}>
+                                          {opt.label}{isDuplicate ? ' — [Already in List]' : ''}
+                                        </option>
+                                      );
+                                    })}
                                   </select>
 
                                   {row.targetType === 'new_serial' && (
