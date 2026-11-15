@@ -15,6 +15,13 @@ import toast from 'react-hot-toast';
  * - FOUND (+) : Found extra stock / surplus restoration
  * - RETURN_TO_SUPPLIER (-) : Returning defective units back to supplier
  */
+const generateAuditReference = () => {
+  const d = new Date();
+  const dateStr = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+  const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `ADJ-${dateStr}-${rand}`;
+};
+
 export const AdjustmentModal = ({
   isOpen,
   onClose,
@@ -22,9 +29,9 @@ export const AdjustmentModal = ({
   onSuccess,
   asPanel = false,
 }) => {
-  const [movementType, setMovementType] = useState('DAMAGE'); // DAMAGE | LOSS | FOUND | RETURN_TO_SUPPLIER
+  const [movementType, setMovementType] = useState('DAMAGE'); // DAMAGE | LOSS | FOUND
   const [quantity, setQuantity] = useState('1');
-  const [referenceNo, setReferenceNo] = useState('');
+  const [referenceNo, setReferenceNo] = useState(generateAuditReference);
   const [remarks, setRemarks] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -178,15 +185,12 @@ export const AdjustmentModal = ({
       return;
     }
 
-    if (!referenceNo.trim()) {
-      toast.error('Reference number is mandatory');
-      return;
-    }
-
     if (!remarks.trim()) {
       toast.error('Remarks/reason are mandatory for audit compliance');
       return;
     }
+
+    const effectiveRef = referenceNo.trim() || generateAuditReference();
 
     setSubmitting(true);
     try {
@@ -196,7 +200,7 @@ export const AdjustmentModal = ({
         movement_type: movementType,
         transaction_type: movementType,
         quantity: qtyNumber,
-        reference_no: referenceNo.trim(),
+        reference_no: effectiveRef,
         remarks: remarks.trim(),
       };
 
@@ -511,7 +515,6 @@ export const AdjustmentModal = ({
             <option value="DAMAGE">💥 In-Store Defect / Shelf Damage (Deduct from sellable stock, log as shop shrinkage loss)</option>
             <option value="LOSS">⚠️ Lost / Stolen item (Shrinkage deduction from stock)</option>
             <option value="FOUND">📦 Found extra stock (Surplus count added to sellable stock)</option>
-            <option value="RETURN_TO_SUPPLIER">🏭 Return Defective Unit to Supplier (-Deduct from stock)</option>
           </select>
         </div>
 
@@ -535,18 +538,20 @@ export const AdjustmentModal = ({
             />
           </div>
           <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-              Reference / Receipt Code *
-            </label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', display: 'block' }}>
+                Audit Reference Code
+              </label>
+              <span style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 600 }}>Auto-Generated</span>
+            </div>
             <input
               type="text"
-              placeholder="e.g. ADJ-2026-001"
+              placeholder="e.g. ADJ-20261116-XXXX"
               className="input-premium"
               value={referenceNo}
               onChange={(e) => setReferenceNo(e.target.value)}
-              required
               disabled={submitting}
-              style={{ width: '100%', height: '38px' }}
+              style={{ width: '100%', height: '38px', fontFamily: 'monospace', fontWeight: 600 }}
             />
           </div>
         </div>

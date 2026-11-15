@@ -542,7 +542,7 @@ exports.recordAdjustment = async (req, res, next) => {
 
     const resolvedId = Number(item_id || itemId || productId);
     const resolvedType = (movement_type || movementType || transaction_type || transactionType || '').trim().toUpperCase();
-    const resolvedRef = (reference_no || referenceNo || '').trim();
+    const resolvedRef = (reference_no || referenceNo || '').trim() || `ADJ-${Date.now().toString().slice(-6)}`;
     const resolvedRemarks = (remarks || notes || '').trim();
     let resolvedLossTxId = loss_transaction_id || lossTransactionId || null;
     const resolvedLossRef = (loss_reference_no || loss_reference || lossReferenceNo || '').trim();
@@ -554,14 +554,6 @@ exports.recordAdjustment = async (req, res, next) => {
     if (!['admin', 'staff'].includes(userRole)) {
         return res.status(403).json({
             message: 'Forbidden: Stock adjustments require staff or administrator authorization'
-        });
-    }
-
-    // Validate reference number and remarks
-    if (!resolvedRef) {
-        return res.status(422).json({
-            message: 'Reference number is required for all adjustments',
-            errors: [{ field: 'reference_no', message: 'Reference number required' }]
         });
     }
 
