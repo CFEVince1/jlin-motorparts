@@ -591,7 +591,8 @@ exports.createProduct = async (req, res) => {
             `SELECT COUNT(*) as cnt FROM inventory_transactions WHERE transaction_type = 'OPENING_BALANCE' AND DATE(created_at) = CURRENT_DATE()`
         );
         const seq = String((countRow?.cnt || 0) + 1).padStart(2, '0');
-        const refNo = `OPENING-${dbDate}-${seq}`;
+        const customSupplierRef = req.body.supplier_ref_no ? String(req.body.supplier_ref_no).trim() : (req.body.reference_no ? String(req.body.reference_no).trim() : null);
+        const refNo = customSupplierRef || `OPENING-${dbDate}-${seq}`;
         const userId = req.user?.id || null;
 
         if (serialized && cleanedSerials.length > 0) {
@@ -603,6 +604,7 @@ exports.createProduct = async (req, res) => {
         }
 
         // Insert initial OPENING_BALANCE ledger entry in the SAME transaction
+        const refSuffix = customSupplierRef ? ` [Supplier Ref: ${customSupplierRef}]` : '';
         await applyMovement(connection, {
             itemId: productId,
             transactionType: 'OPENING_BALANCE',
@@ -611,9 +613,9 @@ exports.createProduct = async (req, res) => {
             unitCost: parsedCost,
             remarks: finalStock > 0 
                 ? (serialized 
-                    ? `Initial opening stock (${finalStock} serialized units: ${cleanedSerials.join(', ')}) for ${resolvedPartName}`
-                    : `Initial opening stock (${finalStock} units) for ${resolvedPartName}`)
-                : `Initial baseline OPENING_BALANCE for new product ${resolvedPartName} (${trimmedPartNumber})`,
+                    ? `Initial opening stock (${finalStock} serialized units: ${cleanedSerials.join(', ')}) for ${resolvedPartName}${refSuffix}`
+                    : `Initial opening stock (${finalStock} units) for ${resolvedPartName}${refSuffix}`)
+                : `Initial baseline OPENING_BALANCE for new product ${resolvedPartName} (${trimmedPartNumber})${refSuffix}`,
             createdBy: userId
         });
 

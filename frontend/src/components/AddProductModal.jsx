@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { Package, X, Plus, AlertTriangle, Layers, Tag, DollarSign, MapPin, Hash, Search, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -34,6 +34,7 @@ export const AddProductModal = ({ isOpen, onClose, onSuccess, initialCategory = 
     reorder_level: '5',
     supplier_id: '',
     supplier_name: '',
+    supplier_ref_no: '',
     is_serialized: false,
     serial_numbers: '',
     size: '',
@@ -68,6 +69,7 @@ export const AddProductModal = ({ isOpen, onClose, onSuccess, initialCategory = 
         reorder_level: '5',
         supplier_id: '',
         supplier_name: '',
+        supplier_ref_no: '',
         is_serialized: false,
         serial_numbers: '',
         size: '',
@@ -286,6 +288,11 @@ export const AddProductModal = ({ isOpen, onClose, onSuccess, initialCategory = 
     }));
   };
 
+  const selectedSupplierObj = useMemo(() => {
+    if (!formData.supplier_id) return null;
+    return suppliers.find(s => String(s.id) === String(formData.supplier_id)) || null;
+  }, [suppliers, formData.supplier_id]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -371,6 +378,7 @@ export const AddProductModal = ({ isOpen, onClose, onSuccess, initialCategory = 
         reorder_level: reorder,
         supplier_id: formData.supplier_id ? Number(formData.supplier_id) : null,
         supplier_name: formData.supplier_name || null,
+        supplier_ref_no: formData.supplier_ref_no?.trim() || null,
         is_serialized: formData.is_serialized ? 1 : 0,
         size: formData.size.trim() || null,
         measurement: formData.measurement.trim() || null,
@@ -972,62 +980,133 @@ export const AddProductModal = ({ isOpen, onClose, onSuccess, initialCategory = 
               )}
             </div>
 
-            {/* Supplier Selection Field (Right below Row 4 Product Type toggle) */}
+            {/* Supplier & Supplier Reference Grid */}
             <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '5px'
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+              gap: '14px',
+              maxWidth: '820px'
             }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block' }}>
-                Supplier *
-              </label>
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', maxWidth: '640px' }}>
-                <div style={{ position: 'relative', width: '220px' }}>
-                  <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                  <input
-                    type="text"
+              {/* 1. Supplier Selection */}
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '5px'
+              }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block' }}>
+                  Supplier *
+                </label>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <div style={{ position: 'relative', width: '130px', flexShrink: 0 }}>
+                    <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                    <input
+                      type="text"
+                      className="input-premium"
+                      placeholder="Filter..."
+                      value={supplierSearch}
+                      onChange={(e) => setSupplierSearch(e.target.value)}
+                      style={{ paddingLeft: '30px', height: '36px', fontSize: '0.80rem', width: '100%' }}
+                    />
+                  </div>
+                  <select
                     className="input-premium"
-                    placeholder="Search supplier..."
-                    value={supplierSearch}
-                    onChange={(e) => setSupplierSearch(e.target.value)}
-                    style={{ paddingLeft: '32px', height: '36px', fontSize: '0.82rem', width: '100%' }}
-                  />
+                    required
+                    value={formData.supplier_id || ''}
+                    onChange={(e) => {
+                      const sId = e.target.value;
+                      const found = suppliers.find(s => String(s.id) === String(sId));
+                      setFormData({
+                        ...formData,
+                        supplier_id: sId,
+                        supplier_name: found ? found.name : ''
+                      });
+                    }}
+                    style={{
+                      flex: 1,
+                      height: '36px',
+                      fontSize: '0.82rem',
+                      padding: '7px 10px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value="">Select Supplier *</option>
+                    {suppliers
+                      .filter(s => !supplierSearch || s.name.toLowerCase().includes(supplierSearch.toLowerCase()))
+                      .map(sup => (
+                        <option key={sup.id} value={sup.id}>
+                          {sup.name}
+                        </option>
+                      ))}
+                  </select>
                 </div>
-                <select
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  Source vendor supplying this part (e.g., Direct Wholesale, FB Supplier).
+                </span>
+              </div>
+
+              {/* 2. Supplier Reference / Invoice # */}
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '5px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block' }}>
+                    Supplier Reference / Invoice #
+                  </label>
+                  <span style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 600 }}>Optional / Audit</span>
+                </div>
+                <input
+                  type="text"
                   className="input-premium"
-                  required
-                  value={formData.supplier_id || ''}
-                  onChange={(e) => {
-                    const sId = e.target.value;
-                    const found = suppliers.find(s => String(s.id) === String(sId));
-                    setFormData({
-                      ...formData,
-                      supplier_id: sId,
-                      supplier_name: found ? found.name : ''
-                    });
-                  }}
+                  placeholder="e.g. INV-2026-0041, DR-5512, Waybill #"
+                  value={formData.supplier_ref_no || ''}
+                  onChange={(e) => setFormData({ ...formData, supplier_ref_no: e.target.value })}
                   style={{
-                    flex: '1 1 240px',
+                    width: '100%',
                     height: '36px',
                     fontSize: '0.82rem',
-                    padding: '7px 11px',
-                    cursor: 'pointer'
+                    fontFamily: 'monospace',
+                    fontWeight: 600
                   }}
-                >
-                  <option value="">Select Supplier *</option>
-                  {suppliers
-                    .filter(s => !supplierSearch || s.name.toLowerCase().includes(supplierSearch.toLowerCase()))
-                    .map(sup => (
-                      <option key={sup.id} value={sup.id}>
-                        {sup.name}
-                      </option>
-                    ))}
-                </select>
+                />
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  Supplier Delivery Receipt (DR), Invoice No., or Waybill for opening intake.
+                </span>
               </div>
-              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                Source vendor supplying this part (e.g., Brembo & RCB Online Hub, J-Lin Racing Parts, Maniquez Motor Parts, Outflow Racing PH).
-              </span>
             </div>
+
+            {/* Selected Supplier Reference Quick Card */}
+            {selectedSupplierObj && (
+              <div style={{
+                maxWidth: '820px',
+                padding: '8px 12px',
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                fontSize: '0.75rem',
+                color: 'var(--text-muted)',
+                flexWrap: 'wrap'
+              }}>
+                <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>
+                  🏢 {selectedSupplierObj.name}
+                </span>
+                {selectedSupplierObj.seller_contact_name && (
+                  <span><strong>Contact:</strong> {selectedSupplierObj.seller_contact_name}</span>
+                )}
+                {selectedSupplierObj.fb_page_name && (
+                  <span style={{ color: '#1877f2', fontWeight: 600 }}>
+                    f {selectedSupplierObj.fb_page_name}
+                  </span>
+                )}
+                {selectedSupplierObj.phone && (
+                  <span><strong>Phone:</strong> {selectedSupplierObj.phone}</span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Modal Footer - Action Buttons aligned bottom left */}
