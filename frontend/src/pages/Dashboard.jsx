@@ -967,7 +967,7 @@ export default function Dashboard() {
     }, [returnsTracker, returnsVoidsTab, returnsVoidsSearchQuery]);
 
     return (
-        <div style={{ position: 'relative', height: '100%', paddingBottom: '30px' }}>
+        <div style={{ position: 'relative', height: '100%', paddingBottom: '30px', maxWidth: '100%', overflowX: 'hidden' }}>
             {/* Page Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
@@ -1553,9 +1553,6 @@ export default function Dashboard() {
                                 {returnsTracker.total_voids_count || returnsTracker.total_events_count || 0} Voided Transactions
                             </span>
                         </div>
-                        <p style={{ margin: '3px 0 0 0', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                            Monitors same-day cashier transaction cancellations and encoding corrections.
-                        </p>
                     </div>
 
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1859,16 +1856,13 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            <div id="low-stock-section" className="glass-panel" style={{ padding: '20px', borderRadius: '14px', marginBottom: '24px' }}>
+            <div id="low-stock-section" className="glass-panel" style={{ padding: '20px', borderRadius: '14px', marginBottom: '24px', maxWidth: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
                     <div>
                         <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <AlertTriangle size={20} color="#ef4444" />
                             Low-Stock Alerts {isAdmin ? '& Supplier Restock Shortcuts' : '& Restock Warning'}
                         </h2>
-                        <p style={{ margin: '2px 0 0 0', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                            Motorparts where Sellable Stock is at or below Reorder Level.
-                        </p>
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
@@ -1952,8 +1946,8 @@ export default function Dashboard() {
                             </span>
                         </div>
 
-                        <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.25)' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.80rem', background: 'var(--surface)' }}>
+                        <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.25)', maxWidth: '100%' }}>
+                            <table style={{ width: '100%', minWidth: '680px', borderCollapse: 'collapse', fontSize: '0.80rem', background: 'var(--surface)' }}>
                                 <thead>
                                     <tr style={{ background: 'rgba(245, 158, 11, 0.08)', borderBottom: '1px solid var(--border)' }}>
                                         <th style={{ padding: '8px 12px', textAlign: 'left' }}>PART # & PRODUCT</th>
@@ -2105,8 +2099,8 @@ export default function Dashboard() {
                             </div>
                         </div>
 
-                        <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.80rem', background: 'var(--surface)' }}>
+                        <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border)', maxWidth: '100%' }}>
+                            <table style={{ width: '100%', minWidth: '680px', borderCollapse: 'collapse', fontSize: '0.80rem', background: 'var(--surface)' }}>
                                 <thead>
                                     <tr style={{ background: 'var(--surface-hover)', borderBottom: '1px solid var(--border)' }}>
                                         <th style={{ padding: '8px 12px', textAlign: 'left' }}>PART # & PRODUCT</th>
@@ -2221,7 +2215,9 @@ export default function Dashboard() {
                         borderRadius: '12px',
                         padding: '20px',
                         marginBottom: '18px',
-                        boxShadow: '0 8px 30px rgba(245, 158, 11, 0.12)'
+                        boxShadow: '0 8px 30px rgba(245, 158, 11, 0.12)',
+                        maxWidth: '100%',
+                        boxSizing: 'border-box'
                     }}>
                         {/* Header */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
@@ -2301,7 +2297,7 @@ export default function Dashboard() {
                             </div>
 
                             {/* Inputs: Requested Qty, Urgency, Notes */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '140px 200px 1fr', gap: '12px', alignItems: 'flex-start' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', alignItems: 'flex-start' }}>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '5px' }}>
                                         Requested Qty *
@@ -2412,7 +2408,9 @@ export default function Dashboard() {
                         borderRadius: '12px',
                         padding: '20px',
                         marginBottom: '18px',
-                        boxShadow: '0 8px 30px rgba(245, 158, 11, 0.12)'
+                        boxShadow: '0 8px 30px rgba(245, 158, 11, 0.12)',
+                        maxWidth: '100%',
+                        boxSizing: 'border-box'
                     }}>
                         {/* Header */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
@@ -2500,10 +2498,12 @@ export default function Dashboard() {
                                     border: '1px solid var(--border)',
                                     borderRadius: '8px',
                                     overflowY: 'auto',
+                                    overflowX: 'auto',
                                     maxHeight: '240px',
+                                    maxWidth: '100%',
                                     background: 'var(--surface-hover)'
                                 }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.80rem' }}>
+                                    <table style={{ width: '100%', minWidth: '550px', borderCollapse: 'collapse', fontSize: '0.80rem' }}>
                                         <thead>
                                             <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
                                                 <th style={{ padding: '8px 12px', textAlign: 'left' }}>Part & Description</th>
@@ -2712,8 +2712,8 @@ export default function Dashboard() {
                     )}
 
                     {/* Low Stock Table */}
-                    <div className="table-container" style={{ border: '1px solid var(--border)', borderRadius: '10px', overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.84rem' }}>
+                    <div className="table-container" style={{ border: '1px solid var(--border)', borderRadius: '10px', overflowX: 'auto', maxWidth: '100%', boxSizing: 'border-box' }}>
+                        <table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.84rem' }}>
                             <thead>
                                 <tr style={{ background: 'var(--surface-hover)', borderBottom: '1px solid var(--border)' }}>
                                     {!isAdmin && (
@@ -2933,11 +2933,6 @@ export default function Dashboard() {
                             <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.05rem' }}>
                                 <Users size={19} color="var(--primary)" /> Staff Sales & Transactions
                             </h3>
-                            <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '3px' }}>
-                                {staffPeriod === 'today'
-                                    ? "Live cashier shift totals and register transactions for today."
-                                    : "All-time breakdown of all store transactions and revenue by staff."}
-                            </div>
                         </div>
 
                         <div style={{ display: 'flex', gap: '6px', background: 'rgba(0,0,0,0.15)', padding: '3px', borderRadius: '8px', border: '1px solid var(--border)' }}>
@@ -3133,9 +3128,6 @@ export default function Dashboard() {
                             <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.02rem' }}>
                                 <Award size={18} color="var(--primary)" /> Top 5 Fast-Moving Parts
                             </h3>
-                            <p style={{ margin: '2px 0 0 0', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                                Highest demand items by sales quantity
-                            </p>
                         </div>
 
                         {/* Period Filter for Best Selling */}
