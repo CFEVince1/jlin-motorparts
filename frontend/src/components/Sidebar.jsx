@@ -122,7 +122,7 @@ const Sidebar = ({
     ];
 
     const secondaryLinks = [
-        { name: 'Shifts & Cash Drawer', path: '/shifts', icon: <Banknote size={19} />, roles: ['admin'] },
+        { name: 'Shifts & Cash Drawer', path: '/shifts', icon: <Banknote size={19} />, roles: ['admin', 'cashier'] },
         { name: 'Reports', path: '/reports', icon: <TrendingUp size={19} />, roles: ['admin'] },
         { name: 'Staff & Users', path: '/users', icon: <Users size={19} />, roles: ['admin'] },
         { name: 'Audit Log', path: '/audit-log', icon: <ShieldCheck size={19} />, roles: ['admin'] },

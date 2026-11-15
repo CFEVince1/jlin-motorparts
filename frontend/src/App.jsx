@@ -76,14 +76,14 @@ function App() {
               <Route path="/profile" element={<StaffProfileScreen />} />
               <Route path="/inventory" element={<Inventory />} />
               <Route path="/approvals" element={<Navigate to="/pos?tab=history" replace />} />
+              <Route path="/shifts" element={<CashFloat />} />
+              <Route path="/cash-float" element={<Navigate to="/shifts" replace />} />
               {/* Admin Roles ONLY */}
               <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/purchasing" element={<Purchasing />} />
                 <Route path="/suppliers" element={<Suppliers />} />
                 <Route path="/stock-receive" element={<Navigate to="/purchasing?tab=receive_orders" replace />} />
-                <Route path="/shifts" element={<CashFloat />} />
-                <Route path="/cash-float" element={<Navigate to="/shifts" replace />} />
                 <Route path="/products" element={<Navigate to="/inventory" replace />} />
                 <Route path="/manage-compatibility" element={<ManageCompatibility />} />
                 <Route path="/reports" element={<Reports />} />
