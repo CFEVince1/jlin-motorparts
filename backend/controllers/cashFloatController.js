@@ -123,14 +123,12 @@ async function ensureCashFloatsTableExists() {
             // Ignore if already VARCHAR
         }
 
-        // Soft-deactivate dummy/test accounts so they don't clutter the production shift drawer panel
+        // Ensure active cashiers including @caron (gilmoore) are active and not deactivated
         try {
             await db.query(`
                 UPDATE users 
-                SET is_active = 0 
-                WHERE LOWER(username) IN ('elena', 'brix', 'gilmoore') 
-                   OR LOWER(full_name) LIKE '%elena%' 
-                   OR LOWER(full_name) LIKE '%brix%' 
+                SET is_active = 1 
+                WHERE LOWER(username) = 'caron' 
                    OR LOWER(full_name) LIKE '%gilmoore%'
             `);
         } catch (deactErr) {
@@ -195,13 +193,11 @@ exports.getStaffList = async (req, res) => {
                 LIMIT 1
             )
             WHERE LOWER(u.role) IN ('staff', 'cashier')
-              AND COALESCE(u.is_active, 1) = 1
-              AND LOWER(u.username) NOT IN ('elena', 'brix', 'gilmoore', 'test')
-              AND LOWER(COALESCE(u.full_name, '')) NOT LIKE '%elena%'
-              AND LOWER(COALESCE(u.full_name, '')) NOT LIKE '%brix%'
-              AND LOWER(COALESCE(u.full_name, '')) NOT LIKE '%gilmoore%'
-              AND LOWER(COALESCE(u.full_name, '')) NOT LIKE '%test%'
-            ORDER BY u.username ASC
+              AND (
+                  (COALESCE(u.is_active, 1) = 1 AND LOWER(u.username) NOT IN ('test') AND LOWER(COALESCE(u.full_name, '')) NOT LIKE '%test%')
+                  OR cf.id IS NOT NULL
+              )
+            ORDER BY (cf.status = 'PENDING_REMIT') DESC, (cf.status = 'ACTIVE') DESC, u.username ASC
         `;
         const [staff] = await db.query(query);
         res.json(staff);
@@ -1386,6 +1382,63 @@ exports.adminSignOff = async (req, res) => {
     } catch (err) {
         console.error('Error signing off shift:', err);
         return res.status(500).json({ message: 'Failed to sign off shift.' });
+    }
+};
+
+/**
+ * POST /api/cash-float/sign-off-pending
+ * Signs off on the current pending remittance shift directly (e.g. from the top summary card)
+ */
+exports.signOffPendingShift = async (req, res) => {
+    try {
+        await ensureCashFloatsTableExists();
+        const adminId = req.user.id;
+        const adminUsername = req.user.username;
+        const { notes, verified_actual_cash } = req.body || {};
+
+        const [records] = await db.query(
+            "SELECT * FROM cash_floats WHERE status = 'PENDING_REMIT' OR (status = 'COMPLETED' AND admin_signed_off = 0) ORDER BY assigned_at DESC LIMIT 1"
+        );
+        if (records.length === 0) {
+            return res.status(404).json({ message: 'No pending remittance shifts waiting for sign-off.' });
+        }
+
+        const shift = records[0];
+        const numVerifiedCash = (verified_actual_cash !== undefined && verified_actual_cash !== null && verified_actual_cash !== '')
+            ? Number(verified_actual_cash)
+            : Number(shift.actual_cash || shift.blind_count_entered || shift.expected_cash || 0);
+
+        const expectedCash = Number(shift.expected_cash || 0);
+        const finalVariance = Math.round((numVerifiedCash - expectedCash) * 100) / 100;
+
+        await db.query(`
+            UPDATE cash_floats SET
+                actual_cash = ?,
+                shortage_overage = ?,
+                status = 'COMPLETED',
+                admin_signed_off = 1,
+                signed_off_by_id = ?,
+                signed_off_by_name = ?,
+                signed_off_at = NOW(),
+                completed_at = COALESCE(completed_at, NOW()),
+                returned_at = COALESCE(returned_at, NOW()),
+                returned_notes = CONCAT(COALESCE(returned_notes, ''), ' | Admin Sign-Off: ', ?)
+            WHERE id = ?
+        `, [numVerifiedCash, finalVariance, adminId, adminUsername, notes || 'Verified and signed off by Admin', shift.id]);
+
+        if (shift.staff_id) {
+            try {
+                await db.query('UPDATE users SET is_logged_in = 0 WHERE id = ?', [shift.staff_id]);
+            } catch (e) {}
+        }
+
+        return res.json({
+            success: true,
+            message: `Shift ${shift.shift_code || shift.id} (@${shift.staff_username}) officially signed off and completed. Drawer is now available.`
+        });
+    } catch (err) {
+        console.error('Error in signOffPendingShift:', err);
+        return res.status(500).json({ message: 'Failed to sign off pending shift.' });
     }
 };
 

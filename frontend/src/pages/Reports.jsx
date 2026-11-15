@@ -262,7 +262,18 @@ export const Reports = () => {
         downloadCSV('Shift_and_Cash_Drawer_Log', csv);
     };
 
-    // Print Modal Opener
+    // Print Modal Opener & Body Class Management
+    useEffect(() => {
+        if (printModalState.isOpen) {
+            document.body.classList.add('report-print-mode');
+        } else {
+            document.body.classList.remove('report-print-mode');
+        }
+        return () => {
+            document.body.classList.remove('report-print-mode');
+        };
+    }, [printModalState.isOpen]);
+
     const handleOpenPrintModal = (type, title) => {
         setPrintModalState({
             isOpen: true,
@@ -1428,7 +1439,7 @@ export const Reports = () => {
                             {/* Modal Table Content */}
                             <div style={{ padding: '20px', overflowY: 'auto', flex: 1, fontSize: '0.82rem', color: '#111827' }}>
                                 {printModalState.type === 'sales_log' && (
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#111827' }}>
+                                    <table className="report-paper-sheet" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#111827' }}>
                                         <thead>
                                             <tr style={{ borderBottom: '2px solid #d1d5db', background: '#f3f4f6' }}>
                                                 <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>Ref / Order #</th>
@@ -1480,7 +1491,7 @@ export const Reports = () => {
                                 )}
 
                                 {printModalState.type === 'profit_summary' && (
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#111827' }}>
+                                    <table className="report-paper-sheet" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#111827' }}>
                                         <thead>
                                             <tr style={{ borderBottom: '2px solid #d1d5db', background: '#f3f4f6' }}>
                                                 <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>Part Name & SKU</th>
@@ -1541,7 +1552,7 @@ export const Reports = () => {
                                 )}
 
                                 {printModalState.type === 'inventory_val' && (
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#111827' }}>
+                                    <table className="report-paper-sheet" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#111827' }}>
                                         <thead>
                                             <tr style={{ borderBottom: '2px solid #d1d5db', background: '#f3f4f6' }}>
                                                 <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>Part Name & SKU</th>
@@ -1594,7 +1605,7 @@ export const Reports = () => {
                                 )}
 
                                 {printModalState.type === 'truck_deliveries' && (
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#111827' }}>
+                                    <table className="report-paper-sheet" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#111827' }}>
                                         <thead>
                                             <tr style={{ borderBottom: '2px solid #d1d5db', background: '#f3f4f6' }}>
                                                 <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>Paper DR #</th>
@@ -1649,7 +1660,7 @@ export const Reports = () => {
                                 )}
 
                                 {printModalState.type === 'shift_variance' && (
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#111827' }}>
+                                    <table className="report-paper-sheet" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#111827' }}>
                                         <thead>
                                             <tr style={{ borderBottom: '2px solid #d1d5db', background: '#f3f4f6' }}>
                                                 <th style={{ padding: '10px 8px', color: '#111827', fontWeight: 700 }}>Shift Date</th>

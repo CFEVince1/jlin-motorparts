@@ -477,7 +477,19 @@ const Products = () => {
                                     min="0"
                                     step="0.01"
                                     value={formData.cost_price}
-                                    onChange={handleChange}
+                                    onChange={(e) => {
+                                        const cost = parseFloat(e.target.value) || 0;
+                                        const markup = parseFloat(formData.markup_percentage) || 0;
+                                        let computedPrice = formData.selling_price;
+                                        if (markup > 0 && cost > 0) {
+                                            computedPrice = (cost * (1 + markup / 100)).toFixed(2);
+                                        }
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            cost_price: e.target.value,
+                                            selling_price: computedPrice
+                                        }));
+                                    }}
                                     title="Supplier Cost (₱)"
                                     style={{ padding: '7px 11px', fontSize: '0.82rem', height: '36px', width: '100%' }}
                                 />
@@ -496,7 +508,19 @@ const Products = () => {
                                     min="0"
                                     step="0.01"
                                     value={formData.markup_percentage}
-                                    onChange={handleChange}
+                                    onChange={(e) => {
+                                        const markup = parseFloat(e.target.value) || 0;
+                                        const cost = parseFloat(formData.cost_price) || 0;
+                                        let computedPrice = formData.selling_price;
+                                        if (cost > 0) {
+                                            computedPrice = (cost * (1 + markup / 100)).toFixed(2);
+                                        }
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            markup_percentage: e.target.value,
+                                            selling_price: computedPrice
+                                        }));
+                                    }}
                                     title="Markup percentage on cost"
                                     style={{ padding: '7px 11px', fontSize: '0.82rem', height: '36px', width: '100%' }}
                                 />
@@ -508,23 +532,35 @@ const Products = () => {
                                 </label>
                                 <input
                                     type="number"
+                                    step="0.01"
+                                    min="0"
                                     name="selling_price"
-                                    placeholder="Selling Price (₱)"
+                                    placeholder="Selling Price (₱) *"
                                     className="input-premium"
-                                    readOnly
-                                    disabled
-                                    value={topSellingPrice > 0 ? topSellingPrice.toFixed(2) : ''}
+                                    value={formData.selling_price}
+                                    onChange={(e) => {
+                                        const price = parseFloat(e.target.value) || 0;
+                                        let computedMarkup = '';
+                                        if (topCostNum > 0 && price >= topCostNum) {
+                                            computedMarkup = String(Math.round(((price - topCostNum) / topCostNum) * 10000) / 100);
+                                        } else if (topCostNum > 0) {
+                                            computedMarkup = '0';
+                                        }
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            selling_price: e.target.value,
+                                            markup_percentage: computedMarkup
+                                        }));
+                                    }}
                                     style={{
                                         padding: '7px 11px',
                                         fontSize: '0.82rem',
                                         height: '36px',
                                         width: '100%',
                                         fontWeight: 'bold',
-                                        color: 'var(--primary)',
-                                        background: 'var(--surface-hover)',
-                                        cursor: 'not-allowed'
+                                        color: 'var(--primary)'
                                     }}
-                                    title="Selling Price = Cost + (Cost × Markup %)"
+                                    title="Selling price rounded or custom (automatically synchronizes with Markup %)"
                                 />
                             </div>
                         </div>

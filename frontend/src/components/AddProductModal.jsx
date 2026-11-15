@@ -89,11 +89,9 @@ export const AddProductModal = ({
     cost_price: '',
     selling_price: '',
     markup_percentage: '',
-    initial_stock: '',
     reorder_level: '5',
     supplier_id: defaultSupplierId || '',
     supplier_name: '',
-    supplier_ref_no: defaultReferenceNo || '',
     is_serialized: false,
     serial_numbers: '',
     size: '',
@@ -128,11 +126,9 @@ export const AddProductModal = ({
         cost_price: '',
         selling_price: '',
         markup_percentage: '',
-        initial_stock: '',
         reorder_level: '5',
         supplier_id: defaultSupplierId || '',
         supplier_name: '',
-        supplier_ref_no: defaultReferenceNo || '',
         is_serialized: false,
         serial_numbers: '',
         size: '',
@@ -439,24 +435,7 @@ export const AddProductModal = ({
       return;
     }
 
-    let initialStockQty = 0;
-    if (formData.is_serialized) {
-      const serialsArray = String(formData.serial_numbers || '')
-        .split(/[\n,]+/)
-        .map(s => s.trim())
-        .filter(Boolean);
-      initialStockQty = serialsArray.length;
-    } else {
-      if (formData.initial_stock === '' || formData.initial_stock === null || formData.initial_stock === undefined) {
-        toast.error('Initial Stock Quantity is required');
-        return;
-      }
-      initialStockQty = Number(formData.initial_stock);
-      if (isNaN(initialStockQty) || !Number.isInteger(initialStockQty) || initialStockQty < 0) {
-        toast.error('Initial Stock Quantity must be a non-negative whole number (e.g. 0, 10, 50)');
-        return;
-      }
-    }
+    const initialStockQty = 0;
 
     setSubmitting(true);
     try {
@@ -470,13 +449,13 @@ export const AddProductModal = ({
         selling_price: price,
         retail_price: price,
         markup_percentage: parseFloat(formData.markup_percentage) || 0,
-        initial_stock: initialStockQty,
-        initial_stock_quantity: initialStockQty,
-        stock: initialStockQty,
+        initial_stock: 0,
+        initial_stock_quantity: 0,
+        stock: 0,
         reorder_level: reorder,
         supplier_id: formData.supplier_id ? Number(formData.supplier_id) : null,
         supplier_name: formData.supplier_name || null,
-        supplier_ref_no: formData.supplier_ref_no?.trim() || null,
+        supplier_ref_no: null,
         is_serialized: formData.is_serialized ? 1 : 0,
         size: formData.size.trim() || null,
         measurement: formData.measurement.trim() || null,
@@ -829,44 +808,12 @@ export const AddProductModal = ({
               </div>
             </div>
 
-            {/* Row 3: Initial Stock Quantity *, Reorder Level *, Supplier Cost (₱) *, Markup % (e.g., 30) *, Selling Price (₱) */}
+            {/* Row 3: Reorder Level *, Supplier Cost (₱) *, Markup % (e.g., 30) *, Selling Price (₱) * */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
               gap: '12px'
             }}>
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                  Initial Stock Quantity *
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  className="input-premium initial-stock-input"
-                  placeholder={formData.is_serialized ? '0 (from serials)' : 'e.g. 50'}
-                  value={formData.is_serialized ? (
-                    formData.serial_numbers.split(/[\n,]+/).map(s => s.trim()).filter(Boolean).length
-                  ) : formData.initial_stock}
-                  onChange={(e) => {
-                    if (!formData.is_serialized) {
-                      setFormData({ ...formData, initial_stock: e.target.value });
-                    }
-                  }}
-                  readOnly={formData.is_serialized}
-                  required
-                  disabled={submitting}
-                  style={{
-                    height: '36px',
-                    fontSize: '0.82rem',
-                    width: '100%',
-                    background: formData.is_serialized ? 'var(--surface-hover)' : undefined,
-                    cursor: formData.is_serialized ? 'not-allowed' : undefined
-                  }}
-                  title={formData.is_serialized ? 'Calculated automatically from entered serial numbers' : 'Initial physical stock quantity added to inventory'}
-                />
-              </div>
-
               <div>
                 <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                   Reorder Level *
@@ -924,27 +871,26 @@ export const AddProductModal = ({
 
               <div>
                 <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                  Selling Price (₱)
+                  Selling Price (₱) *
                 </label>
                 <input
                   type="number"
                   step="0.01"
                   min="0"
                   className="input-premium"
-                  placeholder="Selling Price (₱)"
+                  placeholder="e.g. 350.00"
                   value={formData.selling_price}
-                  readOnly
-                  disabled
+                  onChange={(e) => handlePriceChange(e.target.value)}
+                  required
+                  disabled={submitting}
                   style={{
                     height: '36px',
                     fontSize: '0.82rem',
                     width: '100%',
                     fontWeight: 'bold',
-                    color: 'var(--primary)',
-                    background: 'var(--surface-hover)',
-                    cursor: 'not-allowed'
+                    color: 'var(--primary)'
                   }}
-                  title="Selling Price = Cost + (Cost × Markup %)"
+                  title="Selling price rounded or custom (automatically synchronizes with Markup %)"
                 />
               </div>
             </div>
@@ -1114,98 +1060,47 @@ export const AddProductModal = ({
               )}
             </div>
 
-            {/* Supplier & Supplier Reference Grid */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-              gap: '14px',
-              maxWidth: '820px'
-            }}>
-              {/* 1. Supplier Selection */}
+            {/* Supplier Section */}
+            <div style={{ maxWidth: '820px' }}>
               <div style={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '5px'
+                gap: '5px',
+                width: '100%'
               }}>
                 <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block' }}>
-                  Supplier *
+                  Select Supplier *
                 </label>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <div style={{ position: 'relative', width: '130px', flexShrink: 0 }}>
-                    <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                    <input
-                      type="text"
-                      className="input-premium"
-                      placeholder="Filter..."
-                      value={supplierSearch}
-                      onChange={(e) => setSupplierSearch(e.target.value)}
-                      style={{ paddingLeft: '30px', height: '36px', fontSize: '0.80rem', width: '100%' }}
-                    />
-                  </div>
-                  <select
-                    className="input-premium"
-                    required
-                    value={formData.supplier_id || ''}
-                    onChange={(e) => {
-                      const sId = e.target.value;
-                      const found = suppliers.find(s => String(s.id) === String(sId));
-                      setFormData({
-                        ...formData,
-                        supplier_id: sId,
-                        supplier_name: found ? found.name : ''
-                      });
-                    }}
-                    style={{
-                      flex: 1,
-                      height: '36px',
-                      fontSize: '0.82rem',
-                      padding: '7px 10px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <option value="">Select Supplier *</option>
-                    {suppliers
-                      .filter(s => !supplierSearch || s.name.toLowerCase().includes(supplierSearch.toLowerCase()))
-                      .map(sup => (
-                        <option key={sup.id} value={sup.id}>
-                          {sup.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                  Source vendor supplying this part (e.g., Direct Wholesale, FB Supplier).
-                </span>
-              </div>
-
-              {/* 2. Supplier Reference / Invoice # */}
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '5px'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block' }}>
-                    Supplier Reference / Invoice #
-                  </label>
-                  <span style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 600 }}>Optional / Audit</span>
-                </div>
-                <input
-                  type="text"
+                <select
                   className="input-premium"
-                  placeholder="e.g. INV-2026-0041, DR-5512, Waybill #"
-                  value={formData.supplier_ref_no || ''}
-                  onChange={(e) => setFormData({ ...formData, supplier_ref_no: e.target.value })}
+                  required
+                  value={formData.supplier_id || ''}
+                  onChange={(e) => {
+                    const sId = e.target.value;
+                    const found = suppliers.find(s => String(s.id) === String(sId));
+                    setFormData({
+                      ...formData,
+                      supplier_id: sId,
+                      supplier_name: found ? found.name : ''
+                    });
+                  }}
                   style={{
                     width: '100%',
-                    height: '36px',
-                    fontSize: '0.82rem',
-                    fontFamily: 'monospace',
-                    fontWeight: 600
+                    height: '38px',
+                    fontSize: '0.84rem',
+                    padding: '7px 12px',
+                    cursor: 'pointer'
                   }}
-                />
+                >
+                  <option value="">Select Supplier *</option>
+                  {suppliers.map(sup => (
+                    <option key={sup.id} value={sup.id}>
+                      {sup.name} {sup.fb_page_name && sup.fb_page_name !== sup.name ? `(${sup.fb_page_name})` : ''}
+                    </option>
+                  ))}
+                </select>
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                  Supplier Delivery Receipt (DR), Invoice No., or Waybill for opening intake.
+                  Default wholesale vendor supplying this motorpart.
                 </span>
               </div>
             </div>

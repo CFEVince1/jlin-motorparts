@@ -2137,18 +2137,24 @@ const POS = ({ defaultTab }) => {
                                             {p.brand}
                                         </span>
                                     )}
-                                    {p.size && !['unspecified', 'n/a', 'none', '-', ''].includes(String(p.size).trim().toLowerCase()) && (
-                                        <span style={{
-                                            fontSize: '0.72rem',
-                                            color: 'var(--text-muted)',
-                                            background: 'var(--surface-hover)',
-                                            border: '1px solid var(--border)',
-                                            padding: '2px 6px',
-                                            borderRadius: '6px'
-                                        }}>
-                                            Size: {p.size}
-                                        </span>
-                                    )}
+                                    {(() => {
+                                        const specs = [p.size, p.measurement, p.thread_type]
+                                            .map(v => (v || '').trim())
+                                            .filter(v => v && !['unspecified', 'n/a', 'none', '-', ''].includes(v.toLowerCase()));
+                                        if (specs.length === 0) return null;
+                                        return (
+                                            <span style={{
+                                                fontSize: '0.72rem',
+                                                color: 'var(--text-muted)',
+                                                background: 'var(--surface-hover)',
+                                                border: '1px solid var(--border)',
+                                                padding: '2px 6px',
+                                                borderRadius: '6px'
+                                            }}>
+                                                {specs.join(' • ')}
+                                            </span>
+                                        );
+                                    })()}
                                     {p.is_serialized ? (
                                         <>
                                             <span className="badge-pill badge-serialized" style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '6px' }}>

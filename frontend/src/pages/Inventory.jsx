@@ -1259,6 +1259,27 @@ const Inventory = () => {
                             <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--text-muted)' }}>
                               {p.part_number || p.sku}
                             </span>
+                            {(() => {
+                              const specs = [p.size, p.measurement, p.thread_type]
+                                .map(v => (v || '').trim())
+                                .filter(v => v && !['unspecified', 'n/a', 'none', '-', ''].includes(v.toLowerCase()));
+                              if (specs.length === 0) return null;
+                              return (
+                                <>
+                                  <span>•</span>
+                                  <span style={{
+                                    fontSize: '0.68rem',
+                                    color: 'var(--text-muted)',
+                                    background: 'rgba(255, 255, 255, 0.05)',
+                                    border: '1px solid var(--border)',
+                                    padding: '1px 5px',
+                                    borderRadius: '4px'
+                                  }}>
+                                    {specs.join(' • ')}
+                                  </span>
+                                </>
+                              );
+                            })()}
                             {p.is_serialized ? (
                               <>
                                 <span>•</span>

@@ -2,12 +2,10 @@
 
 export const formatCurrency = (amount) => {
     const numeric = typeof amount === 'number' ? amount : Number(amount) || 0;
-    return new Intl.NumberFormat('en-PH', {
-        style: 'currency',
-        currency: 'PHP',
+    return `₱${numeric.toLocaleString('en-US', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
-    }).format(numeric);
+    })}`;
 };
 
 export const formatAuditDate = (dateString) => {

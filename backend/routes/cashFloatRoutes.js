@@ -19,6 +19,7 @@ router.post('/close-shift', cashFloatController.closeShiftBlindCount);
 // Admin-only routes
 router.get('/staff-list', adminOnly, cashFloatController.getStaffList);
 router.get('/summary', adminOnly, cashFloatController.getSummary);
+router.post('/sign-off-pending', adminOnly, cashFloatController.signOffPendingShift);
 router.get('/', adminOnly, cashFloatController.getCashFloats);
 router.post('/assign', adminOnly, cashFloatController.assignCashFloat);
 router.post('/:id/sign-off', adminOnly, cashFloatController.adminSignOff);

@@ -1308,6 +1308,34 @@ tr:hover td {
     width: 100% !important;
   }
 
+  /* When printing any dedicated report document or portal sheet, completely suppress #root to eliminate dark backgrounds, UI artifacts, and backdrops */
+  body.report-print-mode,
+  body.report-print-mode html,
+  body:has(#printable-bookkeeping-report),
+  body:has(#printable-sales-report),
+  body:has(#printable-transactions-report),
+  body:has(#printable-adjustments-report),
+  body:has(#printable-inventory-report),
+  body:has(#printable-receiving-slip) {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  body.report-print-mode #root,
+  body:has(#printable-bookkeeping-report) #root,
+  body:has(#printable-sales-report) #root,
+  body:has(#printable-transactions-report) #root,
+  body:has(#printable-adjustments-report) #root,
+  body:has(#printable-inventory-report) #root,
+  body:has(#printable-receiving-slip) #root {
+    display: none !important;
+    height: 0 !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+  }
+
   /* 1. Hide full screen chrome, buttons, sidebars, navigation by default */
   .no-print,
   .print-hide,

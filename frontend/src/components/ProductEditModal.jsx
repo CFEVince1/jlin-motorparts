@@ -29,6 +29,7 @@ export const ProductEditModal = ({
     measurement: '',
     thread_type: '',
     cost_price: '',
+    selling_price: '',
     markup_percentage: '',
     reorder_level: '',
   });
@@ -53,6 +54,7 @@ export const ProductEditModal = ({
         measurement: product.measurement || '',
         thread_type: product.thread_type || '',
         cost_price: c,
+        selling_price: p,
         markup_percentage: m,
         reorder_level: product.reorder_level ?? '',
       });
@@ -66,9 +68,38 @@ export const ProductEditModal = ({
 
   const costNum = parseFloat(formData.cost_price) || 0;
   const markupNum = parseFloat(formData.markup_percentage) || 0;
-  // Formula: selling price = cost + (cost * percentage / 100)
-  const sellingPrice = Math.round(costNum * (1 + markupNum / 100) * 100) / 100;
+  const sellingPrice = parseFloat(formData.selling_price) || (Math.round(costNum * (1 + markupNum / 100) * 100) / 100);
   const markupProfit = Math.round((sellingPrice - costNum) * 100) / 100;
+
+  const handleCostChange = (val) => {
+    const cost = parseFloat(val) || 0;
+    const markup = parseFloat(formData.markup_percentage) || 0;
+    let computedPrice = formData.selling_price;
+    if (markup > 0 && cost > 0) {
+      computedPrice = (cost * (1 + markup / 100)).toFixed(2);
+    }
+    setFormData(prev => ({ ...prev, cost_price: val, selling_price: computedPrice }));
+  };
+
+  const handleMarkupChange = (val) => {
+    const markup = parseFloat(val) || 0;
+    let computedPrice = formData.selling_price;
+    if (costNum > 0) {
+      computedPrice = (costNum * (1 + markup / 100)).toFixed(2);
+    }
+    setFormData(prev => ({ ...prev, markup_percentage: val, selling_price: computedPrice }));
+  };
+
+  const handlePriceChange = (val) => {
+    const price = parseFloat(val) || 0;
+    let computedMarkup = '';
+    if (costNum > 0 && price >= costNum) {
+      computedMarkup = String(Math.round(((price - costNum) / costNum) * 10000) / 100);
+    } else if (costNum > 0) {
+      computedMarkup = '0';
+    }
+    setFormData(prev => ({ ...prev, selling_price: val, markup_percentage: computedMarkup }));
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -381,7 +412,7 @@ export const ProductEditModal = ({
                   placeholder="0.00"
                   className="input-premium"
                   value={formData.cost_price}
-                  onChange={handleChange}
+                  onChange={(e) => handleCostChange(e.target.value)}
                   required
                 />
               </div>
@@ -398,29 +429,30 @@ export const ProductEditModal = ({
                   placeholder="e.g. 30"
                   className="input-premium"
                   value={formData.markup_percentage}
-                  onChange={handleChange}
+                  onChange={(e) => handleMarkupChange(e.target.value)}
                   required
                 />
               </div>
 
               <div>
                 <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--primary)', display: 'block', marginBottom: '4px' }}>
-                  Selling Price (₱) [Auto]
+                  Selling Price (₱) *
                 </label>
                 <input
                   type="number"
                   step="0.01"
-                  value={sellingPrice.toFixed(2)}
-                  readOnly
-                  disabled
+                  min="0"
+                  name="selling_price"
+                  placeholder="0.00"
+                  value={formData.selling_price}
+                  onChange={(e) => handlePriceChange(e.target.value)}
                   className="input-premium"
                   style={{
                     fontWeight: 'bold',
                     color: 'var(--primary)',
-                    background: 'var(--surface-hover)',
-                    cursor: 'not-allowed',
                     borderColor: 'rgba(5, 150, 105, 0.4)'
                   }}
+                  required
                 />
               </div>
             </div>

@@ -485,7 +485,7 @@ exports.createProduct = async (req, res) => {
             }
         }
 
-        // Determine Initial Stock Quantity
+        // Determine Initial Stock Quantity (defaults to 0 for catalog registration)
         const rawInitialStock = initial_stock !== undefined
             ? initial_stock
             : (initial_stock_quantity !== undefined ? initial_stock_quantity : stock);
@@ -494,14 +494,12 @@ exports.createProduct = async (req, res) => {
         if (serialized) {
             finalStock = cleanedSerials.length;
         } else {
-            if (rawInitialStock === undefined || rawInitialStock === null || rawInitialStock === '') {
-                throw new Error('Initial stock quantity is required');
+            if (rawInitialStock !== undefined && rawInitialStock !== null && rawInitialStock !== '') {
+                const parsedStock = Number(rawInitialStock);
+                if (Number.isFinite(parsedStock) && Number.isInteger(parsedStock) && parsedStock >= 0) {
+                    finalStock = parsedStock;
+                }
             }
-            const parsedStock = Number(rawInitialStock);
-            if (!Number.isFinite(parsedStock) || !Number.isInteger(parsedStock) || parsedStock < 0) {
-                throw new Error('Initial stock quantity must be a non-negative whole number');
-            }
-            finalStock = parsedStock;
         }
 
         await connection.beginTransaction();
@@ -609,21 +607,21 @@ exports.createProduct = async (req, res) => {
             );
         }
 
-        // Insert initial OPENING_BALANCE ledger entry in the SAME transaction
-        const refSuffix = customSupplierRef ? ` [Supplier Ref: ${customSupplierRef}]` : '';
-        await applyMovement(connection, {
-            itemId: productId,
-            transactionType: 'OPENING_BALANCE',
-            quantityChange: finalStock,
-            referenceNo: refNo,
-            unitCost: parsedCost,
-            remarks: finalStock > 0 
-                ? (serialized 
+        // Insert initial OPENING_BALANCE ledger entry only if initial stock > 0
+        if (finalStock > 0) {
+            const refSuffix = customSupplierRef ? ` [Supplier Ref: ${customSupplierRef}]` : '';
+            await applyMovement(connection, {
+                itemId: productId,
+                transactionType: 'OPENING_BALANCE',
+                quantityChange: finalStock,
+                referenceNo: refNo,
+                unitCost: parsedCost,
+                remarks: serialized 
                     ? `Initial opening stock (${finalStock} serialized units: ${cleanedSerials.join(', ')}) for ${resolvedPartName}${refSuffix}`
-                    : `Initial opening stock (${finalStock} units) for ${resolvedPartName}${refSuffix}`)
-                : `Initial baseline OPENING_BALANCE for new product ${resolvedPartName} (${trimmedPartNumber})${refSuffix}`,
-            createdBy: userId
-        });
+                    : `Initial opening stock (${finalStock} units) for ${resolvedPartName}${refSuffix}`,
+                createdBy: userId
+            });
+        }
 
         if (unitIds.length > 0) {
             // Ensure all selected units have corresponding models in motorcycle_models

@@ -1419,24 +1419,31 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                       {/* Search & Collapse Toggle */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1', justifyContent: 'flex-end', minWidth: '300px', flexWrap: 'wrap' }}>
                         {supplierId && selectedSupplierObj && (
-                          <button
-                            type="button"
-                            onClick={() => setFilterBySupplierOnly(prev => !prev)}
-                            className={filterBySupplierOnly ? 'btn-primary' : 'btn-secondary'}
+                          <label
                             style={{
-                              fontSize: '0.74rem',
-                              padding: '5px 10px',
-                              borderRadius: '6px',
-                              whiteSpace: 'nowrap',
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '4px'
+                              gap: '6px',
+                              fontSize: '0.75rem',
+                              cursor: 'pointer',
+                              padding: '5px 10px',
+                              borderRadius: '6px',
+                              background: !filterBySupplierOnly ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255, 255, 255, 0.04)',
+                              border: `1px solid ${!filterBySupplierOnly ? '#f59e0b' : 'var(--border)'}`,
+                              color: !filterBySupplierOnly ? '#f59e0b' : 'var(--text-muted)',
+                              fontWeight: 600,
+                              whiteSpace: 'nowrap'
                             }}
-                            title="Filter cards to the supplier chosen above"
+                            title="Check to include parts from backup / other suppliers in restock shortcuts"
                           >
-                            <Building2 size={12} />
-                            {filterBySupplierOnly ? `Only ${selectedSupplierObj.fb_page_name || selectedSupplierObj.name}` : 'All Suppliers'}
-                          </button>
+                            <input
+                              type="checkbox"
+                              checked={!filterBySupplierOnly}
+                              onChange={(e) => setFilterBySupplierOnly(!e.target.checked)}
+                              style={{ cursor: 'pointer', accentColor: '#f59e0b' }}
+                            />
+                            <span>+ Show Parts from Other Suppliers</span>
+                          </label>
                         )}
 
                         <div style={{ position: 'relative', width: '100%', maxWidth: '280px' }}>
@@ -1721,17 +1728,30 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                           </button>
                         )}
                         {supplierId && selectedSupplierObj && (
-                          <button
-                            type="button"
-                            className={filterLineItemsBySupplier ? 'btn-primary' : 'btn-secondary'}
-                            onClick={() => setFilterLineItemsBySupplier(prev => !prev)}
-                            disabled={submitting}
-                            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '6px 12px' }}
-                            title="Filter line item product selector to this supplier's parts"
+                          <label
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              fontSize: '0.78rem',
+                              cursor: 'pointer',
+                              padding: '6px 12px',
+                              borderRadius: '8px',
+                              background: !filterLineItemsBySupplier ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255, 255, 255, 0.04)',
+                              border: `1px solid ${!filterLineItemsBySupplier ? '#f59e0b' : 'var(--border)'}`,
+                              color: !filterLineItemsBySupplier ? '#f59e0b' : 'var(--text-muted)',
+                              fontWeight: 600
+                            }}
+                            title="Check to allow selecting parts from other suppliers if this is a backup delivery"
                           >
-                            <Building2 size={13} />
-                            {filterLineItemsBySupplier ? `Parts: Only ${selectedSupplierObj.fb_page_name || selectedSupplierObj.name}` : 'Parts: All Catalog'}
-                          </button>
+                            <input
+                              type="checkbox"
+                              checked={!filterLineItemsBySupplier}
+                              onChange={(e) => setFilterLineItemsBySupplier(!e.target.checked)}
+                              style={{ cursor: 'pointer', accentColor: '#f59e0b' }}
+                            />
+                            <span>+ Show Parts from Other Suppliers</span>
+                          </label>
                         )}
                         {isAdmin && (
                           <button

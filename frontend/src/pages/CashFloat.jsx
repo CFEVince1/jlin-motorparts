@@ -459,6 +459,25 @@ export const CashFloat = () => {
 
     const handleAdminSignOff = handleOpenSignOffModal;
 
+    const [isQuickSigningOff, setIsQuickSigningOff] = useState(false);
+    const handleQuickSignOffPending = async () => {
+        if (!window.confirm(`Sign off on the pending shift remittance (${formatCurrency(summaryStats.pendingSignOffAmount || 0)}) and complete shift closure? This will unlock the register for new shifts.`)) return;
+        setIsQuickSigningOff(true);
+        try {
+            const res = await api.post('/cash-float/sign-off-pending', {});
+            toast.success(res.data?.message || 'Shift signed off and completed successfully!');
+            fetchActiveShift();
+            fetchRecords();
+            fetchStaffList();
+            fetchSummary();
+            notifyInventoryChange('shift_sign_off');
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to sign off pending shift');
+        } finally {
+            setIsQuickSigningOff(false);
+        }
+    };
+
     // 5. ADMIN CANCEL SHIFT (Accidental open with 0 sales)
     const handleCancelShift = async (shift) => {
         if (!isAdmin) return;
@@ -1791,6 +1810,31 @@ export const CashFloat = () => {
                                     ? `Total: ${formatCurrency(summaryStats.pendingSignOffAmount || 0)} physical cash waiting for owner verification.`
                                     : 'All closed shifts have been verified and signed off.'}
                             </div>
+                            {summaryStats.pendingSignOffCount > 0 && (
+                                <div style={{ marginTop: '8px' }}>
+                                    <button
+                                        type="button"
+                                        onClick={handleQuickSignOffPending}
+                                        disabled={isQuickSigningOff}
+                                        className="btn-primary"
+                                        style={{
+                                            padding: '6px 14px',
+                                            fontSize: '0.78rem',
+                                            fontWeight: 800,
+                                            background: '#059669',
+                                            borderColor: '#059669',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            cursor: 'pointer',
+                                            boxShadow: '0 2px 8px rgba(5, 150, 105, 0.35)'
+                                        }}
+                                        title="Verify and approve the pending shift remittance to immediately unlock the cash drawer"
+                                    >
+                                        <Check size={14} /> {isQuickSigningOff ? 'Signing Off...' : `Sign Off & Verify Remittance (${formatCurrency(summaryStats.pendingSignOffAmount || 0)})`}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
 
