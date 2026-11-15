@@ -93,7 +93,6 @@ export const AddProductModal = ({
     supplier_id: defaultSupplierId || '',
     supplier_name: '',
     is_serialized: false,
-    serial_numbers: '',
     size: '',
     measurement: '',
     thread_type: ''
@@ -106,11 +105,6 @@ export const AddProductModal = ({
   // Part Number validation states
   const [partNumberStatus, setPartNumberStatus] = useState('idle'); // 'idle' | 'validating' | 'valid' | 'invalid' | 'exists'
   const [partNumberMessage, setPartNumberMessage] = useState('');
-
-  // Serial Number validation states
-  const [serialStatus, setSerialStatus] = useState('idle'); // 'idle' | 'validating' | 'valid' | 'invalid' | 'duplicate' | 'exists'
-  const [serialMessage, setSerialMessage] = useState('');
-  const [parsedSerials, setParsedSerials] = useState([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -130,7 +124,6 @@ export const AddProductModal = ({
         supplier_id: defaultSupplierId || '',
         supplier_name: '',
         is_serialized: false,
-        serial_numbers: '',
         size: '',
         measurement: '',
         thread_type: ''
@@ -139,9 +132,6 @@ export const AddProductModal = ({
       setSupplierSearch('');
       setPartNumberStatus('validating');
       setPartNumberMessage('Checking availability...');
-      setSerialStatus('idle');
-      setSerialMessage('');
-      setParsedSerials([]);
 
       api.get('/suppliers')
         .then(res => {
@@ -251,74 +241,7 @@ export const AddProductModal = ({
     return () => clearTimeout(timer);
   }, [formData.part_number, partNumberStatus]);
 
-  const handleSerialChange = (rawVal) => {
-    const rawValStr = String(rawVal);
-    setFormData(prev => ({ ...prev, serial_numbers: rawValStr }));
 
-    const rawList = rawValStr
-      .split(/[\n,]+/)
-      .map(s => s.trim())
-      .filter(Boolean);
-
-    setParsedSerials(rawList);
-
-    if (rawList.length === 0) {
-      setSerialStatus('idle');
-      setSerialMessage('');
-      setFormData(prev => ({ ...prev, initial_stock: '0' }));
-      return;
-    }
-
-    setFormData(prev => ({ ...prev, initial_stock: String(rawList.length) }));
-
-    // Strictly numeric only, length between 9 and 15 digits
-    const numericSerialRegex = /^\d{9,15}$/;
-    const invalidList = rawList.filter(s => !numericSerialRegex.test(s));
-    if (invalidList.length > 0) {
-      setSerialStatus('invalid');
-      setSerialMessage('Serial numbers must contain numbers only and be between 9 to 15 digits long (e.g., 10029384751).');
-      return;
-    }
-
-    const duplicates = rawList.filter((item, index) => rawList.indexOf(item) !== index);
-    const uniqueDupes = [...new Set(duplicates)];
-    if (uniqueDupes.length > 0) {
-      setSerialStatus('duplicate');
-      setSerialMessage(`Duplicate serial number(s) in entry: ${uniqueDupes.join(', ')}`);
-      return;
-    }
-
-    setSerialStatus('validating');
-    setSerialMessage('Checking database uniqueness...');
-  };
-
-  // Debounced backend validation for Serial Numbers
-  useEffect(() => {
-    if (serialStatus !== 'validating' || parsedSerials.length === 0) return;
-
-    const timer = setTimeout(async () => {
-      try {
-        const res = await api.post('/products/validate-serials', {
-          serial_numbers: parsedSerials
-        });
-        if (res.data.exists) {
-          setSerialStatus('exists');
-          setSerialMessage(res.data.message);
-        } else if (res.data.valid) {
-          setSerialStatus('valid');
-          setSerialMessage(res.data.message);
-        } else {
-          setSerialStatus('invalid');
-          setSerialMessage(res.data.message || 'Invalid serials');
-        }
-      } catch (err) {
-        setSerialStatus('idle');
-        setSerialMessage('');
-      }
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [parsedSerials, serialStatus]);
 
   if (!isOpen) return null;
 
@@ -405,13 +328,6 @@ export const AddProductModal = ({
       return;
     }
 
-    if (formData.is_serialized) {
-      if (serialStatus === 'invalid' || serialStatus === 'duplicate' || serialStatus === 'exists') {
-        toast.error(serialMessage || 'Serial numbers must contain numbers only and be between 9 to 15 digits long (e.g., 10029384751).');
-        return;
-      }
-    }
-
     if (!formData.category) {
       toast.error('Please select a category');
       return;
@@ -435,7 +351,12 @@ export const AddProductModal = ({
       return;
     }
 
-    const initialStockQty = 0;
+    const cleanSpec = (val) => {
+      if (!val) return null;
+      const s = String(val).trim();
+      if (!s || ['unspecified', 'n/a', 'none', '-'].includes(s.toLowerCase())) return null;
+      return s;
+    };
 
     setSubmitting(true);
     try {
@@ -457,20 +378,10 @@ export const AddProductModal = ({
         supplier_name: formData.supplier_name || null,
         supplier_ref_no: null,
         is_serialized: formData.is_serialized ? 1 : 0,
-        size: formData.size.trim() || null,
-        measurement: formData.measurement.trim() || null,
-        thread_type: formData.thread_type.trim() || null
+        size: cleanSpec(formData.size),
+        measurement: cleanSpec(formData.measurement),
+        thread_type: cleanSpec(formData.thread_type)
       };
-
-      if (formData.is_serialized && formData.serial_numbers) {
-        const serialsArray = String(formData.serial_numbers)
-          .split(/[\n,]+/)
-          .map(s => s.trim())
-          .filter(s => s.length > 0);
-        if (serialsArray.length > 0) {
-          payload.serial_numbers = serialsArray;
-        }
-      }
 
       const res = await api.post('/products', payload);
       const createdProd = res.data.product || {
@@ -930,7 +841,7 @@ export const AddProductModal = ({
                       type="radio"
                       name="modal_product_type"
                       checked={!formData.is_serialized}
-                      onChange={() => setFormData({ ...formData, is_serialized: false, serial_numbers: '' })}
+                      onChange={() => setFormData({ ...formData, is_serialized: false })}
                       style={{ accentColor: 'var(--primary)', width: '15px', height: '15px' }}
                       disabled={submitting}
                     />
@@ -952,110 +863,28 @@ export const AddProductModal = ({
 
                 <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)', flex: '1 1 250px' }}>
                   {formData.is_serialized ? (
-                    <>💡 <strong>Serialized:</strong> Each item tracked with a unique serial number (e.g. ECU, engine blocks). Stock increases as serials are added.</>
+                    <>💡 <strong>Serialized:</strong> Each unit tracked with a unique serial number (e.g. ECU, engine blocks). Stock increases as units are received.</>
                   ) : (
-                    <>💡 <strong>Non-Serialized:</strong> Tracked in bulk quantity (e.g. spark plugs, brake pads, fluids). Stock replenished via Stock Receive.</>
+                    <>💡 <strong>Non-Serialized:</strong> Tracked in bulk quantity (e.g. spark plugs, brake pads, fluids). Stock replenished via Stock-In.</>
                   )}
                 </span>
               </div>
 
               {formData.is_serialized && (
                 <div style={{
-                  marginTop: '6px',
+                  marginTop: '8px',
                   padding: '12px 14px',
-                  background: 'var(--surface-hover)',
+                  background: 'rgba(59, 130, 246, 0.08)',
                   borderRadius: '8px',
-                  border: `1px solid ${
-                    (serialStatus === 'invalid' || serialStatus === 'duplicate' || serialStatus === 'exists')
-                      ? '#ef4444'
-                      : serialStatus === 'valid'
-                        ? '#10b981'
-                        : 'var(--border)'
-                  }`,
+                  border: '1px solid rgba(59, 130, 246, 0.25)',
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px'
+                  alignItems: 'center',
+                  gap: '10px'
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
-                    <label style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <Hash size={13} /> Unique Serial Number(s) *
-                    </label>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                      Enter 1 per line or comma-separated (9-15 numbers only, e.g., 10029384751, 9847201948293)
-                    </span>
-                  </div>
-                  <textarea
-                    placeholder={"ENTER SERIAL NUMBERS (9-15 digits each, 1 per line or comma-separated):\n10029384751\n9847201948293\n582910482910384"}
-                    className="input-premium serial-numbers-input"
-                    style={{
-                      height: '68px',
-                      resize: 'vertical',
-                      fontFamily: 'monospace',
-                      fontSize: '0.8rem',
-                      textTransform: 'uppercase',
-                      padding: '8px 10px',
-                      borderColor: (serialStatus === 'invalid' || serialStatus === 'duplicate' || serialStatus === 'exists')
-                        ? '#ef4444'
-                        : serialStatus === 'valid'
-                          ? '#10b981'
-                          : undefined
-                    }}
-                    value={formData.serial_numbers}
-                    onChange={(e) => handleSerialChange(e.target.value)}
-                  />
-
-                  {/* Real-time Serial Validation Status Banner */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px', marginTop: '2px' }}>
-                    {parsedSerials.length > 0 ? (
-                      <div style={{
-                        fontSize: '0.74rem',
-                        fontWeight: 600,
-                        color: (serialStatus === 'invalid' || serialStatus === 'duplicate' || serialStatus === 'exists') ? '#ef4444' : '#10b981',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '5px'
-                      }}>
-                        {(serialStatus === 'invalid' || serialStatus === 'duplicate' || serialStatus === 'exists') ? (
-                          <>
-                            <AlertCircle size={13} />
-                            <span>{serialMessage}</span>
-                          </>
-                        ) : serialStatus === 'validating' ? (
-                          <>
-                            <RefreshCw size={12} className="animate-spin" />
-                            <span>Checking database serial uniqueness...</span>
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle2 size={13} />
-                            <span>✓ {parsedSerials.length} valid unique serial unit(s) ready to add to inventory</span>
-                          </>
-                        )}
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                        Leave blank if receiving stock later through Stock Receive, or enter initial serials above.
-                      </div>
-                    )}
-
-                    {parsedSerials.length > 0 && (
-                      <span style={{
-                        fontSize: '0.7rem',
-                        fontFamily: 'monospace',
-                        background: (serialStatus === 'invalid' || serialStatus === 'duplicate' || serialStatus === 'exists')
-                          ? 'rgba(239, 68, 68, 0.15)'
-                          : 'rgba(16, 185, 129, 0.15)',
-                        color: (serialStatus === 'invalid' || serialStatus === 'duplicate' || serialStatus === 'exists')
-                          ? '#ef4444'
-                          : '#10b981',
-                        padding: '2px 8px',
-                        borderRadius: '6px',
-                        fontWeight: 700
-                      }}>
-                        Total: {parsedSerials.length} Units
-                      </span>
-                    )}
-                  </div>
+                  <Hash size={18} style={{ color: '#3b82f6', flexShrink: 0 }} />
+                  <span style={{ fontSize: '0.8rem', color: '#93c5fd', lineHeight: 1.4 }}>
+                    <strong>Serialized Motorcycle Part:</strong> Registered at <strong>0 stock</strong>. Unique unit serial numbers will be captured during <strong>Stock-In (Receiving)</strong> when the supplier delivery arrives.
+                  </span>
                 </div>
               )}
             </div>

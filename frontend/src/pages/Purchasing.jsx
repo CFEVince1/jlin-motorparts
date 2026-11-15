@@ -816,10 +816,59 @@ export const Purchasing = () => {
         row[field] = value;
       }
 
+      const acc = Math.max(0, parseInt(row.quantity, 10) || 0);
+      const prod = products.find(p => String(p.id) === String(row.itemId));
+      const isSer = row.targetType === 'new_serial' || prod?.is_serialized;
+      if (isSer && !row.serialId) {
+        const curSer = Array.isArray(row.serials) ? [...row.serials] : [];
+        while (curSer.length < acc) curSer.push('');
+        if (curSer.length > acc) curSer.length = acc;
+        row.serials = curSer;
+      }
+
       next[index] = row;
       return next;
     });
   };
+
+  const updateSerialItem = (rowIndex, serialIndex, val) => {
+    setLineItems(prev => {
+      const next = [...prev];
+      const row = { ...next[rowIndex] };
+      const curSer = Array.isArray(row.serials) ? [...row.serials] : [];
+      curSer[serialIndex] = String(val).toUpperCase().replace(/[^A-Z0-9]/g, '');
+      row.serials = curSer;
+      next[rowIndex] = row;
+      return next;
+    });
+  };
+
+  const formatProdSpecs = (p) => {
+    if (!p) return '';
+    const parts = [];
+    if (p.brand && !['generic', 'generic / aftermarket', 'unspecified', 'n/a', 'none', '-'].includes(String(p.brand).toLowerCase().trim())) {
+      parts.push(p.brand);
+    }
+    if (p.category) parts.push(p.category);
+    if (p.size && !['unspecified', 'n/a', 'none', '-'].includes(String(p.size).toLowerCase().trim())) parts.push(p.size);
+    if (p.measurement && !['unspecified', 'n/a', 'none', '-'].includes(String(p.measurement).toLowerCase().trim())) parts.push(p.measurement);
+    if (p.thread_type && !['unspecified', 'n/a', 'none', '-'].includes(String(p.thread_type).toLowerCase().trim())) parts.push(p.thread_type);
+    return parts.join(' • ');
+  };
+
+  const hasIncompleteSerials = useMemo(() => {
+    return lineItems.some(row => {
+      const prod = products.find(p => String(p.id) === String(row.itemId));
+      const isSerialized = prod?.is_serialized || row.targetType === 'new_serial';
+      if (!isSerialized || row.serialId) return false;
+      const acc = Math.max(0, parseInt(row.quantity, 10) || 0);
+      if (acc === 0) return false;
+      const serials = Array.isArray(row.serials) ? row.serials : [];
+      if (serials.length < acc) return true;
+      const numericRegex = /^\d{9,15}$/;
+      return serials.slice(0, acc).some(s => !s || !numericRegex.test(String(s).trim()));
+    });
+  }, [lineItems, products]);
 
   const totalsSummary = useMemo(() => {
     let shippedTotal = 0;
@@ -885,23 +934,42 @@ export const Purchasing = () => {
       const prod = products.find(p => String(p.id) === String(row.itemId));
       const prodName = prod?.product_name || prod?.name || `Item #${row.itemId}`;
 
+      const isSerialized = prod?.is_serialized || row.targetType === 'new_serial';
+      let rowSerials = [];
+
       if (row.targetType === 'existing_serial') {
         if (seenExistingSerialIds.has(Number(row.serialId))) {
           toast.error(`Duplicate serial lot selected at row #${i + 1}. Consolidate quantity into a single row.`);
           return;
         }
         seenExistingSerialIds.add(Number(row.serialId));
-      } else if (row.targetType === 'new_serial') {
-        const cleanSn = String(row.newSerialNumber || '').trim();
-        if (!cleanSn) {
-          toast.error(`Please enter a serial number for "${prodName}" at row #${i + 1}.`);
-          return;
+      } else if (isSerialized) {
+        if (acc > 0) {
+          rowSerials = Array.isArray(row.serials) ? row.serials.slice(0, acc).map(s => String(s || '').trim().toUpperCase()) : [];
+          if (rowSerials.length < acc || rowSerials.some(s => !s)) {
+            const firstEmpty = rowSerials.findIndex(s => !s);
+            toast.error(`Please enter all ${acc} serial numbers for "${prodName}" at row #${i + 1} (Serial #${firstEmpty >= 0 ? firstEmpty + 1 : rowSerials.length + 1} is empty).`);
+            return;
+          }
+          const numericRegex = /^\d{9,15}$/;
+          const invalid = rowSerials.filter(s => !numericRegex.test(s));
+          if (invalid.length > 0) {
+            toast.error(`Serial numbers for "${prodName}" must be 9 to 15 digits long (e.g. 10029384751). Invalid: ${invalid.join(', ')}`);
+            return;
+          }
+          const dupesInRow = rowSerials.filter((s, idx) => rowSerials.indexOf(s) !== idx);
+          if (dupesInRow.length > 0) {
+            toast.error(`Duplicate serial number "${dupesInRow[0]}" detected within row #${i + 1} for "${prodName}".`);
+            return;
+          }
+          for (const s of rowSerials) {
+            if (seenNewSerials.has(s)) {
+              toast.error(`Duplicate serial number "${s}" detected across delivery batch at row #${i + 1}.`);
+              return;
+            }
+            seenNewSerials.add(s);
+          }
         }
-        if (seenNewSerials.has(cleanSn)) {
-          toast.error(`Duplicate serial number "${cleanSn}" detected in delivery batch at row #${i + 1}.`);
-          return;
-        }
-        seenNewSerials.add(cleanSn);
       } else if (row.targetType === 'non_serialized') {
         if (seenNonSerialized.has(Number(row.itemId))) {
           toast.error(`Product duplicate detected at row #${i + 1}. Consolidate quantities into a single row.`);
@@ -939,7 +1007,8 @@ export const Purchasing = () => {
         rejection_reason: rej > 0 ? (row.rejectionReason || COMMON_REJECTION_REASONS[0]) : null,
         costPrice: cost,
         serial_id: row.targetType === 'existing_serial' ? Number(row.serialId) : null,
-        serial_number: row.targetType === 'new_serial' ? String(row.newSerialNumber || '').trim().toUpperCase() : null
+        serial_number: rowSerials.length > 0 ? rowSerials[0] : (row.newSerialNumber ? String(row.newSerialNumber).trim().toUpperCase() : null),
+        serials: rowSerials
       });
     }
 
@@ -947,7 +1016,7 @@ export const Purchasing = () => {
     const deduplicatedItems = [];
     const itemMap = new Map();
     for (const item of formattedItems) {
-      if (item.serial_id || item.serial_number) {
+      if (item.serial_id || item.serial_number || (item.serials && item.serials.length > 0)) {
         deduplicatedItems.push(item);
         continue;
       }
@@ -1839,13 +1908,12 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                       <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.84rem' }}>
                         <thead>
                           <tr style={{ background: 'var(--surface-hover)', borderBottom: '1px solid var(--border)' }}>
-                            <th style={{ padding: '8px 10px', minWidth: '180px' }}>Part / Product</th>
-                            <th style={{ padding: '8px 10px', width: '95px', textAlign: 'right' }}>Unit Cost</th>
+                            <th style={{ padding: '8px 10px', minWidth: '220px' }}>Part & Specs</th>
+                            <th style={{ padding: '8px 10px', width: '105px', textAlign: 'right' }}>Unit Cost</th>
                             <th style={{ padding: '8px 6px', width: '85px', textAlign: 'center' }}>Sent Qty</th>
+                            <th style={{ padding: '8px 6px', width: '130px', textAlign: 'center', color: 'var(--danger)' }}>Damaged / Reject</th>
                             <th style={{ padding: '8px 6px', width: '85px', textAlign: 'center', color: 'var(--primary)' }}>Good Qty</th>
-                            <th style={{ padding: '8px 6px', width: '90px', textAlign: 'center', color: 'var(--danger)' }}>Damaged Qty</th>
-                            <th style={{ padding: '8px 10px', minWidth: '140px' }}>Defect Reason</th>
-                            <th style={{ padding: '8px 10px', width: '100px', textAlign: 'right' }}>Total to Pay</th>
+                            <th style={{ padding: '8px 10px', width: '110px', textAlign: 'right' }}>Net Cash Payable</th>
                             <th style={{ padding: '8px 6px', width: '35px', textAlign: 'center' }}></th>
                           </tr>
                         </thead>
@@ -1857,219 +1925,261 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                             const cost = Math.max(0, parseFloat(row.costPrice) || 0);
                             const netSubtotal = acc * cost;
                             const rejSubtotal = rej * cost;
+                            const prod = products.find(p => String(p.id) === String(row.itemId));
+                            const isSerialized = prod?.is_serialized || row.targetType === 'new_serial';
 
                             return (
-                              <tr key={index} style={{ borderBottom: '1px solid var(--border)', background: rej > 0 ? 'rgba(239, 68, 68, 0.03)' : 'transparent' }}>
-                                {/* Product / Lot Selection */}
-                                <td style={{ padding: '8px 10px' }}>
-                                  <select
-                                    className="input-premium"
-                                    value={row.optionValue || ''}
-                                    onChange={(e) => updateRow(index, 'optionValue', e.target.value)}
-                                    required
-                                    disabled={submitting}
-                                    style={{ width: '100%', fontSize: '0.8rem' }}
-                                  >
-                                    <option value="">-- Select Motorcycle Part --</option>
-                                    {receiveOptions.map(opt => {
-                                      const existingIdx = lineItems.findIndex((r, i) => 
-                                        i !== index && (
-                                          (opt.targetType === 'non_serialized' && String(r.itemId) === String(opt.productId)) ||
-                                          (opt.targetType === 'existing_serial' && r.serialId && Number(r.serialId) === Number(opt.serialId))
-                                        )
-                                      );
-                                      const isDuplicate = opt.targetType !== '__NEW_PRODUCT__' && opt.targetType !== 'new_serial' && existingIdx !== -1;
+                              <React.Fragment key={index}>
+                                <tr style={{ borderBottom: '1px solid var(--border)', background: rej > 0 ? 'rgba(239, 68, 68, 0.03)' : 'transparent' }}>
+                                  {/* Col 1: Part & Specs */}
+                                  <td style={{ padding: '8px 10px' }}>
+                                    <select
+                                      className="input-premium"
+                                      value={row.optionValue || ''}
+                                      onChange={(e) => updateRow(index, 'optionValue', e.target.value)}
+                                      required
+                                      disabled={submitting}
+                                      style={{ width: '100%', fontSize: '0.8rem' }}
+                                    >
+                                      <option value="">-- Select Motorcycle Part --</option>
+                                      {receiveOptions.map(opt => {
+                                        const existingIdx = lineItems.findIndex((r, i) => 
+                                          i !== index && (
+                                            (opt.targetType === 'non_serialized' && String(r.itemId) === String(opt.productId)) ||
+                                            (opt.targetType === 'existing_serial' && r.serialId && Number(r.serialId) === Number(opt.serialId))
+                                          )
+                                        );
+                                        const isDuplicate = opt.targetType !== '__NEW_PRODUCT__' && opt.targetType !== 'new_serial' && existingIdx !== -1;
 
-                                      return (
-                                        <option key={opt.value} value={opt.value} disabled={isDuplicate}>
-                                          {opt.label}{isDuplicate ? ` — [Already in Row #${existingIdx + 1}]` : ''}
-                                        </option>
-                                      );
-                                    })}
-                                  </select>
+                                        return (
+                                          <option key={opt.value} value={opt.value} disabled={isDuplicate}>
+                                            {opt.label}{isDuplicate ? ` — [Already in Row #${existingIdx + 1}]` : ''}
+                                          </option>
+                                        );
+                                      })}
+                                    </select>
 
-                                  {row.targetType === 'new_serial' && (
-                                    <div style={{ marginTop: '4px' }}>
-                                      <input
-                                        type="text"
-                                        className="input-premium"
-                                        placeholder="Enter New Serial No. (e.g. RS8-9921) *"
-                                        value={row.newSerialNumber || ''}
-                                        onChange={(e) => updateRow(index, 'newSerialNumber', e.target.value)}
-                                        required
-                                        disabled={submitting}
-                                        style={{ fontSize: '0.78rem', padding: '4px 8px', width: '100%', borderColor: 'var(--primary)' }}
-                                      />
-                                    </div>
-                                  )}
-                                </td>
+                                    {prod && (
+                                      <div style={{ marginTop: '5px', fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.3 }}>
+                                        <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                                          {prod.part_number ? `${prod.part_number} — ${prod.product_name || prod.name}` : (prod.product_name || prod.name)}
+                                        </div>
+                                        {formatProdSpecs(prod) && (
+                                          <div style={{ color: 'var(--text-muted)', fontSize: '0.71rem' }}>
+                                            {formatProdSpecs(prod)}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </td>
 
-                                {/* Unit Cost */}
-                                <td style={{ padding: '8px 10px', textAlign: 'right' }}>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    placeholder="Cost"
-                                    className="input-premium"
-                                    style={{ textAlign: 'right', width: '95px', fontSize: '0.82rem' }}
-                                    value={row.costPrice}
-                                    onKeyDown={(e) => {
-                                      if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') e.preventDefault();
-                                    }}
-                                    onChange={(e) => updateRow(index, 'costPrice', e.target.value)}
-                                    required
-                                    disabled={submitting}
-                                  />
-                                </td>
-
-                                {/* Delivered Quantity (Box Total) */}
-                                <td style={{ padding: '8px 6px', textAlign: 'center' }}>
-                                  <input
-                                    id={`delivered-qty-${index}`}
-                                    type="number"
-                                    min="1"
-                                    step="1"
-                                    placeholder="Sent"
-                                    className="input-premium"
-                                    style={{ textAlign: 'center', width: '100%', maxWidth: '80px', padding: '6px 4px', fontSize: '0.85rem', fontWeight: 600 }}
-                                    value={row.deliveredQuantity}
-                                    onKeyDown={(e) => {
-                                      if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') e.preventDefault();
-                                    }}
-                                    onChange={(e) => updateRow(index, 'deliveredQuantity', e.target.value)}
-                                    required
-                                    disabled={submitting}
-                                  />
-                                </td>
-
-                                {/* Accepted Good Quantity (Enters Inventory) */}
-                                <td style={{ padding: '8px 6px', textAlign: 'center' }}>
-                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                  {/* Col 2: Unit Cost */}
+                                  <td style={{ padding: '8px 10px', textAlign: 'right', verticalAlign: 'top' }}>
                                     <input
                                       type="number"
+                                      step="0.01"
                                       min="0"
-                                      step="1"
-                                      placeholder="Good"
+                                      placeholder="Cost"
                                       className="input-premium"
-                                      style={{
-                                        textAlign: 'center',
-                                        width: '100%',
-                                        maxWidth: '80px',
-                                        padding: '6px 4px',
-                                        fontSize: '0.85rem',
-                                        fontWeight: 700,
-                                        color: 'var(--primary)',
-                                        borderColor: 'rgba(16, 185, 129, 0.4)'
-                                      }}
-                                      value={row.quantity}
+                                      style={{ textAlign: 'right', width: '95px', fontSize: '0.82rem' }}
+                                      value={row.costPrice}
                                       onKeyDown={(e) => {
                                         if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') e.preventDefault();
                                       }}
-                                      onChange={(e) => updateRow(index, 'quantity', e.target.value)}
+                                      onChange={(e) => updateRow(index, 'costPrice', e.target.value)}
                                       required
                                       disabled={submitting}
                                     />
-                                    {acc > 0 && (
-                                      <span style={{ fontSize: '0.68rem', color: 'var(--primary)', fontWeight: 600 }}>
-                                        +{acc} stock in
-                                      </span>
+                                    {prod && Number(prod.markup_percentage) > 0 && cost > 0 && (
+                                      <div style={{ fontSize: '0.68rem', color: '#10b981', marginTop: '3px' }} title={`Preview selling price via saved markup (${prod.markup_percentage}%)`}>
+                                        Retail: ₱{(cost * (1 + Number(prod.markup_percentage) / 100)).toFixed(2)}
+                                      </div>
                                     )}
-                                  </div>
-                                </td>
+                                  </td>
 
-                                {/* Rejected Quantity (Returned to Driver) */}
-                                <td style={{ padding: '8px 6px', textAlign: 'center' }}>
-                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                  {/* Col 3: Sent Qty */}
+                                  <td style={{ padding: '8px 6px', textAlign: 'center', verticalAlign: 'top' }}>
                                     <input
+                                      id={`delivered-qty-${index}`}
                                       type="number"
-                                      min="0"
+                                      min="1"
                                       step="1"
-                                      placeholder="0"
+                                      placeholder="Sent"
                                       className="input-premium"
-                                      style={{
-                                        textAlign: 'center',
-                                        width: '100%',
-                                        maxWidth: '80px',
-                                        padding: '6px 4px',
-                                        fontSize: '0.85rem',
-                                        fontWeight: 700,
-                                        color: rej > 0 ? 'var(--danger)' : 'var(--text-muted)',
-                                        borderColor: rej > 0 ? 'var(--danger)' : 'var(--border)',
-                                        background: rej > 0 ? 'rgba(239, 68, 68, 0.12)' : 'var(--input-bg)'
-                                      }}
-                                      value={row.rejectedQuantity}
+                                      style={{ textAlign: 'center', width: '100%', maxWidth: '80px', padding: '6px 4px', fontSize: '0.85rem', fontWeight: 600 }}
+                                      value={row.deliveredQuantity}
                                       onKeyDown={(e) => {
                                         if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') e.preventDefault();
                                       }}
-                                      onChange={(e) => updateRow(index, 'rejectedQuantity', e.target.value)}
+                                      onChange={(e) => updateRow(index, 'deliveredQuantity', e.target.value)}
+                                      required
                                       disabled={submitting}
                                     />
-                                    {rej > 0 && (
-                                      <span style={{ fontSize: '0.68rem', color: 'var(--danger)', fontWeight: 700 }}>
-                                        -{rej} to driver
-                                      </span>
-                                    )}
-                                  </div>
-                                </td>
+                                  </td>
 
-                                {/* Defect / Rejection Reason */}
-                                <td style={{ padding: '8px 10px' }}>
-                                  {rej > 0 ? (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                      <select
+                                  {/* Col 4: Damaged / Reject */}
+                                  <td style={{ padding: '8px 6px', textAlign: 'center', verticalAlign: 'top' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        placeholder="0"
                                         className="input-premium"
-                                        value={row.rejectionReason || COMMON_REJECTION_REASONS[0]}
-                                        onChange={(e) => updateRow(index, 'rejectionReason', e.target.value)}
-                                        style={{ width: '100%', fontSize: '0.74rem', borderColor: 'var(--danger)' }}
+                                        style={{
+                                          textAlign: 'center',
+                                          width: '100%',
+                                          maxWidth: '80px',
+                                          padding: '6px 4px',
+                                          fontSize: '0.85rem',
+                                          fontWeight: 700,
+                                          color: rej > 0 ? 'var(--danger)' : 'var(--text-muted)',
+                                          borderColor: rej > 0 ? 'var(--danger)' : 'var(--border)',
+                                          background: rej > 0 ? 'rgba(239, 68, 68, 0.12)' : 'var(--input-bg)'
+                                        }}
+                                        value={row.rejectedQuantity}
+                                        onKeyDown={(e) => {
+                                          if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') e.preventDefault();
+                                        }}
+                                        onChange={(e) => updateRow(index, 'rejectedQuantity', e.target.value)}
+                                        disabled={submitting}
+                                      />
+                                      {rej > 0 && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%', maxWidth: '140px' }}>
+                                          <span style={{ fontSize: '0.68rem', color: 'var(--danger)', fontWeight: 700 }}>
+                                            -{rej} to driver
+                                          </span>
+                                          <select
+                                            className="input-premium"
+                                            value={row.rejectionReason || COMMON_REJECTION_REASONS[0]}
+                                            onChange={(e) => updateRow(index, 'rejectionReason', e.target.value)}
+                                            style={{ width: '100%', fontSize: '0.7rem', padding: '2px 4px', borderColor: 'var(--danger)' }}
+                                            required
+                                          >
+                                            {COMMON_REJECTION_REASONS.map(r => (
+                                              <option key={r} value={r}>{r}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  {/* Col 5: Good Qty */}
+                                  <td style={{ padding: '8px 6px', textAlign: 'center', verticalAlign: 'top' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        placeholder="Good"
+                                        className="input-premium"
+                                        style={{
+                                          textAlign: 'center',
+                                          width: '100%',
+                                          maxWidth: '80px',
+                                          padding: '6px 4px',
+                                          fontSize: '0.85rem',
+                                          fontWeight: 700,
+                                          color: 'var(--primary)',
+                                          borderColor: 'rgba(16, 185, 129, 0.4)'
+                                        }}
+                                        value={row.quantity}
+                                        onKeyDown={(e) => {
+                                          if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') e.preventDefault();
+                                        }}
+                                        onChange={(e) => updateRow(index, 'quantity', e.target.value)}
                                         required
-                                      >
-                                        {COMMON_REJECTION_REASONS.map(r => (
-                                          <option key={r} value={r}>{r}</option>
-                                        ))}
-                                      </select>
-                                      <span style={{ fontSize: '0.68rem', color: 'var(--danger)' }}>
-                                        Handed back before driver departs
-                                      </span>
+                                        disabled={submitting}
+                                      />
+                                      {acc > 0 && (
+                                        <span style={{ fontSize: '0.68rem', color: 'var(--primary)', fontWeight: 600 }}>
+                                          +{acc} stock in
+                                        </span>
+                                      )}
                                     </div>
-                                  ) : (
-                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                      Passed 100% (No defects)
-                                    </span>
-                                  )}
-                                </td>
+                                  </td>
 
-                                {/* Net Payable Subtotal */}
-                                <td style={{ padding: '8px 10px', textAlign: 'right' }}>
-                                  <div style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '0.88rem' }}>
-                                    {formatCurrency(netSubtotal)}
-                                  </div>
-                                  {rej > 0 && (
-                                    <div style={{ fontSize: '0.7rem', color: 'var(--danger)', textDecoration: 'line-through' }}>
-                                      -{formatCurrency(rejSubtotal)}
+                                  {/* Col 6: Net Cash Payable */}
+                                  <td style={{ padding: '8px 10px', textAlign: 'right', verticalAlign: 'top' }}>
+                                    <div style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '0.88rem' }}>
+                                      {formatCurrency(netSubtotal)}
                                     </div>
-                                  )}
-                                </td>
+                                    {rej > 0 && (
+                                      <div style={{ fontSize: '0.7rem', color: 'var(--danger)', textDecoration: 'line-through' }}>
+                                        -{formatCurrency(rejSubtotal)}
+                                      </div>
+                                    )}
+                                  </td>
 
-                                {/* Remove Action */}
-                                <td style={{ padding: '8px 8px', textAlign: 'center' }}>
-                                  <button
-                                    type="button"
-                                    onClick={() => removeRow(index)}
-                                    disabled={submitting || lineItems.length === 1}
-                                    style={{
-                                      background: 'transparent',
-                                      border: 'none',
-                                      color: lineItems.length === 1 ? 'var(--text-muted)' : 'var(--danger)',
-                                      cursor: lineItems.length === 1 ? 'not-allowed' : 'pointer',
-                                      padding: '4px'
-                                    }}
-                                    title="Remove line item"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </td>
-                              </tr>
+                                  {/* Col 7: Remove Action */}
+                                  <td style={{ padding: '8px 8px', textAlign: 'center', verticalAlign: 'top' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeRow(index)}
+                                      disabled={submitting || lineItems.length === 1}
+                                      style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: lineItems.length === 1 ? 'var(--text-muted)' : 'var(--danger)',
+                                        cursor: lineItems.length === 1 ? 'not-allowed' : 'pointer',
+                                        padding: '4px'
+                                      }}
+                                      title="Remove line item"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </td>
+                                </tr>
+
+                                {/* Serial Numbers Sub-Panel for Serialized Items */}
+                                {(isSerialized && acc > 0 && !row.serialId) && (
+                                  <tr style={{ background: 'rgba(59, 130, 246, 0.04)', borderBottom: '1px solid var(--border)' }}>
+                                    <td colSpan={7} style={{ padding: '10px 14px' }}>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                                          <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <Hash size={14} />
+                                            <span>Serial Numbers Required for {acc} Good Unit{acc > 1 ? 's' : ''} (9–15 digits each):</span>
+                                          </div>
+                                          <div style={{ fontSize: '0.72rem', color: (Array.isArray(row.serials) && row.serials.slice(0, acc).filter(s => /^\d{9,15}$/.test(String(s).trim())).length === acc) ? '#10b981' : '#f59e0b', fontWeight: 600 }}>
+                                            {Array.isArray(row.serials) ? row.serials.slice(0, acc).filter(s => /^\d{9,15}$/.test(String(s).trim())).length : 0} of {acc} complete
+                                          </div>
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
+                                          {Array.from({ length: acc }).map((_, sIdx) => {
+                                            const val = row.serials?.[sIdx] || '';
+                                            const isValid = /^\d{9,15}$/.test(String(val).trim());
+                                            const isDupe = val && (row.serials || []).filter((s, i) => i !== sIdx && String(s).trim() === String(val).trim()).length > 0;
+                                            return (
+                                              <div key={sIdx} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', minWidth: '55px' }}>
+                                                  Unit #{sIdx + 1}:
+                                                </span>
+                                                <input
+                                                  type="text"
+                                                  placeholder="e.g. 10029384751"
+                                                  className="input-premium"
+                                                  style={{
+                                                    fontSize: '0.78rem',
+                                                    padding: '4px 8px',
+                                                    width: '100%',
+                                                    fontFamily: 'monospace',
+                                                    borderColor: isDupe || (!isValid && val) ? '#ef4444' : (isValid ? '#10b981' : undefined)
+                                                  }}
+                                                  value={val}
+                                                  onChange={(e) => updateSerialItem(index, sIdx, e.target.value)}
+                                                  disabled={submitting}
+                                                />
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
                             );
                           })}
                         </tbody>
@@ -2156,7 +2266,7 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                       <button
                         type="submit"
                         className="btn-primary"
-                        disabled={submitting}
+                        disabled={submitting || hasIncompleteSerials}
                         style={{
                           padding: '10px 24px',
                           display: 'flex',
@@ -2164,12 +2274,13 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                           gap: '8px',
                           fontSize: '0.88rem',
                           fontWeight: 700,
-                          cursor: submitting ? 'not-allowed' : 'pointer',
-                          opacity: submitting ? 0.7 : 1
+                          cursor: (submitting || hasIncompleteSerials) ? 'not-allowed' : 'pointer',
+                          opacity: (submitting || hasIncompleteSerials) ? 0.6 : 1
                         }}
+                        title={hasIncompleteSerials ? 'Please enter all serial numbers for serialized items above' : undefined}
                       >
                         <CheckCircle size={16} />
-                        <span>{submitting ? 'Confirming Delivery...' : 'Confirm & Accept Delivery'}</span>
+                        <span>{submitting ? 'Confirming Delivery...' : 'Confirm & Stock-In'}</span>
                       </button>
                     </div>
                   </div>

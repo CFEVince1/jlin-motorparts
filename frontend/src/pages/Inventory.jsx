@@ -98,6 +98,13 @@ const Inventory = () => {
     const qTab = searchParams.get('tab');
     if (!isAdmin) {
       if (activeTab !== 'catalog') setActiveTab('catalog');
+      if (qTab) {
+        setSearchParams(prev => {
+          const next = new URLSearchParams(prev);
+          next.delete('tab');
+          return next;
+        }, { replace: true });
+      }
       return;
     }
     if (qTab === 'reorder' || qTab === 'reorder_list') {
@@ -109,7 +116,7 @@ const Inventory = () => {
     } else {
       setActiveTab('catalog');
     }
-  }, [searchParams, isAdmin, activeTab]);
+  }, [searchParams, isAdmin, activeTab, setSearchParams]);
 
   const handleTabChange = (tab) => {
     setIsAddProductOpen(false);
@@ -1684,7 +1691,7 @@ const Inventory = () => {
       {/* =========================================================================
           TAB 2: CATEGORIES & BRANDS MANAGEMENT
          ========================================================================= */}
-      {activeTab === 'categories_brands' && (
+      {isAdmin && activeTab === 'categories_brands' && (
         <CategoriesBrandsManager onCatalogUpdated={fetchInventory} />
       )}
 

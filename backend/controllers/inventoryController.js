@@ -287,13 +287,15 @@ exports.receiveStock = async (req, res, next) => {
             const isSerialized = Boolean(prod.is_serialized);
             let targetSerialId = item.serial_id || item.serialId || null;
             let targetSerialNum = item.serial_number || item.serialNumber || null;
-            if (typeof targetSerialNum === 'string') {
-                targetSerialNum = targetSerialNum.trim().toUpperCase();
-            } else if (!targetSerialNum && (item.serials || item.serial_numbers)) {
-                let rawS = item.serials || item.serial_numbers;
-                if (Array.isArray(rawS) && rawS.length > 0) targetSerialNum = String(rawS[0]).trim().toUpperCase();
-                else if (typeof rawS === 'string' && rawS.trim()) targetSerialNum = rawS.trim().toUpperCase();
+            let serialsList = [];
+            if (Array.isArray(item.serials) && item.serials.length > 0) {
+                serialsList = item.serials.map(s => String(s || '').trim().toUpperCase()).filter(Boolean);
+            } else if (Array.isArray(item.serial_numbers) && item.serial_numbers.length > 0) {
+                serialsList = item.serial_numbers.map(s => String(s || '').trim().toUpperCase()).filter(Boolean);
+            } else if (typeof targetSerialNum === 'string' && targetSerialNum.trim()) {
+                serialsList = [targetSerialNum.trim().toUpperCase()];
             }
+
             let lotIncrement = false;
 
             if (isSerialized && acceptedQty > 0) {
@@ -312,33 +314,31 @@ exports.receiveStock = async (req, res, next) => {
                     }
                     targetSerialNum = existingRows[0].serial_number;
                     lotIncrement = true;
-                } else if (targetSerialNum) {
-                    if (seenBatchNewSerials.has(targetSerialNum)) {
-                        throw new AppValidationError(`Duplicate serial number "${targetSerialNum}" detected within delivery batch.`);
+                } else if (serialsList.length > 0) {
+                    if (serialsList.length !== acceptedQty) {
+                        throw new AppValidationError(`Product "${prod.name}" has ${acceptedQty} accepted units, but ${serialsList.length} serial numbers provided. Each accepted unit requires a serial number.`);
                     }
-                    seenBatchNewSerials.add(targetSerialNum);
-
-                    const [dupes] = await connection.query(
-                        'SELECT serial_number FROM product_serials WHERE UPPER(serial_number) = UPPER(?) AND product_id != ?',
-                        [targetSerialNum, resolvedId]
+                    if (new Set(serialsList).size !== serialsList.length) {
+                        const dupesInRow = serialsList.filter((s, idx) => serialsList.indexOf(s) !== idx);
+                        throw new AppValidationError(`Duplicate serial number(s) within line item for "${prod.name}": ${dupesInRow.join(', ')}`);
+                    }
+                    for (const s of serialsList) {
+                        if (seenBatchNewSerials.has(s)) {
+                            throw new AppValidationError(`Duplicate serial number "${s}" detected across delivery batch.`);
+                        }
+                        seenBatchNewSerials.add(s);
+                    }
+                    const [existingSerials] = await connection.query(
+                        'SELECT serial_number FROM product_serials WHERE UPPER(serial_number) IN (?)',
+                        [serialsList]
                     );
-                    if (dupes.length > 0) {
-                        throw new AppValidationError(`Serial number "${targetSerialNum}" already belongs to another product`);
+                    if (existingSerials.length > 0) {
+                        const dupList = existingSerials.map(r => r.serial_number).join(', ');
+                        throw new AppValidationError(`Serial number(s) already exist in database: ${dupList}`);
                     }
-
-                    const [existingRows] = await connection.query(
-                        'SELECT id, serial_number, quantity, status FROM product_serials WHERE UPPER(serial_number) = UPPER(?) AND product_id = ?',
-                        [targetSerialNum, resolvedId]
-                    );
-                    if (existingRows.length > 0) {
-                        targetSerialId = existingRows[0].id;
-                        targetSerialNum = existingRows[0].serial_number;
-                        lotIncrement = true;
-                    } else {
-                        lotIncrement = false;
-                    }
+                    lotIncrement = false;
                 } else {
-                    throw new AppValidationError(`Product "${prod.name}" is a serialized item. A serial lot or new serial number is required.`);
+                    throw new AppValidationError(`Product "${prod.name}" is a serialized item. Serial numbers are required for all ${acceptedQty} accepted units.`);
                 }
             } else if (!isSerialized) {
                 if (seenBatchNonSerialized.has(resolvedId)) {
@@ -365,6 +365,7 @@ exports.receiveStock = async (req, res, next) => {
                 isSerialized,
                 targetSerialId,
                 targetSerialNum,
+                serialsList,
                 lotIncrement
             });
         }
@@ -419,11 +420,14 @@ exports.receiveStock = async (req, res, next) => {
                 isSerialized, 
                 targetSerialId, 
                 targetSerialNum, 
+                serialsList,
                 lotIncrement 
             } = item;
 
             const subtotal = costPrice * acceptedQty;
-            const serialsStr = isSerialized ? (targetSerialNum || null) : null;
+            const serialsStr = isSerialized 
+                ? (serialsList && serialsList.length > 0 ? serialsList.join(', ') : (targetSerialNum || null)) 
+                : null;
 
             await connection.query(
                 `INSERT INTO receiving_record_items (
@@ -448,6 +452,14 @@ exports.receiveStock = async (req, res, next) => {
                             [acceptedQty, targetSerialId]
                         );
                         effectiveSerialId = targetSerialId;
+                    } else if (serialsList && serialsList.length > 0) {
+                        for (const s of serialsList) {
+                            const [sRes] = await connection.query(
+                                "INSERT INTO product_serials (product_id, serial_number, quantity, status, created_at) VALUES (?, ?, 1, 'available', NOW())",
+                                [resolvedId, s]
+                            );
+                            if (!effectiveSerialId) effectiveSerialId = sRes.insertId;
+                        }
                     } else if (targetSerialNum) {
                         const [insertRes] = await connection.query(
                             "INSERT INTO product_serials (product_id, serial_number, quantity, status, created_at) VALUES (?, ?, ?, 'available', NOW())",

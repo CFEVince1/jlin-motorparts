@@ -1,7 +1,20 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, X, FileText, Calendar, TrendingUp, Users, DollarSign, BarChart3 } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
+
+const formatSpecText = (brand, size) => {
+  const parts = [];
+  const b = String(brand || '').trim();
+  const s = String(size || '').trim();
+  if (b && !['generic', 'generic / aftermarket', 'unspecified', 'n/a', 'none', '-'].includes(b.toLowerCase())) {
+    parts.push(b);
+  }
+  if (s && !['unspecified', 'n/a', 'none', '-'].includes(s.toLowerCase())) {
+    parts.push(s);
+  }
+  return parts.length > 0 ? parts.join(' • ') : 'Standard';
+};
 
 export default function PrintSalesReportModal({
   isOpen,
@@ -331,7 +344,7 @@ export default function PrintSalesReportModal({
                         <td style={{ padding: '5px', fontWeight: 600, color: '#059669' }}>#{idx + 1}</td>
                         <td style={{ padding: '5px', fontWeight: 600 }}>{item.part_number}</td>
                         <td style={{ padding: '5px' }}>{item.product_name}</td>
-                        <td style={{ padding: '5px', color: '#4b5563' }}>{item.brand} | {item.size}</td>
+                        <td style={{ padding: '5px', color: '#4b5563' }}>{formatSpecText(item.brand, item.size)}</td>
                         <td style={{ padding: '5px', textAlign: 'center', fontWeight: 'bold', color: '#059669' }}>{item.total_sold}</td>
                         <td style={{ padding: '5px', textAlign: 'right' }}>{formatCurrency(item.total_revenue)}</td>
                         <td style={{ padding: '5px', textAlign: 'right', fontWeight: 500 }}>{formatCurrency(item.total_profit)}</td>
@@ -560,7 +573,7 @@ export default function PrintSalesReportModal({
                   <td style={{ padding: '4px' }}>#{idx + 1}</td>
                   <td style={{ padding: '4px', fontWeight: 'bold' }}>{item.part_number}</td>
                   <td style={{ padding: '4px' }}>{item.product_name}</td>
-                  <td style={{ padding: '4px' }}>{item.brand} | {item.size}</td>
+                  <td style={{ padding: '4px' }}>{formatSpecText(item.brand, item.size)}</td>
                   <td style={{ padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>{item.total_sold}</td>
                   <td style={{ padding: '4px', textAlign: 'right' }}>{formatCurrency(item.total_revenue)}</td>
                   <td style={{ padding: '4px', textAlign: 'right' }}>{formatCurrency(item.total_profit)}</td>
