@@ -177,7 +177,7 @@ const Users = () => {
         }
 
         try {
-            await api.put(`/users/${u.id}`, { is_active: nextStatus });
+            await api.put(`/users/${u.id}/toggle-status`, { is_active: nextStatus });
             toast.success(`Account @${u.username} ${nextStatus === 1 ? 'activated' : 'deactivated'}`);
             fetchUsers();
             notifyInventoryChange('user_change');

@@ -273,11 +273,6 @@ exports.createRestockRequest = async (req, res) => {
                 console.error('[Restock Request] Async Gmail dispatch error:', mailErr.message);
             }
         });
-            requestIds,
-            items: processedItems,
-            admin_email: maskedEmail,
-            email_sent: emailSent
-        });
     } catch (err) {
         console.error('Error creating restock request:', err);
         res.status(500).json({ success: false, message: 'Failed to submit restock request' });

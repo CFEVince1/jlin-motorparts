@@ -98,7 +98,7 @@ exports.updateUser = async (req, res) => {
     const targetId = parseInt(id, 10);
     const callerId = req.user?.id;
 
-    if (!username || username.trim().length < 3) {
+    if (username !== undefined && username.trim().length < 3) {
         return res.status(400).json({ message: 'Username must be at least 3 characters' });
     }
     if (password && (typeof password !== 'string' || password.length < 6)) {
@@ -146,8 +146,10 @@ exports.updateUser = async (req, res) => {
         const updates = [];
         const values = [];
 
-        updates.push('username = ?');
-        values.push(username.trim());
+        if (username !== undefined) {
+            updates.push('username = ?');
+            values.push(username.trim());
+        }
 
         if (full_name !== undefined) {
             updates.push('full_name = ?');
@@ -207,7 +209,9 @@ exports.toggleUserStatus = async (req, res) => {
         if (rows.length === 0) return res.status(404).json({ message: 'User not found' });
 
         const user = rows[0];
-        const newStatus = user.is_active === 1 ? 0 : 1;
+        const newStatus = (req.body && req.body.is_active !== undefined)
+            ? (req.body.is_active ? 1 : 0)
+            : (user.is_active === 1 ? 0 : 1);
 
         if (user.role.toLowerCase() === 'admin' && newStatus === 0) {
             const [adminCountRows] = await db.query("SELECT COUNT(*) as count FROM users WHERE LOWER(role) = 'admin' AND is_active = 1");
