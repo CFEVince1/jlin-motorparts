@@ -788,33 +788,29 @@ export const Purchasing = ({ defaultTab }) => {
       if (totalsSummary.totalRejectedUnits > 0) {
         toast.success(`Pre-acceptance inspection recorded! ${totalsSummary.totalAcceptedUnits} good units added to inventory. ${totalsSummary.totalRejectedUnits} damaged units rejected & claim opened.`);
         // Open Driver Rejection modal view
-        setSelectedHistoryRecord({
-          reference_number: finalRefNo,
-          supplier_name: selectedSupplierObj?.name || 'Facebook Supplier',
-          seller_contact_name: selectedSupplierObj?.seller_contact_name || selectedSupplierObj?.contact_person || 'Seller',
-          courier_service: cleanCourier,
-          delivery_personnel: cleanDriver,
-          mechanic_name: cleanMechanic,
-          receiver_name: cleanReceiver,
-          received_date: receivedDate,
-          total_quantity: totalsSummary.totalAcceptedUnits,
-          total_rejected_qty: totalsSummary.totalRejectedUnits,
-          total_cost: totalsSummary.acceptedTotal,
-          total_rejected_amount: totalsSummary.rejectedTotal,
-          items: formattedItems.map(it => {
+        setDriverRejectionModalData({
+          supplierName: selectedSupplierObj?.name || 'Facebook Supplier',
+          sellerContact: selectedSupplierObj?.seller_contact_name || selectedSupplierObj?.contact_person || 'Seller',
+          referenceNo: finalRefNo,
+          driverName: cleanDriver,
+          courierService: cleanCourier,
+          receiverName: cleanReceiver,
+          totalAcceptedUnits: totalsSummary.totalAcceptedUnits,
+          totalAcceptedAmount: totalsSummary.acceptedTotal,
+          totalRejectedUnits: totalsSummary.totalRejectedUnits,
+          totalRejectedAmount: totalsSummary.rejectedTotal,
+          rejectedItems: formattedItems.filter(it => it.rejected_quantity > 0).map(it => {
             const p = products.find(x => x.id === it.product_id);
             return {
-              product_name: p?.product_name || p?.name,
-              brand: p?.brand,
-              delivered_quantity: it.delivered_quantity,
-              quantity: it.quantity,
+              product_name: p?.product_name || p?.name || `Item #${it.product_id}`,
+              brand: p?.brand || '',
               rejected_quantity: it.rejected_quantity,
-              rejection_reason: it.rejection_reason,
-              cost_price: it.costPrice
+              cost_price: it.costPrice,
+              subtotal: it.rejected_quantity * it.costPrice,
+              reason: it.rejection_reason || 'Defective on arrival'
             };
           })
         });
-        setActiveModalSlipView('rejection');
       } else {
         toast.success(`Delivery accepted! ${totalsSummary.totalAcceptedUnits} units verified 100% good and stocked into inventory.`);
       }
