@@ -31,7 +31,6 @@ export const AdjustmentModal = ({
 }) => {
   const [movementType, setMovementType] = useState('DAMAGE'); // DAMAGE | LOSS | FOUND
   const [quantity, setQuantity] = useState('1');
-  const [referenceNo, setReferenceNo] = useState(generateAuditReference);
   const [remarks, setRemarks] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -190,7 +189,7 @@ export const AdjustmentModal = ({
       return;
     }
 
-    const effectiveRef = referenceNo.trim() || generateAuditReference();
+    const effectiveRef = generateAuditReference();
 
     setSubmitting(true);
     try {
@@ -518,42 +517,23 @@ export const AdjustmentModal = ({
           </select>
         </div>
 
-        {/* Step 4: Quantity & Reference No */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-              Quantity *
-            </label>
-            <input
-              type="number"
-              min="1"
-              max={movementType === 'FOUND' ? 9999 : (currentStock > 0 ? currentStock : 9999)}
-              placeholder="Qty"
-              className="input-premium"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              required
-              disabled={submitting}
-              style={{ width: '100%', height: '38px' }}
-            />
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', display: 'block' }}>
-                Audit Reference Code
-              </label>
-              <span style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 600 }}>Auto-Generated</span>
-            </div>
-            <input
-              type="text"
-              placeholder="e.g. ADJ-20261116-XXXX"
-              className="input-premium"
-              value={referenceNo}
-              onChange={(e) => setReferenceNo(e.target.value)}
-              disabled={submitting}
-              style={{ width: '100%', height: '38px', fontFamily: 'monospace', fontWeight: 600 }}
-            />
-          </div>
+        {/* Step 4: Quantity */}
+        <div>
+          <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+            Quantity *
+          </label>
+          <input
+            type="number"
+            min="1"
+            max={movementType === 'FOUND' ? 9999 : (currentStock > 0 ? currentStock : 9999)}
+            placeholder="Quantity to adjust"
+            className="input-premium"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+            required
+            disabled={submitting}
+            style={{ width: '100%', height: '38px' }}
+          />
         </div>
 
         {/* Step 5: Remarks */}
