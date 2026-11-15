@@ -1,42 +1,113 @@
-# System Use Case Diagram
+# System Use Case Diagram — J-Lin Motorparts Inventory & POS
 
-This use case diagram outlines the primary interactions between the system's users (Admin and Staff) and the core features of the J-Lin Inventory and POS System.
+The use case diagram below details the operational interactions between the system actors (**Owner / Admin** and **Cashier / Staff**) across all modules of the **J-Lin Motorparts Inventory & POS System**.
 
 ```mermaid
 flowchart LR
-    A((Admin))
+    Owner["👤 Owner / Admin"]
+    Cashier["👤 Cashier / Staff"]
 
-    subgraph System [J-Lin Inventory & POS System]
-        UC1([Login / Authentication])
-        UC2([Process Sales / POS])
-        UC3([Manage Inventory])
-        UC4([View Low Stock Alerts])
-        UC5([Manage Products Catalog])
-        UC6([View Daily Sales Reports])
-        UC7([View Advanced Analytics])
-        UC8([Manage System Users])
+    subgraph System ["J-Lin Motorparts Inventory & POS System"]
+        subgraph AuthMod ["Authentication & Security"]
+            UC_Auth(["Login & Session Authentication"])
+            UC_OTP(["Generate 6-Digit Admin OTP Discount"])
+        end
+
+        subgraph POSMod ["Sale (POS) Module"]
+            UC_Sale(["Ring Up Sale (Cash & GCash)"])
+            UC_Hold(["Hold & Resume Active Carts"])
+            UC_Swap(["Process Item Swap / Exchange Mode"])
+            UC_Void(["Verify Same-Day Void Receipt"])
+        end
+
+        subgraph InvMod ["Inventory & Catalog"]
+            UC_Browse(["View Catalog (Selling Price Only)"])
+            UC_Catalog(["Manage Parts, Categories & Brands"])
+            UC_Damage(["Log In-Store Damage Adjustment"])
+            UC_Reorder(["View Low-Stock Reorder Alerts"])
+        end
+
+        subgraph StockInMod ["Receiving / Stock-In"]
+            UC_Receive(["Inspect Truck Delivery & Paper DR"])
+            UC_Reject(["Reject Damaged Stock to Driver"])
+            UC_Payout(["Log Supplier Cash Restock Payout"])
+        end
+
+        subgraph SuppMod ["Suppliers Module"]
+            UC_Suppliers(["Manage Facebook Supplier Directory"])
+        end
+
+        subgraph DrawerMod ["Shifts & Cash Drawer"]
+            UC_Float(["Time-In Cashier & Assign Starting Float"])
+            UC_ShiftLock(["Lock / Unlock Cashier POS Terminal"])
+            UC_BlindCount(["Submit End-of-Shift Blind Cash Count"])
+            UC_SignOff(["Audit & Sign Off Shift Remittance"])
+        end
+
+        subgraph RepMod ["Reports & Financial Intelligence"]
+            UC_Profit(["View True Net Profit & Puhunan Margin"])
+            UC_CashFlow(["Track Real Cash Inflow vs. Truck Outflows"])
+            UC_Velocity(["Analyze Stock Velocity (Fast / Dead Stock)"])
+            UC_Exports(["Export CSV & Print PDF Reference Logs"])
+        end
+
+        subgraph AuditMod ["Staff & Audit Log"]
+            UC_Staff(["Manage User Accounts & Roles"])
+            UC_Audit(["Inspect Tamper-Proof Audit Logs"])
+        end
     end
 
-    S((Staff))
+    %% Cashier / Staff Connections
+    Cashier --- UC_Auth
+    Cashier --- UC_Sale
+    Cashier --- UC_Hold
+    Cashier --- UC_Swap
+    Cashier --- UC_Browse
+    Cashier --- UC_Reorder
+    Cashier --- UC_BlindCount
 
-    %% Admin associations
-    A --- UC1
-    A --- UC2
-    A --- UC3
-    A --- UC4
-    A --- UC5
-    A --- UC6
-    A --- UC7
-    A --- UC8
-
-    %% Staff associations
-    UC1 --- S
-    UC2 --- S
-    UC4 --- S
-    UC6 --- S
+    %% Owner / Admin Connections (Full Access)
+    Owner --- UC_Auth
+    Owner --- UC_OTP
+    Owner --- UC_Sale
+    Owner --- UC_Hold
+    Owner --- UC_Swap
+    Owner --- UC_Void
+    Owner --- UC_Browse
+    Owner --- UC_Catalog
+    Owner --- UC_Damage
+    Owner --- UC_Reorder
+    Owner --- UC_Receive
+    Owner --- UC_Reject
+    Owner --- UC_Payout
+    Owner --- UC_Suppliers
+    Owner --- UC_Float
+    Owner --- UC_ShiftLock
+    Owner --- UC_SignOff
+    Owner --- UC_Profit
+    Owner --- UC_CashFlow
+    Owner --- UC_Velocity
+    Owner --- UC_Exports
+    Owner --- UC_Staff
+    Owner --- UC_Audit
 ```
 
-### Roles and Permissions
+---
 
-- **Staff (Cashier/Clerk):** Handles day-to-day operations. They can process sales (which automatically updates stock), check low stock alerts, and review basic daily sales reports. They do NOT have direct access to manually adjust inventory levels.
-- **Admin (Manager/Owner):** Has elevated privileges. In addition to all staff capabilities, admins can manage the product catalog (add/edit/delete), manually manage inventory (stock-in/stock-out), access advanced analytics (profit margins, best sellers), and control user accounts.
+### Role-Based Access Control (RBAC) Summary
+
+| Feature / Use Case | Cashier / Staff | Owner / Admin | Purpose & Access Boundary |
+|---|:---:|:---:|---|
+| **POS Sales & Receipts** | ✅ Allowed | ✅ Allowed | Ringing up motorparts via barcode/SKU, accepting Cash and GCash. |
+| **Cart Holding** | ✅ Allowed | ✅ Allowed | Parking unfinished sales when customers step away to grab another part. |
+| **Item Swap Mode** | ✅ Allowed | ✅ Allowed | Looking up past receipts, crediting returned items, and collecting top-ups. |
+| **Voiding Receipts** | ❌ Blocked | ✅ Allowed | Voiding completed transactions requires Admin authentication. |
+| **Admin OTP Discounts** | ❌ Request Only | ✅ Allowed | 6-digit dynamic OTP generated by Admin to approve counter discounts. |
+| **Inventory Catalog** | 👁️ Catalog View | ✅ Full Access | Cashier sees part names & retail price; Owner sees cost (*puhunan*) & margins. |
+| **Add / Edit / Delete Categories & Brands** | ❌ Blocked | ✅ Allowed | Owner manages catalog structure and reassigns parts when deleting. |
+| **Receiving / Stock-In** | ❌ Blocked | ✅ Allowed | Inspecting supplier truck deliveries, rejecting defects, logging cash payouts. |
+| **Supplier Directory** | ❌ Blocked | ✅ Allowed | Managing supplier contacts, Messenger links, and wholesale ordering. |
+| **Cash Float & Drawer Controls** | ❌ Blocked | ✅ Allowed | Admin times in staff, assigns starting change float, and controls terminal access. |
+| **Shift Blind Count** | ✅ Submit Only | ✅ Verification | Cashier counts physical cash blindly without seeing expected totals. |
+| **Financial & Profit Reports** | ❌ Blocked | ✅ Allowed | True Net Profit, inventory velocity, cash flow, and supplier truck spending. |
+| **Staff & Audit Logs** | ❌ Blocked | ✅ Allowed | Creating accounts, resetting PINs, and reviewing tamper-evident logs. |
