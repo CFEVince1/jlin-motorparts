@@ -68,16 +68,22 @@ exports.getAllProducts = async (req, res) => {
     try {
         const [products] = await db.query(`
             SELECT
-                id, name AS product_name, part_number, brand, category,
-                size, measurement, thread_type, cost_price, markup_percentage, selling_price, selling_price AS price,
-                shelf_location,
-                COALESCE(stock, current_stock, 0) AS stock,
-                COALESCE(stock, current_stock, 0) AS current_stock,
-                reorder_level, is_serialized,
-                supplier_id, supplier_name
-            FROM products
-            WHERE is_active = 1
-            ORDER BY created_at DESC
+                p.id, p.name AS product_name, p.part_number, p.brand, p.category,
+                p.size, p.measurement, p.thread_type, p.cost_price, p.markup_percentage, p.selling_price, p.selling_price AS price,
+                p.shelf_location,
+                COALESCE(p.stock, p.current_stock, 0) AS stock,
+                COALESCE(p.stock, p.current_stock, 0) AS current_stock,
+                p.reorder_level, p.is_serialized,
+                p.supplier_id,
+                COALESCE(s.name, p.supplier_name) AS supplier_name,
+                COALESCE(s.fb_page_name, s.name, p.supplier_name) AS default_supplier_fb_page,
+                COALESCE(s.fb_page_name, s.name, p.supplier_name) AS default_facebook_supplier,
+                s.messenger_url AS default_supplier_messenger_url,
+                s.facebook_page_url AS default_supplier_facebook_url
+            FROM products p
+            LEFT JOIN suppliers s ON s.id = p.supplier_id
+            WHERE p.is_active = 1
+            ORDER BY p.created_at DESC
         `);
 
         if (products.length === 0) return res.json([]);

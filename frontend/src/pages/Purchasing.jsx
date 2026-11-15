@@ -186,34 +186,58 @@ export const Purchasing = () => {
   const [driverRejectionModalData, setDriverRejectionModalData] = useState(null);
 
   // -------------------------------------------------------------
+  // SUPPLIER MATCHING HELPER
+  // -------------------------------------------------------------
+  const isProductFromSupplier = useCallback((p, targetSuppId, targetSuppObj) => {
+    if (!targetSuppId && !targetSuppObj) return true;
+
+    // 1. Direct ID match
+    if (p.supplier_id && targetSuppId && String(p.supplier_id) === String(targetSuppId)) {
+      return true;
+    }
+
+    // 2. Name or FB Page match
+    if (targetSuppObj) {
+      const sName = (targetSuppObj.name || '').toLowerCase().trim();
+      const sFb = (targetSuppObj.fb_page_name || '').toLowerCase().trim();
+      const pSuppFb = (p.default_supplier_fb_page || p.default_facebook_supplier || '').toLowerCase().trim();
+      const pSuppName = (p.default_supplier_name || p.supplier_name || '').toLowerCase().trim();
+
+      if (sName && (pSuppName === sName || pSuppFb === sName)) return true;
+      if (sFb && (pSuppFb === sFb || pSuppName === sFb)) return true;
+      if (sName && (pSuppName.includes(sName) || sName.includes(pSuppName))) return true;
+      if (sFb && (pSuppFb.includes(sFb) || sFb.includes(pSuppFb))) return true;
+    }
+    return false;
+  }, []);
+
+  // -------------------------------------------------------------
   // LOW STOCK / CATALOG RESTOCK SHORTCUTS STATE & FILTER
   // -------------------------------------------------------------
   const [showLowStockShortcuts, setShowLowStockShortcuts] = useState(true);
   const [restockSearchTerm, setRestockSearchTerm] = useState('');
+  const [filterBySupplierOnly, setFilterBySupplierOnly] = useState(true);
+  const [filterLineItemsBySupplier, setFilterLineItemsBySupplier] = useState(true);
 
   const lowStockCount = useMemo(() => {
-    return products.filter(p => {
+    const list = (filterBySupplierOnly && (supplierId || selectedSupplierObj))
+      ? products.filter(p => isProductFromSupplier(p, supplierId, selectedSupplierObj))
+      : products;
+
+    return list.filter(p => {
       const stock = Number(p.stock ?? p.current_stock ?? 0);
       const reorder = Number(p.reorder_level ?? 0);
       return reorder > 0 ? stock <= reorder : stock <= 5;
     }).length;
-  }, [products]);
-
-  const [filterBySupplierOnly, setFilterBySupplierOnly] = useState(false);
+  }, [products, filterBySupplierOnly, supplierId, selectedSupplierObj, isProductFromSupplier]);
 
   const restockShortcutProducts = useMemo(() => {
     const term = restockSearchTerm.trim().toLowerCase();
     let baseList = products;
 
     // Filter by selected supplier if active
-    if (filterBySupplierOnly && supplierId) {
-      const suppMatches = products.filter(p => 
-        String(p.supplier_id) === String(supplierId) || 
-        (selectedSupplierObj && (p.supplier_name === selectedSupplierObj.name || p.default_facebook_supplier === selectedSupplierObj.name))
-      );
-      if (suppMatches.length > 0) {
-        baseList = suppMatches;
-      }
+    if (filterBySupplierOnly && (supplierId || selectedSupplierObj)) {
+      baseList = products.filter(p => isProductFromSupplier(p, supplierId, selectedSupplierObj));
     }
 
     if (!term) {
@@ -229,7 +253,7 @@ export const Purchasing = () => {
       });
     }
 
-    // When admin types any term, dynamically search the ENTIRE product catalog (including healthy stock)
+    // When admin types any term, dynamically search (scoped to baseList)
     return baseList.filter(p => {
       const name = String(p.name || p.product_name || '').toLowerCase();
       const brand = String(p.brand || '').toLowerCase();
@@ -240,7 +264,7 @@ export const Purchasing = () => {
       const thread = String(p.thread_type || '').toLowerCase();
       return name.includes(term) || brand.includes(term) || sku.includes(term) || cat.includes(term) || size.includes(term) || spec.includes(term) || thread.includes(term);
     }).slice(0, 30);
-  }, [products, restockSearchTerm, filterBySupplierOnly, supplierId, selectedSupplierObj]);
+  }, [products, restockSearchTerm, filterBySupplierOnly, supplierId, selectedSupplierObj, isProductFromSupplier]);
 
   // -------------------------------------------------------------
   // TAB 2: RECEIVING HISTORY STATE
@@ -401,7 +425,19 @@ export const Purchasing = () => {
         costPrice: 0
       });
     }
-    products.forEach(p => {
+
+    const activeItemIds = new Set(lineItems.map(r => String(r.itemId)).filter(Boolean));
+
+    // When a supplier is selected and filter is on, only show this supplier's products
+    let targetProducts = products;
+    if (filterLineItemsBySupplier && (supplierId || selectedSupplierObj)) {
+      const filtered = products.filter(p => isProductFromSupplier(p, supplierId, selectedSupplierObj) || activeItemIds.has(String(p.id)));
+      if (filtered.length > 0) {
+        targetProducts = filtered;
+      }
+    }
+
+    targetProducts.forEach(p => {
       if (p.is_serialized) {
         if (p.serials && p.serials.length > 0) {
           p.serials.forEach(s => {
@@ -441,7 +477,7 @@ export const Purchasing = () => {
       }
     });
     return list;
-  }, [products]);
+  }, [products, isAdmin, supplierId, selectedSupplierObj, lineItems, filterLineItemsBySupplier, isProductFromSupplier]);
 
   // -------------------------------------------------------------
   // TAB 1 ACTIONS (RECEIVING FORM WITH INSPECTION & DRIVER RETURN)
@@ -1259,7 +1295,12 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                             id="delivery-supplier-select"
                             className="input-premium"
                             value={supplierId}
-                            onChange={(e) => setSupplierId(e.target.value)}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setSupplierId(val);
+                              setFilterBySupplierOnly(true);
+                              setFilterLineItemsBySupplier(true);
+                            }}
                             required
                             disabled={submitting}
                             style={{ flex: 1, minWidth: 0, height: '40px', fontSize: '0.84rem', textOverflow: 'ellipsis' }}
@@ -1394,7 +1435,7 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                             title="Filter cards to the supplier chosen above"
                           >
                             <Building2 size={12} />
-                            {filterBySupplierOnly ? `Only ${selectedSupplierObj.name}` : 'All Suppliers'}
+                            {filterBySupplierOnly ? `Only ${selectedSupplierObj.fb_page_name || selectedSupplierObj.name}` : 'All Suppliers'}
                           </button>
                         )}
 
@@ -1677,6 +1718,19 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                             title="Consolidate duplicate rows of the same product into a single line item"
                           >
                             <Layers size={14} /> Merge Duplicates
+                          </button>
+                        )}
+                        {supplierId && selectedSupplierObj && (
+                          <button
+                            type="button"
+                            className={filterLineItemsBySupplier ? 'btn-primary' : 'btn-secondary'}
+                            onClick={() => setFilterLineItemsBySupplier(prev => !prev)}
+                            disabled={submitting}
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '6px 12px' }}
+                            title="Filter line item product selector to this supplier's parts"
+                          >
+                            <Building2 size={13} />
+                            {filterLineItemsBySupplier ? `Parts: Only ${selectedSupplierObj.fb_page_name || selectedSupplierObj.name}` : 'Parts: All Catalog'}
                           </button>
                         )}
                         {isAdmin && (
