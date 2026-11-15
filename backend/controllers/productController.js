@@ -662,6 +662,24 @@ exports.createProduct = async (req, res) => {
         }
 
         await connection.commit();
+
+        try {
+            const auditService = require('../services/auditService');
+            await auditService.log({
+                req,
+                module: 'Inventory & Catalog',
+                actionType: 'Product Created',
+                entityType: 'product',
+                entityId: productId,
+                referenceId: trimmedPartNumber,
+                oldValue: null,
+                newValue: `Product: ${resolvedPartName} | Retail: ₱${computedSelling} | Cost: ₱${parsedCost}`,
+                reason: 'New motorcycle part registered into catalog',
+                metadata: { brand: trimmedBrand, category, is_serialized: serialized }
+            });
+        } catch (alErr) {
+            console.warn('Failed to write audit_log for product creation:', alErr.message);
+        }
         const [newProductRows] = await connection.query('SELECT * FROM products WHERE id = ?', [productId]);
         const createdProduct = newProductRows[0] || {
             id: productId,
@@ -888,6 +906,24 @@ exports.updateProduct = async (req, res) => {
         }
 
         await connection.commit();
+
+        try {
+            const auditService = require('../services/auditService');
+            await auditService.log({
+                req,
+                module: 'Inventory & Catalog',
+                actionType: 'Price / Product Updated',
+                entityType: 'product',
+                entityId: id,
+                referenceId: part_number || sku || String(id),
+                oldValue: `Retail: ₱${existingProduct.retail_price ?? existingProduct.selling_price} | Cost: ₱${existingProduct.cost_price}`,
+                newValue: `Retail: ₱${sellingPriceValue} | Cost: ₱${costPriceValue}`,
+                reason: 'Product specifications and pricing updated',
+                metadata: { brand, category, shelf_location }
+            });
+        } catch (alErr) {
+            console.warn('Failed to write audit_log for product update:', alErr.message);
+        }
         res.json({ message: 'Product updated successfully' });
     } catch (err) {
         await connection.rollback();
@@ -962,6 +998,24 @@ exports.deleteProduct = async (req, res) => {
         );
 
         await connection.commit();
+
+        try {
+            const auditService = require('../services/auditService');
+            await auditService.log({
+                req,
+                module: 'Inventory & Catalog',
+                actionType: 'Product Deleted',
+                entityType: 'product',
+                entityId: id,
+                referenceId: product.part_number || product.id,
+                oldValue: `Product: ${product.name} | Active Stock: ${currentStock}`,
+                newValue: 'Status: Inactive / Soft-Deleted (Stock written off to 0)',
+                reason: `Product deleted by user with ${currentStock} units written off as loss`,
+                metadata: { writtenOffStock: currentStock }
+            });
+        } catch (alErr) {
+            console.warn('Failed to write audit_log for product deletion:', alErr.message);
+        }
         res.json({
             message: 'Product deleted successfully',
             writtenOffStock: currentStock

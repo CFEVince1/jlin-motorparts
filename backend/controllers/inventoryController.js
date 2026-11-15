@@ -868,6 +868,25 @@ exports.recordAdjustment = async (req, res, next) => {
             console.error('Failed to log return_refund_history for adjustment:', auditErr);
         }
 
+        // 5. Write to tamper-proof audit_logs ledger
+        try {
+            const auditService = require('../services/auditService');
+            await auditService.log({
+                req,
+                module: 'Stock Adjustments',
+                actionType: 'Stock Adjusted',
+                entityType: 'product',
+                entityId: resolvedId,
+                referenceId: resolvedRef || `ADJ-${movement.id || Date.now()}`,
+                oldValue: `Stock: ${invBefore} units`,
+                newValue: `Stock: ${invAfter} units (${quantityChange >= 0 ? '+' : ''}${quantityChange})`,
+                reason: resolvedRemarks || `Manual stock adjustment (${resolvedType})`,
+                metadata: { adjustment_type: resolvedType, part_number: p.part_number, product_name: p.name }
+            });
+        } catch (alErr) {
+            console.warn('Failed to write audit_log for stock adjustment:', alErr.message);
+        }
+
         await connection.commit();
 
         res.status(200).json({

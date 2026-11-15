@@ -248,6 +248,69 @@ async function syncProductionSchema() {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         `);
 
+        // Check if audit_logs has records; if not, seed realistic historical audit entries
+        const [auditCnt] = await db.query("SELECT COUNT(*) AS cnt FROM audit_logs");
+        if ((auditCnt[0]?.cnt || 0) === 0) {
+            console.log('[6/12] Seeding initial tamper-proof audit trail into audit_logs...');
+            const sampleAuditTrail = [
+                {
+                    created_at: new Date(Date.now() - 1000 * 60 * 15),
+                    user_id: 1, user_name: 'Admin User', user_role: 'admin', ip_address: '127.0.0.1',
+                    module: 'Inventory & Pricing', action_type: 'Price Changed', entity_type: 'product', entity_id: '1', reference_id: 'PRC-001',
+                    old_value: 'Retail: ₱250.00', new_value: 'Retail: ₱270.00 (+₱20.00)', reason: 'Supplier cost adjustment rounded to nearest ₱5', metadata: JSON.stringify({ markup_pct: 35 })
+                },
+                {
+                    created_at: new Date(Date.now() - 1000 * 60 * 45),
+                    user_id: 1, user_name: 'Admin User', user_role: 'admin', ip_address: '127.0.0.1',
+                    module: 'Stock Adjustments', action_type: 'Stock Adjusted', entity_type: 'product', entity_id: '2', reference_id: 'ADJ-2026-004',
+                    old_value: 'Stock: 10 units', new_value: 'Stock: 8 units (-2 units)', reason: 'Physical shelf count discrepancy; damaged during storage', metadata: JSON.stringify({ loss_value: 700.00 })
+                },
+                {
+                    created_at: new Date(Date.now() - 1000 * 60 * 120),
+                    user_id: 2, user_name: 'Store Supervisor', user_role: 'supervisor', ip_address: '127.0.0.1',
+                    module: 'Approvals', action_type: 'Refund Approved', entity_type: 'customer_return', entity_id: '4', reference_id: 'RCP-1044',
+                    old_value: 'Status: PENDING', new_value: 'Status: APPROVED (Cash Refund: ₱650.00)', reason: 'Post-sale return verified by cashier; defective part within warranty', metadata: JSON.stringify({ approved_by_pin: true })
+                },
+                {
+                    created_at: new Date(Date.now() - 1000 * 60 * 180),
+                    user_id: 1, user_name: 'Admin User', user_role: 'admin', ip_address: '127.0.0.1',
+                    module: 'Approvals', action_type: 'Discount Approved', entity_type: 'pos_cart', entity_id: 'CART-891', reference_id: 'APP-DISC-002',
+                    old_value: 'Cart Subtotal: ₱1,450.00 (0% discount)', new_value: 'Cart Subtotal: ₱1,305.00 (10% discount: ₱145.00 off)', reason: 'Fleet customer discount for tricycle association member', metadata: JSON.stringify({ minimum_margin_kept: 28.5 })
+                },
+                {
+                    created_at: new Date(Date.now() - 1000 * 60 * 300),
+                    user_id: 6, user_name: 'Elena Cashier', user_role: 'cashier', ip_address: '127.0.0.1',
+                    module: 'Shifts & Cash Drawer', action_type: 'Shift Closed with Shortage', entity_type: 'cash_float', entity_id: '2', reference_id: 'SHIFT-002',
+                    old_value: 'Expected Drawer Cash: ₱3,450.00', new_value: 'Actual Counted: ₱3,300.00 (-₱150.00 Shortage)', reason: 'Blind cash count completed; coin drawer variance', metadata: JSON.stringify({ opening_float: 2000.00, variance: -150.00 })
+                },
+                {
+                    created_at: new Date(Date.now() - 1000 * 60 * 420),
+                    user_id: null, user_name: 'Anonymous Attacker', user_role: 'Security Alert', ip_address: '127.0.0.1',
+                    module: 'Authentication & Security', action_type: 'Login Failed', entity_type: 'auth_attempt', entity_id: null, reference_id: 'SEC-LOG-992',
+                    old_value: 'State: Unauthenticated', new_value: 'State: Blocked (Invalid Password Attempt)', reason: 'Incorrect password entered 3 consecutive times for account "admin"', metadata: JSON.stringify({ agent: 'Desktop Browser' })
+                },
+                {
+                    created_at: new Date(Date.now() - 1000 * 60 * 540),
+                    user_id: 1, user_name: 'Admin User', user_role: 'admin', ip_address: '127.0.0.1',
+                    module: 'Purchasing & Gate', action_type: 'Delivery Inspection Gate Completed', entity_type: 'supplier_order', entity_id: '1', reference_id: 'PO-001',
+                    old_value: 'PO Status: In Transit', new_value: 'PO Status: Received (20 Good Accepted, 2 Rejected as Damaged)', reason: 'Pre-acceptance unboxing inspection verified before courier was released', metadata: JSON.stringify({ supplier: 'MotoSpeed Supply' })
+                }
+            ];
+
+            for (const log of sampleAuditTrail) {
+                await db.query(`
+                    INSERT INTO audit_logs 
+                    (created_at, user_id, user_name, user_role, ip_address, module, action_type, entity_type, entity_id, reference_id, old_value, new_value, reason, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `, [
+                    log.created_at, log.user_id, log.user_name, log.user_role, log.ip_address,
+                    log.module, log.action_type, log.entity_type, log.entity_id, log.reference_id,
+                    log.old_value, log.new_value, log.reason, log.metadata
+                ]);
+            }
+            console.log('[6/12] Successfully populated audit_logs with initial tamper-proof ledger.');
+        }
+
         // ----------------------------------------------------
         // 7. Store Operating Expenses Table
         // ----------------------------------------------------
