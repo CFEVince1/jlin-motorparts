@@ -114,7 +114,7 @@ const Sidebar = ({
     };
 
     const primaryLinks = [
-        { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={19} />, roles: ['admin'] },
+        { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={19} />, roles: ['admin', 'cashier'] },
         { name: 'Sale (POS)', path: '/pos', icon: <ShoppingCart size={19} />, roles: ['admin', 'cashier'] },
         { name: 'Inventory', path: '/inventory', icon: <Archive size={19} />, roles: ['admin', 'cashier'] },
         { name: 'Stock-In (Receiving)', path: '/purchasing', icon: <Truck size={19} />, roles: ['admin'] },

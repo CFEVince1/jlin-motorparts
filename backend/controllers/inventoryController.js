@@ -486,6 +486,25 @@ exports.receiveStock = async (req, res, next) => {
             });
         }
 
+        // Auto-resolve any PENDING restock requests for replenished products
+        try {
+            const receivedProductIds = validatedItems.map(i => i.resolvedId).filter(Boolean);
+            if (receivedProductIds.length > 0) {
+                await connection.query(`
+                    UPDATE restock_requests rr
+                    JOIN products p ON rr.product_id = p.id
+                    SET rr.status = 'RESOLVED',
+                        rr.resolved_at = NOW(),
+                        rr.admin_notes = COALESCE(CONCAT(COALESCE(rr.admin_notes, ''), ' [Auto-resolved by Stock-In ref: ${refNo}]'), 'Auto-resolved by Stock-In')
+                    WHERE rr.product_id IN (?)
+                      AND rr.status = 'PENDING'
+                      AND COALESCE(p.stock, p.current_stock, p.sellable_stock, 0) >= COALESCE(p.reorder_level, 5)
+                `, [receivedProductIds]);
+            }
+        } catch (autoResolveErr) {
+            console.error('Failed to auto-resolve restock requests on stock-in:', autoResolveErr);
+        }
+
         await connection.commit();
 
         res.status(201).json({

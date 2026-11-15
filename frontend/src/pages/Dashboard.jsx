@@ -2687,7 +2687,7 @@ export default function Dashboard() {
                                     <th style={{ padding: '10px 10px' }}>Brand & Category</th>
                                     <th style={{ padding: '10px 10px', textAlign: 'center' }}>Sellable Stock</th>
                                     <th style={{ padding: '10px 10px', textAlign: 'center' }}>Reorder Level</th>
-                                    <th style={{ padding: '10px 10px', textAlign: 'right' }}>Unit Cost</th>
+                                    {isAdmin && <th style={{ padding: '10px 10px', textAlign: 'right' }}>Unit Cost</th>}
                                     <th style={{ padding: '10px 12px' }}>Linked FB Supplier</th>
                                     <th style={{ padding: '10px 12px', textAlign: 'center' }}>{isAdmin ? 'Supplier Action' : 'Restock Action'}</th>
                                 </tr>
@@ -2770,9 +2770,11 @@ export default function Dashboard() {
                                                 <td style={{ padding: '10px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)' }}>
                                                     {item.reorder_level || 5}
                                                 </td>
-                                                <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 700 }}>
-                                                    {formatCurrency(item.cost_price || 0)}
-                                                </td>
+                                                {isAdmin && (
+                                                    <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 700 }}>
+                                                        {formatCurrency(item.cost_price || 0)}
+                                                    </td>
+                                                )}
                                                 <td
                                                     style={{ padding: '10px 12px', cursor: 'pointer' }}
                                                     onClick={() => handleGoToSupplier(item)}
@@ -3131,7 +3133,11 @@ export default function Dashboard() {
                                         <th style={{ padding: '8px 10px' }}>Rank & Product</th>
                                         <th style={{ padding: '8px 10px' }}>Brand</th>
                                         <th style={{ padding: '8px 10px', textAlign: 'center' }}>Units Sold</th>
-                                        <th style={{ padding: '8px 10px', textAlign: 'right' }}>Total Revenue</th>
+                                        {isAdmin ? (
+                                            <th style={{ padding: '8px 10px', textAlign: 'right' }}>Total Revenue</th>
+                                        ) : (
+                                            <th style={{ padding: '8px 10px', textAlign: 'center' }}>Current Stock</th>
+                                        )}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -3166,9 +3172,15 @@ export default function Dashboard() {
                                             <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 800, color: 'var(--primary)' }}>
                                                 {item.total_quantity_sold || item.quantity_sold || 0}
                                             </td>
-                                            <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700 }}>
-                                                {formatCurrency(item.total_revenue || 0)}
-                                            </td>
+                                            {isAdmin ? (
+                                                <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700 }}>
+                                                    {formatCurrency(item.total_revenue || 0)}
+                                                </td>
+                                            ) : (
+                                                <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: 'var(--text-main)' }}>
+                                                    {item.current_stock ?? item.stock ?? '—'}
+                                                </td>
+                                            )}
                                         </tr>
                                     ))}
                                 </tbody>

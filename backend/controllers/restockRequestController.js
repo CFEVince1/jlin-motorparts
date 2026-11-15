@@ -98,6 +98,13 @@ exports.createRestockRequest = async (req, res) => {
         let itemsToProcess = [];
         if (Array.isArray(items) && items.length > 0) {
             itemsToProcess = items;
+        } else if (Array.isArray(req.body.product_ids) && req.body.product_ids.length > 0) {
+            itemsToProcess = req.body.product_ids.map(id => ({
+                product_id: id,
+                requested_qty: Number(requested_qty) || 5,
+                priority,
+                notes
+            }));
         } else if (product_id) {
             itemsToProcess = [{
                 product_id,

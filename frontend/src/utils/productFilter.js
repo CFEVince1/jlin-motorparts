@@ -87,7 +87,7 @@ export const getProductMatch = (product, query) => {
         return { matchType: 'brand', rank: MATCH_RANKS.brand };
     }
 
-    const supplier = normalizeSearchText(snapshot?.default_supplier_fb_page || snapshot?.default_supplier_name || snapshot?.default_facebook_supplier || snapshot?.supplier_name);
+    const supplier = normalizeSearchText(product?.default_supplier_fb_page || product?.default_supplier_name || product?.default_facebook_supplier || product?.supplier_name || product?.supplier);
     if (supplier.includes(normalizedQuery)) {
         return { matchType: 'supplier', rank: MATCH_RANKS.supplier };
     }
@@ -166,7 +166,7 @@ export const getProductSnapshotMatch = (snapshot, query) => {
         return { matchType: 'brand', rank: MATCH_RANKS.brand };
     }
 
-    const supplier = normalizeSearchText(snapshot?.default_supplier_fb_page || snapshot?.default_supplier_name || snapshot?.default_facebook_supplier || snapshot?.supplier_name);
+    const supplier = normalizeSearchText(snapshot?.default_supplier_fb_page || snapshot?.default_supplier_name || snapshot?.default_facebook_supplier || snapshot?.supplier_name || snapshot?.supplier);
     if (supplier.includes(normalizedQuery)) {
         return { matchType: 'supplier', rank: MATCH_RANKS.supplier };
     }

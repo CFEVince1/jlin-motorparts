@@ -431,10 +431,21 @@ export const Purchasing = () => {
     // When a supplier is selected and filter is on, only show this supplier's products
     let targetProducts = products;
     if (filterLineItemsBySupplier && (supplierId || selectedSupplierObj)) {
-      const filtered = products.filter(p => isProductFromSupplier(p, supplierId, selectedSupplierObj) || activeItemIds.has(String(p.id)));
-      if (filtered.length > 0) {
-        targetProducts = filtered;
-      }
+      targetProducts = products.filter(p => isProductFromSupplier(p, supplierId, selectedSupplierObj) || activeItemIds.has(String(p.id)));
+    }
+
+    if (targetProducts.length === 0 && filterLineItemsBySupplier && (supplierId || selectedSupplierObj)) {
+      list.push({
+        value: '',
+        targetType: 'empty',
+        productId: null,
+        serialId: null,
+        serialNumber: '',
+        label: `-- No catalog parts linked to ${selectedSupplierObj?.name || 'this supplier'} (Toggle "+ Show Parts from Other Suppliers" or register new) --`,
+        disabled: true,
+        lotStock: 0,
+        costPrice: 0
+      });
     }
 
     targetProducts.forEach(p => {
@@ -1533,7 +1544,9 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                           }}>
                             {restockSearchTerm
                               ? `No products found matching "${restockSearchTerm}". Try another part name, SKU, or brand.`
-                              : '✓ All catalog products currently have healthy inventory levels above their reorder thresholds.'}
+                              : (filterBySupplierOnly && (supplierId || selectedSupplierObj)
+                                  ? `✓ No low-stock parts linked to ${selectedSupplierObj?.name || 'this supplier'}. Check "+ Show Parts from Other Suppliers" to browse all.`
+                                  : '✓ All catalog products currently have healthy inventory levels above their reorder thresholds.')}
                           </div>
                         ) : (
                           <div style={{

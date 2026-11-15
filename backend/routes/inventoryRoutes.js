@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const inventoryController = require('../controllers/inventoryController');
+const restockController = require('../controllers/restockRequestController');
 const { authenticateToken } = require('../middleware/auth');
 const roleMiddleware = require('../middleware/roleMiddleware');
 
@@ -10,6 +11,9 @@ const adminOnly = roleMiddleware(['admin']);
 
 // Core inventory listing
 router.get('/', inventoryController.getInventory);
+
+// Restock request by staff
+router.post('/request-restock', roleMiddleware(['admin', 'cashier', 'staff']), restockController.createRestockRequest);
 
 // Stock receiving & adjustments (Restricted to Administrators to prevent unauthorized stock-in / write-offs)
 router.post('/receive', adminOnly, inventoryController.receiveStock);
