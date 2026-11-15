@@ -695,14 +695,10 @@ const Inventory = () => {
           )}
         </div>
       </div>
-      {/* View Switcher Tabs: Products | Categories & Brands | Movements | Physical Audit | Low Stock (Sticky Top) */}
-      <div className="no-print inventory-tabs-sticky-bar" style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 10,
-        background: 'var(--bg-canvas, var(--bg-dark))',
-        paddingTop: '8px',
-        paddingBottom: '12px',
+      {/* View Switcher Tabs: Products | Categories & Brands | Movements | Low Stock */}
+      <div className="no-print inventory-tabs-bar" style={{
+        paddingTop: '4px',
+        paddingBottom: '14px',
         marginBottom: '20px',
         display: 'flex',
         alignItems: 'center',
