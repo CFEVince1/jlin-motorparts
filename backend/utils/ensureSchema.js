@@ -783,6 +783,26 @@ async function ensureSchema() {
       console.warn('[Schema] Failed to verify pos_discount_otps table:', otpErr.message);
     }
 
+    // 21. Ensure products table has restock request tracking columns
+    try {
+      const [prodCols] = await db.query("SHOW COLUMNS FROM products");
+      const prodColNames = prodCols.map(c => c.Field);
+      if (!prodColNames.includes('restock_requested_at')) {
+        await db.query("ALTER TABLE products ADD COLUMN restock_requested_at TIMESTAMP NULL DEFAULT NULL AFTER needs_price_review");
+        console.log('[Schema] Added restock_requested_at column to products.');
+      }
+      if (!prodColNames.includes('restock_requested_by')) {
+        await db.query("ALTER TABLE products ADD COLUMN restock_requested_by INT NULL DEFAULT NULL AFTER restock_requested_at");
+        console.log('[Schema] Added restock_requested_by column to products.');
+      }
+      if (!prodColNames.includes('restock_note')) {
+        await db.query("ALTER TABLE products ADD COLUMN restock_note VARCHAR(250) NULL DEFAULT NULL AFTER restock_requested_by");
+        console.log('[Schema] Added restock_note column to products.');
+      }
+    } catch (restockColErr) {
+      console.warn('[Schema] Failed to check/add restock columns to products:', restockColErr.message);
+    }
+
     try {
       const syncProductionSchema = require('../scripts/sync_production_db');
       await syncProductionSchema();

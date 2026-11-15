@@ -201,86 +201,143 @@ async function sendDiscountOtpEmail({ to, code, discountType, discountValue, cas
   });
 }
 
-// Sends Low-Stock Restock Request Notification to Owner Gmail
-async function sendRestockRequestEmail({ to, staffName, priority, notes, items = [] }) {
+// HTML escaping helper to prevent unescaped symbols from breaking email templates
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Sends Low-Stock Restock Request Notification to Owner Gmail (Grouped by Supplier)
+async function sendRestockRequestEmail({ to, staffName = 'Staff', priority = 'NORMAL', notes = '', items = [] }) {
   const resendApiKey = process.env.RESEND_API_KEY || (process.env.SMTP_PASS && process.env.SMTP_PASS.startsWith('re_') ? process.env.SMTP_PASS : null);
 
-  const priorityColor = priority === 'URGENT' ? '#dc2626' : (priority === 'HIGH' ? '#d97706' : '#2563eb');
-  const priorityBadgeBg = priority === 'URGENT' ? '#fee2e2' : (priority === 'HIGH' ? '#fef3c7' : '#dbeafe');
+  const cleanStaffName = escapeHtml(staffName);
+  const cleanNotes = notes ? String(notes).trim().slice(0, 250) : '';
+  const escapedNotes = escapeHtml(cleanNotes);
+  const sentDateTime = new Date().toLocaleString('en-US', {
+    timeZone: 'Asia/Manila',
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  });
 
-  const itemsRows = items.map(item => `
-    <tr style="border-bottom: 1px solid #e2e8f0;">
-      <td style="padding: 10px 10px; font-weight: 600; color: #0f172a; text-align: left;">
-        <div style="font-size: 13px; font-weight: 700;">${item.product_name}</div>
-        <div style="font-size: 11px; color: #64748b; font-family: monospace; margin-top: 2px;">
-          ${item.part_number || 'N/A'}${item.brand ? ` • ${item.brand}` : ''}
-        </div>
-      </td>
-      <td style="padding: 10px 8px; text-align: center;">
-        <span style="font-weight: 700; color: ${item.current_stock <= 0 ? '#dc2626' : '#d97706'};">
-          ${item.current_stock ?? 0}
-        </span>
-        <span style="font-size: 11px; color: #94a3b8;">/ ${item.reorder_level || 5}</span>
-      </td>
-      <td style="padding: 10px 8px; text-align: center; font-weight: 800; color: #059669; font-size: 14px; font-family: monospace;">
-        +${item.requested_qty} pcs
-      </td>
-      <td style="padding: 10px 10px; font-size: 12px; color: #334155; text-align: left;">
-        <strong style="color: #0284c7;">${item.supplier_name || 'Linked FB Supplier'}</strong>
-      </td>
-    </tr>
-  `).join('');
+  // Group items by Default Supplier
+  const groupedSuppliers = {};
+  items.forEach(item => {
+    const suppName = item.supplier_name || 'Generic / FB Supplier';
+    if (!groupedSuppliers[suppName]) {
+      groupedSuppliers[suppName] = {
+        name: suppName,
+        contact: item.supplier_phone || item.contact_number || item.fb_page_name || '',
+        items: []
+      };
+    }
+    groupedSuppliers[suppName].items.push(item);
+  });
+
+  // Build supplier-grouped table rows
+  const tableRows = [];
+  Object.values(groupedSuppliers).forEach((group, gIdx) => {
+    group.items.forEach((item, iIdx) => {
+      const currentStock = Number(item.current_stock ?? item.stock ?? 0);
+      const reorderLevel = Number(item.reorder_level || 5);
+      const isZero = currentStock <= 0;
+      const specs = [item.brand, item.size, item.measurement, item.thread_type].filter(Boolean).join(' • ');
+      const unitCost = Number(item.cost_price || item.unit_cost || 0);
+
+      tableRows.push(`
+        <tr style="border-bottom: 1px solid #e2e8f0; ${iIdx % 2 === 1 ? 'background-color: #f8fafc;' : ''}">
+          ${iIdx === 0 ? `
+            <td rowspan="${group.items.length}" style="padding: 10px 12px; vertical-align: top; border-right: 1px solid #e2e8f0; background-color: #f8fafc;">
+              <strong style="color: #0f172a; font-size: 13px;">${escapeHtml(group.name)}</strong>
+              ${group.contact ? `<div style="font-size: 11px; color: #64748b; margin-top: 3px;">${escapeHtml(group.contact)}</div>` : ''}
+            </td>
+          ` : ''}
+          <td style="padding: 10px 10px; font-family: monospace; font-size: 12px; color: #0284c7; white-space: nowrap; vertical-align: top;">
+            ${escapeHtml(item.part_number || 'N/A')}
+          </td>
+          <td style="padding: 10px 12px; vertical-align: top;">
+            <div style="font-weight: 700; color: #0f172a; font-size: 13px;">${escapeHtml(item.product_name)}</div>
+            ${specs ? `<div style="font-size: 11px; color: #64748b; margin-top: 2px;">${escapeHtml(specs)}</div>` : ''}
+          </td>
+          <td style="padding: 10px 10px; text-align: center; vertical-align: top; white-space: nowrap;">
+            ${isZero 
+              ? `<strong style="color: #dc2626; font-size: 13px;">0 Out</strong>` 
+              : `<strong style="color: #d97706; font-size: 13px;">${currentStock} left</strong>`}
+            <span style="font-size: 11px; color: #64748b; display: block;">(Min: ${reorderLevel})</span>
+          </td>
+          <td style="padding: 10px 12px; text-align: right; vertical-align: top; font-weight: 700; color: #0f172a; font-size: 13px; white-space: nowrap;">
+            ₱${unitCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </td>
+        </tr>
+      `);
+    });
+  });
 
   const htmlContent = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 620px; margin: 0 auto; padding: 26px 22px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 680px; margin: 0 auto; padding: 26px 22px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
+      <!-- Header -->
       <div style="border-bottom: 2px solid #f1f5f9; padding-bottom: 16px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center;">
         <div>
           <h2 style="color: #0f172a; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.3px;">JLIN Motorparts</h2>
           <p style="color: #64748b; font-size: 12px; margin: 3px 0 0 0;">Low-Stock Alerts & Supplier Restock Notice</p>
         </div>
         <div>
-          <span style="background-color: ${priorityBadgeBg}; color: ${priorityColor}; border: 1px solid ${priorityColor}; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800; text-transform: uppercase;">
-            ${priority} RESTOCK
+          <span style="background-color: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800; text-transform: uppercase;">
+            ${items.length} ITEM${items.length === 1 ? '' : 'S'} TO RESTOCK
           </span>
         </div>
       </div>
 
-      <div style="background-color: #f8fafc; border-radius: 8px; padding: 16px; margin-bottom: 20px; border: 1px solid #edf2f7; font-size: 13px;">
-        <p style="margin: 0 0 8px 0; color: #334155; line-height: 1.5;">
-          Staff member <strong style="color: #0f172a;">${staffName}</strong> has requested to restock <strong style="color: #059669;">${items.length} low-stock item(s)</strong> that are running out on the shop shelf.
-        </p>
-        ${notes ? `
-          <div style="background-color: #ffffff; border-left: 3px solid #f59e0b; padding: 8px 12px; border-radius: 4px; font-size: 12px; color: #475569; font-style: italic; margin-top: 8px;">
-            "${notes}"
+      <!-- Top Callout Box (Only Rendered If Staff Typed a Note) -->
+      ${escapedNotes ? `
+        <div style="background-color: #fffbeb; border: 1.5px solid #f59e0b; border-left: 5px solid #d97706; border-radius: 8px; padding: 14px 16px; margin-bottom: 20px;">
+          <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #92400e; margin-bottom: 4px;">
+            ⚡ Staff Urgent Note / Customer Waiting:
           </div>
-        ` : ''}
-      </div>
+          <div style="font-size: 14px; font-weight: 600; color: #78350f; font-style: italic;">
+            "${escapedNotes}"
+          </div>
+          <div style="font-size: 11px; color: #b45309; margin-top: 6px;">
+            Sent by <strong>${cleanStaffName}</strong> on ${sentDateTime}.
+          </div>
+        </div>
+      ` : ''}
 
-      <div style="margin-bottom: 20px;">
-        <h4 style="margin: 0 0 10px 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b;">
-          Requested Motorparts to Buy (${items.length} Items):
-        </h4>
-        <table style="width: 100%; border-collapse: collapse; font-size: 13px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
+      <!-- Intro Subtext -->
+      <p style="margin: 0 0 16px 0; color: #334155; font-size: 13px; line-height: 1.5;">
+        Cashier <strong style="color: #0f172a;">${cleanStaffName}</strong> submitted a restock request for <strong style="color: #059669;">${items.length} low-stock item(s)</strong> that are depleted or near minimum threshold on the shop shelves.
+      </p>
+
+      <!-- Supplier-Grouped Table -->
+      <div style="margin-bottom: 22px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
           <thead>
-            <tr style="background-color: #f1f5f9; color: #475569; font-size: 11px; text-transform: uppercase;">
-              <th style="padding: 8px 10px; text-align: left;">Product / Part #</th>
-              <th style="padding: 8px; text-align: center;">Shelf Stock</th>
-              <th style="padding: 8px; text-align: center;">Order Qty</th>
-              <th style="padding: 8px 10px; text-align: left;">Supplier</th>
+            <tr style="background-color: #0f172a; color: #ffffff; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">
+              <th style="padding: 10px 12px; text-align: left; width: 25%;">Supplier</th>
+              <th style="padding: 10px 10px; text-align: left; width: 18%;">Part #</th>
+              <th style="padding: 10px 12px; text-align: left; width: 28%;">Product Name & Specs</th>
+              <th style="padding: 10px 10px; text-align: center; width: 17%;">Stock / Reorder</th>
+              <th style="padding: 10px 12px; text-align: right; width: 12%;">Last Unit Cost (Puhunan)</th>
             </tr>
           </thead>
           <tbody>
-            ${itemsRows}
+            ${tableRows.join('')}
           </tbody>
         </table>
       </div>
 
-      <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 14px; text-align: center; margin-bottom: 20px;">
-        <p style="margin: 0 0 6px 0; font-weight: 700; color: #065f46; font-size: 13px;">
-          Action Required: Open Admin Dashboard to Approve & Generate PO
+      <!-- Footer Call to Action -->
+      <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 14px; text-align: center; margin-bottom: 18px;">
+        <p style="margin: 0 0 4px 0; font-weight: 700; color: #065f46; font-size: 13px;">
+          Ready to Order: Open Admin Command Center to Message Suppliers & Receive Deliveries
         </p>
         <p style="margin: 0; font-size: 12px; color: #047857;">
-          You can approve these items with one click on your Admin Command Center to automatically create the Purchase Orders for your Facebook suppliers.
+          When the delivery truck arrives, recording Good Qty in Stock-In (Receiving) will automatically clear these restock alerts.
         </p>
       </div>
 
@@ -291,10 +348,40 @@ async function sendRestockRequestEmail({ to, staffName, priority, notes, items =
     </div>
   `;
 
-  const subject = `🚨 [JLIN Motorparts] Low-Stock Restock Request (${items.length} items) - New PO Approval Needed`;
-  const text = `Staff member ${staffName} has submitted a restock request for ${items.length} low-stock items.\nPriority: ${priority}\nStaff Note: ${notes || 'None'}\n\nRequested Items:\n` +
-    items.map(i => `- ${i.product_name} (${i.part_number}): Current ${i.current_stock}, Requested +${i.requested_qty} pcs, Supplier: ${i.supplier_name || 'Generic'}`).join('\n') +
-    `\n\nPlease log in to the Admin Dashboard to approve and generate Purchase Orders.`;
+  const subject = `[JLIN MOTO PARTS] Restock Request — ${items.length} Low-Stock Items (From ${staffName})`;
+
+  const textLines = [
+    `[JLIN MOTO PARTS] Restock Request — ${items.length} Low-Stock Items`,
+    `Sent by: ${staffName} on ${sentDateTime}`,
+    cleanNotes ? `Staff Urgent Note: "${cleanNotes}"\n` : '',
+    'Requested Motorparts Grouped by Supplier:'
+  ];
+
+  Object.values(groupedSuppliers).forEach(group => {
+    textLines.push(`\n=== SUPPLIER: ${group.name} ${group.contact ? `(${group.contact})` : ''} ===`);
+    group.items.forEach(item => {
+      const currentStock = Number(item.current_stock ?? item.stock ?? 0);
+      const reorderLevel = Number(item.reorder_level || 5);
+      const unitCost = Number(item.cost_price || item.unit_cost || 0);
+      textLines.push(`  • ${item.part_number || 'N/A'} - ${item.product_name} | Stock: ${currentStock} left (Min: ${reorderLevel}) | Puhunan: ₱${unitCost.toFixed(2)}`);
+    });
+  });
+
+  const text = textLines.filter(Boolean).join('\n');
+
+  if (resendApiKey) {
+    return await sendViaResend(resendApiKey, process.env.MAIL_FROM, to, subject, htmlContent, text);
+  }
+
+  const sender = process.env.MAIL_FROM || `"JLIN Motorparts" <${process.env.SMTP_USER}>`;
+  return await transporter.sendMail({
+    from: sender,
+    to,
+    subject,
+    text,
+    html: htmlContent,
+  });
+}
 
   if (resendApiKey) {
     return await sendViaResend(resendApiKey, process.env.MAIL_FROM, to, subject, htmlContent, text);

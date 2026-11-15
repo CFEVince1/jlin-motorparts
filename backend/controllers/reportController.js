@@ -2032,15 +2032,16 @@ exports.getOwnerDashboardData = async (req, res) => {
                 rr.status AS restock_request_status,
                 rr.staff_name AS restock_staff_name,
                 rr.priority AS restock_priority,
-                rr.notes AS restock_notes,
-                rr.created_at AS restock_requested_at
+                COALESCE(p.restock_note, rr.notes) AS restock_notes,
+                COALESCE(p.restock_requested_at, rr.created_at) AS restock_requested_at,
+                p.restock_requested_by
             FROM products p
             LEFT JOIN suppliers s ON p.supplier_id = s.id
             LEFT JOIN restock_requests rr ON rr.product_id = p.id AND rr.status = 'PENDING'
             WHERE p.is_active = 1
               AND COALESCE(p.sellable_stock, p.current_stock, p.stock, 0) <= p.reorder_level
             ORDER BY 
-                CASE WHEN rr.id IS NOT NULL THEN 0 ELSE 1 END ASC,
+                CASE WHEN (p.restock_requested_at IS NOT NULL OR rr.id IS NOT NULL) THEN 1 ELSE 0 END ASC,
                 sellable_stock ASC, 
                 (p.reorder_level - COALESCE(p.sellable_stock, p.current_stock, p.stock, 0)) DESC
             LIMIT 30

@@ -664,7 +664,7 @@ export default function Dashboard() {
 
     const handleSelectAllFilteredLowStock = () => {
         const selectableIds = filteredLowStock
-            .filter(item => !item.restock_request_id && item.restock_request_status !== 'PENDING')
+            .filter(item => !item.restock_request_id && item.restock_request_status !== 'PENDING' && !item.restock_requested_at)
             .map(item => item.id || item.product_id);
         
         if (selectedLowStockIds.length === selectableIds.length && selectableIds.length > 0) {
@@ -682,7 +682,7 @@ export default function Dashboard() {
             targets = filteredLowStock.filter(item => selectedLowStockIds.includes(item.id || item.product_id));
         } else {
             // Default to all selectable low-stock items
-            targets = filteredLowStock.filter(item => !item.restock_request_id && item.restock_request_status !== 'PENDING');
+            targets = filteredLowStock.filter(item => !item.restock_request_id && item.restock_request_status !== 'PENDING' && !item.restock_requested_at);
         }
 
         if (targets.length === 0) {
@@ -891,7 +891,7 @@ export default function Dashboard() {
 
     // Selectable low-stock items that do not yet have a pending restock request
     const selectableLowStockItems = useMemo(() => {
-        return filteredLowStock.filter(item => !item.restock_request_id && item.restock_request_status !== 'PENDING');
+        return filteredLowStock.filter(item => !item.restock_request_id && item.restock_request_status !== 'PENDING' && !item.restock_requested_at);
     }, [filteredLowStock]);
 
     const returnsTracker = ownerData.returns_voids_tracker || {
@@ -1853,7 +1853,7 @@ export default function Dashboard() {
                                 title="Request restock for all low-stock items at once and notify owner via Gmail"
                             >
                                 <Mail size={14} />
-                                <span>⚡ Request ALL Low Stock ({selectableLowStockItems.length})</span>
+                                <span>✉ Request Restock ({selectedLowStockIds.length > 0 ? `${selectedLowStockIds.length} Selected` : `${selectableLowStockItems.length} Low-Stock`})</span>
                             </button>
                         )}
                         {isAdmin && (
@@ -2289,15 +2289,16 @@ export default function Dashboard() {
 
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '5px' }}>
-                                        Note for Admin / Owner (Optional)
+                                        Urgent Note / Customer Waiting (Optional, max 250 chars)
                                     </label>
                                     <input
                                         type="text"
                                         className="input-premium"
+                                        maxLength={250}
                                         style={{ width: '100%', height: '38px', fontSize: '0.82rem' }}
-                                        placeholder="e.g. Inquired by multiple walk-in riders today. Zero stock on shelf."
+                                        placeholder="e.g., 2 walk-in customers asked for Aerox V-Belt today"
                                         value={restockFormData.notes}
-                                        onChange={(e) => setRestockFormData({ ...restockFormData, notes: e.target.value })}
+                                        onChange={(e) => setRestockFormData({ ...restockFormData, notes: e.target.value.slice(0, 250) })}
                                         disabled={restockSubmitting}
                                     />
                                 </div>
@@ -2425,15 +2426,16 @@ export default function Dashboard() {
 
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '5px' }}>
-                                        Notes for Owner (Optional)
+                                        Urgent Note / Customer Waiting (Optional, max 250 chars)
                                     </label>
                                     <input
                                         type="text"
                                         className="input-premium"
+                                        maxLength={250}
                                         style={{ width: '100%', height: '38px', fontSize: '0.82rem' }}
-                                        placeholder="e.g. Please order from FB supplier today, multiple inquiries from riders"
+                                        placeholder="e.g., 2 walk-in customers asked for Aerox V-Belt today"
                                         value={bulkRestockNotes}
-                                        onChange={(e) => setBulkRestockNotes(e.target.value)}
+                                        onChange={(e) => setBulkRestockNotes(e.target.value.slice(0, 250))}
                                         disabled={bulkRestockSubmitting}
                                     />
                                 </div>
@@ -2648,7 +2650,7 @@ export default function Dashboard() {
                                             }}
                                         >
                                             <Mail size={13} />
-                                            <span>Request Restock for Selected ({selectedLowStockIds.length}) & Notify Owner</span>
+                                            <span>✉ Request Restock ({selectedLowStockIds.length} Selected)</span>
                                         </button>
                                     </>
                                 ) : (
@@ -2727,12 +2729,12 @@ export default function Dashboard() {
                                                                 background: 'rgba(245, 158, 11, 0.15)',
                                                                 color: '#f59e0b',
                                                                 border: '1px solid rgba(245, 158, 11, 0.35)',
-                                                                padding: '1px 6px',
+                                                                padding: '2px 8px',
                                                                 borderRadius: '4px',
-                                                                fontSize: '0.66rem',
+                                                                fontSize: '0.68rem',
                                                                 fontWeight: 700
                                                             }}>
-                                                                ⏳ Req +{item.restock_requested_qty}
+                                                                ✓ Requested
                                                             </span>
                                                         )}
                                                     </div>
@@ -2846,7 +2848,7 @@ export default function Dashboard() {
                                                                     fontWeight: 700
                                                                 }}>
                                                                     <Clock size={11} />
-                                                                    <span>Requested ({item.restock_requested_qty})</span>
+                                                                    <span>✓ Requested</span>
                                                                 </span>
                                                                 <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
                                                                     Pending Admin

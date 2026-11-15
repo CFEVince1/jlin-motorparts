@@ -486,19 +486,31 @@ exports.receiveStock = async (req, res, next) => {
             });
         }
 
-        // Auto-resolve any PENDING restock requests for replenished products
+        // Auto-clear restock requests & flags on truck delivery in Stock-In (Receiving)
         try {
             const receivedProductIds = validatedItems.map(i => i.resolvedId).filter(Boolean);
             if (receivedProductIds.length > 0) {
+                // 1. Auto-Clear on Truck Delivery / Partial Delivery Protection:
+                // Clears restock_requested_at, restock_requested_by, and restock_note so:
+                // - If new_sellable_stock > reorder_level: Item is healthy and completely cleared.
+                // - If new_sellable_stock <= reorder_level (Partial delivery): Item remains in Low Stock,
+                //   and becomes eligible for a fresh restock request on the Staff dashboard!
+                await connection.query(`
+                    UPDATE products
+                    SET restock_requested_at = NULL,
+                        restock_requested_by = NULL,
+                        restock_note = NULL
+                    WHERE id IN (?)
+                `, [receivedProductIds]);
+
+                // 2. Resolve PENDING entries in restock_requests table
                 await connection.query(`
                     UPDATE restock_requests rr
-                    JOIN products p ON rr.product_id = p.id
                     SET rr.status = 'RESOLVED',
                         rr.resolved_at = NOW(),
                         rr.admin_notes = COALESCE(CONCAT(COALESCE(rr.admin_notes, ''), ' [Auto-resolved by Stock-In ref: ${refNo}]'), 'Auto-resolved by Stock-In')
                     WHERE rr.product_id IN (?)
                       AND rr.status = 'PENDING'
-                      AND COALESCE(p.stock, p.current_stock, p.sellable_stock, 0) >= COALESCE(p.reorder_level, 5)
                 `, [receivedProductIds]);
             }
         } catch (autoResolveErr) {

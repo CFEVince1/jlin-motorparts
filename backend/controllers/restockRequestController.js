@@ -88,11 +88,14 @@ exports.createRestockRequest = async (req, res) => {
             requested_qty = 5,
             priority = 'NORMAL',
             notes = '',
+            note = '',
             items = [] // Bulk items array: [{ product_id, requested_qty, notes }]
         } = req.body;
 
         const staffId = req.user?.id || 1;
         const staffName = req.user?.username || 'Staff';
+        const rawNote = (notes || note || '').toString().trim();
+        const cleanNote = rawNote.slice(0, 250);
 
         // Prepare items list to process
         let itemsToProcess = [];
@@ -103,14 +106,14 @@ exports.createRestockRequest = async (req, res) => {
                 product_id: id,
                 requested_qty: Number(requested_qty) || 5,
                 priority,
-                notes
+                notes: cleanNote
             }));
         } else if (product_id) {
             itemsToProcess = [{
                 product_id,
                 requested_qty: Number(requested_qty) || 5,
                 priority,
-                notes
+                notes: cleanNote
             }];
         } else {
             return res.status(400).json({ success: false, message: 'Please select at least one low-stock item to restock' });
@@ -123,17 +126,22 @@ exports.createRestockRequest = async (req, res) => {
             const pId = Number(item.product_id);
             const qtyNum = parseInt(item.requested_qty || requested_qty, 10);
             const itemPriority = item.priority || priority || 'NORMAL';
-            const itemNotes = (item.notes !== undefined && item.notes !== null && item.notes !== '') ? item.notes : notes;
+            const itemNotes = (item.notes !== undefined && item.notes !== null && item.notes !== '') 
+                ? String(item.notes).trim().slice(0, 250) 
+                : cleanNote;
 
             if (!pId || isNaN(qtyNum) || qtyNum <= 0) continue;
 
-            // Fetch latest product details
+            // Fetch latest product details including specs and supplier contact
             const [pRows] = await db.query(`
                 SELECT 
                     p.id, p.part_number, p.name AS product_name, p.brand, p.category,
+                    p.size, p.measurement, p.thread_type,
                     COALESCE(p.sellable_stock, p.current_stock, p.stock, 0) AS stock,
                     p.reorder_level, p.cost_price, p.supplier_id,
-                    s.name AS supplier_name
+                    COALESCE(s.name, p.supplier_name, 'Generic / FB Supplier') AS supplier_name,
+                    COALESCE(s.phone, s.phone_number, s.fb_page_name, '') AS supplier_phone,
+                    s.fb_page_name
                 FROM products p
                 LEFT JOIN suppliers s ON s.id = p.supplier_id
                 WHERE p.id = ?
@@ -190,10 +198,16 @@ exports.createRestockRequest = async (req, res) => {
                 part_number: product.part_number,
                 product_name: product.product_name,
                 brand: product.brand,
+                category: product.category,
+                size: product.size,
+                measurement: product.measurement,
+                thread_type: product.thread_type,
                 current_stock: product.stock,
                 reorder_level: product.reorder_level || 5,
                 requested_qty: qtyNum,
-                supplier_name: product.supplier_name
+                cost_price: Number(product.cost_price || 0),
+                supplier_name: product.supplier_name,
+                supplier_phone: product.supplier_phone || product.fb_page_name || ''
             });
 
             // Record in audit log
@@ -202,14 +216,14 @@ exports.createRestockRequest = async (req, res) => {
                     INSERT INTO audit_logs (
                         user_id, user_name, user_role, module, action_type,
                         entity_type, entity_id, reference_id, reason, created_at
-                    ) VALUES (?, ?, ?, 'PURCHASING', 'Restock Requested', 'product', ?, ?, ?, NOW())
+                    ) VALUES (?, ?, ?, 'PURCHASING', 'Restock_Requested', 'product', ?, ?, ?, NOW())
                 `, [
                     staffId,
                     staffName,
                     req.user?.role || 'cashier',
                     String(product.id),
                     `REQ-${reqId}`,
-                    itemNotes || `Restock request for ${product.part_number} (+${qtyNum} pcs, Priority: ${itemPriority})`
+                    itemNotes || `Restock requested for ${product.part_number} (+${qtyNum} pcs, Priority: ${itemPriority})`
                 ]);
             } catch (auditErr) {
                 console.error('Failed to log restock request audit:', auditErr);
@@ -220,29 +234,45 @@ exports.createRestockRequest = async (req, res) => {
             return res.status(400).json({ success: false, message: 'No valid low-stock items could be processed' });
         }
 
-        // Notify Owner / Admin Gmail
-        const adminEmail = await getAdminEmail();
-        let emailSent = false;
-        try {
-            await mailer.sendRestockRequestEmail({
-                to: adminEmail,
-                staffName,
-                priority,
-                notes,
-                items: processedItems
-            });
-            emailSent = true;
-            console.log(`[Restock Request] Sent Gmail notification to ${adminEmail} for ${processedItems.length} items.`);
-        } catch (mailErr) {
-            console.error('[Restock Request] Failed to send Gmail notification:', mailErr.message);
+        // 1. Update products table columns to lock state and prevent duplicate requests
+        const processedProductIds = processedItems.map(p => p.product_id);
+        if (processedProductIds.length > 0) {
+            await db.query(`
+                UPDATE products
+                SET restock_requested_at = NOW(),
+                    restock_requested_by = ?,
+                    restock_note = ?
+                WHERE id IN (?)
+            `, [staffId, cleanNote || null, processedProductIds]);
         }
 
+        const adminEmail = await getAdminEmail();
         const maskedEmail = adminEmail ? adminEmail.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => a + '*'.repeat(Math.min(5, b.length)) + c) : 'Owner Gmail';
 
+        // 2. Respond immediately to the frontend to prevent cashier UI lag/freeze
         res.status(201).json({
             success: true,
-            message: `Restock request for ${processedItems.length} item(s) submitted! Owner notified at ${maskedEmail} to buy new POs.`,
+            message: `Restock request for ${processedItems.length} item(s) submitted! Owner notified at ${maskedEmail}.`,
             count: processedItems.length,
+            requestIds
+        });
+
+        // 3. Decoupled asynchronous Gmail dispatch (Never blocks DB response or UI)
+        setImmediate(async () => {
+            try {
+                const targetEmail = await getAdminEmail();
+                await mailer.sendRestockRequestEmail({
+                    to: targetEmail,
+                    staffName,
+                    priority,
+                    notes: cleanNote,
+                    items: processedItems
+                });
+                console.log(`[Restock Request] Async Gmail notification dispatched to ${targetEmail} for ${processedItems.length} items.`);
+            } catch (mailErr) {
+                console.error('[Restock Request] Async Gmail dispatch error:', mailErr.message);
+            }
+        });
             requestIds,
             items: processedItems,
             admin_email: maskedEmail,
