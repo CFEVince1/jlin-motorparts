@@ -1139,7 +1139,26 @@ exports.getSalesNetProfitReport = async (req, res) => {
             WHERE ${salesDateCondition} AND (s.status IS NULL OR s.status != 'VOIDED')
             GROUP BY s.id, s.order_number, s.receipt_no, s.sale_date, u.full_name, u.username, s.customer_name, s.payment_method, s.total_amount, s.status
             ORDER BY s.sale_date DESC
-            LIMIT 50
+            LIMIT 150
+        `, salesParams);
+
+        // 9. Daily / Per-Shift Sales Summary Breakdown (for Sales Report Tab)
+        const [dailyShiftRows] = await db.query(`
+            SELECT 
+                DATE(s.sale_date) AS shift_date,
+                COALESCE(u.full_name, u.username, 'Cashier') AS cashier_name,
+                COUNT(s.id) AS txns_count,
+                COALESCE(SUM(s.total_amount + COALESCE(s.discount_amount, 0)), 0) AS gross_sales,
+                COALESCE(SUM(COALESCE(s.discount_amount, 0)), 0) AS otp_discounts,
+                COALESCE(SUM(s.total_amount), 0) AS net_collected,
+                COALESCE(SUM(CASE WHEN LOWER(s.payment_method) = 'cash' THEN s.total_amount ELSE 0 END), 0) AS cash_collected,
+                COALESCE(SUM(CASE WHEN LOWER(s.payment_method) = 'gcash' THEN s.total_amount ELSE 0 END), 0) AS gcash_collected
+            FROM sales s
+            LEFT JOIN users u ON s.user_id = u.id
+            WHERE ${salesDateCondition} AND (s.status IS NULL OR s.status != 'VOIDED')
+            GROUP BY DATE(s.sale_date), u.id, u.full_name, u.username
+            ORDER BY shift_date DESC, net_collected DESC
+            LIMIT 100
         `, salesParams);
 
         res.json({
@@ -1239,6 +1258,17 @@ exports.getSalesNetProfitReport = async (req, res) => {
                 status: r.status,
                 item_count: Number(r.item_count || 0),
                 items_summary: r.items_summary
+            })),
+            daily_shift_summary: dailyShiftRows.map((r, idx) => ({
+                id: `shift-${idx}`,
+                shift_date: r.shift_date,
+                cashier_name: r.cashier_name,
+                txns_count: Number(r.txns_count || 0),
+                gross_sales: roundToTwo(Number(r.gross_sales || 0)),
+                otp_discounts: roundToTwo(Number(r.otp_discounts || 0)),
+                net_collected: roundToTwo(Number(r.net_collected || 0)),
+                cash_collected: roundToTwo(Number(r.cash_collected || 0)),
+                gcash_collected: roundToTwo(Number(r.gcash_collected || 0))
             }))
         });
 
@@ -1261,45 +1291,58 @@ exports.getFastMovingDeadStockReport = async (req, res) => {
         const salesParams = [];
         const salesDateCondition = buildReportDateCondition('s', 'sale_date', timeframe, startDate, endDate, salesParams);
 
+        // Overall Shop Inventory Valuation at Cost and Retail
+        const [valRows] = await db.query(`
+            SELECT 
+                COALESCE(SUM(p.stock * p.cost_price), 0) AS total_inventory_cost,
+                COALESCE(SUM(p.stock * p.selling_price), 0) AS total_inventory_retail
+            FROM products p
+            WHERE p.stock > 0
+        `);
+        const totalInventoryCost = Number(valRows[0]?.total_inventory_cost || 0);
+        const totalInventoryRetail = Number(valRows[0]?.total_inventory_retail || 0);
+
         // 1. Fast-Moving Parts (High weekly turnover, net_qty_sold >= 3)
         const [fastMoving] = await db.query(`
             SELECT 
                 p.id AS product_id,
-                p.sku_code,
-                p.part_name,
+                COALESCE(p.part_number, p.sku, p.sku_code) AS sku_code,
+                COALESCE(p.name, p.part_name) AS part_name,
                 p.brand,
                 p.category,
-                p.sellable_stock,
-                p.reorder_level,
-                p.supplier_cost,
-                p.retail_price,
+                p.shelf_location,
+                COALESCE(p.stock, p.sellable_stock, 0) AS sellable_stock,
+                COALESCE(p.reorder_level, 5) AS reorder_level,
+                COALESCE(p.cost_price, p.supplier_cost, 0) AS supplier_cost,
+                COALESCE(p.selling_price, p.retail_price, 0) AS retail_price,
                 COALESCE(SUM(si.quantity), 0) AS gross_qty_sold,
                 COALESCE(SUM(si.quantity), 0) AS net_qty_sold,
                 COALESCE(SUM(si.subtotal), 0) AS revenue_generated,
-                ROUND(COALESCE(SUM(si.subtotal), 0) - (COALESCE(p.supplier_cost, 0) * COALESCE(SUM(si.quantity), 0)), 2) AS estimated_profit
+                ROUND(COALESCE(SUM(si.subtotal), 0) - (COALESCE(p.cost_price, p.supplier_cost, 0) * COALESCE(SUM(si.quantity), 0)), 2) AS estimated_profit,
+                MAX(s.sale_date) AS last_sale_date
             FROM products p
             JOIN sale_items si ON p.id = si.product_id
             JOIN sales s ON si.sale_id = s.id
-            
-            WHERE ${salesDateCondition}
-            GROUP BY p.id, p.sku_code, p.part_name, p.brand, p.category, p.sellable_stock, p.reorder_level, p.supplier_cost, p.retail_price
+            WHERE ${salesDateCondition} AND (s.status IS NULL OR s.status != 'VOIDED')
+            GROUP BY p.id, p.part_number, p.sku, p.sku_code, p.name, p.part_name, p.brand, p.category, p.shelf_location, p.stock, p.sellable_stock, p.reorder_level, p.cost_price, p.supplier_cost, p.selling_price, p.retail_price
             HAVING net_qty_sold >= 3
             ORDER BY net_qty_sold DESC, revenue_generated DESC
-            LIMIT 50
+            LIMIT 100
         `, salesParams);
 
         // 2. Slow-Moving Parts (Items that have only sold 1–2 times in the last 30–60 days)
         const [slowMoving] = await db.query(`
             SELECT 
                 p.id AS product_id,
-                p.sku_code,
-                p.part_name,
+                COALESCE(p.part_number, p.sku, p.sku_code) AS sku_code,
+                COALESCE(p.name, p.part_name) AS part_name,
                 p.brand,
                 p.category,
-                p.sellable_stock,
-                p.reorder_level,
-                p.supplier_cost,
-                p.retail_price,
+                p.shelf_location,
+                COALESCE(p.stock, p.sellable_stock, 0) AS sellable_stock,
+                COALESCE(p.reorder_level, 5) AS reorder_level,
+                COALESCE(p.cost_price, p.supplier_cost, 0) AS supplier_cost,
+                COALESCE(p.selling_price, p.retail_price, 0) AS retail_price,
                 COALESCE(SUM(si.quantity), 0) AS net_qty_sold,
                 COALESCE(SUM(si.subtotal), 0) AS revenue_generated,
                 MAX(s.sale_date) AS last_sale_date,
@@ -1307,37 +1350,37 @@ exports.getFastMovingDeadStockReport = async (req, res) => {
             FROM products p
             JOIN sale_items si ON p.id = si.product_id
             JOIN sales s ON si.sale_id = s.id
-            
-            WHERE s.sale_date >= DATE_SUB(NOW(), INTERVAL 60 DAY)
-            GROUP BY p.id, p.sku_code, p.part_name, p.brand, p.category, p.sellable_stock, p.reorder_level, p.supplier_cost, p.retail_price
+            WHERE s.sale_date >= DATE_SUB(NOW(), INTERVAL 60 DAY) AND (s.status IS NULL OR s.status != 'VOIDED')
+            GROUP BY p.id, p.part_number, p.sku, p.sku_code, p.name, p.part_name, p.brand, p.category, p.shelf_location, p.stock, p.sellable_stock, p.reorder_level, p.cost_price, p.supplier_cost, p.selling_price, p.retail_price
             HAVING net_qty_sold BETWEEN 1 AND 2
-            ORDER BY net_qty_sold ASC, p.sellable_stock DESC
-            LIMIT 50
+            ORDER BY net_qty_sold ASC, sellable_stock DESC
+            LIMIT 100
         `);
 
         // 3. Dead-Stock Parts (Zero sales in the last 90+ days / never sold)
-        const deadDays = Math.max(90, parseInt(thresholdDays, 10) || 90);
+        const deadDays = Math.max(60, parseInt(thresholdDays, 10) || 60);
         const [deadStock] = await db.query(`
             SELECT 
                 p.id AS product_id,
-                p.sku_code,
-                p.part_name,
+                COALESCE(p.part_number, p.sku, p.sku_code) AS sku_code,
+                COALESCE(p.name, p.part_name) AS part_name,
                 p.brand,
                 p.category,
-                p.sellable_stock,
-                p.supplier_cost,
-                p.retail_price,
-                ROUND(p.sellable_stock * p.supplier_cost, 2) AS capital_tied_up,
+                p.shelf_location,
+                COALESCE(p.stock, p.sellable_stock, 0) AS sellable_stock,
+                COALESCE(p.cost_price, p.supplier_cost, 0) AS supplier_cost,
+                COALESCE(p.selling_price, p.retail_price, 0) AS retail_price,
+                ROUND(COALESCE(p.stock, p.sellable_stock, 0) * COALESCE(p.cost_price, p.supplier_cost, 0), 2) AS capital_tied_up,
                 MAX(s.sale_date) AS last_sale_date,
                 DATEDIFF(NOW(), COALESCE(MAX(s.sale_date), p.created_at)) AS days_since_last_sale
             FROM products p
             LEFT JOIN sale_items si ON p.id = si.product_id
-            LEFT JOIN sales s ON si.sale_id = s.id
-            WHERE p.sellable_stock > 0
-            GROUP BY p.id, p.sku_code, p.part_name, p.brand, p.category, p.sellable_stock, p.supplier_cost, p.retail_price, p.created_at
+            LEFT JOIN sales s ON si.sale_id = s.id AND (s.status IS NULL OR s.status != 'VOIDED')
+            WHERE COALESCE(p.stock, p.sellable_stock, 0) > 0
+            GROUP BY p.id, p.part_number, p.sku, p.sku_code, p.name, p.part_name, p.brand, p.category, p.shelf_location, p.stock, p.sellable_stock, p.cost_price, p.supplier_cost, p.selling_price, p.retail_price, p.created_at
             HAVING days_since_last_sale >= ? OR last_sale_date IS NULL
             ORDER BY capital_tied_up DESC, days_since_last_sale DESC
-            LIMIT 100
+            LIMIT 150
         `, [deadDays]);
 
         // Calculate dead-stock total capital tied up
@@ -1348,6 +1391,12 @@ exports.getFastMovingDeadStockReport = async (req, res) => {
             success: true,
             threshold_days: days,
             timeframe,
+            summary: {
+                total_inventory_cost: roundToTwo(totalInventoryCost),
+                total_inventory_retail: roundToTwo(totalInventoryRetail),
+                dead_stock_capital: roundToTwo(totalDeadStockCapital),
+                total_dead_units: totalDeadStockUnits
+            },
             fast_moving: {
                 count: fastMoving.length,
                 items: fastMoving.map((item, idx) => ({
@@ -1357,6 +1406,7 @@ exports.getFastMovingDeadStockReport = async (req, res) => {
                     part_name: item.part_name,
                     brand: item.brand,
                     category: item.category,
+                    shelf_location: item.shelf_location || 'Main Floor',
                     sellable_stock: Number(item.sellable_stock),
                     reorder_level: Number(item.reorder_level),
                     supplier_cost: Number(item.supplier_cost),
@@ -1364,6 +1414,8 @@ exports.getFastMovingDeadStockReport = async (req, res) => {
                     net_qty_sold: Number(item.net_qty_sold),
                     revenue_generated: Number(item.revenue_generated),
                     estimated_profit: Number(item.estimated_profit),
+                    capital_tied_up: roundToTwo(Number(item.sellable_stock) * Number(item.supplier_cost)),
+                    last_sale: item.last_sale_date ? formatAuditDate(item.last_sale_date) : 'Recent',
                     action_advice: Number(item.sellable_stock) <= Number(item.reorder_level)
                         ? 'Urgent Restock (Bulk Order on Messenger)'
                         : 'Healthy Fast-Mover'
@@ -1379,13 +1431,16 @@ exports.getFastMovingDeadStockReport = async (req, res) => {
                     part_name: item.part_name,
                     brand: item.brand,
                     category: item.category,
+                    shelf_location: item.shelf_location || 'Main Floor',
                     sellable_stock: Number(item.sellable_stock),
                     reorder_level: Number(item.reorder_level),
                     supplier_cost: Number(item.supplier_cost),
                     retail_price: Number(item.retail_price),
                     net_qty_sold: Number(item.net_qty_sold),
                     revenue_generated: Number(item.revenue_generated),
+                    capital_tied_up: roundToTwo(Number(item.sellable_stock) * Number(item.supplier_cost)),
                     days_inactive: item.days_since_last_sale || 30,
+                    last_sale: item.last_sale_date ? formatAuditDate(item.last_sale_date) : '60+ days ago',
                     action_advice: 'Monitor shelf velocity before reordering'
                 }))
             },
@@ -1400,11 +1455,13 @@ exports.getFastMovingDeadStockReport = async (req, res) => {
                     part_name: item.part_name,
                     brand: item.brand,
                     category: item.category,
+                    shelf_location: item.shelf_location || 'Main Floor',
                     sellable_stock: Number(item.sellable_stock),
                     supplier_cost: Number(item.supplier_cost),
                     retail_price: Number(item.retail_price),
                     capital_tied_up: Number(item.capital_tied_up),
                     days_inactive: item.days_since_last_sale || 999,
+                    net_qty_sold: 0,
                     last_sale: item.last_sale_date ? formatAuditDate(item.last_sale_date) : 'Never Sold',
                     clearance_recommendation: `Post on Facebook Marketplace at clearance price (₱${Math.max(Number(item.supplier_cost), Number(item.retail_price) * 0.75).toFixed(2)})`
                 }))
@@ -2582,14 +2639,11 @@ exports.getExpensesAndCashFlowReport = async (req, res) => {
         const salesParams = [];
         const salesCondition = buildReportDateCondition('s', 'sale_date', timeframe, startDate, endDate, salesParams);
 
-        const returnsParams = [];
-        const returnsCondition = buildReportDateCondition('cr', 'return_date', timeframe, startDate, endDate, returnsParams);
-
         const movementsParams = [];
         const movementsCondition = buildReportDateCondition('cm', 'created_at', timeframe, startDate, endDate, movementsParams);
 
-        const supplierParams = [];
-        const supplierCondition = buildReportDateCondition('sp', 'payment_date', timeframe, startDate, endDate, supplierParams);
+        const receivingParams = [];
+        const receivingCondition = buildReportDateCondition('rr', 'received_at', timeframe, startDate, endDate, receivingParams);
 
         // 1. Fetch Itemized Operating Expenses
         const [expenses] = await db.query(`
@@ -2638,10 +2692,7 @@ exports.getExpensesAndCashFlowReport = async (req, res) => {
         const cashSalesIn = Number(salesFlow[0]?.cash_sales_in || 0);
         const gcashSalesIn = Number(salesFlow[0]?.gcash_sales_in || 0);
 
-        // 4. Customer Refunds Out (0 under All Sales Final policy)
-        const cashRefundsOut = 0;
-
-        // 5. Petty Cash Out from Drawer Movements
+        // 4. Petty Cash Out from Drawer Movements
         const [pettyMovements] = await db.query(`
             SELECT COALESCE(SUM(cm.amount), 0) AS petty_cash_out
             FROM cash_movements cm
@@ -2649,39 +2700,132 @@ exports.getExpensesAndCashFlowReport = async (req, res) => {
         `, movementsParams);
         const pettyCashOut = Number(pettyMovements[0]?.petty_cash_out || 0);
 
-        // 6. Supplier PO Payments Out (via GCash / Bank)
-        let supplierPaymentsOut = 0;
-        try {
-            const [suppPayments] = await db.query(`
-                SELECT COALESCE(SUM(sp.payment_amount), 0) AS total_paid
-                FROM supplier_payments sp
-                WHERE ${supplierCondition}
-            `, supplierParams);
-            supplierPaymentsOut = Number(suppPayments[0]?.total_paid || 0);
-        } catch {
-            // fallback if supplier_payments has different schema
-            supplierPaymentsOut = 0;
-        }
+        // 5. Supplier Truck Payouts (Direct Stock-In Deliveries Paid on the Spot)
+        const [receivingSummary] = await db.query(`
+            SELECT 
+                COALESCE(SUM(rr.total_cost), 0) AS total_truck_payouts,
+                COUNT(rr.id) AS total_deliveries
+            FROM receiving_records rr
+            WHERE ${receivingCondition}
+        `, receivingParams);
+        const supplierTruckPayouts = Number(receivingSummary[0]?.total_truck_payouts || 0);
+        const totalDeliveriesCount = Number(receivingSummary[0]?.total_deliveries || 0);
+
+        // Itemized Receiving Records for Truck Deliveries
+        const [receivingRecords] = await db.query(`
+            SELECT 
+                rr.id,
+                COALESCE(rr.reference_no, rr.reference_number, CONCAT('DR-', rr.id)) AS reference_no,
+                rr.received_at,
+                rr.total_cost,
+                rr.total_delivered_qty,
+                rr.total_accepted_qty,
+                rr.total_rejected_qty,
+                rr.payment_source,
+                rr.delivery_personnel,
+                COALESCE(s.name, 'Supplier Truck') AS supplier_name
+            FROM receiving_records rr
+            LEFT JOIN suppliers s ON rr.supplier_id = s.id
+            WHERE ${receivingCondition}
+            ORDER BY rr.received_at DESC, rr.id DESC
+            LIMIT 150
+        `, receivingParams);
+
+        // Sales Records for Unified Cash Flow Ledger
+        const [salesRecords] = await db.query(`
+            SELECT 
+                s.id,
+                COALESCE(s.order_number, CONCAT('SO-', s.id)) AS reference_no,
+                s.sale_date,
+                s.total_amount,
+                s.payment_method,
+                COALESCE(u.full_name, u.username, 'Cashier') AS cashier_name
+            FROM sales s
+            LEFT JOIN users u ON s.user_id = u.id
+            WHERE ${salesCondition} AND (s.status IS NULL OR s.status != 'VOIDED')
+            ORDER BY s.sale_date DESC, s.id DESC
+            LIMIT 150
+        `, salesParams);
+
+        // Construct 6-Column Unified Cash Flow Ledger
+        const unifiedLedger = [
+            ...salesRecords.map(s => ({
+                id: `sale-${s.id}`,
+                date_time: s.sale_date,
+                flow_type: 'INFLOW_SALES',
+                type_badge: 'Shift Remittance In',
+                reference_no: s.reference_no,
+                description: `Counter POS Sale (${s.cashier_name})`,
+                payment_mode: String(s.payment_method || 'Cash').toUpperCase(),
+                amount: Number(s.total_amount || 0),
+                is_inflow: true
+            })),
+            ...receivingRecords.map(r => ({
+                id: `recv-${r.id}`,
+                date_time: r.received_at,
+                flow_type: 'OUTFLOW_SUPPLIER',
+                type_badge: 'Supplier Truck Payout',
+                reference_no: r.reference_no,
+                description: `Truck Delivery: ${r.supplier_name}${r.delivery_personnel ? ' • Driver: ' + r.delivery_personnel : ''}`,
+                payment_mode: 'Owner Cash / Pocket',
+                amount: Number(r.total_cost || 0),
+                is_inflow: false
+            })),
+            ...expenses.map(e => ({
+                id: `exp-${e.id}`,
+                date_time: e.expense_date,
+                flow_type: 'OUTFLOW_EXPENSE',
+                type_badge: 'Shop Operating Expense',
+                reference_no: `EXP-${e.id}`,
+                description: `${e.title} (${e.category})`,
+                payment_mode: e.payment_source === 'cash_drawer' ? 'Cash Drawer' : 'GCash / Bank',
+                amount: Number(e.amount || 0),
+                is_inflow: false
+            }))
+        ].sort((a, b) => new Date(b.date_time) - new Date(a.date_time));
+
+        // Combined Financial Flow Metrics
+        const totalInflow = cashSalesIn + gcashSalesIn;
+        const totalExpensesAndShortages = totalOperatingExpenses + pettyCashOut;
+        const totalOutflow = supplierTruckPayouts + totalExpensesAndShortages;
+        const netCashFlow = totalInflow - totalOutflow;
 
         // Cash Drawer Flow
         const drawerCashIn = cashSalesIn;
-        const drawerCashOut = cashRefundsOut + pettyCashOut + drawerOperatingExpenses;
+        const drawerCashOut = pettyCashOut + drawerOperatingExpenses;
         const drawerNetFlow = drawerCashIn - drawerCashOut;
 
-        // GCash / Bank Flow
+        // GCash Flow
         const gcashCashIn = gcashSalesIn;
-        const gcashCashOut = supplierPaymentsOut + gcashOperatingExpenses;
+        const gcashCashOut = gcashOperatingExpenses;
         const gcashNetFlow = gcashCashIn - gcashCashOut;
-
-        // Total Combined Flow
-        const totalCashIn = drawerCashIn + gcashCashIn;
-        const totalCashOut = drawerCashOut + gcashCashOut;
-        const totalNetFlow = totalCashIn - totalCashOut;
 
         res.json({
             success: true,
             timeframe,
             date_range: { startDate, endDate },
+            summary: {
+                total_inflow: roundToTwo(totalInflow),
+                cash_inflow: roundToTwo(cashSalesIn),
+                gcash_inflow: roundToTwo(gcashSalesIn),
+                supplier_truck_payouts: roundToTwo(supplierTruckPayouts),
+                deliveries_count: totalDeliveriesCount,
+                shop_operating_expenses: roundToTwo(totalExpensesAndShortages),
+                net_cash_flow: roundToTwo(netCashFlow)
+            },
+            unified_ledger: unifiedLedger,
+            receiving_records: receivingRecords.map(r => ({
+                id: r.id,
+                reference_no: r.reference_no,
+                received_at: r.received_at,
+                total_cost: roundToTwo(Number(r.total_cost || 0)),
+                total_delivered_qty: Number(r.total_delivered_qty || 0),
+                total_accepted_qty: Number(r.total_accepted_qty || 0),
+                total_rejected_qty: Number(r.total_rejected_qty || 0),
+                supplier_name: r.supplier_name,
+                delivery_personnel: r.delivery_personnel || 'Truck Driver',
+                payment_source: r.payment_source || 'owner_funds'
+            })),
             expenses: {
                 total_amount: roundToTwo(totalOperatingExpenses),
                 count: expenses.length,
@@ -2712,7 +2856,6 @@ exports.getExpensesAndCashFlowReport = async (req, res) => {
                     net_flow: roundToTwo(drawerNetFlow),
                     breakdown_in: { sales: roundToTwo(cashSalesIn) },
                     breakdown_out: {
-                        refunds: roundToTwo(cashRefundsOut),
                         petty_cash: roundToTwo(pettyCashOut),
                         operating_expenses: roundToTwo(drawerOperatingExpenses)
                     }
@@ -2723,14 +2866,13 @@ exports.getExpensesAndCashFlowReport = async (req, res) => {
                     net_flow: roundToTwo(gcashNetFlow),
                     breakdown_in: { sales: roundToTwo(gcashSalesIn) },
                     breakdown_out: {
-                        supplier_orders: roundToTwo(supplierPaymentsOut),
                         operating_expenses: roundToTwo(gcashOperatingExpenses)
                     }
                 },
                 combined: {
-                    total_in: roundToTwo(totalCashIn),
-                    total_out: roundToTwo(totalCashOut),
-                    net_flow: roundToTwo(totalNetFlow)
+                    total_in: roundToTwo(totalInflow),
+                    total_out: roundToTwo(totalOutflow),
+                    net_flow: roundToTwo(netCashFlow)
                 }
             }
         });
