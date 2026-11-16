@@ -908,7 +908,7 @@ exports.getSales = async (req, res, next) => {
             const isSameShift = activeShift && new Date(s.sale_date).getTime() >= (new Date(activeShift.assigned_at).getTime() - 60000);
             s.is_active_shift = Boolean(isSameShift);
             s.active_shift_code = activeShift?.shift_code || null;
-            s.can_void = Boolean(isSameShift && s.status !== 'VOIDED' && s.status !== 'REFUNDED');
+            s.can_void = Boolean(s.status !== 'VOIDED' && s.status !== 'REFUNDED');
         }
 
         // Payment breakdown totals for current filters (excluding pagination)
@@ -1221,31 +1221,14 @@ exports.voidAndReopen = async (req, res, next) => {
             return res.status(422).json({ message: 'This transaction has already been refunded and cannot be voided' });
         }
 
-        // Strict Active Shift Lock: Voids are permitted ONLY on transactions belonging to the current active shift
+        // Check if an active cash shift exists to adjust live drawer balance
         const [activeFloats] = await connection.query(
             `SELECT id, shift_code, current_cash_balance, assigned_at, status 
              FROM cash_floats 
              WHERE status = 'ACTIVE' 
              ORDER BY assigned_at DESC LIMIT 1 FOR UPDATE`
         );
-
-        if (activeFloats.length === 0) {
-            await connection.rollback();
-            return res.status(400).json({ 
-                message: 'No active cash shift is currently open. Voiding transactions is strictly restricted to the current active shift.' 
-            });
-        }
-
-        const activeFloat = activeFloats[0];
-        const saleTime = new Date(sale.sale_date).getTime();
-        const shiftStartTime = new Date(activeFloat.assigned_at).getTime();
-
-        if (saleTime < shiftStartTime - 60000) {
-            await connection.rollback();
-            return res.status(400).json({ 
-                message: `This transaction belongs to a closed historical shift. Void is only permitted for transactions within the active shift (${activeFloat.shift_code || 'current'}). Please use Item Replace / Swap for historical order adjustments.` 
-            });
-        }
+        const activeFloat = activeFloats.length > 0 ? activeFloats[0] : null;
 
         // 2. Fetch all sale items with current product metadata
         const [saleItems] = await connection.query(
@@ -1297,11 +1280,11 @@ exports.voidAndReopen = async (req, res, next) => {
             [reason, saleId]
         );
 
-                // Deduct physical cash portion from active drawer if voided sale had cash
+                // Deduct physical cash portion from active drawer if voided sale had cash and active float is open
         const voidCash = Number(sale.cash_amount || (sale.payment_method === 'Cash' ? sale.total_amount : 0));
-        if (voidCash > 0) {
+        if (voidCash > 0 && activeFloat) {
             const prevBal = Number(activeFloat.current_cash_balance || 0);
-            const newBal = Math.round((prevBal - voidCash) * 100) / 100;
+            const newBal = Math.max(0, Math.round((prevBal - voidCash) * 100) / 100);
             await connection.query(
                 `UPDATE cash_floats SET 
                     current_cash_balance = ?,
@@ -1328,19 +1311,20 @@ exports.voidAndReopen = async (req, res, next) => {
         try {
             await auditService.log({
                 userId,
-                userName: username || 'Staff',
+                userName: req.user?.username || 'Staff',
                 userRole: req.user?.role || 'admin',
                 ipAddress: req.ip || req.connection?.remoteAddress,
-                module: 'Inventory & Defects',
-                actionType: 'Defective Returned to Supplier',
-                entityType: 'product',
-                entityId: String(product.id),
-                referenceId: supplierRef,
-                newValue: `Returned ${returnQty}x ${product.name} to ${supplierName || 'supplier'}`,
-                reason: supplierRemarks
+                module: 'Sales & POS',
+                actionType: 'Sale Voided',
+                entityType: 'sale',
+                entityId: String(saleId),
+                referenceId: String(sale.order_number || saleId),
+                oldValue: `Status: ${sale.status || 'SOLD'}, Total: ₱${Number(sale.total_amount || 0).toFixed(2)}`,
+                newValue: 'Status: VOIDED (Reopened to Cart)',
+                reason: reason || 'Sale Voided'
             });
         } catch (auditErr) {
-            console.error('[Supplier Return Audit Log Warning]:', auditErr.message);
+            console.error('[Void Audit Log Warning]:', auditErr.message);
         }
 
         // 5. Structure items so the POS frontend can directly populate the cart

@@ -1571,25 +1571,14 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                                                 )}
 
                                                                 {!isVoid && (
-                                                                    !isVoidLocked ? (
-                                                                        <button
-                                                                            onClick={() => handleOpenVoid(t)}
-                                                                            className="btn-secondary"
-                                                                            style={{ padding: '3px 7px', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)', whiteSpace: 'nowrap' }}
-                                                                            title="Void Sale (Active Shift)"
-                                                                        >
-                                                                            <Ban size={12} /> Void
-                                                                        </button>
-                                                                    ) : (
-                                                                        <button
-                                                                            disabled
-                                                                            className="btn-secondary"
-                                                                            style={{ padding: '3px 7px', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: 'var(--text-muted)', borderColor: 'var(--border)', opacity: 0.45, cursor: 'not-allowed', whiteSpace: 'nowrap' }}
-                                                                            title="Void locked: This transaction belongs to a closed shift. Use Replace for historical order adjustments."
-                                                                        >
-                                                                            <Lock size={11} /> Void
-                                                                        </button>
-                                                                    )
+                                                                    <button
+                                                                        onClick={() => handleOpenVoid(t)}
+                                                                        className="btn-secondary"
+                                                                        style={{ padding: '3px 7px', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)', whiteSpace: 'nowrap' }}
+                                                                        title="Void Sale"
+                                                                    >
+                                                                        <Ban size={12} /> Void
+                                                                    </button>
                                                                 )}
                                                             </div>
                                                         </td>
