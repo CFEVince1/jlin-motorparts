@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useContext } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import {
@@ -2903,31 +2904,102 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
           MODAL 2: VIEW BATCH DETAILS & OFFICIAL RECEIVING SLIP
          ========================================================================= */}
       {selectedBatch && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.75)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          padding: '20px'
-        }}>
+        <>
+          {/* Print Stylesheet specifically for Official Receiving Slip */}
+          <style>{`
+            #printable-receiving-slip {
+              display: none;
+            }
+            @media print {
+              @page {
+                size: portrait;
+                margin: 8mm 8mm 8mm 8mm;
+              }
+              html, body {
+                background: #ffffff !important;
+                color: #000000 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 100% !important;
+                height: auto !important;
+                overflow: visible !important;
+              }
+              #root {
+                display: none !important;
+                height: 0 !important;
+                overflow: hidden !important;
+              }
+              #printable-receiving-slip,
+              #printable-receiving-slip * {
+                visibility: visible !important;
+                box-sizing: border-box !important;
+              }
+              #printable-receiving-slip {
+                display: block !important;
+                position: static !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 auto !important;
+                padding: 0 !important;
+                background: #ffffff !important;
+                color: #000000 !important;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+                font-size: 10.5px !important;
+                line-height: 1.35 !important;
+              }
+              #printable-receiving-slip table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+                page-break-inside: auto;
+              }
+              #printable-receiving-slip tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
+              }
+              #printable-receiving-slip th,
+              #printable-receiving-slip td {
+                color: #000000 !important;
+                border-color: #9ca3af !important;
+                background: transparent !important;
+              }
+              #printable-receiving-slip th {
+                background: #f3f4f6 !important;
+              }
+              #printable-receiving-slip .slip-signature-block {
+                page-break-inside: avoid;
+              }
+            }
+          `}</style>
+
+          {/* On-screen dark modal (hidden completely during print) */}
           <div
-            id="print-receiving-slip-modal"
-            className="glass-panel"
+            className="no-print"
             style={{
-              width: '100%',
-              maxWidth: '780px',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              padding: '24px',
-              borderRadius: '12px'
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.75)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+              padding: '20px'
             }}
           >
+            <div
+              id="print-receiving-slip-modal"
+              className="glass-panel"
+              style={{
+                width: '100%',
+                maxWidth: '780px',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                padding: '24px',
+                borderRadius: '12px'
+              }}
+            >
             {/* Slip Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid var(--border)', paddingBottom: '16px', marginBottom: '20px' }}>
               <div>
@@ -3120,7 +3192,175 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
             </div>
           </div>
         </div>
-      )}
+
+        {/* Dedicated Pure-White Printable Document (Rendered via Portal on document.body for Crisp 1-Page Printing) */}
+        {typeof document !== 'undefined' && createPortal(
+          <div id="printable-receiving-slip">
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2.5px solid #000', paddingBottom: '10px', marginBottom: '12px' }}>
+              <div>
+                <div style={{ fontSize: '18px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#000' }}>
+                  JLIN MOTO PARTS
+                </div>
+                <div style={{ fontSize: '9px', color: '#374151', textTransform: 'uppercase', marginTop: '2px', fontWeight: 600 }}>
+                  Motorparts Inventory, Genuine Spare Parts & Retail Sales • Philippines
+                </div>
+                <div style={{ fontSize: '13px', fontWeight: 900, marginTop: '6px', textTransform: 'uppercase', color: '#000' }}>
+                  {activeModalSlipView === 'rejection' ? 'DRIVER ON-THE-SPOT REJECTION SLIP' : 'OFFICIAL RECEIVING SLIP'}
+                </div>
+                <div style={{ fontSize: '8.5px', color: '#4b5563' }}>
+                  Physical Quality Inspection & Delivery Acceptance Voucher
+                </div>
+              </div>
+
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ border: '1.5px solid #000', padding: '5px 10px', borderRadius: '4px', background: '#f9fafb', display: 'inline-block' }}>
+                  <div style={{ fontSize: '8.5px', fontWeight: 700, color: '#374151', textTransform: 'uppercase' }}>Voucher Ref No.</div>
+                  <div style={{ fontSize: '12px', fontWeight: 900, fontFamily: 'monospace', color: '#000' }}>
+                    {selectedBatch.reference_no || selectedBatch.reference_number || `BATCH-${selectedBatch.id}`}
+                  </div>
+                </div>
+                <div style={{ fontSize: '9px', color: '#4b5563', marginTop: '4px' }}>
+                  Date: {formatAuditDate(selectedBatch.received_at || selectedBatch.created_at)}
+                </div>
+              </div>
+            </div>
+
+            {/* Meta Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', fontSize: '10px', marginBottom: '14px', border: '1px solid #9ca3af', padding: '10px 12px', borderRadius: '4px', background: '#f9fafb' }}>
+              <div>
+                <span style={{ color: '#4b5563', display: 'block', fontSize: '8.5px', textTransform: 'uppercase', fontWeight: 700 }}>Facebook Supplier</span>
+                <strong style={{ fontSize: '11px', color: '#000' }}>{selectedBatch.supplier_name || 'Generic Vendor'}</strong>
+                {selectedBatch.fb_page_name && (
+                  <div style={{ fontSize: '9px', color: '#4b5563' }}>Page: {selectedBatch.fb_page_name}</div>
+                )}
+              </div>
+              <div>
+                <span style={{ color: '#4b5563', display: 'block', fontSize: '8.5px', textTransform: 'uppercase', fontWeight: 700 }}>FB Order / Waybill Ref No.</span>
+                <strong style={{ fontFamily: 'monospace', color: '#000', fontSize: '11px' }}>
+                  {selectedBatch.reference_no || selectedBatch.reference_number || `BATCH-${selectedBatch.id}`}
+                </strong>
+              </div>
+              <div>
+                <span style={{ color: '#4b5563', display: 'block', fontSize: '8.5px', textTransform: 'uppercase', fontWeight: 700 }}>Delivery Date & Time</span>
+                <span style={{ color: '#000', fontWeight: 600 }}>{formatAuditDate(selectedBatch.received_at || selectedBatch.created_at)}</span>
+              </div>
+              <div>
+                <span style={{ color: '#4b5563', display: 'block', fontSize: '8.5px', textTransform: 'uppercase', fontWeight: 700 }}>Inspection Team</span>
+                <span style={{ color: '#000', fontWeight: 600 }}>
+                  {selectedBatch.inspected_by || (selectedBatch.mechanic_name ? `Staff: ${selectedBatch.mechanic_name}` : 'Staff Verified')}
+                </span>
+              </div>
+              <div style={{ gridColumn: 'span 2', borderTop: '1px dashed #d1d5db', paddingTop: '6px', marginTop: '2px' }}>
+                <span style={{ color: '#4b5563', display: 'block', fontSize: '8.5px', textTransform: 'uppercase', fontWeight: 700 }}>Paid From / Settlement Source</span>
+                <strong style={{ color: '#000', fontSize: '10px' }}>
+                  Paid in Cash by Owner (Owner Funds • ₱0.00 POS Drawer Impact)
+                </strong>
+              </div>
+            </div>
+
+            {/* Items Breakdown Table */}
+            <div style={{ marginBottom: '14px' }}>
+              <div style={{ fontSize: '10.5px', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px', color: '#000' }}>
+                {activeModalSlipView === 'rejection' ? 'Items Rejected & Handed Back to Driver' : 'Delivered Items Breakdown'}
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
+                <thead>
+                  <tr style={{ background: '#f3f4f6', borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
+                    <th style={{ padding: '6px 8px', textAlign: 'left', color: '#000', fontWeight: 800 }}>Product / Part Description</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'center', color: '#000', fontWeight: 800 }}>Delivered</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'center', color: '#000', fontWeight: 800 }}>Accepted</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'center', color: '#000', fontWeight: 800 }}>Rejected</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'right', color: '#000', fontWeight: 800 }}>Unit Cost</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'right', color: '#000', fontWeight: 800 }}>Net Payable</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedBatch.items && selectedBatch.items.length > 0 ? (
+                    selectedBatch.items.map((it, idx) => {
+                      const isRej = Number(it.rejected_quantity || 0) > 0;
+                      if (activeModalSlipView === 'rejection' && !isRej) return null;
+
+                      return (
+                        <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                          <td style={{ padding: '6px 8px', color: '#000' }}>
+                            <div style={{ fontWeight: 700 }}>{it.product_name || it.item_name || `Item #${it.product_id}`}</div>
+                            {it.serials && (
+                              <div style={{ fontSize: '9px', fontFamily: 'monospace', color: '#1f2937', fontWeight: 600 }}>
+                                Lot / Serial: {it.serials}
+                              </div>
+                            )}
+                            {isRej && (
+                              <div style={{ fontSize: '9px', color: '#b91c1c', fontWeight: 600 }}>
+                                [Defective / Return]: {it.rejection_reason || 'Defective on arrival'}
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ padding: '6px 8px', textAlign: 'center', color: '#000' }}>
+                            {it.delivered_quantity || it.quantity}
+                          </td>
+                          <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 'bold', color: '#000' }}>
+                            +{it.quantity}
+                          </td>
+                          <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 'bold', color: isRej ? '#b91c1c' : '#4b5563' }}>
+                            {it.rejected_quantity ? `-${it.rejected_quantity}` : '0'}
+                          </td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right', color: '#000' }}>
+                            {formatCurrency(it.cost_price || 0)}
+                          </td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 'bold', color: '#000' }}>
+                            {formatCurrency(it.subtotal || (it.quantity * (it.cost_price || 0)))}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={6} style={{ padding: '12px', textAlign: 'center', color: '#4b5563' }}>
+                        Batch total: {selectedBatch.total_quantity || 0} units received.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: '1.5px solid #000', borderBottom: '2px solid #000', background: '#f9fafb', fontWeight: 'bold' }}>
+                    <td colSpan={5} style={{ padding: '8px 8px', textAlign: 'right', fontSize: '11px', color: '#000' }}>
+                      Total Net Approved Payable:
+                    </td>
+                    <td style={{ padding: '8px 8px', textAlign: 'right', fontSize: '11.5px', color: '#000' }}>
+                      {formatCurrency(selectedBatch.total_cost || 0)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {/* Signatures & Warehouse Verification */}
+            <div className="slip-signature-block" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginTop: '22px', paddingTop: '10px' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ borderBottom: '1px solid #000', height: '26px', marginBottom: '4px' }} />
+                <span style={{ fontSize: '9px', fontWeight: 600, color: '#374151' }}>
+                  Delivery Driver ({selectedBatch.delivery_personnel || 'Courier'})
+                </span>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ borderBottom: '1px solid #000', height: '26px', marginBottom: '4px' }} />
+                <span style={{ fontSize: '9px', fontWeight: 600, color: '#374151' }}>
+                  Receiving Staff / Inspector
+                </span>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ borderBottom: '1px solid #000', height: '26px', marginBottom: '4px' }} />
+                <span style={{ fontSize: '9px', fontWeight: 600, color: '#374151' }}>
+                  Shop Receiver / Owner
+                </span>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+      </>
+    )}
 
       {/* =========================================================================
           TAB 3: SUPPLIER DIRECTORY
