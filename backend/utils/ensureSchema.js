@@ -140,8 +140,74 @@ async function ensureSchema() {
       }
     }
 
+    // Ensure core transaction & serial tables exist
+    try {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS product_serials (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          product_id INT NOT NULL,
+          serial_number VARCHAR(100) NOT NULL,
+          quantity INT NOT NULL DEFAULT 1,
+          status VARCHAR(50) DEFAULT 'available',
+          received_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_ps_product (product_id),
+          INDEX idx_ps_serial (serial_number),
+          INDEX idx_ps_status (status)
+        )
+      `);
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS sale_item_serials (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          sale_item_id INT NOT NULL,
+          serial_id INT NOT NULL,
+          quantity INT NOT NULL DEFAULT 1,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_sis_sale_item (sale_item_id),
+          INDEX idx_sis_serial (serial_id)
+        )
+      `);
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS inventory_transactions (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          transaction_number VARCHAR(100) UNIQUE NOT NULL,
+          reference_no VARCHAR(100) DEFAULT NULL,
+          product_id INT NOT NULL,
+          serial_id INT NULL DEFAULT NULL,
+          transaction_type VARCHAR(50) NOT NULL,
+          quantity INT NOT NULL,
+          quantity_change INT NOT NULL DEFAULT 0,
+          balance_before INT NOT NULL DEFAULT 0,
+          balance_after INT NOT NULL DEFAULT 0,
+          unit_cost DECIMAL(10,2) DEFAULT NULL,
+          reference_type VARCHAR(50) DEFAULT NULL,
+          reference_id INT DEFAULT NULL,
+          loss_transaction_id BIGINT DEFAULT NULL,
+          notes TEXT,
+          remarks TEXT,
+          created_by INT DEFAULT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_it_product (product_id),
+          INDEX idx_it_serial (serial_id),
+          INDEX idx_it_type (transaction_type),
+          INDEX idx_it_ref (reference_no)
+        )
+      `);
+      try {
+        await db.query("ALTER TABLE sale_item_serials DROP INDEX serial_id");
+      } catch (_) {}
+    } catch (coreTableErr) {
+      console.warn('[Schema] Failed to ensure core serial/inventory tables:', coreTableErr.message);
+    }
+
     // Ensure sale_items columns
     const ensureSaleItemsCols = [
+      { col: 'part_number', def: "VARCHAR(100) NULL DEFAULT ''" },
+      { col: 'product_name', def: "VARCHAR(255) NULL DEFAULT 'Motorcycle Part'" },
+      { col: 'brand', def: "VARCHAR(100) NULL DEFAULT ''" },
+      { col: 'size', def: "VARCHAR(50) NULL DEFAULT ''" },
+      { col: 'cost_price', def: "DECIMAL(10,2) NOT NULL DEFAULT 0.00" },
+      { col: 'price', def: "DECIMAL(10,2) NOT NULL DEFAULT 0.00" },
+      { col: 'subtotal', def: "DECIMAL(10,2) NOT NULL DEFAULT 0.00" },
       { col: 'qty_sold', def: 'INT NOT NULL DEFAULT 1' },
       { col: 'qty_swapped', def: 'INT NOT NULL DEFAULT 0' },
       { col: 'retail_price_snapshot', def: 'DECIMAL(10,2) NULL' },

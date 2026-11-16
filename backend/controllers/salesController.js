@@ -382,63 +382,85 @@ exports.checkout = async (req, res, next) => {
 
         // 6. Insert line items into sale_items and call applyMovement (SALE) atomically for each line
         for (const item of validatedItems) {
-            const [saleItemResult] = await connection.query(
-                `INSERT INTO sale_items (
-                    sale_id, product_id, part_number, product_name, brand, size, quantity, price, cost_price, subtotal,
-                    unit_cost_snapshot, retail_price_snapshot, unit_price_snapshot
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                    saleId,
-                    item.product_id,
-                    item.part_number || item.sku || 'N/A',
-                    item.product_name || 'Motorcycle Part',
-                    item.brand || 'Generic',
-                    item.size || 'Standard',
-                    item.quantity,
-                    item.unit_price || 0.00,
-                    item.cost_price || 0.00,
-                    item.subtotal || 0.00,
-                    item.cost_price || 0.00,
-                    item.unit_price || 0.00,
-                    item.unit_price || 0.00
-                ]
-            );
-            const saleItemId = saleItemResult.insertId;
+            let saleItemId;
+            try {
+                const [saleItemResult] = await connection.query(
+                    `INSERT INTO sale_items (
+                        sale_id, product_id, part_number, product_name, brand, size, quantity, price, cost_price, subtotal,
+                        unit_cost_snapshot, retail_price_snapshot, unit_price_snapshot
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        saleId,
+                        item.product_id,
+                        item.part_number || item.sku || 'N/A',
+                        item.product_name || 'Motorcycle Part',
+                        item.brand || 'Generic',
+                        item.size || 'Standard',
+                        item.quantity,
+                        item.unit_price || 0.00,
+                        item.cost_price || 0.00,
+                        item.subtotal || 0.00,
+                        item.cost_price || 0.00,
+                        item.unit_price || 0.00,
+                        item.unit_price || 0.00
+                    ]
+                );
+                saleItemId = saleItemResult.insertId;
+            } catch (siErr) {
+                const [fallbackResult] = await connection.query(
+                    `INSERT INTO sale_items (
+                        sale_id, product_id, product_name, quantity, price, subtotal
+                    ) VALUES (?, ?, ?, ?, ?, ?)`,
+                    [
+                        saleId,
+                        item.product_id,
+                        item.product_name || 'Motorcycle Part',
+                        item.quantity,
+                        item.unit_price || 0.00,
+                        item.subtotal || 0.00
+                    ]
+                );
+                saleItemId = fallbackResult.insertId;
+            }
 
             // Handle Serials if serialized
             let primarySerialId = null;
             if (item.is_serialized && item.serial_ids.length > 0) {
                 primarySerialId = item.serial_ids[0];
-                if (item.serial_ids.length === 1) {
-                    const targetSerialId = item.serial_ids[0];
-                    const [sRows] = await connection.query(
-                        'SELECT quantity FROM product_serials WHERE id = ?',
-                        [targetSerialId]
-                    );
-                    const currentLotQty = Number(sRows[0]?.quantity || 0);
-                    const newLotQty = Math.max(0, currentLotQty - item.quantity);
-                    const newLotStatus = newLotQty === 0 ? 'sold' : 'available';
-
-                    await connection.query(
-                        'UPDATE product_serials SET quantity = ?, status = ? WHERE id = ?',
-                        [newLotQty, newLotStatus, targetSerialId]
-                    );
-
-                    await connection.query(
-                        'INSERT INTO sale_item_serials (sale_item_id, serial_id, quantity) VALUES (?, ?, ?)',
-                        [saleItemId, targetSerialId, item.quantity]
-                    );
-                } else {
-                    for (const sId of item.serial_ids) {
-                        await connection.query(
-                            "UPDATE product_serials SET quantity = GREATEST(0, quantity - 1), status = IF(quantity <= 1, 'sold', 'available') WHERE id = ?",
-                            [sId]
+                try {
+                    if (item.serial_ids.length === 1) {
+                        const targetSerialId = item.serial_ids[0];
+                        const [sRows] = await connection.query(
+                            'SELECT quantity FROM product_serials WHERE id = ?',
+                            [targetSerialId]
                         );
+                        const currentLotQty = Number(sRows[0]?.quantity || 0);
+                        const newLotQty = Math.max(0, currentLotQty - item.quantity);
+                        const newLotStatus = newLotQty === 0 ? 'sold' : 'available';
+
                         await connection.query(
-                            'INSERT INTO sale_item_serials (sale_item_id, serial_id, quantity) VALUES (?, ?, 1)',
-                            [saleItemId, sId]
+                            'UPDATE product_serials SET quantity = ?, status = ? WHERE id = ?',
+                            [newLotQty, newLotStatus, targetSerialId]
                         );
+
+                        await connection.query(
+                            'INSERT INTO sale_item_serials (sale_item_id, serial_id, quantity) VALUES (?, ?, ?)',
+                            [saleItemId, targetSerialId, item.quantity]
+                        );
+                    } else {
+                        for (const sId of item.serial_ids) {
+                            await connection.query(
+                                "UPDATE product_serials SET quantity = GREATEST(0, quantity - 1), status = IF(quantity <= 1, 'sold', 'available') WHERE id = ?",
+                                [sId]
+                            );
+                            await connection.query(
+                                'INSERT INTO sale_item_serials (sale_item_id, serial_id, quantity) VALUES (?, ?, 1)',
+                                [saleItemId, sId]
+                            );
+                        }
                     }
+                } catch (serialErr) {
+                    console.warn('[Checkout Serial Warning]:', serialErr.message);
                 }
             }
 
