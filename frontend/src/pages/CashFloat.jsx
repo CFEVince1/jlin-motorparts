@@ -2413,7 +2413,7 @@ export const CashFloat = () => {
                                                     const hasActive = !!s.active_float_id;
                                                     const status = s.active_shift_status || (hasActive ? 'ACTIVE' : 'OFF');
                                                     const salesCount = Number(s.active_sales_count || 0);
-                                                    const isActionBusy = actionInProgressShiftId === s.active_float_id;
+                                                    const isActionBusy = Boolean(actionInProgressShiftId && (actionInProgressShiftId === s.active_float_id || actionInProgressShiftId === s.id || actionInProgressShiftId === `timein-${s.id}`));
                                                     const isExpanded = expandedStaffTimeInId === s.id;
 
                                                     return (

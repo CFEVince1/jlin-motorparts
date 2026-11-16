@@ -2048,16 +2048,13 @@ const POS = ({ defaultTab }) => {
                             }
                         `}</style>
 
-                        {/* Full Taxonomy Category Pills with Smooth Horizontal Scroll */}
+                        {/* Full Taxonomy Category Pills (Wrapped Grid, No Dragging / No Scrollbar) */}
                         <div style={{
                             display: 'flex',
                             alignItems: 'center',
                             gap: '6px',
-                            flexWrap: 'nowrap',
-                            overflowX: 'auto',
-                            paddingBottom: '8px',
-                            marginBottom: '10px',
-                            scrollbarWidth: 'thin'
+                            flexWrap: 'wrap',
+                            marginBottom: '12px'
                         }}>
                             <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginRight: '4px', whiteSpace: 'nowrap' }}>
                                 Categories:
@@ -2076,16 +2073,15 @@ const POS = ({ defaultTab }) => {
                                             }
                                         }}
                                         style={{
-                                            padding: '5px 14px',
-                                            fontSize: '0.78rem',
+                                            padding: '4px 12px',
+                                            fontSize: '0.76rem',
                                             fontWeight: isSelected ? 800 : 600,
-                                            borderRadius: '18px',
+                                            borderRadius: '16px',
                                             border: isSelected ? '1.5px solid var(--primary)' : '1px solid var(--border)',
                                             background: isSelected ? 'rgba(16, 185, 129, 0.16)' : 'var(--surface)',
                                             color: isSelected ? 'var(--primary)' : 'var(--text-main)',
                                             cursor: 'pointer',
                                             whiteSpace: 'nowrap',
-                                            flexShrink: 0,
                                             transition: 'all 0.15s ease'
                                         }}
                                     >
