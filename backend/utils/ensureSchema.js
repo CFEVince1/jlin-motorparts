@@ -160,6 +160,12 @@ async function ensureSchema() {
       }
     }
 
+    try {
+      await db.query("ALTER TABLE sale_items MODIFY COLUMN size VARCHAR(50) NULL DEFAULT ''");
+      await db.query("ALTER TABLE sale_items MODIFY COLUMN brand VARCHAR(100) NULL DEFAULT ''");
+      await db.query("ALTER TABLE sale_items MODIFY COLUMN part_number VARCHAR(100) NULL DEFAULT ''");
+    } catch (_) {}
+
     // Ensure cash_floats columns
     const ensureCashFloatCols = [
       { col: 'shift_code', def: 'VARCHAR(50) NULL' },
@@ -337,19 +343,29 @@ async function ensureSchema() {
             console.log('[Schema] Seeded default platform groups.');
     }
 
-    // 7. Ensure damaged_stock column on products
+    // 7. Ensure damaged_stock, sellable_stock, current_stock columns on products
     try {
-      const [dmgCols] = await db.query(
+      const [prodCols] = await db.query(
         `SELECT COLUMN_NAME FROM information_schema.COLUMNS
-         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products'
-           AND COLUMN_NAME = 'damaged_stock'`
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products'`
       );
-      if (dmgCols.length === 0) {
+      const colNames = prodCols.map(c => c.COLUMN_NAME);
+      if (!colNames.includes('damaged_stock')) {
         await db.query('ALTER TABLE products ADD COLUMN damaged_stock INT NOT NULL DEFAULT 0 AFTER stock');
         console.log('[Schema] Added damaged_stock column to products table.');
       }
+      if (!colNames.includes('sellable_stock')) {
+        await db.query('ALTER TABLE products ADD COLUMN sellable_stock INT NOT NULL DEFAULT 0 AFTER stock');
+        await db.query('UPDATE products SET sellable_stock = COALESCE(stock, 0)');
+        console.log('[Schema] Added sellable_stock column to products table.');
+      }
+      if (!colNames.includes('current_stock')) {
+        await db.query('ALTER TABLE products ADD COLUMN current_stock INT NOT NULL DEFAULT 0 AFTER stock');
+        await db.query('UPDATE products SET current_stock = COALESCE(stock, 0)');
+        console.log('[Schema] Added current_stock column to products table.');
+      }
     } catch (err) {
-      console.warn('[Schema] Failed to check/add damaged_stock to products:', err.message);
+      console.warn('[Schema] Failed to check/add stock columns to products:', err.message);
     }
 
     // 8. Ensure return_refund_history table

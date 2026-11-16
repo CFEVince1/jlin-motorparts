@@ -2,6 +2,7 @@ const db = require('../config/db');
 const { applyMovement } = require('../services/inventoryService');
 const { logCashMovement, closePastDayActiveFloats } = require('../services/cashMovementService');
 const { AppValidationError } = require('../utils/errors');
+const auditService = require('../services/auditService');
 
 const normalizeBoolean = (value) => value === true || value === 1 || value === '1' || value === 'true';
 
@@ -66,11 +67,10 @@ exports.checkout = async (req, res, next) => {
             const [activeFloats] = await connection.query(
                 `SELECT id, starting_cash, current_cash_balance, cash_sales, change_given, sales_count, expected_cash 
                  FROM cash_floats 
-                 WHERE staff_id = ? 
+                 WHERE (staff_id = ? OR staff_username = ?) 
                    AND status = 'ACTIVE' 
-                   AND DATE(CONVERT_TZ(assigned_at, '+00:00', '+08:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+08:00'))
                  ORDER BY assigned_at DESC LIMIT 1 FOR UPDATE`,
-                [userId]
+                [userId, req.user.username || '']
             );
 
             if (activeFloats.length === 0) {
@@ -390,17 +390,17 @@ exports.checkout = async (req, res, next) => {
                 [
                     saleId,
                     item.product_id,
-                    item.part_number,
-                    item.product_name,
-                    item.brand,
-                    item.size,
+                    item.part_number || item.sku || 'N/A',
+                    item.product_name || 'Motorcycle Part',
+                    item.brand || 'Generic',
+                    item.size || 'Standard',
                     item.quantity,
-                    item.unit_price,
-                    item.cost_price,
-                    item.subtotal,
-                    item.cost_price,
-                    item.unit_price,
-                    item.unit_price
+                    item.unit_price || 0.00,
+                    item.cost_price || 0.00,
+                    item.subtotal || 0.00,
+                    item.cost_price || 0.00,
+                    item.unit_price || 0.00,
+                    item.unit_price || 0.00
                 ]
             );
             const saleItemId = saleItemResult.insertId;
@@ -465,11 +465,10 @@ exports.checkout = async (req, res, next) => {
             const [activeFloats] = await connection.query(
                 `SELECT id, starting_cash, current_cash_balance, cash_sales, change_given, sales_count, expected_cash 
                  FROM cash_floats 
-                 WHERE staff_id = ? 
+                 WHERE (staff_id = ? OR staff_username = ?) 
                    AND status = 'ACTIVE' 
-                   AND DATE(CONVERT_TZ(assigned_at, '+00:00', '+08:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+08:00'))
                  ORDER BY assigned_at DESC LIMIT 1 FOR UPDATE`,
-                [userId]
+                [userId, req.user?.username || '']
             );
 
             if (activeFloats.length > 0) {
@@ -528,6 +527,24 @@ exports.checkout = async (req, res, next) => {
         }
 
         await connection.commit();
+
+        try {
+            await auditService.log({
+                userId,
+                userName: req.user?.username || 'Staff',
+                userRole: req.user?.role || 'cashier',
+                ipAddress: req.ip || req.connection?.remoteAddress,
+                module: 'Sales & POS',
+                actionType: 'Sale Completed',
+                entityType: 'sale',
+                entityId: String(saleId),
+                referenceId: orderNo,
+                newValue: `Order ${orderNo}: ₱${totalAmount.toFixed(2)} (${method}) - ${validatedItems.length} item(s)`,
+                reason: `Completed POS Sale ${orderNo} paid via ${method}`
+            });
+        } catch (auditErr) {
+            console.error('[Sales Audit Log Warning]:', auditErr.message);
+        }
 
         const orderSummary = {
             id: saleId,
@@ -595,6 +612,7 @@ exports.checkout = async (req, res, next) => {
 
     } catch (err) {
         await connection.rollback();
+        console.error('[Sales Checkout Error]:', err);
         const rawMsg = String(err.message || err.sqlMessage || '').toLowerCase();
         const isDuplicatePaymentRef = (err.code === 'ER_DUP_ENTRY' || err.errno === 1062) && 
             (rawMsg.includes('payment_reference') || rawMsg.includes('uq_sales_payment_reference') || Boolean(paymentReferenceToSave));
@@ -1307,6 +1325,24 @@ exports.voidAndReopen = async (req, res, next) => {
 
         await connection.commit();
 
+        try {
+            await auditService.log({
+                userId,
+                userName: username || 'Staff',
+                userRole: req.user?.role || 'admin',
+                ipAddress: req.ip || req.connection?.remoteAddress,
+                module: 'Inventory & Defects',
+                actionType: 'Defective Returned to Supplier',
+                entityType: 'product',
+                entityId: String(product.id),
+                referenceId: supplierRef,
+                newValue: `Returned ${returnQty}x ${product.name} to ${supplierName || 'supplier'}`,
+                reason: supplierRemarks
+            });
+        } catch (auditErr) {
+            console.error('[Supplier Return Audit Log Warning]:', auditErr.message);
+        }
+
         // 5. Structure items so the POS frontend can directly populate the cart
         const cartItems = saleItems.map(item => ({
             id: item.product_id,
@@ -1787,6 +1823,24 @@ exports.processSaleRefund = async (req, res, next) => {
 
         await connection.commit();
 
+        try {
+            await auditService.log({
+                userId,
+                userName: username || 'Staff',
+                userRole: req.user?.role || 'admin',
+                ipAddress: req.ip || req.connection?.remoteAddress,
+                module: 'Inventory & Defects',
+                actionType: 'Defective Returned to Supplier',
+                entityType: 'product',
+                entityId: String(product.id),
+                referenceId: supplierRef,
+                newValue: `Returned ${returnQty}x ${product.name} to ${supplierName || 'supplier'}`,
+                reason: supplierRemarks
+            });
+        } catch (auditErr) {
+            console.error('[Supplier Return Audit Log Warning]:', auditErr.message);
+        }
+
         res.status(200).json({
             success: true,
             message: `Return & Refund (${returnNumber}) processed successfully.`,
@@ -2164,6 +2218,24 @@ exports.returnDamageToSupplier = async (req, res, next) => {
 // Damage pool movements are tracked in return_refund_history
 
         await connection.commit();
+
+        try {
+            await auditService.log({
+                userId,
+                userName: username || 'Staff',
+                userRole: req.user?.role || 'admin',
+                ipAddress: req.ip || req.connection?.remoteAddress,
+                module: 'Inventory & Defects',
+                actionType: 'Defective Returned to Supplier',
+                entityType: 'product',
+                entityId: String(product.id),
+                referenceId: supplierRef,
+                newValue: `Returned ${returnQty}x ${product.name} to ${supplierName || 'supplier'}`,
+                reason: supplierRemarks
+            });
+        } catch (auditErr) {
+            console.error('[Supplier Return Audit Log Warning]:', auditErr.message);
+        }
 
         res.json({
             success: true,

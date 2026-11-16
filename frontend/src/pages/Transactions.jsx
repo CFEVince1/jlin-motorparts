@@ -26,7 +26,8 @@ export const formatShortOrderNo = (raw) => {
 const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
     const { user } = useContext(AuthContext);
     const navigate = useNavigate();
-    const isStaff = user?.role === 'staff';
+    const isAdmin = (user?.role || '').toLowerCase() === 'admin';
+    const isStaff = !isAdmin;
 
     // Tab: Sales Transactions
     const [searchParams, setSearchParams] = useSearchParams();
@@ -389,10 +390,10 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                 // Ignore if unauthorized or failed
             }
         };
-        if (!isStaff) {
+        if (isAdmin) {
             fetchUsers();
         }
-    }, [isStaff]);
+    }, [isAdmin]);
 
     const fetchTransactions = useCallback(async (page = 1, limit = pageSize, silent = false) => {
         if (!silent) setLoading(true);
