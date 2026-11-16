@@ -791,6 +791,11 @@ export const Purchasing = () => {
           row.costPrice = row.costPrice || selected.costPrice || '';
           row.newSellingPrice = String(oldPrice > 0 ? oldPrice.toFixed(2) : '');
           row.isPriceHike = false;
+          if (!row.deliveredQuantity || Number(row.deliveredQuantity) <= 0) {
+            row.deliveredQuantity = '1';
+            row.quantity = '1';
+            row.rejectedQuantity = 0;
+          }
         } else {
           row.optionValue = '';
           row.itemId = '';
@@ -875,8 +880,13 @@ export const Purchasing = () => {
       const next = [...prev];
       const row = { ...next[rowIndex] };
       const curSer = Array.isArray(row.serials) ? [...row.serials] : [];
-      curSer[serialIndex] = String(val).toUpperCase().replace(/[^A-Z0-9]/g, '');
+      curSer[serialIndex] = String(val).toUpperCase().replace(/[^A-Z0-9\-_]/g, '');
       row.serials = curSer;
+      if ((!row.deliveredQuantity || parseInt(row.deliveredQuantity, 10) <= 0) && val.trim()) {
+        row.deliveredQuantity = '1';
+        row.quantity = '1';
+        row.rejectedQuantity = 0;
+      }
       next[rowIndex] = row;
       return next;
     });
@@ -973,6 +983,19 @@ export const Purchasing = () => {
       const prod = products.find(p => String(p.id) === String(row.itemId));
       const prodName = prod?.product_name || prod?.name || `Item #${row.itemId}`;
 
+      const deliv = parseInt(row.deliveredQuantity, 10);
+      if (isNaN(deliv) || deliv <= 0) {
+        toast.error(`Invalid delivered quantity for "${prodName}" at row #${i + 1}. Must be at least 1 unit.`);
+        return;
+      }
+
+      const acc = parseInt(row.quantity, 10) || 0;
+      const rej = parseInt(row.rejectedQuantity, 10) || 0;
+      if (acc + rej !== deliv) {
+        toast.error(`Row #${i + 1} count mismatch: Good (${acc}) + Damaged (${rej}) must equal Sent by Supplier (${deliv}).`);
+        return;
+      }
+
       const isSerialized = prod?.is_serialized || row.targetType === 'new_serial';
       let rowSerials = [];
 
@@ -990,10 +1013,10 @@ export const Purchasing = () => {
             toast.error(`Please enter all ${acc} serial numbers for "${prodName}" at row #${i + 1} (Serial #${firstEmpty >= 0 ? firstEmpty + 1 : rowSerials.length + 1} is empty).`);
             return;
           }
-          const numericRegex = /^\d{9,15}$/;
-          const invalid = rowSerials.filter(s => !numericRegex.test(s));
+          const serialRegex = /^[A-Za-z0-9\-_]{3,50}$/;
+          const invalid = rowSerials.filter(s => !serialRegex.test(s));
           if (invalid.length > 0) {
-            toast.error(`Serial numbers for "${prodName}" must be 9 to 15 digits long (e.g. 10029384751). Invalid: ${invalid.join(', ')}`);
+            toast.error(`Serial numbers for "${prodName}" must be 3 to 50 characters (e.g. 10029384751, BOSCH-1234). Invalid: ${invalid.join(', ')}`);
             return;
           }
           const dupesInRow = rowSerials.filter((s, idx) => rowSerials.indexOf(s) !== idx);
@@ -1015,19 +1038,6 @@ export const Purchasing = () => {
           return;
         }
         seenNonSerialized.add(Number(row.itemId));
-      }
-
-      const deliv = parseInt(row.deliveredQuantity, 10);
-      if (isNaN(deliv) || deliv <= 0) {
-        toast.error(`Invalid delivered quantity for "${prodName}" at row #${i + 1}. Must be at least 1 unit.`);
-        return;
-      }
-
-      const acc = parseInt(row.quantity, 10);
-      const rej = parseInt(row.rejectedQuantity, 10) || 0;
-      if (acc + rej !== deliv) {
-        toast.error(`Row #${i + 1} count mismatch: Good (${acc}) + Damaged (${rej}) must equal Sent by Supplier (${deliv}).`);
-        return;
       }
 
       const cost = Number(row.costPrice);
@@ -2229,36 +2239,46 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                                 </tr>
 
                                 {/* Serial Numbers Sub-Panel for Serialized Items */}
-                                {(isSerialized && acc > 0 && !row.serialId) && (
-                                  <tr style={{ background: 'rgba(59, 130, 246, 0.04)', borderBottom: '1px solid var(--border)' }}>
-                                    <td colSpan={7} style={{ padding: '10px 14px' }}>
+                                {(isSerialized && !row.serialId) && (
+                                  <tr style={{ background: 'rgba(59, 130, 246, 0.05)', borderBottom: '1px solid var(--border)' }}>
+                                    <td colSpan={7} style={{ padding: '12px 16px' }}>
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
-                                          <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <Hash size={14} />
-                                            <span>Serial Numbers Required for {acc} Good Unit{acc > 1 ? 's' : ''} (9–15 digits each):</span>
+                                          <div style={{ fontSize: '0.80rem', fontWeight: 700, color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <Hash size={15} />
+                                            <span>
+                                              {acc > 0
+                                                ? `Serial Numbers Required for ${acc} Good Unit${acc > 1 ? 's' : ''}:`
+                                                : 'Serial Number Required (Unit #1):'}
+                                            </span>
                                           </div>
-                                          <div style={{ fontSize: '0.72rem', color: (Array.isArray(row.serials) && row.serials.slice(0, acc).filter(s => /^\d{9,15}$/.test(String(s).trim())).length === acc) ? '#10b981' : '#f59e0b', fontWeight: 600 }}>
-                                            {Array.isArray(row.serials) ? row.serials.slice(0, acc).filter(s => /^\d{9,15}$/.test(String(s).trim())).length : 0} of {acc} complete
-                                          </div>
+                                          {acc > 0 ? (
+                                            <div style={{ fontSize: '0.74rem', color: (Array.isArray(row.serials) && row.serials.slice(0, acc).filter(s => String(s || '').trim().length >= 3).length === acc) ? '#10b981' : '#f59e0b', fontWeight: 700 }}>
+                                              {Array.isArray(row.serials) ? row.serials.slice(0, acc).filter(s => String(s || '').trim().length >= 3).length : 0} of {acc} complete
+                                            </div>
+                                          ) : (
+                                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                              Type serial below or enter Sent Qty above
+                                            </span>
+                                          )}
                                         </div>
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
-                                          {Array.from({ length: acc }).map((_, sIdx) => {
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '10px' }}>
+                                          {Array.from({ length: Math.max(1, acc) }).map((_, sIdx) => {
                                             const val = row.serials?.[sIdx] || '';
-                                            const isValid = /^\d{9,15}$/.test(String(val).trim());
-                                            const isDupe = val && (row.serials || []).filter((s, i) => i !== sIdx && String(s).trim() === String(val).trim()).length > 0;
+                                            const isValid = String(val).trim().length >= 3;
+                                            const isDupe = val && (row.serials || []).filter((s, i) => i !== sIdx && String(s || '').trim().toUpperCase() === String(val).trim().toUpperCase()).length > 0;
                                             return (
                                               <div key={sIdx} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', minWidth: '55px' }}>
+                                                <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', minWidth: '58px' }}>
                                                   Unit #{sIdx + 1}:
                                                 </span>
                                                 <input
                                                   type="text"
-                                                  placeholder="e.g. 10029384751"
+                                                  placeholder="e.g. 10029384751 or SN-01"
                                                   className="input-premium"
                                                   style={{
-                                                    fontSize: '0.78rem',
-                                                    padding: '4px 8px',
+                                                    fontSize: '0.80rem',
+                                                    padding: '5px 8px',
                                                     width: '100%',
                                                     fontFamily: 'monospace',
                                                     borderColor: isDupe || (!isValid && val) ? '#ef4444' : (isValid ? '#10b981' : undefined)
