@@ -199,6 +199,59 @@ async function ensureSchema() {
       console.warn('[Schema] Failed to ensure core serial/inventory tables:', coreTableErr.message);
     }
 
+    // Ensure inventory_transactions columns exist (prevent schema drift on existing tables)
+    const ensureInvTxCols = [
+      { col: 'transaction_number', def: 'VARCHAR(100) NULL' },
+      { col: 'reference_no', def: 'VARCHAR(100) NULL' },
+      { col: 'product_id', def: 'INT NOT NULL DEFAULT 1' },
+      { col: 'serial_id', def: 'INT NULL DEFAULT NULL' },
+      { col: 'transaction_type', def: "VARCHAR(50) NOT NULL DEFAULT 'STOCK_IN'" },
+      { col: 'quantity', def: 'INT NOT NULL DEFAULT 0' },
+      { col: 'quantity_change', def: 'INT NOT NULL DEFAULT 0' },
+      { col: 'balance_before', def: 'INT NOT NULL DEFAULT 0' },
+      { col: 'balance_after', def: 'INT NOT NULL DEFAULT 0' },
+      { col: 'unit_cost', def: 'DECIMAL(10,2) NULL DEFAULT 0.00' },
+      { col: 'reference_type', def: 'VARCHAR(50) NULL' },
+      { col: 'reference_id', def: 'INT NULL' },
+      { col: 'loss_transaction_id', def: 'BIGINT NULL' },
+      { col: 'notes', def: 'TEXT NULL' },
+      { col: 'remarks', def: 'TEXT NULL' },
+      { col: 'created_by', def: 'INT NULL' },
+      { col: 'created_at', def: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+    ];
+    for (const item of ensureInvTxCols) {
+      try {
+        const [cCheck] = await db.query('SHOW COLUMNS FROM inventory_transactions LIKE ?', [item.col]);
+        if (cCheck.length === 0) {
+          await db.query(`ALTER TABLE inventory_transactions ADD COLUMN ${item.col} ${item.def}`);
+          console.log(`[Schema] Added missing inventory_transactions.${item.col}`);
+        }
+      } catch (err) {
+        console.warn(`[Schema] Check/Add inventory_transactions.${item.col} failed:`, err.message);
+      }
+    }
+
+    // Ensure product_serials columns exist
+    const ensureProdSerialsCols = [
+      { col: 'product_id', def: 'INT NOT NULL' },
+      { col: 'serial_number', def: 'VARCHAR(100) NOT NULL' },
+      { col: 'quantity', def: 'INT NOT NULL DEFAULT 1' },
+      { col: 'status', def: "VARCHAR(50) NOT NULL DEFAULT 'available'" },
+      { col: 'created_at', def: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
+      { col: 'received_at', def: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+    ];
+    for (const item of ensureProdSerialsCols) {
+      try {
+        const [cCheck] = await db.query('SHOW COLUMNS FROM product_serials LIKE ?', [item.col]);
+        if (cCheck.length === 0) {
+          await db.query(`ALTER TABLE product_serials ADD COLUMN ${item.col} ${item.def}`);
+          console.log(`[Schema] Added missing product_serials.${item.col}`);
+        }
+      } catch (err) {
+        console.warn(`[Schema] Check/Add product_serials.${item.col} failed:`, err.message);
+      }
+    }
+
     // Ensure sale_items columns
     const ensureSaleItemsCols = [
       { col: 'part_number', def: "VARCHAR(100) NULL DEFAULT ''" },

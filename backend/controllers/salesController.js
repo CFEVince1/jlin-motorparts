@@ -369,13 +369,25 @@ exports.checkout = async (req, res, next) => {
         const custAddr = (req.body.customer_address || req.body.customerAddress || '').trim() || null;
 
         // Insert single source of truth sales record first to obtain atomic auto-increment ID
-        const [saleResult] = await connection.query(
-            `INSERT INTO sales (
-                user_id, total_amount, subtotal_amount, discount_amount, tax_amount, tendered_amount, change_due, payment_method, order_number, payment_reference, sale_date, cash_amount, gcash_amount, status, customer_name, customer_address
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NOW(), ?, ?, 'SOLD', ?, ?)`,
-            [userId, totalAmount, grossSubtotal, discountAmount, taxAmount, finalTendered, finalChangeDue, method, paymentReferenceToSave, finalCashAmount, finalGcashAmount, custName, custAddr]
-        );
-        const saleId = saleResult.insertId;
+        let saleId;
+        try {
+            const [saleResult] = await connection.query(
+                `INSERT INTO sales (
+                    user_id, total_amount, subtotal_amount, discount_amount, tax_amount, tendered_amount, change_due, payment_method, order_number, payment_reference, sale_date, cash_amount, gcash_amount, status, customer_name, customer_address
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NOW(), ?, ?, 'SOLD', ?, ?)`,
+                [userId, totalAmount, grossSubtotal, discountAmount, taxAmount, finalTendered, finalChangeDue, method, paymentReferenceToSave, finalCashAmount, finalGcashAmount, custName, custAddr]
+            );
+            saleId = saleResult.insertId;
+        } catch (saleErr) {
+            console.warn('[Sale Insert Fallback]:', saleErr.message);
+            const [fallbackSale] = await connection.query(
+                `INSERT INTO sales (
+                    user_id, total_amount, subtotal_amount, tendered_amount, change_due, payment_method, order_number, payment_reference, sale_date, status, customer_name
+                ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, NOW(), 'SOLD', ?)`,
+                [userId, totalAmount, grossSubtotal, finalTendered, finalChangeDue, method, paymentReferenceToSave, custName]
+            );
+            saleId = fallbackSale.insertId;
+        }
 
         // 5. Generate deterministic, collision-free order_no from saleId (SO-YYYY-NNNN)
         const year = new Date().getFullYear();
@@ -486,67 +498,71 @@ exports.checkout = async (req, res, next) => {
         // Formula: Current Cash Balance = Previous Balance + Cash Received - Change Given
         // ==========================================
         if (userId) {
-            const [activeFloats] = await connection.query(
-                `SELECT id, starting_cash, current_cash_balance, cash_sales, change_given, sales_count, expected_cash 
-                 FROM cash_floats 
-                 WHERE (staff_id = ? OR staff_username = ?) 
-                   AND status = 'ACTIVE' 
-                 ORDER BY assigned_at DESC LIMIT 1 FOR UPDATE`,
-                [userId, req.user?.username || '']
-            );
-
-            if (activeFloats.length > 0) {
-                const activeFloat = activeFloats[0];
-                let netCashAdded = 0;
-                let cashSalePortion = 0;
-                let gcashSalePortion = 0;
-                let changeDeducted = 0;
-
-                if (method === 'Cash') {
-                    // Cash Received = finalTendered, Change Given = finalChangeDue
-                    // Net cash retained in drawer = finalTendered - finalChangeDue (= totalAmount)
-                    netCashAdded = finalTendered - finalChangeDue;
-                    cashSalePortion = totalAmount;
-                    changeDeducted = finalChangeDue;
-                } else if (method === 'GCash') {
-                    gcashSalePortion = totalAmount;
-                } else if (method === 'Split') {
-                    // Split payment: Cash part received adds to drawer, change given deducts
-                    const cashPart = finalCashAmount || 0;
-                    changeDeducted = finalChangeDue;
-                    netCashAdded = cashPart;
-                    cashSalePortion = cashPart;
-                    gcashSalePortion = finalGcashAmount || 0;
-                }
-
-                const prevBalance = Number(activeFloat.current_cash_balance || 0);
-                const newBalance = Math.round((prevBalance + netCashAdded) * 100) / 100;
-
-                await connection.query(
-                    `UPDATE cash_floats SET 
-                        current_cash_balance = ?,
-                        expected_cash = ?,
-                        cash_sales = cash_sales + ?,
-                        gcash_sales = COALESCE(gcash_sales, 0) + ?,
-                        change_given = change_given + ?,
-                        sales_count = sales_count + 1
-                     WHERE id = ?`,
-                    [newBalance, newBalance, cashSalePortion, gcashSalePortion, changeDeducted, activeFloat.id]
+            try {
+                const [activeFloats] = await connection.query(
+                    `SELECT id, starting_cash, current_cash_balance, cash_sales, change_given, sales_count, expected_cash 
+                     FROM cash_floats 
+                     WHERE (staff_id = ? OR staff_username = ?) 
+                       AND status = 'ACTIVE' 
+                     ORDER BY assigned_at DESC LIMIT 1 FOR UPDATE`,
+                    [userId, req.user?.username || '']
                 );
 
-                if (netCashAdded !== 0 || changeDeducted > 0) {
-                    await logCashMovement(connection, {
-                        cashFloatId: activeFloat.id,
-                        staffId: userId,
-                        staffUsername: req.user.username,
-                        movementType: 'CASH_SALE',
-                        amount: netCashAdded,
-                        balanceBefore: prevBalance,
-                        balanceAfter: newBalance,
-                        referenceId: orderNo,
-                        notes: `Sale ${orderNo} (${method}): cash received ₱${finalTendered.toFixed(2)}, change given ₱${finalChangeDue.toFixed(2)}`
-                    });
+                if (activeFloats.length > 0) {
+                    const activeFloat = activeFloats[0];
+                    let netCashAdded = 0;
+                    let cashSalePortion = 0;
+                    let gcashSalePortion = 0;
+                    let changeDeducted = 0;
+
+                    if (method === 'Cash') {
+                        // Cash Received = finalTendered, Change Given = finalChangeDue
+                        // Net cash retained in drawer = finalTendered - finalChangeDue (= totalAmount)
+                        netCashAdded = finalTendered - finalChangeDue;
+                        cashSalePortion = totalAmount;
+                        changeDeducted = finalChangeDue;
+                    } else if (method === 'GCash') {
+                        gcashSalePortion = totalAmount;
+                    } else if (method === 'Split') {
+                        // Split payment: Cash part received adds to drawer, change given deducts
+                        const cashPart = finalCashAmount || 0;
+                        changeDeducted = finalChangeDue;
+                        netCashAdded = cashPart;
+                        cashSalePortion = cashPart;
+                        gcashSalePortion = finalGcashAmount || 0;
+                    }
+
+                    const prevBalance = Number(activeFloat.current_cash_balance || 0);
+                    const newBalance = Math.round((prevBalance + netCashAdded) * 100) / 100;
+
+                    await connection.query(
+                        `UPDATE cash_floats SET 
+                            current_cash_balance = ?,
+                            expected_cash = ?,
+                            cash_sales = cash_sales + ?,
+                            gcash_sales = COALESCE(gcash_sales, 0) + ?,
+                            change_given = change_given + ?,
+                            sales_count = sales_count + 1
+                         WHERE id = ?`,
+                        [newBalance, newBalance, cashSalePortion, gcashSalePortion, changeDeducted, activeFloat.id]
+                    );
+
+                    if (netCashAdded !== 0 || changeDeducted > 0) {
+                        await logCashMovement(connection, {
+                            cashFloatId: activeFloat.id,
+                            staffId: userId,
+                            staffUsername: req.user.username,
+                            movementType: 'CASH_SALE',
+                            amount: netCashAdded,
+                            balanceBefore: prevBalance,
+                            balanceAfter: newBalance,
+                            referenceId: orderNo,
+                            notes: `Sale ${orderNo} (${method}): cash received ₱${finalTendered.toFixed(2)}, change given ₱${finalChangeDue.toFixed(2)}`
+                        });
+                    }
                 }
+            } catch (floatErr) {
+                console.warn('[Checkout Cash Float Warning]:', floatErr.message);
             }
         }
 

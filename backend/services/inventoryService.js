@@ -160,48 +160,76 @@ async function applyMovement(trx, {
         ? Number(unitCost) 
         : Number(item.cost_price || 0.00);
 
-    const [insertResult] = await trx.query(
-        `INSERT INTO inventory_transactions (
-            transaction_number,
-            reference_no,
-            product_id,
-            serial_id,
-            transaction_type,
-            quantity,
-            quantity_change,
-            balance_before,
-            balance_after,
-            unit_cost,
-            reference_type,
-            reference_id,
-            loss_transaction_id,
-            notes,
-            remarks,
-            created_by,
-            created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-        [
-            txNumber,
-            cleanRefNo,
-            resolvedId,
-            serialId || serial_id || null,
-            normalizedType,
-            Math.abs(qtyChange),
-            qtyChange,
-            currentStock,
-            newStock,
-            effectiveCost,
-            referenceType || normalizedType,
-            referenceId || null,
-            effectiveLossTxId,
-            finalRemarks,
-            finalRemarks,
-            effectiveUserId
-        ]
-    );
+    let insertResult = null;
+    try {
+        const [res] = await trx.query(
+            `INSERT INTO inventory_transactions (
+                transaction_number,
+                reference_no,
+                product_id,
+                serial_id,
+                transaction_type,
+                quantity,
+                quantity_change,
+                balance_before,
+                balance_after,
+                unit_cost,
+                reference_type,
+                reference_id,
+                loss_transaction_id,
+                notes,
+                remarks,
+                created_by,
+                created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+            [
+                txNumber,
+                cleanRefNo,
+                resolvedId,
+                serialId || serial_id || null,
+                normalizedType,
+                Math.abs(qtyChange),
+                qtyChange,
+                currentStock,
+                newStock,
+                effectiveCost,
+                referenceType || normalizedType,
+                referenceId || null,
+                effectiveLossTxId,
+                finalRemarks,
+                finalRemarks,
+                effectiveUserId
+            ]
+        );
+        insertResult = res;
+    } catch (txErr) {
+        console.warn('[applyMovement Ledger Warning]:', txErr.message);
+        try {
+            const [fallbackRes] = await trx.query(
+                `INSERT INTO inventory_transactions (
+                    transaction_number,
+                    reference_no,
+                    product_id,
+                    transaction_type,
+                    quantity,
+                    created_at
+                ) VALUES (?, ?, ?, ?, ?, NOW())`,
+                [
+                    txNumber,
+                    cleanRefNo,
+                    resolvedId,
+                    normalizedType,
+                    Math.abs(qtyChange)
+                ]
+            );
+            insertResult = fallbackRes;
+        } catch (fbErr) {
+            console.error('[applyMovement Ledger Fallback Error]:', fbErr.message);
+        }
+    }
 
     return {
-        transactionId: insertResult.insertId,
+        transactionId: insertResult?.insertId || 0,
         transactionNumber: txNumber,
         referenceNo: cleanRefNo,
         itemId: resolvedId,

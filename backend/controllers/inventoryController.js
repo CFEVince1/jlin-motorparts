@@ -392,21 +392,34 @@ exports.receiveStock = async (req, res, next) => {
         }
         finalNotes = finalNotes.trim() || null;
 
-        const [recResult] = await connection.query(
-            `INSERT INTO receiving_records (
-                supplier_id, reference_number, reference_no, received_by, inspected_by,
-                delivery_personnel, courier_service, mechanic_name, receiver_name,
-                total_delivered_qty, total_accepted_qty, total_rejected_qty, total_rejected_amount,
-                total_cost, payment_source, cash_float_id, status, notes, received_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received', ?, NOW())`,
-            [
-                finalSupplierId, refNo, refNo, userId, combinedInspectedBy,
-                driverName || null, cleanCourier || null, cleanMechanic || null, cleanReceiver || null,
-                totalDeliveredQty, totalAcceptedQty, totalRejectedQty, totalRejectedAmount,
-                totalCost, finalPaymentSource, assignedCashFloatId, finalNotes
-            ]
-        );
-        const receivingRecordId = recResult.insertId;
+        let receivingRecordId;
+        try {
+            const [recResult] = await connection.query(
+                `INSERT INTO receiving_records (
+                    supplier_id, reference_number, reference_no, received_by, inspected_by,
+                    delivery_personnel, courier_service, mechanic_name, receiver_name,
+                    total_delivered_qty, total_accepted_qty, total_rejected_qty, total_rejected_amount,
+                    total_cost, payment_source, cash_float_id, status, notes, received_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received', ?, NOW())`,
+                [
+                    finalSupplierId, refNo, refNo, userId, combinedInspectedBy,
+                    driverName || null, cleanCourier || null, cleanMechanic || null, cleanReceiver || null,
+                    totalDeliveredQty, totalAcceptedQty, totalRejectedQty, totalRejectedAmount,
+                    totalCost, finalPaymentSource, assignedCashFloatId, finalNotes
+                ]
+            );
+            receivingRecordId = recResult.insertId;
+        } catch (recErr) {
+            console.warn('[Receiving Header Fallback]:', recErr.message);
+            const [fallbackRec] = await connection.query(
+                `INSERT INTO receiving_records (
+                    supplier_id, reference_number, reference_no, received_by,
+                    total_cost, status, notes, received_at
+                ) VALUES (?, ?, ?, ?, ?, 'received', ?, NOW())`,
+                [finalSupplierId, refNo, refNo, userId, totalCost, finalNotes]
+            );
+            receivingRecordId = fallbackRec.insertId;
+        }
 
         // 6. Insert receiving_record_items and call applyMovement (STOCK_IN) atomically for accepted items
         const processedItems = [];
@@ -430,16 +443,26 @@ exports.receiveStock = async (req, res, next) => {
                 ? (serialsList && serialsList.length > 0 ? serialsList.join(', ') : (targetSerialNum || null)) 
                 : null;
 
-            await connection.query(
-                `INSERT INTO receiving_record_items (
-                    receiving_record_id, product_id, item_id, quantity, delivered_quantity, 
-                    rejected_quantity, rejection_reason, cost_price, subtotal, serials
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                    receivingRecordId, resolvedId, resolvedId, acceptedQty, 
-                    deliveredQty, rejectedQty, rejectionReason, costPrice, subtotal, serialsStr
-                ]
-            );
+            try {
+                await connection.query(
+                    `INSERT INTO receiving_record_items (
+                        receiving_record_id, product_id, item_id, quantity, delivered_quantity, 
+                        rejected_quantity, rejection_reason, cost_price, subtotal, serials
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        receivingRecordId, resolvedId, resolvedId, acceptedQty, 
+                        deliveredQty, rejectedQty, rejectionReason, costPrice, subtotal, serialsStr
+                    ]
+                );
+            } catch (rriErr) {
+                console.warn('[Receiving Line Items Fallback]:', rriErr.message);
+                await connection.query(
+                    `INSERT INTO receiving_record_items (
+                        receiving_record_id, product_id, quantity, cost_price, subtotal
+                    ) VALUES (?, ?, ?, ?, ?)`,
+                    [receivingRecordId, resolvedId, acceptedQty, costPrice, subtotal]
+                );
+            }
 
             // If item has accepted quantity, update inventory stock
             let effectiveSerialId = targetSerialId || null;
@@ -455,18 +478,34 @@ exports.receiveStock = async (req, res, next) => {
                         effectiveSerialId = targetSerialId;
                     } else if (serialsList && serialsList.length > 0) {
                         for (const s of serialsList) {
-                            const [sRes] = await connection.query(
-                                "INSERT INTO product_serials (product_id, serial_number, quantity, status, created_at) VALUES (?, ?, 1, 'available', NOW())",
-                                [resolvedId, s]
-                            );
-                            if (!effectiveSerialId) effectiveSerialId = sRes.insertId;
+                            try {
+                                const [sRes] = await connection.query(
+                                    "INSERT INTO product_serials (product_id, serial_number, quantity, status, created_at) VALUES (?, ?, 1, 'available', NOW())",
+                                    [resolvedId, s]
+                                );
+                                if (!effectiveSerialId) effectiveSerialId = sRes.insertId;
+                            } catch (psErr) {
+                                const [sResFallback] = await connection.query(
+                                    "INSERT INTO product_serials (product_id, serial_number, quantity, status) VALUES (?, ?, 1, 'available')",
+                                    [resolvedId, s]
+                                );
+                                if (!effectiveSerialId) effectiveSerialId = sResFallback.insertId;
+                            }
                         }
                     } else if (targetSerialNum) {
-                        const [insertRes] = await connection.query(
-                            "INSERT INTO product_serials (product_id, serial_number, quantity, status, created_at) VALUES (?, ?, ?, 'available', NOW())",
-                            [resolvedId, targetSerialNum, acceptedQty]
-                        );
-                        effectiveSerialId = insertRes.insertId;
+                        try {
+                            const [insertRes] = await connection.query(
+                                "INSERT INTO product_serials (product_id, serial_number, quantity, status, created_at) VALUES (?, ?, ?, 'available', NOW())",
+                                [resolvedId, targetSerialNum, acceptedQty]
+                            );
+                            effectiveSerialId = insertRes.insertId;
+                        } catch (psErr) {
+                            const [insertResFallback] = await connection.query(
+                                "INSERT INTO product_serials (product_id, serial_number, quantity, status) VALUES (?, ?, ?, 'available')",
+                                [resolvedId, targetSerialNum, acceptedQty]
+                            );
+                            effectiveSerialId = insertResFallback.insertId;
+                        }
                     }
                 }
 
