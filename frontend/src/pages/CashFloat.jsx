@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useContext, Fragment } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import {
     Banknote,
@@ -39,15 +39,24 @@ import { notifyInventoryChange, subscribeToInventoryChange } from '../utils/sync
 
 export const CashFloat = () => {
     const { user } = useContext(AuthContext);
+    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const isAdmin = (user?.role || '').toLowerCase() === 'admin';
 
-    // Tabs: 'active' | 'history' | 'manage'
-    const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'active');
+    // Tabs: 'manage' | 'history'
+    const [activeTab, setActiveTab] = useState(() => {
+        const qTab = searchParams.get('tab');
+        if (qTab === 'history') return 'history';
+        return 'manage';
+    });
 
     useEffect(() => {
         const qTab = searchParams.get('tab');
-        setActiveTab(qTab || 'active');
+        if (qTab === 'history') {
+            setActiveTab('history');
+        } else {
+            setActiveTab('manage');
+        }
     }, [searchParams]);
 
     // ==========================================
@@ -317,7 +326,7 @@ export const CashFloat = () => {
             setShowOpenShiftModal(false);
             setExpandedStaffTimeInId(null);
             if (activeTab === 'open_shift') {
-                setActiveTab('active');
+                setActiveTab('manage');
             }
             fetchActiveShift();
             fetchRecords();
@@ -757,14 +766,14 @@ export const CashFloat = () => {
             }}>
                 <button
                     type="button"
-                    onClick={() => handleTabChange('active')}
+                    onClick={() => handleTabChange('manage')}
                     style={{
                         padding: '10px 18px',
                         background: 'transparent',
                         border: 'none',
-                        borderBottom: activeTab === 'active' ? '3px solid var(--primary)' : '3px solid transparent',
-                        color: activeTab === 'active' ? 'var(--primary)' : 'var(--text-muted)',
-                        fontWeight: activeTab === 'active' ? 700 : 500,
+                        borderBottom: activeTab === 'manage' ? '3px solid var(--primary)' : '3px solid transparent',
+                        color: activeTab === 'manage' ? 'var(--primary)' : 'var(--text-muted)',
+                        fontWeight: activeTab === 'manage' ? 700 : 500,
                         fontSize: '0.9rem',
                         cursor: 'pointer',
                         display: 'flex',
@@ -773,7 +782,7 @@ export const CashFloat = () => {
                         transition: 'all 0.15s ease'
                     }}
                 >
-                    <Banknote size={17} /> Active Shift Tracker {activeShift ? '🟢' : '⚪'}
+                    <Users size={17} /> Staff Drawer Control Panel {staffList.length > 0 ? `(${staffList.length})` : ''}
                 </button>
 
                 {isAdmin && (
@@ -796,29 +805,6 @@ export const CashFloat = () => {
                         }}
                     >
                         <Clock size={17} /> Cash Count History ({records.length})
-                    </button>
-                )}
-
-                {isAdmin && (
-                    <button
-                        type="button"
-                        onClick={() => handleTabChange('manage')}
-                        style={{
-                            padding: '10px 18px',
-                            background: 'transparent',
-                            border: 'none',
-                            borderBottom: activeTab === 'manage' ? '3px solid var(--primary)' : '3px solid transparent',
-                            color: activeTab === 'manage' ? 'var(--primary)' : 'var(--text-muted)',
-                            fontWeight: activeTab === 'manage' ? 700 : 500,
-                            fontSize: '0.9rem',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            transition: 'all 0.15s ease'
-                        }}
-                    >
-                        <Users size={17} /> Staff Drawer Control Panel ({staffList.length})
                     </button>
                 )}
             </div>
@@ -1086,434 +1072,6 @@ export const CashFloat = () => {
                             </div>
                         </form>
                     </div>
-                </div>
-            )}
-
-            {/* ============================================================ */}
-            {/* TAB 1: ACTIVE SHIFT TRACKER                                  */}
-            {/* ============================================================ */}
-            {activeTab === 'active' && (
-                <div>
-                    {!activeShift ? (
-                        /* No Active Shift: Prominent Open Shift Card */
-                        <div className="glass-panel" style={{ padding: '40px 24px', textAlign: 'center', borderRadius: '14px', maxWidth: '650px', margin: '20px auto' }}>
-                            <div style={{
-                                width: '64px',
-                                height: '64px',
-                                borderRadius: '16px',
-                                background: 'rgba(22, 163, 74, 0.12)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                margin: '0 auto 16px auto',
-                                color: 'var(--primary)'
-                            }}>
-                                <Banknote size={32} />
-                            </div>
-
-                            <h2 style={{ margin: '0 0 8px 0', fontSize: '1.25rem', fontWeight: 800 }}>
-                                Register is Closed • Open Shift Required
-                            </h2>
-                            <p style={{ margin: '0 0 24px 0', fontSize: '0.86rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                                Log in at the start of your cashier duty and enter your <strong>Opening Cash Float / Starting Change Fund</strong> (panukli in coins and small bills). Every peso will be tracked automatically until closing.
-                            </p>
-
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setOpenShiftForm({ ...openShiftForm, staff_id: user?.id || '', starting_cash: '2000' });
-                                    setSelectedStaffForTimeIn(null);
-                                    setShowOpenShiftModal(true);
-                                }}
-                                className="btn-primary"
-                                style={{ padding: '10px 24px', fontSize: '0.92rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-                            >
-                                <Plus size={18} /> Open Shift &amp; Enter Starting Float
-                            </button>
-                        </div>
-                    ) : (
-                        /* Active Shift Running: Real-time Silent Tracker */
-                        <div>
-                            {/* Shift Status Header Card */}
-                            <div style={{
-                                background: 'linear-gradient(135deg, rgba(22, 163, 74, 0.1) 0%, rgba(59, 130, 246, 0.08) 100%)',
-                                border: '1.5px solid rgba(22, 163, 74, 0.4)',
-                                borderRadius: '14px',
-                                padding: '18px 24px',
-                                marginBottom: '20px',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                flexWrap: 'wrap',
-                                gap: '14px'
-                            }}>
-                                <div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                                        <span style={{
-                                            fontSize: '0.72rem',
-                                            fontWeight: 800,
-                                            background: '#16a34a',
-                                            color: '#ffffff',
-                                            padding: '2px 8px',
-                                            borderRadius: '6px',
-                                            textTransform: 'uppercase'
-                                        }}>
-                                            🟢 Active Shift
-                                        </span>
-                                        <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-main)' }}>
-                                            {activeShift.shift_code || 'SHIFT-' + activeShift.id}
-                                        </span>
-                                    </div>
-                                    <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                                        Cashier on Duty: <strong style={{ color: 'var(--text-main)' }}>{activeShift.staff_username}</strong>
-                                        {' '}• Opened: <strong>{formatAuditDate(activeShift.assigned_at)}</strong>
-                                        {activeShift.notes && ` • "${activeShift.notes}"`}
-                                    </div>
-                                </div>
-
-                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                                    {isAdmin && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowExpenseModal(true)}
-                                            className="btn-secondary"
-                                            style={{ padding: '8px 14px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-                                        >
-                                            <MinusCircle size={15} color="#ef4444" /> Record Petty Cash Expense
-                                        </button>
-                                    )}
-
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setCashDropShift(activeShift);
-                                            setCashDropAmount('');
-                                            setCashDropNotes('');
-                                            setCashDropAdminPin('');
-                                            setShowCashDropModal(true);
-                                        }}
-                                        className="btn-secondary"
-                                        style={{ padding: '8px 14px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-                                    >
-                                        <Coins size={15} color="#3b82f6" /> Log Cash Drop (Safe Remit)
-                                    </button>
-
-                                    {activeShift.status === 'ACTIVE' ? (
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setCloseShiftForm({
-                                                    actual_cash: '',
-                                                    notes: '',
-                                                    bills_1000: 0, bills_500: 0, bills_200: 0, bills_100: 0, bills_50: 0, bills_20: 0, coins_10: 0, coins_5: 0, coins_1: 0
-                                                });
-                                                setShowCloseShiftModal(true);
-                                            }}
-                                            style={{
-                                                background: isAdmin ? '#dc2626' : '#d97706',
-                                                color: '#ffffff',
-                                                border: 'none',
-                                                borderRadius: '8px',
-                                                padding: '8px 16px',
-                                                fontSize: '0.82rem',
-                                                fontWeight: 700,
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '6px'
-                                            }}
-                                        >
-                                            <Lock size={15} /> {isAdmin ? 'End Shift & Remit' : 'Submit Closing Count'}
-                                        </button>
-                                    ) : (
-                                        <div style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '6px',
-                                            padding: '6px 14px',
-                                            fontSize: '0.8rem',
-                                            background: 'rgba(245, 158, 11, 0.15)',
-                                            border: '1px solid rgba(245, 158, 11, 0.35)',
-                                            color: '#f59e0b',
-                                            borderRadius: '8px',
-                                            fontWeight: 700
-                                        }}>
-                                            <Clock size={15} /> Count Submitted • Awaiting Admin Verification
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Cash Tracker Cards */}
-                            <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: isAdmin ? 'repeat(auto-fit, minmax(210px, 1fr))' : 'repeat(auto-fit, minmax(240px, 1fr))',
-                                gap: '14px',
-                                marginBottom: '22px'
-                            }}>
-                                {/* 1. Opening Cash Float (Visible to Both) */}
-                                <div style={{
-                                    background: 'var(--surface)',
-                                    border: '1.5px solid #2563eb',
-                                    borderRadius: '12px',
-                                    padding: '14px 18px',
-                                    boxShadow: 'var(--glass-shadow)'
-                                }}>
-                                    <div style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                        Opening Cash Float
-                                    </div>
-                                    <div style={{ fontSize: '1.7rem', fontWeight: 900, color: '#3b82f6', marginTop: '6px', fontFamily: 'monospace' }}>
-                                        {formatCurrency(activeShift.starting_cash)}
-                                    </div>
-                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                                        Starting change fund (panukli)
-                                    </div>
-                                </div>
-
-                                {/* 2. Cash Sales In (Admin Only - Hidden from Cashier for Blind Count) */}
-                                {isAdmin && (
-                                    <div style={{
-                                        background: 'var(--surface)',
-                                        border: '1.5px solid #16a34a',
-                                        borderRadius: '12px',
-                                        padding: '14px 18px',
-                                        boxShadow: 'var(--glass-shadow)'
-                                    }}>
-                                        <div style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                            Cash Sales In (+)
-                                        </div>
-                                        <div style={{ fontSize: '1.7rem', fontWeight: 900, color: '#16a34a', marginTop: '6px', fontFamily: 'monospace' }}>
-                                            +{formatCurrency(activeShift.cash_sales || 0)}
-                                        </div>
-                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                                            {activeShift.sales_count || 0} receipt{activeShift.sales_count !== 1 ? 's' : ''} issued
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* 3. GCash Sales (Digital - Visible to Both to Verify References) */}
-                                <div style={{
-                                    background: 'var(--surface)',
-                                    border: '1.5px solid #0284c7',
-                                    borderRadius: '12px',
-                                    padding: '14px 18px',
-                                    boxShadow: 'var(--glass-shadow)'
-                                }}>
-                                    <div style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                        GCash Sales In (Digital)
-                                    </div>
-                                    <div style={{ fontSize: '1.7rem', fontWeight: 900, color: '#0284c7', marginTop: '6px', fontFamily: 'monospace' }}>
-                                        {formatCurrency(activeShift.gcash_sales || 0)}
-                                    </div>
-                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                                        Digital wallet collections (verify ref #s)
-                                    </div>
-                                </div>
-
-                                {/* 4. Petty Cash Expenses Out (Admin Only) */}
-                                {isAdmin && (
-                                    <div style={{
-                                        background: 'var(--surface)',
-                                        border: '1.5px solid #dc2626',
-                                        borderRadius: '12px',
-                                        padding: '14px 18px',
-                                        boxShadow: 'var(--glass-shadow)'
-                                    }}>
-                                        <div style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                            Petty Expenses Out (-)
-                                        </div>
-                                        <div style={{ fontSize: '1.7rem', fontWeight: 900, color: '#dc2626', marginTop: '6px', fontFamily: 'monospace' }}>
-                                            -{formatCurrency(activeShift.petty_cash_expenses || 0)}
-                                        </div>
-                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                                            Tape, water, snacks, supplies
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Full-Width Expected Drawer Cash Highlight (Admin Only) */}
-                            {isAdmin && (
-                                <div style={{
-                                    background: 'var(--surface)',
-                                    border: '2px solid var(--primary)',
-                                    borderRadius: '12px',
-                                    padding: '18px 24px',
-                                    marginBottom: '22px',
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    flexWrap: 'wrap',
-                                    gap: '16px'
-                                }}>
-                                    <div>
-                                        <div style={{ fontSize: '0.84rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                            Expected Physical Drawer Cash
-                                        </div>
-                                        <div style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--text-main)', fontFamily: 'monospace', lineHeight: 1.1, marginTop: '4px' }}>
-                                            {formatCurrency(activeShift.current_cash_balance)}
-                                        </div>
-                                        <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                                            Formula: Opening Float ({formatCurrency(activeShift.starting_cash)}) + Cash Sales (+{formatCurrency(activeShift.cash_sales || 0)}) − Petty Cash (-{formatCurrency(activeShift.petty_cash_expenses || 0)}) − Mid-Shift Drops (-{formatCurrency(activeShift.cash_drops || 0)})
-                                        </div>
-                                    </div>
-
-                                    <div style={{ textAlign: 'right' }}>
-                                        <span style={{
-                                            fontSize: '0.74rem',
-                                            fontWeight: 700,
-                                            background: 'rgba(22, 163, 74, 0.12)',
-                                            color: 'var(--primary)',
-                                            padding: '4px 10px',
-                                            borderRadius: '8px',
-                                            border: '1px solid rgba(22, 163, 74, 0.3)'
-                                        }}>
-                                            Register Drawer In Sync
-                                        </span>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Staff Blind Count Security Banner */}
-                            {!isAdmin && (
-                                <div style={{
-                                    background: 'rgba(59, 130, 246, 0.08)',
-                                    border: '1px solid rgba(59, 130, 246, 0.25)',
-                                    borderRadius: '12px',
-                                    padding: '16px 20px',
-                                    marginBottom: '22px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    flexWrap: 'wrap',
-                                    gap: '12px'
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                        <ShieldCheck size={28} color="#3b82f6" />
-                                        <div>
-                                            <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-main)' }}>
-                                                Blind Cash Drawer Accounting Active
-                                            </div>
-                                            <div style={{ fontSize: '0.80rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                                Expected drawer cash is hidden to ensure unbiased physical cash verification upon shift close.
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <span style={{ fontSize: '0.74rem', fontWeight: 700, background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '4px 10px', borderRadius: '8px' }}>
-                                        Blind Shift Active
-                                    </span>
-                                </div>
-                            )}
-
-                            {/* Recent Cash Drawer Movements */}
-                            <div className="glass-panel" style={{ padding: '20px', borderRadius: '12px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                                    <h3 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <Coins size={18} color="var(--primary)" /> Cash Drawer Movements During This Shift
-                                    </h3>
-                                    <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                                        {activeShift.movements?.length || 0} movement{activeShift.movements?.length !== 1 ? 's' : ''} logged
-                                    </span>
-                                </div>
-
-                                <div className="table-container" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
-                                    <table className="table" style={{ margin: 0 }}>
-                                        <thead>
-                                            <tr>
-                                                <th style={{ width: '130px', whiteSpace: 'nowrap' }}>Time</th>
-                                                <th style={{ whiteSpace: 'nowrap' }}>Movement Type</th>
-                                                <th style={{ whiteSpace: 'nowrap' }}>Reference</th>
-                                                <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Amount</th>
-                                                {isAdmin && <th style={{ whiteSpace: 'nowrap' }}>Balance Before</th>}
-                                                {isAdmin && <th style={{ whiteSpace: 'nowrap' }}>Balance After</th>}
-                                                <th style={{ paddingRight: '16px' }}>Notes / Reason</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {!activeShift.movements || activeShift.movements.length === 0 ? (
-                                                <tr>
-                                                    <td colSpan={isAdmin ? 7 : 5} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
-                                                        No sales or expenses recorded yet in this shift.
-                                                    </td>
-                                                </tr>
-                                            ) : (
-                                                activeShift.movements.map(m => (
-                                                    <tr key={m.id}>
-                                                        <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                                                            {(() => {
-                                                                if (!m.created_at) return '—';
-                                                                try {
-                                                                    const d = new Date(m.created_at);
-                                                                    const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-                                                                    const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                                                                    return (
-                                                                        <div>
-                                                                            <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.80rem' }}>{timeStr}</div>
-                                                                            <div style={{ fontSize: '0.70rem', color: 'var(--text-muted)' }}>{dateStr}</div>
-                                                                        </div>
-                                                                    );
-                                                                } catch {
-                                                                    return formatAuditDate(m.created_at);
-                                                                }
-                                                            })()}
-                                                        </td>
-                                                        <td>
-                                                            <span style={{
-                                                                fontSize: '0.72rem',
-                                                                fontWeight: 700,
-                                                                padding: '2px 8px',
-                                                                borderRadius: '4px',
-                                                                background: m.movement_type === 'CASH_SALE' ? 'rgba(22, 163, 74, 0.12)' : (['PETTY_CASH_EXPENSE', 'SUPPLIER_PAYOUT', 'CASH_DROP', 'CASH_REFUND'].includes(m.movement_type) ? 'rgba(239, 68, 68, 0.12)' : 'rgba(59, 130, 246, 0.12)'),
-                                                                color: m.movement_type === 'CASH_SALE' ? '#16a34a' : (['PETTY_CASH_EXPENSE', 'SUPPLIER_PAYOUT', 'CASH_DROP', 'CASH_REFUND'].includes(m.movement_type) ? '#ef4444' : '#3b82f6')
-                                                            }}>
-                                                                {m.movement_type === 'SUPPLIER_PAYOUT' ? 'SUPPLIER PAYOUT' : m.movement_type}
-                                                            </span>
-                                                        </td>
-                                                        <td style={{ fontFamily: 'monospace', fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                                                            {m.reference_id || 'N/A'}
-                                                        </td>
-                                                        <td style={{
-                                                            textAlign: 'right',
-                                                            fontFamily: 'monospace',
-                                                            fontWeight: 700,
-                                                            whiteSpace: 'nowrap',
-                                                            fontVariantNumeric: 'tabular-nums',
-                                                            color: ['PETTY_CASH_EXPENSE', 'SUPPLIER_PAYOUT', 'CASH_DROP', 'CASH_REFUND'].includes(m.movement_type) ? '#ef4444' : '#16a34a'
-                                                        }}>
-                                                            {['PETTY_CASH_EXPENSE', 'SUPPLIER_PAYOUT', 'CASH_DROP', 'CASH_REFUND'].includes(m.movement_type) ? '-' : '+'}{formatCurrency(m.amount)}
-                                                        </td>
-                                                        {isAdmin && (
-                                                            <td style={{ fontFamily: 'monospace', fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                                                                {formatCurrency(m.balance_before)}
-                                                            </td>
-                                                        )}
-                                                        {isAdmin && (
-                                                            <td style={{ fontFamily: 'monospace', fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary)', whiteSpace: 'nowrap' }}>
-                                                                {formatCurrency(m.balance_after)}
-                                                            </td>
-                                                        )}
-                                                        <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)', paddingRight: '16px', maxWidth: '280px' }}>
-                                                            <div
-                                                                title={m.notes || ''}
-                                                                style={{
-                                                                    overflow: 'hidden',
-                                                                    textOverflow: 'ellipsis',
-                                                                    whiteSpace: 'nowrap',
-                                                                    maxWidth: '280px'
-                                                                }}
-                                                            >
-                                                                {m.notes || '—'}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ))
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             )}
 
@@ -1793,9 +1351,10 @@ export const CashFloat = () => {
             )}
 
             {/* ============================================================ */}
-            {/* TAB 3: STAFF DRAWER CONTROL PANEL (ADMIN ONLY)               */}
+            {/* TAB 1: STAFF DRAWER CONTROL PANEL                            */}
             {/* ============================================================ */}
-            {activeTab === 'manage' && isAdmin && (
+            {activeTab === 'manage' && (
+                isAdmin ? (
                 <div style={{ paddingTop: '10px' }}>
                     {/* Top 3 Live Status Cards */}
                     <div style={{
@@ -3006,6 +2565,31 @@ export const CashFloat = () => {
                         );
                     })()}
                 </div>
+                ) : (
+                    <div style={{ paddingTop: '10px' }}>
+                        <div className="glass-panel" style={{ padding: '36px 24px', maxWidth: '620px', margin: '30px auto', borderRadius: '14px', textAlign: 'center' }}>
+                            <div style={{ width: '56px', height: '56px', borderRadius: '14px', background: 'rgba(16, 185, 129, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto', color: 'var(--primary)' }}>
+                                <Banknote size={28} />
+                            </div>
+                            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 8px 0' }}>
+                                {activeShift ? `Shift Active: ${activeShift.shift_code || 'In Progress'}` : 'No Active Shift Assigned'}
+                            </h2>
+                            <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', margin: '0 0 20px 0', lineHeight: 1.5 }}>
+                                {activeShift
+                                    ? `Current Drawer Balance: ${formatCurrency(activeShift.current_cash_balance)} • Starting Float: ${formatCurrency(activeShift.starting_cash)}`
+                                    : 'Cashier shifts and starting change funds (panukli) are managed by Admin. Please request Admin to assign your shift float.'}
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => navigate('/pos')}
+                                className="btn-primary"
+                                style={{ padding: '10px 24px', fontSize: '0.88rem', fontWeight: 700 }}
+                            >
+                                Open POS Register
+                            </button>
+                        </div>
+                    </div>
+                )
             )}
 
             {/* ============================================================ */}
