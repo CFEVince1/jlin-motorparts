@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextValue';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { History, Receipt, X, Printer, Search, Calendar, RotateCcw, ArrowDownRight, ArrowUpRight, Filter, Ban, ChevronDown, ArrowLeftRight, Lock } from 'lucide-react';
+import { History, Receipt, X, Printer, Search, Calendar, RotateCcw, ArrowDownRight, ArrowUpRight, Filter, Ban, ChevronDown, ArrowLeftRight, Lock, RefreshCw } from 'lucide-react';
 import { notifyInventoryChange, subscribeToInventoryChange } from '../utils/syncEvents';
 import Spinner from '../components/Spinner';
 import { getProductSnapshotMatch, normalizeSearchText } from '../utils/productFilter';
@@ -12,6 +12,7 @@ import { formatCurrency, formatAuditDate } from '../utils/formatters';
 import { getLedgerCategoryCode } from '../utils/categoryTaxonomy';
 import ReceiptPrint from '../components/ReceiptPrint';
 import PrintTransactionsReportModal from '../components/PrintTransactionsReportModal';
+import ExchangeSlipModal from '../components/ExchangeSlipModal';
 
 export const formatShortOrderNo = (raw) => {
     if (!raw) return '—';
@@ -46,6 +47,10 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
     const [receiptDetails, setReceiptDetails] = useState(null);
     const [loadingReceipt, setLoadingReceipt] = useState(false);
     const [receiptWidth, setReceiptWidth] = useState('80mm');
+
+    // Item Swap Slip Modal State
+    const [viewingSwap, setViewingSwap] = useState(null);
+    const [loadingSwap, setLoadingSwap] = useState(false);
 
     // Reporting State
     const [timeframe, setTimeframe] = useState(() => {
@@ -541,6 +546,42 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
         setReceiptDetails(null);
     };
 
+    const handleViewSwapSlip = async (sale) => {
+        setLoadingSwap(true);
+        try {
+            const queryTarget = sale.latest_swap_code || sale.order_number || String(sale.id);
+            const res = await api.get('/swaps', { params: { search: queryTarget } });
+            const foundSwap = res.data?.swaps?.find(sw => 
+                (sale.id && Number(sw.sale_id) === Number(sale.id)) || 
+                (sale.order_number && sw.order_number === sale.order_number) ||
+                (sale.latest_swap_code && sw.swap_code === sale.latest_swap_code)
+            ) || res.data?.swaps?.[0];
+
+            if (foundSwap) {
+                setViewingSwap(foundSwap);
+            } else {
+                // Synthesize swap object from sale metadata if not yet queried
+                setViewingSwap({
+                    id: `swap-${sale.id}`,
+                    swap_code: sale.latest_swap_code || `SWAP-SO-${sale.id}`,
+                    order_number: sale.order_number,
+                    customer_name: sale.customer_name || 'Walk-in Customer',
+                    returned_product_name: sale.swap_details ? sale.swap_details.split('➔')[0].trim() : (sale.products_included || 'Returned Item'),
+                    new_product_name: sale.swap_details ? (sale.swap_details.split('➔')[1] || '').trim() : 'Replacement Item',
+                    customer_top_up_paid: Number(sale.swap_top_up_paid || 0),
+                    payment_method: sale.swap_payment_method || sale.payment_method || 'None',
+                    created_at: sale.sale_date,
+                    processed_by: sale.cashier || 'Staff'
+                });
+            }
+        } catch (err) {
+            console.error('Failed to load replacement voucher:', err);
+            toast.error('Unable to open replacement slip');
+        } finally {
+            setLoadingSwap(false);
+        }
+    };
+
     const renderDispositionPill = (disp) => {
         switch (disp) {
             case 'FOUND':
@@ -635,7 +676,22 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
             );
         }
 
-        
+        if (Number(t.swap_count) > 0) {
+            return (
+                <span style={{
+                    display: 'inline-block',
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    background: 'rgba(59, 130, 246, 0.16)',
+                    color: '#60a5fa',
+                    border: '1px solid rgba(59, 130, 246, 0.35)'
+                }} title={t.swap_details ? `Replaced: ${t.swap_details}` : 'Item replacement processed'}>
+                    🔁 Replaced
+                </span>
+            );
+        }
 
         if (s === 'PENDING' || s === 'PENDING_BALANCE' || s === 'PENDING_VERIFICATION') {
             return (
@@ -1081,6 +1137,7 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                         </div>
                                         {[
                                             { key: 'ALL', label: 'all statuses', icon: '📋' },
+                                            { key: 'SWAP', label: 'replacements / swaps', icon: '🔁' },
                                             { key: 'VOID', label: 'voided sales', icon: '🚫' },
                                             { key: 'DISCOUNT', label: 'discounted', icon: '🏷️' }
                                         ].map(item => {
@@ -1301,15 +1358,16 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                             gap: '6px',
                                             padding: '3px 10px',
                                             borderRadius: '16px',
-                                            background: filterType === 'VOID' ? 'rgba(100, 116, 139, 0.2)' : 'rgba(234, 88, 12, 0.18)',
-                                            color: filterType === 'VOID' ? '#64748b' : '#ea580c',
-                                            border: `1px solid ${filterType === 'VOID' ? 'rgba(100, 116, 139, 0.4)' : 'rgba(234, 88, 12, 0.4)'}`,
+                                            background: filterType === 'VOID' ? 'rgba(100, 116, 139, 0.2)' : filterType === 'SWAP' ? 'rgba(59, 130, 246, 0.18)' : 'rgba(234, 88, 12, 0.18)',
+                                            color: filterType === 'VOID' ? '#64748b' : filterType === 'SWAP' ? '#60a5fa' : '#ea580c',
+                                            border: `1px solid ${filterType === 'VOID' ? 'rgba(100, 116, 139, 0.4)' : filterType === 'SWAP' ? 'rgba(59, 130, 246, 0.4)' : 'rgba(234, 88, 12, 0.4)'}`,
                                             fontWeight: 700,
                                             fontSize: '0.78rem'
                                         }}>
                                             <span>
                                                 {filterType === 'VOID' ? '🚫 Void' :
-                                                 filterType === 'DISCOUNT' ? '🏷️ Discount' : filterType.toLowerCase()}
+                                                 filterType === 'DISCOUNT' ? '🏷️ Discount' :
+                                                 filterType === 'SWAP' ? '🔁 Replacements / Swaps' : filterType.toLowerCase()}
                                             </span>
                                             <button
                                                 type="button"
@@ -1411,8 +1469,22 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                                             >
                                                                 {shortOrder}
                                                             </div>
-                                                            <div style={{ marginTop: '3px' }}>
-                                                                {t.payment_method === 'Split' ? (
+                                                            <div style={{ marginTop: '3px', display: 'flex', flexWrap: 'wrap', gap: '3px', alignItems: 'center' }}>
+                                                                {t.payment_method === 'Replacement' || t.payment_method === 'Exchange' ? (
+                                                                    <span style={{
+                                                                        display: 'inline-block',
+                                                                        background: 'rgba(59, 130, 246, 0.16)',
+                                                                        color: '#60a5fa',
+                                                                        padding: '1px 6px',
+                                                                        borderRadius: '4px',
+                                                                        fontSize: '0.68rem',
+                                                                        fontWeight: 700,
+                                                                        border: '1px solid rgba(59, 130, 246, 0.35)',
+                                                                        whiteSpace: 'nowrap'
+                                                                    }}>
+                                                                        🔁 Replacement
+                                                                    </span>
+                                                                ) : t.payment_method === 'Split' ? (
                                                                     <span style={{
                                                                         display: 'inline-block',
                                                                         background: 'rgba(168, 85, 247, 0.15)',
@@ -1453,6 +1525,27 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                                                         whiteSpace: 'nowrap'
                                                                     }}>
                                                                         Cash
+                                                                    </span>
+                                                                )}
+
+                                                                {Number(t.swap_count) > 0 && t.payment_method !== 'Replacement' && (
+                                                                    <span
+                                                                        title={t.swap_details ? `Replaced: ${t.swap_details}` : 'Item replacement processed'}
+                                                                        style={{
+                                                                            display: 'inline-flex',
+                                                                            alignItems: 'center',
+                                                                            gap: '2px',
+                                                                            background: 'rgba(59, 130, 246, 0.2)',
+                                                                            color: '#60a5fa',
+                                                                            padding: '1px 6px',
+                                                                            borderRadius: '4px',
+                                                                            fontSize: '0.66rem',
+                                                                            fontWeight: 800,
+                                                                            border: '1px solid rgba(59, 130, 246, 0.4)',
+                                                                            whiteSpace: 'nowrap'
+                                                                        }}
+                                                                    >
+                                                                        🔁 Replaced
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -1516,6 +1609,27 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                                                             </>
                                                                         )}
                                                                     </div>
+                                                                    {Number(t.swap_count) > 0 && t.swap_details && (
+                                                                        <div style={{
+                                                                            marginTop: '4px',
+                                                                            fontSize: '0.71rem',
+                                                                            color: '#60a5fa',
+                                                                            display: 'flex',
+                                                                            alignItems: 'center',
+                                                                            gap: '4px',
+                                                                            background: 'rgba(59, 130, 246, 0.08)',
+                                                                            border: '1px solid rgba(59, 130, 246, 0.25)',
+                                                                            borderRadius: '4px',
+                                                                            padding: '2px 6px',
+                                                                            width: 'fit-content',
+                                                                            maxWidth: '100%',
+                                                                            overflow: 'hidden',
+                                                                            textOverflow: 'ellipsis',
+                                                                            whiteSpace: 'nowrap'
+                                                                        }} title={`Exchanged: ${t.swap_details}`}>
+                                                                            <span>🔁 Replaced: {t.swap_details}</span>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             )}
                                                         </td>
@@ -1552,6 +1666,18 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                                                 >
                                                                     <Printer size={12} /> Print
                                                                 </button>
+
+                                                                {Number(t.swap_count) > 0 && (
+                                                                    <button
+                                                                        onClick={() => handleViewSwapSlip(t)}
+                                                                        className="btn-secondary"
+                                                                        style={{ padding: '3px 7px', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: '#60a5fa', borderColor: 'rgba(59, 130, 246, 0.4)', whiteSpace: 'nowrap' }}
+                                                                        disabled={loadingSwap}
+                                                                        title="View & Reprint Official Item Replacement Voucher"
+                                                                    >
+                                                                        <RefreshCw size={12} /> Slip
+                                                                    </button>
+                                                                )}
 
                                                                 {!isVoid && (
                                                                     <button
@@ -2020,7 +2146,14 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                 </div>
             )}
 
-            
+            {/* Official Item Replacement Voucher Slip Modal */}
+            {viewingSwap && (
+                <ExchangeSlipModal
+                    isOpen={Boolean(viewingSwap)}
+                    swap={viewingSwap}
+                    onClose={() => setViewingSwap(null)}
+                />
+            )}
         </div>
     );
 };

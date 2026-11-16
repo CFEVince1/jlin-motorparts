@@ -38,6 +38,8 @@ exports.checkout = async (req, res, next) => {
     if (methodUpper === 'GCASH') method = 'GCash';
     else if (methodUpper === 'CARD') method = 'Card';
     else if (methodUpper === 'SPLIT' || methodUpper === 'CASH + GCASH') method = 'Split';
+    else if (methodUpper === 'REPLACEMENT' || methodUpper === 'SWAP') method = 'Replacement';
+    else if (methodUpper === 'EXCHANGE') method = 'Exchange';
     else method = 'Cash';
 
     const rawTendered = tendered_amount !== undefined ? tendered_amount : tenderedAmount;
@@ -48,7 +50,7 @@ exports.checkout = async (req, res, next) => {
         return res.status(422).json({ message: 'Cart cannot be empty for checkout' });
     }
 
-    const validMethods = ['Cash', 'GCash', 'Card', 'Split'];
+    const validMethods = ['Cash', 'GCash', 'Card', 'Split', 'Replacement', 'Exchange'];
     if (!validMethods.includes(method)) {
         return res.status(422).json({ 
             message: `Invalid payment method "${rawMethod}". Supported: ${validMethods.join(', ')}` 
@@ -755,6 +757,8 @@ exports.getSales = async (req, res, next) => {
                 whereClauses.push("(s.status = 'VOIDED' OR s.status = 'voided' OR s.voided_at IS NOT NULL)");
             } else if (ft === 'DISCOUNT' || ft === 'DISCOUNTS') {
                 whereClauses.push("COALESCE(s.discount_amount, 0) > 0");
+            } else if (ft === 'SWAP' || ft === 'REPLACEMENT' || ft === 'EXCHANGE' || ft === 'REPLACED') {
+                whereClauses.push("(EXISTS (SELECT 1 FROM item_swaps sw WHERE sw.sale_id = s.id OR sw.order_number = s.order_number) OR UPPER(s.payment_method) LIKE '%REPLACE%' OR UPPER(s.payment_method) LIKE '%SWAP%')");
             }
         }
 
@@ -845,6 +849,11 @@ exports.getSales = async (req, res, next) => {
                    COALESCE(s.refund_amount, 0.00) AS refund_amount,
                    (SELECT COUNT(*) FROM sale_returns sr WHERE sr.sale_id = s.id) AS return_count,
                    (SELECT GROUP_CONCAT(DISTINCT sri.disposition SEPARATOR ', ') FROM sale_return_items sri JOIN sale_returns sr2 ON sr2.id = sri.sale_return_id WHERE sr2.sale_id = s.id) AS return_dispositions,
+                   (SELECT COUNT(*) FROM item_swaps sw WHERE sw.sale_id = s.id OR sw.order_number = s.order_number) AS swap_count,
+                   (SELECT GROUP_CONCAT(CONCAT(sw.returned_product_name, ' ➔ ', sw.new_product_name) SEPARATOR '; ') FROM item_swaps sw WHERE sw.sale_id = s.id OR sw.order_number = s.order_number) AS swap_details,
+                   (SELECT sw.swap_code FROM item_swaps sw WHERE sw.sale_id = s.id OR sw.order_number = s.order_number ORDER BY sw.id DESC LIMIT 1) AS latest_swap_code,
+                   (SELECT sw.customer_top_up_paid FROM item_swaps sw WHERE sw.sale_id = s.id OR sw.order_number = s.order_number ORDER BY sw.id DESC LIMIT 1) AS swap_top_up_paid,
+                   (SELECT sw.payment_method FROM item_swaps sw WHERE sw.sale_id = s.id OR sw.order_number = s.order_number ORDER BY sw.id DESC LIMIT 1) AS swap_payment_method,
                    COALESCE(
                        items_agg.products_included,
                        CASE 
@@ -1094,6 +1103,21 @@ exports.getSaleById = async (req, res, next) => {
             ret.items = retItems;
         }
 
+        // Fetch any existing item swaps / replacements for this sale
+        let swaps = [];
+        try {
+            const [swapRows] = await db.query(`
+                SELECT sw.*, u.username as cashier
+                FROM item_swaps sw
+                LEFT JOIN users u ON sw.cashier_id = u.id
+                WHERE sw.sale_id = ? OR sw.order_number = ?
+                ORDER BY sw.id DESC
+            `, [id, saleRows[0]?.order_number || '']);
+            swaps = swapRows;
+        } catch (swapErr) {
+            console.warn('Failed to fetch item_swaps for sale:', swapErr.message);
+        }
+
         const sale = saleRows[0];
         const numTotal = Number(sale.total_amount || 0);
         const computedVatable = Number(sale.subtotal_amount) || Math.round((numTotal / 1.12) * 100) / 100;
@@ -1105,7 +1129,7 @@ exports.getSaleById = async (req, res, next) => {
         sale.vat_exempt_amount = 0.00;
         sale.zero_rated_amount = 0.00;
 
-        res.json({ ...sale, items, returns });
+        res.json({ ...sale, items, returns, swaps });
     } catch (err) {
         next(err);
     }
