@@ -170,7 +170,7 @@ export const CheckoutModal = ({
     numSplitCashTendered >= numSplitCash &&
     cleanSplitGcashDigits.length === 13;
 
-  const canSubmit = !loading && !isDiscountExceedingCost && (isCashValid || isGcashValid || isSplitValid);
+  const canSubmit = !loading && !isDiscountExceedingCost && !isDrawerInsufficient && (isCashValid || isGcashValid || isSplitValid);
 
   const handleAddCash = (increment) => {
     const current = parseFloat(cashTendered) || 0;
@@ -202,7 +202,7 @@ export const CheckoutModal = ({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!canSubmit || isDiscountExceedingCost) return;
+    if (!canSubmit || isDiscountExceedingCost || isDrawerInsufficient) return;
 
     if (isSplit) {
       onProcessPayment({
@@ -846,9 +846,13 @@ export const CheckoutModal = ({
                 cursor: (!canSubmit || isDiscountExceedingCost) ? 'not-allowed' : 'pointer'
               }}
               disabled={!canSubmit || isDiscountExceedingCost}
-              title={isDiscountExceedingCost ? "Cannot proceed: Discount exceeds allowable limit / below cost" : "Confirm & Pay"}
+              title={isDrawerInsufficient ? `Cannot proceed: Change required (${formatCurrency(currentChangeDue)}) exceeds available drawer cash (${formatCurrency(drawerBalance)})` : isDiscountExceedingCost ? "Cannot proceed: Discount exceeds allowable limit / below cost" : "Confirm & Pay"}
             >
-              {loading ? 'Processing...' : (
+              {loading ? 'Processing...' : isDrawerInsufficient ? (
+                <>
+                  <AlertCircle size={15} /> Insufficient Drawer Cash
+                </>
+              ) : (
                 <>
                   <CheckCircle size={15} /> Confirm & Pay
                 </>

@@ -75,9 +75,9 @@ exports.checkout = async (req, res, next) => {
                 [userId, req.user.username || '']
             );
 
-            if (activeFloats.length === 0) {
+            if (activeFloats.length === 0 || (Number(activeFloats[0].starting_cash || 0) <= 0 && Number(activeFloats[0].current_cash_balance || 0) <= 0)) {
                 throw new AppValidationError(
-                    'Cannot process sales: Starting cash float has not been assigned by Admin for this shift. Starting cash is strictly ₱0.00. Please request the Admin to assign starting cash in Cash Float Management.'
+                    'Cannot process sales: Cash drawer is ₱0.00. Starting cash float has not been assigned by Admin for this shift. Please request the Admin to assign starting cash in Cash Float Management.'
                 );
             }
         }
@@ -354,6 +354,26 @@ exports.checkout = async (req, res, next) => {
             // Card or other electronic payments
             tenderedCentavos = totalAmountCentavos;
             changeDueCentavos = 0;
+        }
+
+        // Invariant: If cash change is required, verify that the physical cash drawer has sufficient balance
+        if (changeDueCentavos > 0) {
+            const changeDuePesos = changeDueCentavos / 100;
+            const [drawerRows] = await connection.query(
+                `SELECT id, current_cash_balance FROM cash_floats 
+                 WHERE (staff_id = ? OR staff_username = ? OR id = (SELECT id FROM (SELECT id FROM cash_floats WHERE status = 'ACTIVE' ORDER BY assigned_at DESC LIMIT 1) as t))
+                   AND status = 'ACTIVE' 
+                 ORDER BY assigned_at DESC LIMIT 1 FOR UPDATE`,
+                [userId, req.user?.username || '']
+            );
+            if (drawerRows.length > 0) {
+                const currentDrawerCash = Number(drawerRows[0].current_cash_balance || 0);
+                if (changeDuePesos > currentDrawerCash) {
+                    throw new AppValidationError(
+                        `Cannot process cash sale: Change required (₱${changeDuePesos.toFixed(2)}) exceeds available drawer cash (₱${currentDrawerCash.toFixed(2)}). Please replenish drawer panukli or pay via exact cash / GCash.`
+                    );
+                }
+            }
         }
 
         const finalTendered = tenderedCentavos / 100;

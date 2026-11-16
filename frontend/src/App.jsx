@@ -71,6 +71,7 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<MainLayout />}>
               <Route path="/" element={<RoleBasedHome />} />
+              <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/pos" element={<POS />} />
               <Route path="/item-swap" element={<Navigate to="/pos?tab=history" replace />} />
               <Route path="/swap" element={<Navigate to="/pos?tab=history" replace />} />
@@ -88,7 +89,6 @@ function App() {
               <Route path="/cash-float" element={<Navigate to="/shifts" replace />} />
               {/* Admin Roles ONLY */}
               <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
-                <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/purchasing" element={<Purchasing />} />
                 <Route path="/suppliers" element={<SuppliersRedirect />} />
                 <Route path="/suppliers-stock-in" element={<Navigate to="/purchasing" replace />} />

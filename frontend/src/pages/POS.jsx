@@ -129,6 +129,9 @@ const POS = ({ defaultTab }) => {
     const [shiftStatus, setShiftStatus] = useState('ACTIVE');
     const [pendingRemitShift, setPendingRemitShift] = useState(null);
 
+    const hasValidFloat = Boolean(activeCashFloat && (Number(activeCashFloat.starting_cash || 0) > 0 || Number(activeCashFloat.current_cash_balance || 0) > 0));
+    const isStaffWithoutFloat = Boolean(user && String(user.role).toLowerCase() !== 'admin' && (!activeCashFloat || (Number(activeCashFloat.starting_cash || 0) <= 0 && Number(activeCashFloat.current_cash_balance || 0) <= 0)));
+
     const fetchActiveCashFloat = useCallback(async () => {
         try {
             const res = await api.get('/cash-float/my-float');
@@ -1246,8 +1249,8 @@ const POS = ({ defaultTab }) => {
         if (shiftStatus === 'PENDING_REMIT') {
             return toast.error('POS Locked: Preliminary closing count has been submitted and is awaiting Admin verification.');
         }
-        if (user && String(user.role).toLowerCase() !== 'admin' && !activeCashFloat) {
-            return toast.error('Cannot process sale: No active cash float assigned by Admin for this shift. Starting cash is ₱0.00.');
+        if (isStaffWithoutFloat) {
+            return toast.error('Cannot process sale: Cash drawer is ₱0.00. Admin must assign your shift starting cash float (panukli) before sales can be completed.');
         }
         const missingSerialItem = cart.find(item => item.is_serialized && (!item.serial_ids || item.serial_ids.length === 0));
         if (missingSerialItem) return toast.error(`Select a serial number for ${missingSerialItem.name}`);
@@ -1597,7 +1600,7 @@ const POS = ({ defaultTab }) => {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    {activeCashFloat ? (
+                    {hasValidFloat ? (
                         <div style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -1614,6 +1617,22 @@ const POS = ({ defaultTab }) => {
                             <strong style={{ fontSize: '0.92rem', color: 'var(--primary)', fontFamily: 'monospace' }}>
                                 {formatCurrency(activeCashFloat.current_cash_balance)}
                             </strong>
+                        </div>
+                    ) : activeCashFloat && Number(activeCashFloat.current_cash_balance || 0) <= 0 ? (
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            background: 'rgba(239, 68, 68, 0.12)',
+                            border: '1px solid rgba(239, 68, 68, 0.35)',
+                            borderRadius: '8px',
+                            padding: '6px 12px',
+                            fontSize: '0.76rem',
+                            color: '#ef4444',
+                            fontWeight: 700
+                        }}>
+                            <Lock size={14} />
+                            <span>Drawer Cash: ₱0.00 (POS Locked • Panukli Required)</span>
                         </div>
                     ) : shiftStatus === 'PENDING_REMIT' ? (
                         <div style={{
@@ -3329,18 +3348,18 @@ const POS = ({ defaultTab }) => {
                                     <span>Hold Cart</span>
                                 </button>
                                 <button 
-                                    className={((!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin') || shiftStatus === 'PENDING_REMIT') ? "btn-secondary" : "btn-primary"} 
-                                    style={{ padding: '10px 14px', fontSize: '0.88rem', cursor: ((!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin') || shiftStatus === 'PENDING_REMIT') ? 'not-allowed' : 'pointer', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} 
+                                    className={(isStaffWithoutFloat || shiftStatus === 'PENDING_REMIT') ? "btn-secondary" : "btn-primary"} 
+                                    style={{ padding: '10px 14px', fontSize: '0.88rem', cursor: (isStaffWithoutFloat || shiftStatus === 'PENDING_REMIT') ? 'not-allowed' : 'pointer', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} 
                                     onClick={handleCheckoutClick} 
-                                    disabled={cart.length === 0 || (!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin') || shiftStatus === 'PENDING_REMIT'}
+                                    disabled={cart.length === 0 || isStaffWithoutFloat || shiftStatus === 'PENDING_REMIT'}
                                 >
                                     {shiftStatus === 'PENDING_REMIT' ? (
                                         <>
                                             <Lock size={16} /> Awaiting Sign-Off
                                         </>
-                                    ) : (!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin') ? (
+                                    ) : isStaffWithoutFloat ? (
                                         <>
-                                            <Lock size={16} /> Awaiting Float
+                                            <Lock size={16} /> Drawer Cash ₱0.00 (Locked)
                                         </>
                                     ) : (
                                         <>
@@ -3349,10 +3368,10 @@ const POS = ({ defaultTab }) => {
                                     )}
                                 </button>
                             </div>
-                            {!activeCashFloat && user && String(user.role).toLowerCase() !== 'admin' && (
+                            {isStaffWithoutFloat && (
                                 <div style={{ marginTop: '10px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '6px', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444', fontSize: '0.74rem' }}>
                                     <AlertCircle size={15} style={{ flexShrink: 0 }} />
-                                    <span>Starting Panukli is ₱0.00. Admin must assign your shift cash float before sales can be completed.</span>
+                                    <span>Drawer cash is ₱0.00. Admin must assign shift starting cash float (panukli) in Shifts &amp; Cash Drawer before sales can be completed.</span>
                                 </div>
                             )}
                         </>
