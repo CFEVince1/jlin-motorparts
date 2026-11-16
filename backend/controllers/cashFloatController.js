@@ -329,14 +329,21 @@ exports.getCashFloats = async (req, res) => {
         let conditions = [];
         let params = [];
 
+        const userRole = (req.user?.role || '').toLowerCase();
+        const currentUserId = req.user?.id;
+
+        // Staff / Cashier role is strictly scoped to their own shift count records
+        if (userRole !== 'admin') {
+            conditions.push('cf.staff_id = ?');
+            params.push(currentUserId);
+        } else if (staff_id && staff_id !== 'ALL') {
+            conditions.push('cf.staff_id = ?');
+            params.push(staff_id);
+        }
+
         if (status && status !== 'ALL') {
             conditions.push('cf.status = ?');
             params.push(status.toUpperCase());
-        }
-
-        if (staff_id) {
-            conditions.push('cf.staff_id = ?');
-            params.push(staff_id);
         }
 
         if (date && date.trim()) {

@@ -973,7 +973,8 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                     {[
                                         { key: 'all', label: 'All' },
                                         { key: 'today', label: 'Today' },
-                                        { key: 'week', label: 'This Week' }
+                                        { key: 'week', label: 'This Week' },
+                                        { key: 'month', label: 'This Month' }
                                     ].map(p => {
                                         const isActive = activeDatePill === p.key;
                                         return (
@@ -998,33 +999,62 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                         );
                                     })}
                                 </div>
-                                <div style={{ position: 'relative', flex: '0 0 auto' }}>
-                                    <Calendar size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                                    <input
-                                        type="date"
-                                        className="input-premium"
-                                        style={{ paddingLeft: '36px', paddingRight: '12px', width: '135px' }}
-                                        value={filterDate || (filterStartDate === filterEndDate ? filterStartDate : '')}
-                                        onChange={(e) => {
-                                            const val = e.target.value;
-                                            setFilter('date', val);
-                                            setFilter('startDate', '');
-                                            setFilter('endDate', '');
-                                            setFilter('timeframe', '');
-                                            setSearchParams(prev => {
-                                                const next = new URLSearchParams(prev);
-                                                if (val) {
-                                                    next.set('date', val);
-                                                } else {
-                                                    next.delete('date');
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                                    <div style={{ position: 'relative', flex: '0 0 auto' }}>
+                                        <Calendar size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                        <input
+                                            type="date"
+                                            className="input-premium"
+                                            title="Start / From Date"
+                                            style={{ paddingLeft: '30px', paddingRight: '8px', width: '130px', fontSize: '0.78rem' }}
+                                            value={filterStartDate || filterDate || ''}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setFilter('date', '');
+                                                setFilter('startDate', val);
+                                                if (filterEndDate && val > filterEndDate) {
+                                                    setFilter('endDate', val);
                                                 }
-                                                next.delete('startDate');
-                                                next.delete('endDate');
-                                                next.delete('timeframe');
-                                                return next;
-                                            });
-                                        }}
-                                    />
+                                                setFilter('timeframe', 'custom');
+                                                setSearchParams(prev => {
+                                                    const next = new URLSearchParams(prev);
+                                                    next.delete('date');
+                                                    if (val) next.set('startDate', val); else next.delete('startDate');
+                                                    if (filterEndDate && val <= filterEndDate) next.set('endDate', filterEndDate);
+                                                    next.set('timeframe', 'custom');
+                                                    return next;
+                                                });
+                                            }}
+                                        />
+                                    </div>
+                                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 600 }}>to</span>
+                                    <div style={{ position: 'relative', flex: '0 0 auto' }}>
+                                        <Calendar size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                        <input
+                                            type="date"
+                                            className="input-premium"
+                                            title="End / To Date"
+                                            style={{ paddingLeft: '30px', paddingRight: '8px', width: '130px', fontSize: '0.78rem' }}
+                                            value={filterEndDate || filterDate || ''}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setFilter('date', '');
+                                                setFilter('endDate', val);
+                                                if (!filterStartDate && val) {
+                                                    setFilter('startDate', val);
+                                                }
+                                                setFilter('timeframe', 'custom');
+                                                setSearchParams(prev => {
+                                                    const next = new URLSearchParams(prev);
+                                                    next.delete('date');
+                                                    if (val) next.set('endDate', val); else next.delete('endDate');
+                                                    if (!filterStartDate && val) next.set('startDate', val);
+                                                    next.set('timeframe', 'custom');
+                                                    return next;
+                                                });
+                                            }}
+                                        />
+                                    </div>
                                 </div>
                                 {(filterDate || filterStartDate || filterEndDate) && (
                                     <button className="btn-secondary" onClick={() => handleSelectTimeframePill('all')} style={{ flex: '0 0 auto', padding: '5px 10px', fontSize: '0.78rem' }}>Clear Date</button>

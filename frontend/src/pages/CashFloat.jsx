@@ -203,14 +203,13 @@ export const CashFloat = () => {
         }
     }, []);
 
-    // Fetch shift history records
+    // Fetch shift history records (Admin sees all; Staff sees own shift counts)
     const fetchRecords = useCallback(async (silent = false) => {
-        if (!isAdmin) return;
         if (!silent) setLoadingRecords(true);
         try {
             const params = {};
             if (statusFilter !== 'ALL' && statusFilter !== 'DISCREPANCY') params.status = statusFilter;
-            if (staffFilter !== 'ALL') params.staff_id = staffFilter;
+            if (isAdmin && staffFilter !== 'ALL') params.staff_id = staffFilter;
             if (dateFilter) params.date = dateFilter;
             if (searchTerm.trim()) params.search = searchTerm.trim();
 
@@ -257,8 +256,8 @@ export const CashFloat = () => {
 
     useEffect(() => {
         fetchActiveShift();
+        fetchRecords();
         if (isAdmin) {
-            fetchRecords();
             fetchStaffList();
             fetchSummary();
         }
@@ -266,8 +265,8 @@ export const CashFloat = () => {
         // Real-time cross-tab & live sync
         const unsubscribe = subscribeToInventoryChange(() => {
             fetchActiveShift(true);
+            fetchRecords(true);
             if (isAdmin) {
-                fetchRecords(true);
                 fetchStaffList();
                 fetchSummary();
             }
@@ -782,31 +781,29 @@ export const CashFloat = () => {
                         transition: 'all 0.15s ease'
                     }}
                 >
-                    <Users size={17} /> Staff Drawer Control Panel {staffList.length > 0 ? `(${staffList.length})` : ''}
+                    <Users size={17} /> {isAdmin ? `Staff Drawer Control Panel ${staffList.length > 0 ? `(${staffList.length})` : ''}` : 'My Shift & Cash Drawer'}
                 </button>
 
-                {isAdmin && (
-                    <button
-                        type="button"
-                        onClick={() => handleTabChange('history')}
-                        style={{
-                            padding: '10px 18px',
-                            background: 'transparent',
-                            border: 'none',
-                            borderBottom: activeTab === 'history' ? '3px solid var(--primary)' : '3px solid transparent',
-                            color: activeTab === 'history' ? 'var(--primary)' : 'var(--text-muted)',
-                            fontWeight: activeTab === 'history' ? 700 : 500,
-                            fontSize: '0.9rem',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            transition: 'all 0.15s ease'
-                        }}
-                    >
-                        <Clock size={17} /> Cash Count History ({records.length})
-                    </button>
-                )}
+                <button
+                    type="button"
+                    onClick={() => handleTabChange('history')}
+                    style={{
+                        padding: '10px 18px',
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom: activeTab === 'history' ? '3px solid var(--primary)' : '3px solid transparent',
+                        color: activeTab === 'history' ? 'var(--primary)' : 'var(--text-muted)',
+                        fontWeight: activeTab === 'history' ? 700 : 500,
+                        fontSize: '0.9rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        transition: 'all 0.15s ease'
+                    }}
+                >
+                    <Clock size={17} /> {isAdmin ? `Cash Count History (${records.length})` : `My Shift Count History (${records.length})`}
+                </button>
             </div>
 
             {/* ============================================================ */}
@@ -1078,7 +1075,7 @@ export const CashFloat = () => {
             {/* ============================================================ */}
             {/* TAB 2: CASH COUNT HISTORY                                    */}
             {/* ============================================================ */}
-            {isAdmin && activeTab === 'history' && (
+            {activeTab === 'history' && (
                 <div>
                     {/* Filter Bar */}
                     <div className="glass-panel" style={{ padding: '12px 16px', borderRadius: '12px', marginBottom: '16px' }}>
@@ -1089,7 +1086,7 @@ export const CashFloat = () => {
                                     type="text"
                                     className="input-premium"
                                     style={{ paddingLeft: '32px', width: '100%', fontSize: '0.82rem' }}
-                                    placeholder="Search by Shift ID or Cashier..."
+                                    placeholder={isAdmin ? "Search by Shift ID or Cashier..." : "Search by Shift ID..."}
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />

@@ -20,7 +20,7 @@ router.post('/close-shift', cashFloatController.closeShiftBlindCount);
 router.get('/staff-list', adminOnly, cashFloatController.getStaffList);
 router.get('/summary', adminOnly, cashFloatController.getSummary);
 router.post('/sign-off-pending', adminOnly, cashFloatController.signOffPendingShift);
-router.get('/', adminOnly, cashFloatController.getCashFloats);
+router.get('/', cashFloatController.getCashFloats); // Open to authenticated staff (scoped to own records for non-admin)
 router.post('/assign', adminOnly, cashFloatController.assignCashFloat);
 router.post('/:id/sign-off', adminOnly, cashFloatController.adminSignOff);
 router.post('/:id/cancel', adminOnly, cashFloatController.cancelShift);
