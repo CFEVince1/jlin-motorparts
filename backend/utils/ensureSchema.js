@@ -670,6 +670,27 @@ async function ensureSchema() {
       console.warn('[Schema] Failed to check/add inspection columns:', inspErr.message);
     }
 
+    // 14b. Ensure suppliers table has extended contact columns (fb_page_name, seller_contact_name, messenger_url)
+    try {
+      const [suppCols] = await db.query("SHOW COLUMNS FROM suppliers");
+      const suppColNames = suppCols.map(c => c.Field);
+      if (!suppColNames.includes('fb_page_name')) {
+        await db.query("ALTER TABLE suppliers ADD COLUMN fb_page_name VARCHAR(150) NULL");
+      }
+      if (!suppColNames.includes('seller_contact_name')) {
+        await db.query("ALTER TABLE suppliers ADD COLUMN seller_contact_name VARCHAR(150) NULL");
+      }
+      if (!suppColNames.includes('messenger_url')) {
+        await db.query("ALTER TABLE suppliers ADD COLUMN messenger_url VARCHAR(255) NULL");
+      }
+      if (!suppColNames.includes('is_active')) {
+        await db.query("ALTER TABLE suppliers ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1");
+      }
+      console.log('[Schema] Verified suppliers contact and status columns.');
+    } catch (suppErr) {
+      console.warn('[Schema] Failed to check/add suppliers columns:', suppErr.message);
+    }
+
     // 15. Ensure cash_floats table exists with per-shift tracking columns
     try {
       await db.query(`

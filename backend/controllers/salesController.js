@@ -890,6 +890,7 @@ exports.getSales = async (req, res, next) => {
                    (SELECT sw.swap_code FROM item_swaps sw WHERE sw.sale_id = s.id OR sw.order_number = s.order_number ORDER BY sw.id DESC LIMIT 1) AS latest_swap_code,
                    (SELECT sw.customer_top_up_paid FROM item_swaps sw WHERE sw.sale_id = s.id OR sw.order_number = s.order_number ORDER BY sw.id DESC LIMIT 1) AS swap_top_up_paid,
                    (SELECT sw.payment_method FROM item_swaps sw WHERE sw.sale_id = s.id OR sw.order_number = s.order_number ORDER BY sw.id DESC LIMIT 1) AS swap_payment_method,
+                   (SELECT sw.payment_reference FROM item_swaps sw WHERE sw.sale_id = s.id OR sw.order_number = s.order_number ORDER BY sw.id DESC LIMIT 1) AS swap_payment_reference,
                    COALESCE(
                        items_agg.products_included,
                        CASE 

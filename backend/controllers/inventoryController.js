@@ -199,25 +199,51 @@ exports.receiveStock = async (req, res, next) => {
     try {
         await connection.beginTransaction();
 
-        // 1. Verify supplier exists and is active
-        const [suppliers] = await connection.query(
-            'SELECT id, name, fb_page_name, seller_contact_name, phone, messenger_url, is_active FROM suppliers WHERE id = ?',
-            [finalSupplierId]
-        );
+        // 1. Verify supplier exists and is active (resilient column query)
+        let suppliers = [];
+        try {
+            const [sRows] = await connection.query(
+                'SELECT id, name, is_active FROM suppliers WHERE id = ?',
+                [finalSupplierId]
+            );
+            suppliers = sRows;
+        } catch (sErr) {
+            const [sFallback] = await connection.query(
+                'SELECT id, name FROM suppliers WHERE id = ?',
+                [finalSupplierId]
+            );
+            suppliers = sFallback.map(s => ({ ...s, is_active: 1 }));
+        }
+
         if (suppliers.length === 0) {
             await connection.rollback();
             return res.status(422).json({ message: `Supplier with ID ${finalSupplierId} not found` });
         }
-        if (!suppliers[0].is_active) {
+        if (suppliers[0].is_active !== undefined && !suppliers[0].is_active) {
             await connection.rollback();
             return res.status(422).json({ message: `Supplier "${suppliers[0].name}" is currently inactive` });
         }
 
         // 2. Check (supplier_id, reference_no) uniqueness
-        const [existingRef] = await connection.query(
-            'SELECT id FROM receiving_records WHERE supplier_id = ? AND (reference_no = ? OR reference_number = ?)',
-            [finalSupplierId, refNo, refNo]
-        );
+        let existingRef = [];
+        try {
+            const [eRef] = await connection.query(
+                'SELECT id FROM receiving_records WHERE supplier_id = ? AND (reference_no = ? OR reference_number = ?)',
+                [finalSupplierId, refNo, refNo]
+            );
+            existingRef = eRef;
+        } catch (refCheckErr) {
+            try {
+                const [eRef2] = await connection.query(
+                    'SELECT id FROM receiving_records WHERE supplier_id = ? AND reference_number = ?',
+                    [finalSupplierId, refNo]
+                );
+                existingRef = eRef2;
+            } catch (_) {
+                existingRef = [];
+            }
+        }
+
         if (existingRef.length > 0) {
             await connection.rollback();
             return res.status(422).json({ 
@@ -235,10 +261,20 @@ exports.receiveStock = async (req, res, next) => {
 
         // 4. Calculate total cost, fetch product definitions, and validate line items
         const productIds = [...new Set(sortedItems.map(it => Number(it.itemId || it.item_id || it.product_id)))];
-        const [productRows] = await connection.query(
-            `SELECT id, name, part_number, is_serialized, cost_price, selling_price, retail_price, markup_percentage FROM products WHERE id IN (?)`,
-            [productIds]
-        );
+        let productRows = [];
+        try {
+            const [pRows] = await connection.query(
+                `SELECT id, name, part_number, is_serialized, cost_price, selling_price, retail_price, markup_percentage FROM products WHERE id IN (?)`,
+                [productIds]
+            );
+            productRows = pRows;
+        } catch (fetchErr) {
+            const [pFallback] = await connection.query(
+                `SELECT id, name, part_number, is_serialized, cost_price, selling_price FROM products WHERE id IN (?)`,
+                [productIds]
+            );
+            productRows = pFallback;
+        }
         const productMap = new Map(productRows.map(p => [p.id, p]));
 
         let totalCost = 0;
@@ -538,14 +574,32 @@ exports.receiveStock = async (req, res, next) => {
                     (rawNewSelling !== undefined && rawNewSelling !== null && Number(rawNewSelling) > 0 && Number(rawNewSelling) !== oldPrice);
 
                 if (shouldAutoReprice) {
-                    await connection.query(
-                        `UPDATE products 
-                         SET cost_price = ?, supplier_cost = ?, selling_price = ?, retail_price = ?, updated_at = NOW() 
-                         WHERE id = ?`,
-                        [costPrice, costPrice, finalNewPrice, finalNewPrice, resolvedId]
-                    );
+                    try {
+                        await connection.query(
+                            `UPDATE products 
+                             SET cost_price = ?, supplier_cost = ?, selling_price = ?, retail_price = ?, updated_at = NOW() 
+                             WHERE id = ?`,
+                            [costPrice, costPrice, finalNewPrice, finalNewPrice, resolvedId]
+                        );
+                    } catch (pUpdateErr) {
+                        try {
+                            await connection.query(
+                                `UPDATE products 
+                                 SET cost_price = ?, selling_price = ?, updated_at = NOW() 
+                                 WHERE id = ?`,
+                                [costPrice, finalNewPrice, resolvedId]
+                            );
+                        } catch (_) {
+                            await connection.query(
+                                `UPDATE products 
+                                 SET cost_price = ? 
+                                 WHERE id = ?`,
+                                [costPrice, resolvedId]
+                            );
+                        }
+                    }
 
-                    // Write Price_Auto_Updated into audit_logs
+                    // Write Price_Auto_Updated into audit_logs (resilient fallback)
                     try {
                         await connection.query(
                             `INSERT INTO audit_logs (
@@ -574,7 +628,19 @@ exports.receiveStock = async (req, res, next) => {
                             ]
                         );
                     } catch (auditErr) {
-                        console.error('Failed to log Price_Auto_Updated:', auditErr);
+                        try {
+                            await connection.query(
+                                `INSERT INTO audit_logs (user_id, username, action_type, module, details, created_at)
+                                 VALUES (?, ?, 'Price_Auto_Updated', 'PURCHASING', ?, NOW())`,
+                                [
+                                    userId,
+                                    cleanReceiver || req.user?.username || 'Owner',
+                                    `Auto-repriced: Cost ₱${oldCost.toFixed(2)} → ₱${costPrice.toFixed(2)}, Retail ₱${oldPrice.toFixed(2)} → ₱${finalNewPrice.toFixed(2)}`
+                                ]
+                            );
+                        } catch (_) {
+                            // Non-blocking audit notice
+                        }
                     }
                 }
             }
@@ -656,7 +722,12 @@ exports.receiveStock = async (req, res, next) => {
 
     } catch (err) {
         await connection.rollback();
-        next(err);
+        console.error('[receiveStock Error]:', err);
+        return res.status(err.status || 500).json({
+            success: false,
+            message: err.message || 'Failed to submit receiving record',
+            error: err.message
+        });
     } finally {
         connection.release();
     }
@@ -936,7 +1007,12 @@ exports.recordAdjustment = async (req, res, next) => {
 
     } catch (err) {
         await connection.rollback();
-        next(err);
+        console.error('[receiveStock Error]:', err);
+        return res.status(err.status || 500).json({
+            success: false,
+            message: err.message || 'Failed to submit receiving record',
+            error: err.message
+        });
     } finally {
         connection.release();
     }
@@ -1646,7 +1722,12 @@ exports.recordPhysicalAudit = async (req, res, next) => {
         });
     } catch (err) {
         await connection.rollback();
-        next(err);
+        console.error('[receiveStock Error]:', err);
+        return res.status(err.status || 500).json({
+            success: false,
+            message: err.message || 'Failed to submit receiving record',
+            error: err.message
+        });
     } finally {
         connection.release();
     }

@@ -1260,6 +1260,10 @@ const POS = ({ defaultTab }) => {
     // 2. Process payment from CheckoutModal
     const [submittingPayment, setSubmittingPayment] = useState(false);
     const processPayment = async ({ paymentMethod: method, tenderedAmount: amount, changeDue: change, gcashReference: gcashRef, cashAmount, gcashAmount }) => {
+        if (isStaffWithoutFloat && (method === 'Cash' || method === 'Split')) {
+            toast.error('Cannot complete sale: Cash drawer is ₱0.00. Admin must assign your shift starting cash float (panukli) in Shifts & Cash Drawer before cash sales can be processed.');
+            return;
+        }
         const missingSerialItem = cart.find(item => item.is_serialized && (!item.serial_ids || item.serial_ids.length === 0));
         if (missingSerialItem) {
             toast.error(`Select a serial number for ${missingSerialItem.name}`);
@@ -2081,15 +2085,24 @@ const POS = ({ defaultTab }) => {
                                     font-size: 14px !important;
                                 }
                             }
+                            .pos-categories-wrap::-webkit-scrollbar {
+                                display: none !important;
+                                width: 0 !important;
+                                height: 0 !important;
+                            }
                         `}</style>
 
                         {/* Full Taxonomy Category Pills (Wrapped Grid, No Dragging / No Scrollbar) */}
-                        <div style={{
+                        <div className="pos-categories-wrap" style={{
                             display: 'flex',
                             alignItems: 'center',
                             gap: '6px',
                             flexWrap: 'wrap',
-                            marginBottom: '12px'
+                            marginBottom: '12px',
+                            overflow: 'visible',
+                            overflowX: 'hidden',
+                            scrollbarWidth: 'none',
+                            msOverflowStyle: 'none'
                         }}>
                             <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginRight: '4px', whiteSpace: 'nowrap' }}>
                                 Categories:

@@ -1469,84 +1469,102 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                                             >
                                                                 {shortOrder}
                                                             </div>
-                                                            <div style={{ marginTop: '3px', display: 'flex', flexWrap: 'wrap', gap: '3px', alignItems: 'center' }}>
-                                                                {t.payment_method === 'Replacement' || t.payment_method === 'Exchange' ? (
-                                                                    <span style={{
-                                                                        display: 'inline-block',
-                                                                        background: 'rgba(59, 130, 246, 0.16)',
-                                                                        color: '#60a5fa',
-                                                                        padding: '1px 6px',
-                                                                        borderRadius: '4px',
-                                                                        fontSize: '0.68rem',
-                                                                        fontWeight: 700,
-                                                                        border: '1px solid rgba(59, 130, 246, 0.35)',
-                                                                        whiteSpace: 'nowrap'
-                                                                    }}>
-                                                                        🔁 Replacement
-                                                                    </span>
-                                                                ) : t.payment_method === 'Split' ? (
-                                                                    <span style={{
-                                                                        display: 'inline-block',
-                                                                        background: 'rgba(168, 85, 247, 0.15)',
-                                                                        color: '#c084fc',
-                                                                        padding: '1px 6px',
-                                                                        borderRadius: '4px',
-                                                                        fontSize: '0.68rem',
-                                                                        fontWeight: 700,
-                                                                        border: '1px solid rgba(168, 85, 247, 0.3)',
-                                                                        whiteSpace: 'nowrap'
-                                                                    }}>
-                                                                        Split
-                                                                    </span>
-                                                                ) : t.payment_method === 'GCash' ? (
-                                                                    <span style={{
-                                                                        display: 'inline-block',
-                                                                        background: 'rgba(59, 130, 246, 0.15)',
-                                                                        color: '#3b82f6',
-                                                                        padding: '1px 6px',
-                                                                        borderRadius: '4px',
-                                                                        fontSize: '0.68rem',
-                                                                        fontWeight: 700,
-                                                                        border: '1px solid rgba(59, 130, 246, 0.3)',
-                                                                        whiteSpace: 'nowrap'
-                                                                    }}>
-                                                                        GCash
-                                                                    </span>
-                                                                ) : (
-                                                                    <span style={{
-                                                                        display: 'inline-block',
-                                                                        background: 'rgba(22, 163, 74, 0.12)',
-                                                                        color: '#10b981',
-                                                                        padding: '1px 6px',
-                                                                        borderRadius: '4px',
-                                                                        fontSize: '0.68rem',
-                                                                        fontWeight: 700,
-                                                                        border: '1px solid rgba(22, 163, 74, 0.3)',
-                                                                        whiteSpace: 'nowrap'
-                                                                    }}>
-                                                                        Cash
-                                                                    </span>
-                                                                )}
-
-                                                                {Number(t.swap_count) > 0 && t.payment_method !== 'Replacement' && (
-                                                                    <span
-                                                                        title={t.swap_details ? `Replaced: ${t.swap_details}` : 'Item replacement processed'}
-                                                                        style={{
+                                                            <div style={{ marginTop: '3px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
+                                                                    {t.payment_method === 'Replacement' || t.payment_method === 'Exchange' || Number(t.swap_count) > 0 ? (
+                                                                        <span style={{
                                                                             display: 'inline-flex',
                                                                             alignItems: 'center',
-                                                                            gap: '2px',
-                                                                            background: 'rgba(59, 130, 246, 0.2)',
+                                                                            gap: '3px',
+                                                                            background: 'rgba(59, 130, 246, 0.18)',
                                                                             color: '#60a5fa',
-                                                                            padding: '1px 6px',
+                                                                            padding: '2px 7px',
                                                                             borderRadius: '4px',
-                                                                            fontSize: '0.66rem',
+                                                                            fontSize: '0.70rem',
                                                                             fontWeight: 800,
                                                                             border: '1px solid rgba(59, 130, 246, 0.4)',
                                                                             whiteSpace: 'nowrap'
-                                                                        }}
-                                                                    >
-                                                                        🔁 Replaced
-                                                                    </span>
+                                                                        }} title={t.swap_details ? `Replaced: ${t.swap_details}` : 'Item replacement processed'}>
+                                                                            🔁 Replacement {Number(t.swap_top_up_paid) > 0 ? `(+₱${Number(t.swap_top_up_paid).toFixed(2)} ${t.swap_payment_method || t.payment_method})` : ''}
+                                                                        </span>
+                                                                    ) : t.payment_method === 'Split' ? (
+                                                                        <span style={{
+                                                                            display: 'inline-block',
+                                                                            background: 'rgba(168, 85, 247, 0.15)',
+                                                                            color: '#c084fc',
+                                                                            padding: '1px 6px',
+                                                                            borderRadius: '4px',
+                                                                            fontSize: '0.68rem',
+                                                                            fontWeight: 700,
+                                                                            border: '1px solid rgba(168, 85, 247, 0.3)',
+                                                                            whiteSpace: 'nowrap'
+                                                                        }}>
+                                                                            Split
+                                                                        </span>
+                                                                    ) : t.payment_method === 'GCash' ? (
+                                                                        <span style={{
+                                                                            display: 'inline-block',
+                                                                            background: 'rgba(59, 130, 246, 0.15)',
+                                                                            color: '#3b82f6',
+                                                                            padding: '1px 6px',
+                                                                            borderRadius: '4px',
+                                                                            fontSize: '0.68rem',
+                                                                            fontWeight: 700,
+                                                                            border: '1px solid rgba(59, 130, 246, 0.3)',
+                                                                            whiteSpace: 'nowrap'
+                                                                        }}>
+                                                                            GCash
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span style={{
+                                                                            display: 'inline-block',
+                                                                            background: 'rgba(22, 163, 74, 0.12)',
+                                                                            color: '#10b981',
+                                                                            padding: '1px 6px',
+                                                                            borderRadius: '4px',
+                                                                            fontSize: '0.68rem',
+                                                                            fontWeight: 700,
+                                                                            border: '1px solid rgba(22, 163, 74, 0.3)',
+                                                                            whiteSpace: 'nowrap'
+                                                                        }}>
+                                                                            Cash
+                                                                        </span>
+                                                                    )}
+
+                                                                    {Number(t.swap_count) > 0 && t.payment_method !== 'Replacement' && t.payment_method !== 'Exchange' && (
+                                                                        <span
+                                                                            title={t.swap_details ? `Replaced: ${t.swap_details}` : 'Item replacement processed'}
+                                                                            style={{
+                                                                                display: 'inline-flex',
+                                                                                alignItems: 'center',
+                                                                                gap: '2px',
+                                                                                background: 'rgba(59, 130, 246, 0.12)',
+                                                                                color: '#93c5fd',
+                                                                                padding: '1px 5px',
+                                                                                borderRadius: '4px',
+                                                                                fontSize: '0.64rem',
+                                                                                fontWeight: 700,
+                                                                                border: '1px solid rgba(59, 130, 246, 0.3)',
+                                                                                whiteSpace: 'nowrap'
+                                                                            }}
+                                                                        >
+                                                                            Swap
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* GCash Reference Number if present */}
+                                                                {(t.payment_reference || t.swap_payment_reference || t.gcash_reference_no) && (
+                                                                    <div style={{
+                                                                        fontSize: '0.68rem',
+                                                                        fontFamily: 'monospace',
+                                                                        color: '#60a5fa',
+                                                                        fontWeight: 700,
+                                                                        letterSpacing: '0.3px',
+                                                                        whiteSpace: 'nowrap'
+                                                                    }}>
+                                                                        Ref: {t.payment_reference || t.swap_payment_reference || t.gcash_reference_no}
+                                                                    </div>
                                                                 )}
                                                             </div>
                                                         </td>

@@ -2186,18 +2186,23 @@ export const CashFloat = () => {
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={() => {
-                                                                                    if (isExpanded) {
+                                                                                    if (isExpanded || (showOpenShiftModal && selectedStaffForTimeIn?.id === s.id)) {
                                                                                         setExpandedStaffTimeInId(null);
                                                                                         setSelectedStaffForTimeIn(null);
+                                                                                        setShowOpenShiftModal(false);
                                                                                     } else {
-                                                                                        setOpenShiftForm({ ...openShiftForm, staff_id: s.id, starting_cash: '2000' });
+                                                                                        setOpenShiftForm(prev => ({ ...prev, staff_id: s.id, starting_cash: prev.starting_cash || '2000' }));
                                                                                         setSelectedStaffForTimeIn(s);
                                                                                         setExpandedStaffTimeInId(s.id);
-                                                                                        setShowOpenShiftModal(false);
+                                                                                        setShowOpenShiftModal(true);
+                                                                                        setTimeout(() => {
+                                                                                            const el = document.getElementById('inline-timein-panel') || document.getElementById(`staff-timein-row-${s.id}`);
+                                                                                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                                                                        }, 50);
                                                                                     }
                                                                                 }}
                                                                                 disabled={isActionBusy}
-                                                                                className={isExpanded ? "btn-secondary" : "btn-primary"}
+                                                                                className={(isExpanded || (showOpenShiftModal && selectedStaffForTimeIn?.id === s.id)) ? "btn-secondary" : "btn-primary"}
                                                                                 style={{
                                                                                     padding: '5px 14px',
                                                                                     fontSize: '0.76rem',
@@ -2205,11 +2210,11 @@ export const CashFloat = () => {
                                                                                     display: 'inline-flex',
                                                                                     alignItems: 'center',
                                                                                     gap: '5px',
-                                                                                    ...(isExpanded ? { color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.4)' } : {})
+                                                                                    ...((isExpanded || (showOpenShiftModal && selectedStaffForTimeIn?.id === s.id)) ? { color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.4)' } : {})
                                                                                 }}
-                                                                                title={isExpanded ? "Close Time-In Form" : "Time-in cashier with starting float & immediately unlock register"}
+                                                                                title={(isExpanded || (showOpenShiftModal && selectedStaffForTimeIn?.id === s.id)) ? "Close Time-In Form" : "Time-in cashier with starting float & immediately unlock register"}
                                                                             >
-                                                                                {isExpanded ? (
+                                                                                {(isExpanded || (showOpenShiftModal && selectedStaffForTimeIn?.id === s.id)) ? (
                                                                                     <>
                                                                                         <X size={13} /> ✕ Close Form
                                                                                     </>
