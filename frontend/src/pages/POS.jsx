@@ -34,6 +34,50 @@ const getPageNumbers = (current, total) => {
     return [1, '...', current - 1, current, current + 1, '...', total];
 };
 
+const STANDARD_POS_CATEGORIES = [
+    'All',
+    'Engine',
+    'Tires',
+    'Wheels & Hubs',
+    'CVT & Pulley',
+    'Suspension',
+    'Exhaust',
+    'Brakes',
+    'Handlebars & Controls',
+    'Electrical',
+    'Oils & Lubricants',
+    'Bolts & Accessories',
+    'Chains & Sprockets',
+    'Lights & Mirrors',
+    'Body & Seats',
+    'Riding Gear & Luggage'
+];
+
+const CATEGORY_SYNONYMS = {
+    'Engine': ['engine', 'piston', 'cylinder', 'valve', 'camshaft', 'engine parts'],
+    'Tires': ['tire', 'tires', 'tyre', 'tyres', 'interior tube'],
+    'Wheels & Hubs': ['wheel', 'wheels', 'hub', 'hubs', 'rim', 'rims', 'spoke'],
+    'CVT & Pulley': ['cvt & pulleys', 'cvt & pulley', 'cvt', 'pulley', 'transmission', 'belt', 'drive belt', 'flyball', 'roller'],
+    'Suspension': ['suspension', 'shock', 'shocks', 'fork', 'forks', 'absorber'],
+    'Exhaust': ['exhaust', 'pipe', 'muffler', 'silencer'],
+    'Brakes': ['brake', 'brakes', 'pad', 'pads', 'caliper', 'calipers', 'rotor', 'rotors', 'shoe', 'shoes', 'disc'],
+    'Handlebars & Controls': ['handlebar', 'handlebars', 'grip', 'grips', 'lever', 'levers', 'control', 'controls', 'throttle', 'cable'],
+    'Electrical': ['electrical', 'electronic', 'battery', 'ecu', 'cdi', 'stator', 'fuse', 'starter', 'horn', 'relay'],
+    'Oils & Lubricants': ['oil', 'oils', 'lubricant', 'lubricants', 'fluid', 'fluids', 'gear oil', 'brake fluid', 'coolant', 'engine oil'],
+    'Bolts & Accessories': ['bolt', 'bolts', 'screw', 'screws', 'nut', 'nuts', 'washer', 'washers', 'fastener', 'accessory', 'accessories'],
+    'Chains & Sprockets': ['chain', 'chains', 'sprocket', 'sprockets'],
+    'Lights & Mirrors': ['light', 'lights', 'lighting', 'mirror', 'mirrors', 'headlight', 'taillight', 'signal'],
+    'Body & Seats': ['body', 'seat', 'seats', 'fairing', 'fender', 'cover', 'bracket'],
+    'Riding Gear & Luggage': ['gear', 'helmet', 'luggage', 'box', 'top box', 'carrier', 'bag'],
+    // Backward-compatibility shortcuts
+    'ENG': ['engine', 'piston', 'cylinder', 'valve', 'camshaft', 'engine parts'],
+    'BRK': ['brake', 'brakes', 'pad', 'pads', 'caliper', 'calipers', 'rotor', 'rotors', 'shoe', 'shoes', 'disc'],
+    'ELEC': ['electrical', 'electronic', 'battery', 'ecu', 'cdi', 'stator', 'fuse', 'starter', 'horn', 'relay'],
+    'CVT': ['cvt & pulleys', 'cvt & pulley', 'cvt', 'pulley', 'transmission', 'belt', 'drive belt', 'flyball', 'roller'],
+    'CHAS': ['chassis', 'suspension', 'shock', 'tires', 'wheels', 'handlebars'],
+    'OIL': ['oil', 'oils', 'lubricant', 'lubricants', 'fluid', 'fluids', 'gear oil', 'brake fluid', 'coolant']
+};
+
 const POS = ({ defaultTab }) => {
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
@@ -150,27 +194,34 @@ const POS = ({ defaultTab }) => {
 
     const [cart, setCart] = useState([]);
 
-    const CATEGORY_GROUPS = {
-        'ENG': ['Engine', 'Engine Parts', 'Filters', 'Exhaust', 'Piston', 'Cylinder', 'Camshaft', 'Valve'],
-        'BRK': ['Brakes', 'Brake', 'Pads', 'Caliper', 'Rotor', 'Shoe'],
-        'ELEC': ['Electrical', 'Electronics', 'Ignition', 'Lights & Mirrors', 'Lighting', 'Battery', 'ECU', 'CDI'],
-        'CVT': ['CVT & Pulleys', 'CVT', 'Transmission', 'Drive', 'Chains & Sprockets', 'Belt', 'Roller', 'Flyball'],
-        'CHAS': ['Chassis', 'Suspension', 'Tires', 'Wheels & Hubs', 'Wheels', 'Handlebars & Controls', 'Body & Seats', 'Riding Gear & Luggage', 'Bolts & Accessories', 'Shock', 'Fork'],
-        'OIL': ['Oils & Lubricants', 'Oils', 'Lubricants', 'Fluids', 'Brake Fluid', 'Gear Oil', 'Coolant']
-    };
+    const posCategories = useMemo(() => {
+        const list = [...STANDARD_POS_CATEGORIES];
+        if (Array.isArray(products)) {
+            products.forEach(p => {
+                const raw = (p.category || '').trim();
+                if (raw && !list.some(existing => existing.toLowerCase() === raw.toLowerCase())) {
+                    list.push(raw);
+                }
+            });
+        }
+        return list;
+    }, [products]);
 
     const filterProductsFn = useCallback((items, query, f) => {
         let candidateItems = items;
-        if (f.category && f.category !== 'All') {
-            const mappedList = CATEGORY_GROUPS[f.category];
-            if (mappedList) {
-                candidateItems = items.filter(item => {
-                    const cat = (item.category || '').toLowerCase();
-                    return mappedList.some(m => cat.includes(m.toLowerCase()) || m.toLowerCase().includes(cat));
-                });
-            } else {
-                candidateItems = items.filter(item => (item.category || '').toLowerCase() === f.category.toLowerCase());
-            }
+        const selectedCat = f.category;
+        if (selectedCat && selectedCat !== 'All') {
+            const lowerTarget = selectedCat.toLowerCase().trim();
+            const synonyms = CATEGORY_SYNONYMS[selectedCat] || [];
+
+            candidateItems = items.filter(item => {
+                const itemCat = (item.category || '').toLowerCase().trim();
+                if (!itemCat) return false;
+                if (itemCat === lowerTarget) return true;
+                if (itemCat.includes(lowerTarget) || lowerTarget.includes(itemCat)) return true;
+                if (synonyms.some(s => itemCat.includes(s.toLowerCase()) || s.toLowerCase().includes(itemCat))) return true;
+                return false;
+            });
         }
         return filterProducts(candidateItems, query, {
             category: 'All',
@@ -1997,40 +2048,48 @@ const POS = ({ defaultTab }) => {
                             }
                         `}</style>
 
-                        {/* Collapsed 6 Quick Category Codes on a single row */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap', overflowX: 'auto', marginBottom: '10px' }}>
-                            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginRight: '4px', whiteSpace: 'nowrap' }}>
+                        {/* Full Taxonomy Category Pills with Smooth Horizontal Scroll */}
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            flexWrap: 'nowrap',
+                            overflowX: 'auto',
+                            paddingBottom: '8px',
+                            marginBottom: '10px',
+                            scrollbarWidth: 'thin'
+                        }}>
+                            <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginRight: '4px', whiteSpace: 'nowrap' }}>
                                 Categories:
                             </span>
-                            {[
-                                { label: 'All', value: 'All' },
-                                { label: 'ENG', value: 'ENG' },
-                                { label: 'BRK', value: 'BRK' },
-                                { label: 'ELEC', value: 'ELEC' },
-                                { label: 'CVT', value: 'CVT' },
-                                { label: 'CHAS', value: 'CHAS' },
-                                { label: 'OIL', value: 'OIL' }
-                            ].map(cat => {
-                                const isSelected = filters.category === cat.value || (cat.value === 'All' && (!filters.category || filters.category === 'All'));
+                            {posCategories.map(cat => {
+                                const isSelected = filters.category === cat || (cat === 'All' && (!filters.category || filters.category === 'All'));
                                 return (
                                     <button
-                                        key={cat.value}
+                                        key={cat}
                                         type="button"
-                                        onClick={() => setCategory(cat.value)}
+                                        onClick={() => {
+                                            if (isSelected && cat !== 'All') {
+                                                setCategory('All');
+                                            } else {
+                                                setCategory(cat);
+                                            }
+                                        }}
                                         style={{
-                                            padding: '4px 14px',
-                                            fontSize: '0.76rem',
+                                            padding: '5px 14px',
+                                            fontSize: '0.78rem',
                                             fontWeight: isSelected ? 800 : 600,
-                                            borderRadius: '16px',
+                                            borderRadius: '18px',
                                             border: isSelected ? '1.5px solid var(--primary)' : '1px solid var(--border)',
-                                            background: isSelected ? 'rgba(16, 185, 129, 0.15)' : 'var(--surface)',
+                                            background: isSelected ? 'rgba(16, 185, 129, 0.16)' : 'var(--surface)',
                                             color: isSelected ? 'var(--primary)' : 'var(--text-main)',
                                             cursor: 'pointer',
                                             whiteSpace: 'nowrap',
+                                            flexShrink: 0,
                                             transition: 'all 0.15s ease'
                                         }}
                                     >
-                                        {cat.label}
+                                        {cat}
                                     </button>
                                 );
                             })}
