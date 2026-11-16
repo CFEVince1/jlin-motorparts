@@ -853,6 +853,7 @@ async function ensureSchema() {
             customer_top_up_paid DECIMAL(10,2) NOT NULL DEFAULT 0.00,
             cash_refund_given DECIMAL(10,2) NOT NULL DEFAULT 0.00,
             payment_method VARCHAR(50) NOT NULL DEFAULT 'None',
+            payment_reference VARCHAR(100) NULL,
             shift_id INT NULL,
             cashier_id INT NULL,
             amount_tendered DECIMAL(10,2) NOT NULL DEFAULT 0.00,
@@ -873,6 +874,7 @@ async function ensureSchema() {
       const swapColNames = swapCols.map(c => c.Field);
       const colsToAdd = [
         { name: 'sale_item_id', sql: 'ALTER TABLE item_swaps ADD COLUMN sale_item_id INT NULL AFTER sale_id' },
+        { name: 'payment_reference', sql: 'ALTER TABLE item_swaps ADD COLUMN payment_reference VARCHAR(100) NULL AFTER payment_method' },
         { name: 'shift_id', sql: 'ALTER TABLE item_swaps ADD COLUMN shift_id INT NULL AFTER payment_method' },
         { name: 'cashier_id', sql: 'ALTER TABLE item_swaps ADD COLUMN cashier_id INT NULL AFTER shift_id' },
         { name: 'old_cost_price', sql: 'ALTER TABLE item_swaps ADD COLUMN old_cost_price DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER returned_credit_total' },

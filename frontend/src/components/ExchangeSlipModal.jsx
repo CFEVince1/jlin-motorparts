@@ -187,6 +187,14 @@ const ExchangeSlipModal = ({ isOpen, onClose, swap }) => {
                                         </div>
                                     </>
                                 )}
+                                {swap.payment_method === 'GCash' && (swap.payment_reference || swap.reference_no || swap.notes?.includes('GCash Ref:')) && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#3b82f6', fontSize: '0.76rem', fontWeight: 700 }}>
+                                        <span>GCash Ref No:</span>
+                                        <span style={{ fontFamily: 'monospace' }}>
+                                            {swap.payment_reference || swap.reference_no || swap.notes?.match(/\[GCash Ref:\s*([^\]]+)\]/)?.[1] || 'Verified'}
+                                        </span>
+                                    </div>
+                                )}
                             </>
                         )}
                     </div>

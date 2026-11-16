@@ -272,6 +272,14 @@ exports.processSwap = async (req, res) => {
             notes = ''
         } = req.body;
 
+        const payment_reference = (
+            req.body.payment_reference ||
+            req.body.paymentReference ||
+            req.body.gcash_reference_no ||
+            req.body.reference_no ||
+            ''
+        ).trim() || null;
+
         // 1. Mandatory Counter Condition Check verification
         if (!counter_condition_verified) {
             await conn.rollback();
@@ -439,6 +447,14 @@ exports.processSwap = async (req, res) => {
                     });
                 }
                 changeAmount = Math.max(0, Math.round((tendered - customerTopUpPaid) * 100) / 100);
+            } else if (finalPaymentMethod === 'GCash') {
+                if (!payment_reference || payment_reference.length < 6) {
+                    await conn.rollback();
+                    return res.status(400).json({
+                        success: false,
+                        message: 'GCash Reference Number is required for GCash top-up payment (must be at least 6 characters).'
+                    });
+                }
             }
         } else {
             // Scenario A: Equal-Value Swap (New Price == Old Price)
@@ -546,54 +562,120 @@ exports.processSwap = async (req, res) => {
             : `${firstRep.name} (+${validatedReplacements.length - 1} more parts)`;
         const totalNewQty = validatedReplacements.reduce((sum, r) => sum + r.qty, 0);
 
-        const [insertResult] = await conn.query(
-            `INSERT INTO item_swaps (
-                swap_code, sale_id, sale_item_id, order_number, customer_name,
-                returned_product_id, returned_product_name, returned_part_number, returned_brand,
-                returned_qty, returned_unit_price, returned_credit_total, old_cost_price, returned_disposition,
-                new_product_id, new_product_name, new_part_number, new_brand,
-                new_qty, new_unit_price, new_total_price, new_cost_price, cogs_adjustment,
-                replacement_items_json,
-                price_difference, customer_top_up_paid, cash_refund_given,
-                payment_method, shift_id, cashier_id, amount_tendered, change_amount,
-                reason, notes, processed_by, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'RESTOCK', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-            [
-                swapCode,
-                sale_id || null,
-                sale_item_id || null,
-                order_number || null,
-                customer_name || 'Walk-in Customer',
-                returned_product_id,
-                returnedProduct.name,
-                returnedProduct.part_number,
-                returnedProduct.brand,
-                retQty,
-                unitCredit,
-                returnedCreditTotal,
-                oldTotalCost,
-                firstRep.product_id,
-                primaryNewName,
-                firstRep.part_number,
-                firstRep.brand,
-                totalNewQty,
-                firstRep.unit_price,
-                totalNewRetailPrice,
-                firstRep.cost_price,
-                cogsAdjustment,
-                JSON.stringify(validatedReplacements),
-                rawDiff,
-                customerTopUpPaid,
-                finalPaymentMethod,
-                activeShiftId || null,
-                currentUserId,
-                Number(amount_tendered || 0),
-                changeAmount,
-                reason || 'Customer exchange',
-                notes || '',
-                req.user?.username || 'Staff'
-            ]
-        );
+        let finalNotes = (notes || '').trim();
+        if (finalPaymentMethod === 'GCash' && payment_reference) {
+            if (!finalNotes.includes(payment_reference)) {
+                finalNotes = finalNotes ? `${finalNotes} [GCash Ref: ${payment_reference}]` : `[GCash Ref: ${payment_reference}]`;
+            }
+        }
+
+        let insertResult;
+        try {
+            [insertResult] = await conn.query(
+                `INSERT INTO item_swaps (
+                    swap_code, sale_id, sale_item_id, order_number, customer_name,
+                    returned_product_id, returned_product_name, returned_part_number, returned_brand,
+                    returned_qty, returned_unit_price, returned_credit_total, old_cost_price, returned_disposition,
+                    new_product_id, new_product_name, new_part_number, new_brand,
+                    new_qty, new_unit_price, new_total_price, new_cost_price, cogs_adjustment,
+                    replacement_items_json,
+                    price_difference, customer_top_up_paid, cash_refund_given,
+                    payment_method, payment_reference, shift_id, cashier_id, amount_tendered, change_amount,
+                    reason, notes, processed_by, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'RESTOCK', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+                [
+                    swapCode,
+                    sale_id || null,
+                    sale_item_id || null,
+                    order_number || null,
+                    customer_name || 'Walk-in Customer',
+                    returned_product_id,
+                    returnedProduct.name,
+                    returnedProduct.part_number,
+                    returnedProduct.brand,
+                    retQty,
+                    unitCredit,
+                    returnedCreditTotal,
+                    oldTotalCost,
+                    firstRep.product_id,
+                    primaryNewName,
+                    firstRep.part_number,
+                    firstRep.brand,
+                    totalNewQty,
+                    firstRep.unit_price,
+                    totalNewRetailPrice,
+                    firstRep.cost_price,
+                    cogsAdjustment,
+                    JSON.stringify(validatedReplacements),
+                    rawDiff,
+                    customerTopUpPaid,
+                    finalPaymentMethod,
+                    payment_reference,
+                    activeShiftId || null,
+                    currentUserId,
+                    Number(amount_tendered || 0),
+                    changeAmount,
+                    reason || 'Customer exchange',
+                    finalNotes,
+                    req.user?.username || 'Staff'
+                ]
+            );
+        } catch (insertErr) {
+            if (insertErr.code === 'ER_BAD_FIELD_ERROR' || insertErr.message?.includes('payment_reference')) {
+                // Resilient fallback if table does not yet have payment_reference column
+                const [fbResult] = await conn.query(
+                    `INSERT INTO item_swaps (
+                        swap_code, sale_id, sale_item_id, order_number, customer_name,
+                        returned_product_id, returned_product_name, returned_part_number, returned_brand,
+                        returned_qty, returned_unit_price, returned_credit_total, old_cost_price, returned_disposition,
+                        new_product_id, new_product_name, new_part_number, new_brand,
+                        new_qty, new_unit_price, new_total_price, new_cost_price, cogs_adjustment,
+                        replacement_items_json,
+                        price_difference, customer_top_up_paid, cash_refund_given,
+                        payment_method, shift_id, cashier_id, amount_tendered, change_amount,
+                        reason, notes, processed_by, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'RESTOCK', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+                    [
+                        swapCode,
+                        sale_id || null,
+                        sale_item_id || null,
+                        order_number || null,
+                        customer_name || 'Walk-in Customer',
+                        returned_product_id,
+                        returnedProduct.name,
+                        returnedProduct.part_number,
+                        returnedProduct.brand,
+                        retQty,
+                        unitCredit,
+                        returnedCreditTotal,
+                        oldTotalCost,
+                        firstRep.product_id,
+                        primaryNewName,
+                        firstRep.part_number,
+                        firstRep.brand,
+                        totalNewQty,
+                        firstRep.unit_price,
+                        totalNewRetailPrice,
+                        firstRep.cost_price,
+                        cogsAdjustment,
+                        JSON.stringify(validatedReplacements),
+                        rawDiff,
+                        customerTopUpPaid,
+                        finalPaymentMethod,
+                        activeShiftId || null,
+                        currentUserId,
+                        Number(amount_tendered || 0),
+                        changeAmount,
+                        reason || 'Customer exchange',
+                        finalNotes,
+                        req.user?.username || 'Staff'
+                    ]
+                );
+                insertResult = fbResult;
+            } else {
+                throw insertErr;
+            }
+        }
 
         // 11. Write to audit_logs
         try {
@@ -646,10 +728,11 @@ exports.processSwap = async (req, res) => {
                 customer_top_up_paid: customerTopUpPaid,
                 cash_refund_given: 0.00,
                 payment_method: finalPaymentMethod,
+                payment_reference: payment_reference || null,
                 amount_tendered: Number(amount_tendered || 0),
                 change_amount: changeAmount,
                 reason,
-                notes,
+                notes: finalNotes,
                 processed_by: req.user?.username || 'Staff',
                 created_at: new Date()
             }

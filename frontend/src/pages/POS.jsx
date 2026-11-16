@@ -818,6 +818,7 @@ const POS = ({ defaultTab }) => {
     const [showReplacementCheckoutModal, setShowReplacementCheckoutModal] = useState(false);
     const [swapPaymentMethod, setSwapPaymentMethod] = useState('Cash');
     const [swapTendered, setSwapTendered] = useState('');
+    const [swapGcashRef, setSwapGcashRef] = useState('');
     const [swapReason, setSwapReason] = useState('Fitment / Wrong Part Purchased');
     const [swapNotes, setSwapNotes] = useState('');
     const [submittingSwap, setSubmittingSwap] = useState(false);
@@ -941,6 +942,7 @@ const POS = ({ defaultTab }) => {
         }
         setSwapPaymentMethod('Cash');
         setSwapTendered(replacementTopUpDue > 0 ? String(replacementTopUpDue) : '');
+        setSwapGcashRef('');
         setShowReplacementCheckoutModal(true);
     };
 
@@ -950,6 +952,17 @@ const POS = ({ defaultTab }) => {
             const tenderedNum = Number(swapTendered) || replacementTopUpDue;
             if (tenderedNum < replacementTopUpDue) {
                 toast.error(`Amount tendered (₱${tenderedNum.toFixed(2)}) is less than top-up due (₱${replacementTopUpDue.toFixed(2)})`);
+                return;
+            }
+        }
+        if (replacementTopUpDue > 0 && swapPaymentMethod === 'GCash') {
+            const cleanRef = swapGcashRef.trim().replace(/\s+/g, '');
+            if (!cleanRef) {
+                toast.error('Please enter the GCash reference number for the top-up payment.');
+                return;
+            }
+            if (cleanRef.length < 6) {
+                toast.error('GCash reference number must be at least 6 digits/characters.');
                 return;
             }
         }
@@ -972,6 +985,8 @@ const POS = ({ defaultTab }) => {
                 new_product_id: cart[0].id || cart[0].product_id,
                 new_qty: cart.reduce((s, it) => s + Number(it.quantity || 1), 0),
                 payment_method: replacementTopUpDue > 0 ? swapPaymentMethod : 'None',
+                payment_reference: (replacementTopUpDue > 0 && swapPaymentMethod === 'GCash') ? swapGcashRef.trim() : null,
+                gcash_reference_no: (replacementTopUpDue > 0 && swapPaymentMethod === 'GCash') ? swapGcashRef.trim() : null,
                 amount_tendered: replacementTopUpDue > 0
                     ? (swapPaymentMethod === 'Cash' ? (Number(swapTendered) || replacementTopUpDue) : replacementTopUpDue)
                     : 0,
@@ -988,6 +1003,7 @@ const POS = ({ defaultTab }) => {
                 setCart([]);
                 setShowReplacementCheckoutModal(false);
                 setSwapTendered('');
+                setSwapGcashRef('');
                 setSwapNotes('');
                 notifyInventoryChange('item_replacement');
                 fetchActiveCashFloat(true);
@@ -4025,6 +4041,42 @@ const POS = ({ defaultTab }) => {
                                         </div>
                                     </div>
                                 )}
+
+                                {swapPaymentMethod === 'GCash' && (
+                                    <div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                            <label style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                                                GCash Reference Number: <span style={{ color: '#ef4444' }}>*</span>
+                                            </label>
+                                            {swapGcashRef.trim().length >= 6 && (
+                                                <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 700 }}>
+                                                    ✓ Reference Ready
+                                                </span>
+                                            )}
+                                        </div>
+                                        <input
+                                            type="text"
+                                            className="input-premium"
+                                            style={{
+                                                width: '100%',
+                                                height: '38px',
+                                                fontSize: '0.92rem',
+                                                fontWeight: 700,
+                                                fontFamily: 'monospace',
+                                                letterSpacing: '0.5px',
+                                                borderColor: swapGcashRef.trim().length >= 6 ? '#10b981' : (swapGcashRef ? '#ef4444' : undefined)
+                                            }}
+                                            placeholder="Enter GCash Ref No. (e.g. 1002938475102)"
+                                            value={swapGcashRef}
+                                            onChange={(e) => setSwapGcashRef(e.target.value)}
+                                            required
+                                            autoFocus
+                                        />
+                                        <div style={{ fontSize: '0.70rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                            Verify customer's GCash SMS/payment receipt on the shop phone before confirming.
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -4077,7 +4129,7 @@ const POS = ({ defaultTab }) => {
                                 type="button"
                                 className="btn-primary"
                                 onClick={handleConfirmProcessSwap}
-                                disabled={submittingSwap || (replacementTopUpDue > 0 && swapPaymentMethod === 'Cash' && swapTendered && Number(swapTendered) < replacementTopUpDue)}
+                                disabled={submittingSwap || (replacementTopUpDue > 0 && swapPaymentMethod === 'Cash' && swapTendered && Number(swapTendered) < replacementTopUpDue) || (replacementTopUpDue > 0 && swapPaymentMethod === 'GCash' && swapGcashRef.trim().length < 6)}
                                 style={{ flex: 1.5, padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                             >
                                 <CheckCircle2 size={16} />
