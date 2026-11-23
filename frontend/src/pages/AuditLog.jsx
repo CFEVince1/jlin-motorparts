@@ -418,7 +418,7 @@ const AuditLog = ({ asTab = false }) => {
                         className="input-premium"
                         value={selectedModule}
                         onChange={(e) => { setSelectedModule(e.target.value); setPage(1); }}
-                        style={{ padding: '5px 8px', fontSize: '0.78rem' }}
+                        style={{ padding: '5px 10px', fontSize: '0.78rem', height: '36px', width: 'auto' }}
                     >
                         <option value="ALL">All Modules</option>
                         {availableModules.map(m => (
@@ -434,7 +434,7 @@ const AuditLog = ({ asTab = false }) => {
                         className="input-premium"
                         value={selectedAction}
                         onChange={(e) => { setSelectedAction(e.target.value); setPage(1); }}
-                        style={{ padding: '5px 8px', fontSize: '0.78rem' }}
+                        style={{ padding: '5px 10px', fontSize: '0.78rem', height: '36px', width: 'auto' }}
                     >
                         <option value="ALL">All Action Types</option>
                         {availableActions.map(a => (
@@ -683,6 +683,7 @@ const AuditLog = ({ asTab = false }) => {
                     <div className="glass-panel" style={{ width: '100%', maxWidth: '580px', borderRadius: '14px', padding: '24px', position: 'relative' }}>
                         <button
                             type="button"
+                            aria-label="Close audit inspector modal"
                             onClick={() => setSelectedLog(null)}
                             style={{ position: 'absolute', right: '16px', top: '16px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
                         >

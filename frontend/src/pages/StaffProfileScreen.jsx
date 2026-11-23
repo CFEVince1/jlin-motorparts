@@ -169,6 +169,7 @@ export const StaffProfileScreen = () => {
                   />
                   <button
                     type="button"
+                    aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
                     onClick={() => setShowNewPassword(!showNewPassword)}
                     style={{
                       position: 'absolute',
@@ -224,6 +225,7 @@ export const StaffProfileScreen = () => {
                   />
                   <button
                     type="button"
+                    aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     style={{
                       position: 'absolute',
@@ -266,6 +268,7 @@ export const StaffProfileScreen = () => {
               />
               <button
                 type="button"
+                aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}
                 onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                 style={{
                   position: 'absolute',

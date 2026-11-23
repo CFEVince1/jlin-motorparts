@@ -1585,7 +1585,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* 3. Table of Recent Voided Sales */}
-                <div style={{ overflowX: 'auto', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                <div className="table-container" style={{ width: '100%', maxWidth: '100%', overflowX: 'auto', borderRadius: '10px', border: '1px solid var(--border)' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.80rem' }}>
                         <thead>
                             <tr style={{ background: 'var(--surface-hover)', borderBottom: '1px solid var(--border)' }}>
@@ -2525,7 +2525,7 @@ export default function Dashboard() {
                                     {selectedLowStockIds.length > 0 ? (
                                         <>Selected <strong style={{ color: '#f59e0b' }}>{selectedLowStockIds.length}</strong> of {selectableLowStockItems.length} low-stock parts</>
                                     ) : (
-                                        <>Choice 1: Select items with checkboxes • Choice 2: Click "Request ALL Low Stock"</>
+                                        <>Choice 1: Select items with checkboxes • Choice 2: Click "Request Restock"</>
                                     )}
                                 </span>
                             </div>
@@ -2694,15 +2694,19 @@ export default function Dashboard() {
                                                     </td>
                                                 )}
                                                 <td
-                                                    style={{ padding: '10px 12px', cursor: 'pointer' }}
-                                                    onClick={() => handleGoToSupplier(item)}
-                                                    title={`View ${item.supplier_name || 'supplier'} in Supplier Directory`}
+                                                    style={{ padding: '10px 12px', cursor: isAdmin ? 'pointer' : 'default' }}
+                                                    onClick={() => { if (isAdmin) handleGoToSupplier(item); }}
+                                                    title={isAdmin ? `View ${item.supplier_name || 'supplier'} in Supplier Directory` : (item.supplier_name || 'Supplier')}
                                                 >
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                        <strong style={{ color: 'var(--primary)', textDecoration: 'underline' }}>{item.supplier_name || 'Brembo & RCB Hub'}</strong>
+                                                        <strong style={{ color: isAdmin ? 'var(--primary)' : 'var(--text-main)', textDecoration: isAdmin ? 'underline' : 'none' }}>
+                                                            {item.supplier_name || 'Brembo & RCB Hub'}
+                                                        </strong>
                                                         <span style={{ background: 'rgba(24, 119, 242, 0.15)', color: '#1877f2', padding: '1px 5px', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 700 }}>FB</span>
                                                     </div>
-                                                    <div style={{ fontSize: '0.70rem', color: 'var(--text-muted)' }}>{item.contact_person ? `${item.contact_person} • ` : ''}View Supplier ➔</div>
+                                                    <div style={{ fontSize: '0.70rem', color: 'var(--text-muted)' }}>
+                                                        {item.contact_person || ''}{isAdmin ? (item.contact_person ? ' • View Supplier ➔' : 'View Supplier ➔') : ''}
+                                                    </div>
                                                 </td>
                                                 <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                                                     {isAdmin ? (
@@ -3370,6 +3374,7 @@ export default function Dashboard() {
                             </h3>
                             <button
                                 type="button"
+                                aria-label="Close receipt modal"
                                 onClick={() => {
                                     setSelectedReceiptSaleId(null);
                                     setReceiptDetails(null);

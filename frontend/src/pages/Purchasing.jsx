@@ -1280,7 +1280,7 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
       </div>
 
       {/* Top 3 Tabs Navigation Bar */}
-      <div className="no-print" style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border)', paddingBottom: '8px', marginBottom: '22px', overflowX: 'auto' }}>
+      <div className="no-print" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', borderBottom: '1px solid var(--border)', paddingBottom: '8px', marginBottom: '22px' }}>
         <button
           type="button"
           onClick={() => handleTabChange('receive')}
@@ -3066,6 +3066,7 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
                 </button>
                 <button
                   type="button"
+                  aria-label="Close receiving slip modal"
                   onClick={() => setSelectedBatch(null)}
                   style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
                 >

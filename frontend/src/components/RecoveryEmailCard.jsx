@@ -167,21 +167,6 @@ export default function RecoveryEmailCard() {
             Password Recovery Email
           </h3>
         </div>
-
-        {/* If verified and not in change mode, show quick edit button in header */}
-        {isVerified && !isChangingEmail && (
-          <button
-            type="button"
-            className="btn-secondary"
-            style={{ fontSize: '0.8rem', padding: '5px 12px', height: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}
-            onClick={() => {
-              setIsChangingEmail(true);
-              setMsg(null);
-            }}
-          >
-            <Edit3 size={14} /> Change Email
-          </button>
-        )}
       </div>
 
       {/* Status Banner */}
