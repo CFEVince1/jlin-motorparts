@@ -82,6 +82,7 @@ const POS = ({ defaultTab }) => {
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const { user, logout } = useContext(AuthContext);
+    const isAdmin = String(user?.role || '').toLowerCase() === 'admin';
 
     const initialTab = useMemo(() => {
         const qTab = searchParams.get('tab');
@@ -3736,7 +3737,7 @@ const POS = ({ defaultTab }) => {
             {showReceipt && lastTransaction && (
                 <div className="receipt-modal" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '50px', overflowY: 'auto' }}>
                     <div style={{ background: 'white', padding: '20px', borderRadius: '8px', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <button className="no-print" onClick={closeReceipt} style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', cursor: 'pointer', color: '#666666' }}>
+                        <button className="no-print" aria-label="Close receipt modal" onClick={closeReceipt} style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', cursor: 'pointer', color: '#666666' }}>
                             <X size={24} />
                         </button>
 

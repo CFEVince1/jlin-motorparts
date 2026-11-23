@@ -63,16 +63,19 @@ export const ReceiptPrint = ({
 
   // Philippine 12% VAT Calculations (Gross VAT-Inclusive Retail Model)
   const numTotal = Math.max(0, Number(totalAmount || 0));
-  const computedVatable = (vatableAmount !== null && vatableAmount !== undefined)
-    ? Number(vatableAmount)
-    : Math.round((numTotal / 1.12) * 100) / 100;
-
   const effectiveVat = vatAmount !== null && vatAmount !== undefined
     ? vatAmount
     : taxAmount;
   const computedVat = (effectiveVat !== null && effectiveVat !== undefined)
     ? Number(effectiveVat)
-    : Math.round((numTotal - computedVatable) * 100) / 100;
+    : Math.round((numTotal - (numTotal / 1.12)) * 100) / 100;
+
+  const rawVatable = (vatableAmount !== null && vatableAmount !== undefined)
+    ? Number(vatableAmount)
+    : Math.round((numTotal / 1.12) * 100) / 100;
+  const computedVatable = (computedVat > 0 && Math.abs(rawVatable - numTotal) < 0.01)
+    ? Math.round((numTotal - computedVat) * 100) / 100
+    : rawVatable;
 
   return (
     <div id="printable-receipt" className="thermal-receipt-root" style={{

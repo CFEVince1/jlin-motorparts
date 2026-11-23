@@ -633,7 +633,7 @@ const Users = () => {
                                                             >
                                                                 <Edit2 size={12} /> Edit
                                                             </button>
-                                                            {u.id !== user?.id && (
+                                                            {u.id !== authUser?.id && (
                                                                 <button
                                                                     type="button"
                                                                     aria-label={`Delete ${u.username}`}

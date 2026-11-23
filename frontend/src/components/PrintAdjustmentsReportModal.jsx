@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, X, FileText, AlertOctagon, ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import { formatAuditDate } from '../utils/formatters';

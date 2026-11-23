@@ -3667,8 +3667,8 @@ export default function Dashboard() {
                                     type="text"
                                     className="input-premium"
                                     style={{ width: '100%', height: '38px', fontSize: '0.84rem' }}
-                                    value={rejectReason}
-                                    onChange={(e) => setRejectReason(e.target.value)}
+                                    value={rejectingReason}
+                                    onChange={(e) => setRejectingReason(e.target.value)}
                                     placeholder="e.g. Existing stock in backroom shelf / Supplier out of stock"
                                     required
                                 />

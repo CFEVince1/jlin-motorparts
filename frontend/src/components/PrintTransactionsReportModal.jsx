@@ -18,6 +18,7 @@ export default function PrintTransactionsReportModal({
   user = {},
   transactions = [],
   currentFilterDate = '',
+  currentCashier = '',
   searchQuery = ''
 }) {
   const [timeframe, setTimeframe] = useState(initialTimeframe);
