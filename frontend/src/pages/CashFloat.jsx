@@ -2189,6 +2189,12 @@ export const CashFloat = () => {
                                                                                 <span>-{formatCurrency(s.active_cash_drops)}</span>
                                                                             </div>
                                                                         )}
+                                                                        {Number(s.active_petty_cash_expenses || 0) > 0 && (
+                                                                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', color: '#f59e0b' }}>
+                                                                                <span>Petty Cash:</span>
+                                                                                <span>-{formatCurrency(s.active_petty_cash_expenses)}</span>
+                                                                            </div>
+                                                                        )}
                                                                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', borderTop: '1px dashed var(--border)', marginTop: '2px', paddingTop: '2px', fontWeight: 800, color: '#3b82f6' }}>
                                                                             <span>Net:</span>
                                                                             <span>{formatCurrency(s.active_cash_balance)}</span>
@@ -2703,6 +2709,10 @@ export const CashFloat = () => {
                                             <div style={{ fontSize: '0.70rem', color: 'var(--text-muted)', fontWeight: 700 }}>Mid-Shift Remits</div>
                                             <div style={{ fontSize: '1.0rem', fontWeight: 800, fontFamily: 'monospace', color: '#ef4444', marginTop: '2px' }}>-{formatCurrency(activeShift.cash_drops || 0)}</div>
                                         </div>
+                                        <div style={{ background: 'var(--surface-hover)', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                                            <div style={{ fontSize: '0.70rem', color: 'var(--text-muted)', fontWeight: 700 }}>Petty Cash Out</div>
+                                            <div style={{ fontSize: '1.0rem', fontWeight: 800, fontFamily: 'monospace', color: '#f59e0b', marginTop: '2px' }}>-{formatCurrency(activeShift.petty_cash_expenses || 0)}</div>
+                                        </div>
                                     </div>
 
                                     {/* Staff Actions */}
@@ -2714,6 +2724,18 @@ export const CashFloat = () => {
                                             style={{ padding: '10px 18px', fontSize: '0.86rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                                         >
                                             Open POS Register
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setExpenseForm({ amount: '', category: 'Shop Maintenance', reason: '' });
+                                                setShowExpenseModal(true);
+                                            }}
+                                            className="btn-secondary"
+                                            style={{ padding: '10px 18px', fontSize: '0.86rem', fontWeight: 700, color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.45)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                            title="Record cash taken from drawer for urgent shop repairs/supplies (e.g. broken shop bulb)"
+                                        >
+                                            <MinusCircle size={16} /> Petty Cash / Shop Expense
                                         </button>
                                         <button
                                             type="button"
@@ -2770,6 +2792,8 @@ export const CashFloat = () => {
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                             {activeShift.movements.map(m => {
                                                 const isDrop = m.movement_type === 'CASH_DROP';
+                                                const isExpense = m.movement_type === 'PETTY_CASH_EXPENSE';
+                                                const isOut = isDrop || isExpense;
                                                 return (
                                                     <div key={m.id} style={{
                                                         display: 'flex',
@@ -2777,21 +2801,21 @@ export const CashFloat = () => {
                                                         alignItems: 'center',
                                                         padding: '8px 12px',
                                                         borderRadius: '8px',
-                                                        background: isDrop ? 'rgba(59, 130, 246, 0.08)' : 'var(--surface-hover)',
-                                                        border: isDrop ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid var(--border)',
+                                                        background: isDrop ? 'rgba(59, 130, 246, 0.08)' : isExpense ? 'rgba(239, 68, 68, 0.08)' : 'var(--surface-hover)',
+                                                        border: isDrop ? '1px solid rgba(59, 130, 246, 0.3)' : isExpense ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--border)',
                                                         fontSize: '0.8rem',
                                                         gap: '10px'
                                                     }}>
                                                         <div>
-                                                            <div style={{ fontWeight: 700, color: isDrop ? '#60a5fa' : 'var(--text-main)' }}>
-                                                                {isDrop ? 'Mid-Shift Remit (Cash Drop)' : m.movement_type.replace(/_/g, ' ')}
+                                                            <div style={{ fontWeight: 700, color: isDrop ? '#60a5fa' : isExpense ? '#f87171' : 'var(--text-main)' }}>
+                                                                {isDrop ? 'Mid-Shift Remit (Cash Drop)' : isExpense ? 'Petty Cash Out (Shop Expense)' : m.movement_type.replace(/_/g, ' ')}
                                                             </div>
                                                             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                                                                 {m.notes || m.reference_id || 'Shift transaction'} • {formatAuditDate(m.created_at)}
                                                             </div>
                                                         </div>
-                                                        <div style={{ fontFamily: 'monospace', fontWeight: 800, color: isDrop ? '#ef4444' : 'var(--text-main)', whiteSpace: 'nowrap' }}>
-                                                            {isDrop ? '-' : ''}{formatCurrency(m.amount)}
+                                                        <div style={{ fontFamily: 'monospace', fontWeight: 800, color: isOut ? '#ef4444' : 'var(--text-main)', whiteSpace: 'nowrap' }}>
+                                                            {isOut ? '-' : ''}{formatCurrency(m.amount)}
                                                         </div>
                                                     </div>
                                                 );
@@ -2917,6 +2941,7 @@ export const CashFloat = () => {
                     <div className="glass-panel" style={{ width: '100%', maxWidth: '440px', borderRadius: '14px', padding: '24px', position: 'relative' }}>
                         <button
                             type="button"
+                            aria-label="Close modal"
                             onClick={() => setShowExpenseModal(false)}
                             style={{ position: 'absolute', right: '16px', top: '16px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
                         >
@@ -2969,7 +2994,7 @@ export const CashFloat = () => {
                                     <option value="Store Supplies">Store Supplies (Packaging, Tape, Receipt Paper)</option>
                                     <option value="Food & Snacks">Food, Snacks & Water</option>
                                     <option value="Courier Fare">Courier Fare / Rider Delivery Tip</option>
-                                    <option value="Shop Maintenance">Shop Cleaning & Minor Tools</option>
+                                    <option value="Shop Maintenance">Shop Maintenance &amp; Repairs (Bulbs, Cleaning, Tools)</option>
                                     <option value="Emergency Cash">Emergency / Other Expense</option>
                                 </select>
                             </div>
@@ -2982,7 +3007,7 @@ export const CashFloat = () => {
                                     type="text"
                                     className="input-premium"
                                     style={{ width: '100%', padding: '8px 10px', fontSize: '0.84rem' }}
-                                    placeholder="e.g. 2 rolls of packaging tape from grocery"
+                                    placeholder="e.g. Replacement LED bulb for shop / packaging tape"
                                     value={expenseForm.reason}
                                     onChange={(e) => setExpenseForm({ ...expenseForm, reason: e.target.value })}
                                     required

@@ -179,6 +179,7 @@ exports.getStaffList = async (req, res) => {
                 COALESCE(cf.change_given, 0) AS active_change_given,
                 COALESCE(cf.cash_refunds, 0) AS active_cash_refunds,
                 COALESCE(cf.cash_drops, 0) AS active_cash_drops,
+                COALESCE(cf.petty_cash_expenses, 0) AS active_petty_cash_expenses,
                 COALESCE(cf.sales_count, 0) AS active_sales_count,
                 cf.expected_cash AS active_expected_cash,
                 cf.actual_cash AS active_actual_cash,
@@ -235,6 +236,7 @@ exports.getStaffList = async (req, res) => {
                 COALESCE(cf.change_given, 0) AS active_change_given,
                 COALESCE(cf.cash_refunds, 0) AS active_cash_refunds,
                 COALESCE(cf.cash_drops, 0) AS active_cash_drops,
+                COALESCE(cf.petty_cash_expenses, 0) AS active_petty_cash_expenses,
                 COALESCE(cf.sales_count, 0) AS active_sales_count,
                 cf.expected_cash AS active_expected_cash,
                 cf.actual_cash AS active_actual_cash,
@@ -1181,6 +1183,26 @@ exports.recordPettyCashExpense = async (req, res) => {
             referenceId: `EXP-${activeFloat.id}-${Date.now().toString().slice(-4)}`,
             notes: fullNotes
         });
+
+        // Also mirror into store_operating_expenses (non-blocking) so Admin Reports & Cash Flow reflect drawer expenses
+        try {
+            const phtDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
+            await db.query(`
+                INSERT INTO store_operating_expenses
+                (expense_date, category, title, amount, payment_source, recorded_by_id, recorded_by_name, notes)
+                VALUES (?, ?, ?, ?, 'cash_drawer', ?, ?, ?)
+            `, [
+                phtDate,
+                category || 'Shop Maintenance',
+                reason.trim().slice(0, 150),
+                expenseAmount,
+                staffId,
+                staffUsername,
+                `Drawer Petty Cash (${activeFloat.shift_code || `SHIFT-${activeFloat.id}`})`
+            ]);
+        } catch (opexErr) {
+            console.warn('[recordPettyCashExpense] Mirror to store_operating_expenses notice:', opexErr.message);
+        }
 
         return res.json({
             success: true,

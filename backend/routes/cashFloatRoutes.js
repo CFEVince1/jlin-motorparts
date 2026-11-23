@@ -13,7 +13,7 @@ router.use(authenticateToken);
 router.get('/my-float', cashFloatController.getMyCashFloat);
 router.get('/active-shift', cashFloatController.getActiveShift);
 router.post('/open-shift', cashFloatController.openShift);
-router.post('/petty-cash', adminOnly, cashFloatController.recordPettyCashExpense);
+router.post('/petty-cash', cashFloatController.recordPettyCashExpense); // Scoped to caller's own ACTIVE shift
 router.post('/close-shift', cashFloatController.closeShiftBlindCount);
 
 // Admin-only routes
