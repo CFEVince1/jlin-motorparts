@@ -3088,7 +3088,7 @@ export default function Dashboard() {
                                                 {item.brand || 'Generic'}
                                             </td>
                                             <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 800, color: 'var(--primary)' }}>
-                                                {item.total_quantity_sold || item.quantity_sold || 0}
+                                                {Number(item.total_sold ?? item.total_quantity_sold ?? item.quantity_sold ?? 0)}
                                             </td>
                                             {isAdmin ? (
                                                 <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700 }}>

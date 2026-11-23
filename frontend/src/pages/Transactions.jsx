@@ -1006,7 +1006,7 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                             type="date"
                                             className="input-premium"
                                             title="Start / From Date"
-                                            style={{ paddingLeft: '30px', paddingRight: '8px', width: '130px', fontSize: '0.78rem' }}
+                                            style={{ paddingLeft: '30px', paddingRight: '8px', width: '148px', fontSize: '0.78rem' }}
                                             value={filterStartDate || filterDate || ''}
                                             onChange={(e) => {
                                                 const val = e.target.value;
@@ -1034,7 +1034,7 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                             type="date"
                                             className="input-premium"
                                             title="End / To Date"
-                                            style={{ paddingLeft: '30px', paddingRight: '8px', width: '130px', fontSize: '0.78rem' }}
+                                            style={{ paddingLeft: '30px', paddingRight: '8px', width: '148px', fontSize: '0.78rem' }}
                                             value={filterEndDate || filterDate || ''}
                                             onChange={(e) => {
                                                 const val = e.target.value;
@@ -1102,7 +1102,7 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                         ))}
                                     </select>
                                 )}
-                                <select className="input-premium" style={{ width: '135px' }} value={sortBy} onChange={(e) => setFilter('sortBy', e.target.value)}>
+                                <select className="input-premium" style={{ width: '155px', whiteSpace: 'nowrap' }} value={sortBy} onChange={(e) => setFilter('sortBy', e.target.value)}>
                                     <option value="newest">Sort: Newest</option>
                                     <option value="oldest">Sort: Oldest</option>
                                     <option value="highest">Sort: Highest</option>

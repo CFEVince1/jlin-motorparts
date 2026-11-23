@@ -63,7 +63,10 @@ export const CashFloat = () => {
     // 1. ACTIVE SHIFT TRACKER STATE
     // ==========================================
     const [activeShift, setActiveShift] = useState(null);
+    const [pendingRemitShift, setPendingRemitShift] = useState(null);
     const [loadingActiveShift, setLoadingActiveShift] = useState(true);
+    const [reopenReason, setReopenReason] = useState('Walk-in customer arrived after remit');
+    const [requestingReopen, setRequestingReopen] = useState(false);
 
     // Open Shift Form State
     const [showOpenShiftModal, setShowOpenShiftModal] = useState(false);
@@ -196,6 +199,7 @@ export const CashFloat = () => {
         try {
             const res = await api.get('/cash-float/active-shift');
             setActiveShift(res.data?.activeShift || null);
+            setPendingRemitShift(res.data?.pendingRemitShift || null);
         } catch (err) {
             console.error('Failed to load active shift:', err);
         } finally {
@@ -589,6 +593,28 @@ export const CashFloat = () => {
         }
     };
 
+    // 7b. STAFF REQUEST REOPEN AFTER REMIT (Walk-in customer arrived)
+    const handleRequestReopenShift = async (e) => {
+        if (e && e.preventDefault) e.preventDefault();
+        if (!pendingRemitShift) return;
+        const cleanReason = (reopenReason || '').trim() || 'Walk-in customer arrived after remit';
+        setRequestingReopen(true);
+        try {
+            const res = await api.post(`/cash-float/${pendingRemitShift.id}/request-reopen`, {
+                reason: cleanReason
+            });
+            toast.success(res.data?.message || 'Reopen request sent to Admin. Waiting for approval.');
+            fetchActiveShift();
+            fetchRecords();
+            notifyInventoryChange('shift_reopen_request');
+        } catch (err) {
+            console.error('Failed to request shift reopen:', err);
+            toast.error(err.response?.data?.message || 'Failed to send reopen request');
+        } finally {
+            setRequestingReopen(false);
+        }
+    };
+
     // 8. ADMIN FORCE TIME-OUT & COUNT
     const handleForceCloseSubmit = async (e) => {
         e.preventDefault();
@@ -697,13 +723,24 @@ export const CashFloat = () => {
                     {isAdmin && !activeShift && (
                         <button
                             type="button"
+                            disabled={summaryStats.activeCount > 0}
                             onClick={() => {
+                                if (summaryStats.activeCount > 0) return;
                                 setOpenShiftForm({ ...openShiftForm, staff_id: user?.id || '' });
                                 setSelectedStaffForTimeIn(null);
                                 setShowOpenShiftModal(true);
                             }}
                             className="btn-primary"
-                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '0.84rem' }}
+                            title={summaryStats.activeCount > 0 ? 'Cash drawer is currently occupied by an active shift' : 'Open shift and assign starting float'}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '8px 16px',
+                                fontSize: '0.84rem',
+                                opacity: summaryStats.activeCount > 0 ? 0.5 : 1,
+                                cursor: summaryStats.activeCount > 0 ? 'not-allowed' : 'pointer'
+                            }}
                         >
                             <Plus size={16} /> Open Shift (Starting Float)
                         </button>
@@ -736,7 +773,7 @@ export const CashFloat = () => {
                             <Lock size={15} /> {isAdmin ? 'End Shift & Remit' : 'Submit Closing Count'}
                         </button>
                     )}
-                    {activeShift && activeShift.status === 'PENDING_REMIT' && !isAdmin && (
+                    {pendingRemitShift && !isAdmin && (
                         <div style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -749,7 +786,7 @@ export const CashFloat = () => {
                             borderRadius: '8px',
                             fontWeight: 700
                         }}>
-                            <Clock size={15} /> Preliminary Count Submitted • Awaiting Admin Sign-Off
+                            <Clock size={15} /> Remit Submitted • Awaiting Admin Sign-Off
                         </div>
                     )}
                 </div>
@@ -1157,9 +1194,12 @@ export const CashFloat = () => {
                                     ) : (
                                         records.map(shift => {
                                             const isClosed = shift.status === 'COMPLETED' || shift.status === 'RETURNED';
-                                            const hasActualCount = shift.actual_cash !== null && shift.actual_cash !== undefined && String(shift.actual_cash).trim() !== '';
-                                            const actualCashNum = hasActualCount ? Number(shift.actual_cash) : null;
+                                            const isPendingRemit = shift.status === 'PENDING_REMIT';
+                                            const rawActualVal = shift.actual_cash ?? shift.blind_count_entered;
+                                            const hasActualCount = rawActualVal !== null && rawActualVal !== undefined && String(rawActualVal).trim() !== '';
+                                            const actualCashNum = hasActualCount ? Number(rawActualVal) : null;
                                             const expectedCashNum = Number(shift.expected_cash || 0);
+                                            const dropsNum = Number(shift.cash_drops || 0);
 
                                             let variance = null;
                                             if (shift.shortage_overage !== null && shift.shortage_overage !== undefined && String(shift.shortage_overage).trim() !== '') {
@@ -1177,7 +1217,7 @@ export const CashFloat = () => {
                                                         <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.86rem' }}>
                                                             {shift.staff_full_name || shift.staff_username}
                                                         </div>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
                                                             <span style={{
                                                                 fontFamily: 'monospace',
                                                                 fontWeight: 800,
@@ -1208,21 +1248,30 @@ export const CashFloat = () => {
                                                                     <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>Out: </span>
                                                                     <span style={{ color: 'var(--text-muted)' }}>{formatAuditDate(shift.completed_at || shift.returned_at)}</span>
                                                                 </div>
+                                                            ) : isPendingRemit ? (
+                                                                <span style={{ color: '#f59e0b', fontWeight: 700, fontSize: '0.72rem' }}>
+                                                                    🟡 Remit Submitted ({formatAuditDate(shift.completed_at || shift.returned_at)})
+                                                                </span>
                                                             ) : (
                                                                 <span style={{ color: '#16a34a', fontWeight: 700, fontSize: '0.72rem' }}>🟢 Active On Duty</span>
                                                             )}
                                                         </div>
                                                     </td>
 
-                                                    {/* Col 3: Opening Float */}
+                                                    {/* Col 3: Opening Float (+ Mid-Shift Drops) */}
                                                     <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: 'var(--text-main)', fontSize: '0.84rem' }}>
-                                                        {formatCurrency(shift.starting_cash)}
+                                                        <div>{formatCurrency(shift.starting_cash)}</div>
+                                                        {dropsNum > 0 && (
+                                                            <div style={{ fontSize: '0.70rem', color: '#3b82f6', marginTop: '2px' }}>
+                                                                Drops: -{formatCurrency(dropsNum)}
+                                                            </div>
+                                                        )}
                                                     </td>
 
                                                     {/* Col 4: Actual / Expected */}
                                                     <td style={{ padding: '8px 12px', textAlign: 'right' }}>
-                                                        <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.86rem', color: isClosed && hasActualCount ? 'var(--text-main)' : 'var(--text-muted)' }}>
-                                                            {!isClosed ? '— (Active)' : hasActualCount ? formatCurrency(actualCashNum) : '— (Pending)'}
+                                                        <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.86rem', color: (isClosed || isPendingRemit) && hasActualCount ? 'var(--text-main)' : 'var(--text-muted)' }}>
+                                                            {(!isClosed && !isPendingRemit) ? '— (Active)' : hasActualCount ? formatCurrency(actualCashNum) : '— (Pending)'}
                                                         </div>
                                                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', fontFamily: 'monospace' }}>
                                                             Exp: {formatCurrency(shift.expected_cash)}
@@ -1231,8 +1280,23 @@ export const CashFloat = () => {
 
                                                     {/* Col 5: Variance */}
                                                     <td style={{ padding: '8px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                                        {!isClosed ? (
+                                                        {(!isClosed && !isPendingRemit) ? (
                                                             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>On Duty</span>
+                                                        ) : isPendingRemit ? (
+                                                            <span style={{
+                                                                fontSize: '0.72rem',
+                                                                fontWeight: 700,
+                                                                padding: '2px 8px',
+                                                                borderRadius: '6px',
+                                                                background: 'rgba(245, 158, 11, 0.12)',
+                                                                color: '#f59e0b',
+                                                                border: '1px solid rgba(245, 158, 11, 0.25)',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '4px'
+                                                            }}>
+                                                                <Clock size={11} /> Pending Sign-Off
+                                                            </span>
                                                         ) : !hasActualCount ? (
                                                             <span style={{
                                                                 fontSize: '0.72rem',
@@ -2297,6 +2361,25 @@ export const CashFloat = () => {
                                                                     {/* Case 4: Pending Remittance (Awaiting Sign-Off) */}
                                                                     {status === 'PENDING_REMIT' && (
                                                                         <>
+                                                                            {s.active_reopen_requested_at && (
+                                                                                <span
+                                                                                    style={{
+                                                                                        padding: '4px 9px',
+                                                                                        fontSize: '0.72rem',
+                                                                                        fontWeight: 800,
+                                                                                        borderRadius: '6px',
+                                                                                        background: 'rgba(245, 158, 11, 0.16)',
+                                                                                        color: '#fbbf24',
+                                                                                        border: '1px solid rgba(245, 158, 11, 0.45)',
+                                                                                        display: 'inline-flex',
+                                                                                        alignItems: 'center',
+                                                                                        gap: '4px'
+                                                                                    }}
+                                                                                    title={`Requested at ${formatAuditDate(s.active_reopen_requested_at)}`}
+                                                                                >
+                                                                                    🔔 Reopen Requested: {s.active_reopen_reason || 'Walk-in customer arrived'}
+                                                                                </span>
+                                                                            )}
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={() => handleAdminSignOff(s)}
@@ -2314,7 +2397,7 @@ export const CashFloat = () => {
                                                                                 disabled={isActionBusy}
                                                                                 className="btn-secondary"
                                                                                 style={{ padding: '5px 10px', fontSize: '0.74rem', fontWeight: 700, color: '#f59e0b', borderColor: 'rgba(245, 158, 11, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                                                                title="Undo accidental shift close and let cashier resume selling"
+                                                                                title="Approve reopen request / undo shift close and let cashier resume selling"
                                                                             >
                                                                                 <RefreshCw size={13} /> Unshift (Resume POS)
                                                                             </button>
@@ -2568,28 +2651,253 @@ export const CashFloat = () => {
                     })()}
                 </div>
                 ) : (
-                    <div style={{ paddingTop: '10px' }}>
-                        <div className="glass-panel" style={{ padding: '36px 24px', maxWidth: '620px', margin: '30px auto', borderRadius: '14px', textAlign: 'center' }}>
-                            <div style={{ width: '56px', height: '56px', borderRadius: '14px', background: 'rgba(16, 185, 129, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto', color: 'var(--primary)' }}>
-                                <Banknote size={28} />
+                    <div style={{ paddingTop: '10px', maxWidth: '820px', margin: '0 auto' }}>
+                        {activeShift ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                                {/* CASE A: STAFF HAS ACTIVE SHIFT */}
+                                <div className="glass-panel" style={{ padding: '24px', borderRadius: '14px', border: '1.5px solid #10b981' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '18px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+                                                <Banknote size={24} />
+                                            </div>
+                                            <div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                    <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>
+                                                        Shift Active: {activeShift.shift_code || `SHIFT-${activeShift.id}`}
+                                                    </h2>
+                                                    <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.35)' }}>
+                                                        POS UNLOCKED
+                                                    </span>
+                                                </div>
+                                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '3px' }}>
+                                                    Timed-In: <strong>{formatAuditDate(activeShift.assigned_at)}</strong> • Assigned by: <strong>{activeShift.assigned_by_username || 'Admin'}</strong>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div style={{ textAlign: 'right' }}>
+                                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                                Current Drawer Cash
+                                            </div>
+                                            <div style={{ fontSize: '1.65rem', fontWeight: 900, fontFamily: 'monospace', color: '#10b981' }}>
+                                                {formatCurrency(activeShift.current_cash_balance)}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Metrics Strip */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '20px' }}>
+                                        <div style={{ background: 'var(--surface-hover)', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                                            <div style={{ fontSize: '0.70rem', color: 'var(--text-muted)', fontWeight: 700 }}>Starting Float</div>
+                                            <div style={{ fontSize: '1.0rem', fontWeight: 800, fontFamily: 'monospace', marginTop: '2px' }}>{formatCurrency(activeShift.starting_cash)}</div>
+                                        </div>
+                                        <div style={{ background: 'var(--surface-hover)', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                                            <div style={{ fontSize: '0.70rem', color: 'var(--text-muted)', fontWeight: 700 }}>Cash Sales In</div>
+                                            <div style={{ fontSize: '1.0rem', fontWeight: 800, fontFamily: 'monospace', color: '#16a34a', marginTop: '2px' }}>+{formatCurrency(activeShift.cash_sales || 0)}</div>
+                                        </div>
+                                        <div style={{ background: 'var(--surface-hover)', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                                            <div style={{ fontSize: '0.70rem', color: 'var(--text-muted)', fontWeight: 700 }}>GCash Sales (Digital)</div>
+                                            <div style={{ fontSize: '1.0rem', fontWeight: 800, fontFamily: 'monospace', color: '#3b82f6', marginTop: '2px' }}>{formatCurrency(activeShift.gcash_sales || 0)}</div>
+                                        </div>
+                                        <div style={{ background: 'var(--surface-hover)', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                                            <div style={{ fontSize: '0.70rem', color: 'var(--text-muted)', fontWeight: 700 }}>Mid-Shift Remits</div>
+                                            <div style={{ fontSize: '1.0rem', fontWeight: 800, fontFamily: 'monospace', color: '#ef4444', marginTop: '2px' }}>-{formatCurrency(activeShift.cash_drops || 0)}</div>
+                                        </div>
+                                    </div>
+
+                                    {/* Staff Actions */}
+                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => navigate('/pos')}
+                                            className="btn-primary"
+                                            style={{ padding: '10px 18px', fontSize: '0.86rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                        >
+                                            Open POS Register
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setCashDropShift(activeShift);
+                                                setCashDropAmount('');
+                                                setCashDropNotes('');
+                                                setShowCashDropModal(true);
+                                            }}
+                                            className="btn-secondary"
+                                            style={{ padding: '10px 18px', fontSize: '0.86rem', fontWeight: 700, color: '#3b82f6', borderColor: 'rgba(59, 130, 246, 0.45)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                        >
+                                            <Coins size={16} /> Mid-Shift Remit (Cash Drop)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setCloseShiftForm({
+                                                    actual_cash: '',
+                                                    notes: '',
+                                                    bills_1000: 0, bills_500: 0, bills_200: 0, bills_100: 0, bills_50: 0, bills_20: 0, coins_10: 0, coins_5: 0, coins_1: 0
+                                                });
+                                                setShowCloseShiftModal(true);
+                                            }}
+                                            style={{
+                                                padding: '10px 18px',
+                                                fontSize: '0.86rem',
+                                                fontWeight: 700,
+                                                background: '#d97706',
+                                                color: '#ffffff',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                cursor: 'pointer',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '6px'
+                                            }}
+                                        >
+                                            <Lock size={15} /> Submit End-of-Shift Remit
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* My Mid-Shift Remits & Cash Activity */}
+                                <div className="glass-panel" style={{ padding: '18px 20px', borderRadius: '14px' }}>
+                                    <h3 style={{ margin: '0 0 12px 0', fontSize: '0.96rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <Coins size={17} color="#3b82f6" /> My Mid-Shift Remits &amp; Drawer Activity
+                                    </h3>
+                                    {(!activeShift.movements || activeShift.movements.length === 0) ? (
+                                        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', padding: '12px 0' }}>
+                                            No cash movements or mid-shift remits recorded in this shift yet.
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            {activeShift.movements.map(m => {
+                                                const isDrop = m.movement_type === 'CASH_DROP';
+                                                return (
+                                                    <div key={m.id} style={{
+                                                        display: 'flex',
+                                                        justifyContent: 'space-between',
+                                                        alignItems: 'center',
+                                                        padding: '8px 12px',
+                                                        borderRadius: '8px',
+                                                        background: isDrop ? 'rgba(59, 130, 246, 0.08)' : 'var(--surface-hover)',
+                                                        border: isDrop ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid var(--border)',
+                                                        fontSize: '0.8rem',
+                                                        gap: '10px'
+                                                    }}>
+                                                        <div>
+                                                            <div style={{ fontWeight: 700, color: isDrop ? '#60a5fa' : 'var(--text-main)' }}>
+                                                                {isDrop ? 'Mid-Shift Remit (Cash Drop)' : m.movement_type.replace(/_/g, ' ')}
+                                                            </div>
+                                                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                                                {m.notes || m.reference_id || 'Shift transaction'} • {formatAuditDate(m.created_at)}
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ fontFamily: 'monospace', fontWeight: 800, color: isDrop ? '#ef4444' : 'var(--text-main)', whiteSpace: 'nowrap' }}>
+                                                            {isDrop ? '-' : ''}{formatCurrency(m.amount)}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 8px 0' }}>
-                                {activeShift ? `Shift Active: ${activeShift.shift_code || 'In Progress'}` : 'No Active Shift Assigned'}
-                            </h2>
-                            <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', margin: '0 0 20px 0', lineHeight: 1.5 }}>
-                                {activeShift
-                                    ? `Current Drawer Balance: ${formatCurrency(activeShift.current_cash_balance)} • Starting Float: ${formatCurrency(activeShift.starting_cash)}`
-                                    : 'Cashier shifts and starting change funds (panukli) are managed by Admin. Please request Admin to assign your shift float.'}
-                            </p>
-                            <button
-                                type="button"
-                                onClick={() => navigate('/pos')}
-                                className="btn-primary"
-                                style={{ padding: '10px 24px', fontSize: '0.88rem', fontWeight: 700 }}
-                            >
-                                Open POS Register
-                            </button>
-                        </div>
+                        ) : pendingRemitShift ? (
+                            /* CASE B: REMIT ALREADY SUBMITTED (POS LOCKED, REQUEST ADMIN TO REOPEN) */
+                            <div className="glass-panel" style={{ padding: '26px', borderRadius: '14px', border: '1.5px solid #f59e0b' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+                                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(245, 158, 11, 0.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b', flexShrink: 0 }}>
+                                        <Clock size={24} />
+                                    </div>
+                                    <div>
+                                        <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>
+                                            Remit Submitted • Awaiting Admin Sign-Off
+                                        </h2>
+                                        <div style={{ fontSize: '0.78rem', color: '#f59e0b', fontWeight: 700, marginTop: '3px' }}>
+                                            POS Register is Locked • You cannot process sales or drawer transactions until Admin signs off or reopens your shift.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px', marginBottom: '18px' }}>
+                                    <div style={{ background: 'var(--surface-hover)', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                                        <div style={{ fontSize: '0.70rem', color: 'var(--text-muted)', fontWeight: 700 }}>Shift Code</div>
+                                        <div style={{ fontSize: '0.96rem', fontWeight: 800, fontFamily: 'monospace', marginTop: '2px' }}>{pendingRemitShift.shift_code}</div>
+                                    </div>
+                                    <div style={{ background: 'var(--surface-hover)', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                                        <div style={{ fontSize: '0.70rem', color: 'var(--text-muted)', fontWeight: 700 }}>Submitted Remit Count</div>
+                                        <div style={{ fontSize: '0.96rem', fontWeight: 800, fontFamily: 'monospace', color: '#3b82f6', marginTop: '2px' }}>
+                                            {formatCurrency(pendingRemitShift.actual_cash ?? pendingRemitShift.blind_count_entered ?? 0)}
+                                        </div>
+                                    </div>
+                                    <div style={{ background: 'var(--surface-hover)', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                                        <div style={{ fontSize: '0.70rem', color: 'var(--text-muted)', fontWeight: 700 }}>Mid-Shift Drops</div>
+                                        <div style={{ fontSize: '0.96rem', fontWeight: 800, fontFamily: 'monospace', color: '#ef4444', marginTop: '2px' }}>
+                                            {formatCurrency(pendingRemitShift.cash_drops || 0)}
+                                        </div>
+                                    </div>
+                                    <div style={{ background: 'var(--surface-hover)', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                                        <div style={{ fontSize: '0.70rem', color: 'var(--text-muted)', fontWeight: 700 }}>Submitted At</div>
+                                        <div style={{ fontSize: '0.80rem', fontWeight: 700, marginTop: '3px' }}>
+                                            {formatAuditDate(pendingRemitShift.completed_at || pendingRemitShift.returned_at)}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Reopen Request Panel for unexpected walk-in customers */}
+                                <div style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '10px', padding: '14px 16px' }}>
+                                    <div style={{ fontWeight: 800, fontSize: '0.86rem', marginBottom: '6px' }}>
+                                        Sudden Customer Arrived? Request Admin to Reopen Shift
+                                    </div>
+                                    {pendingRemitShift.reopen_requested_at ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fbbf24', fontSize: '0.82rem', fontWeight: 700 }}>
+                                            <Clock size={16} />
+                                            <span>
+                                                Reopen Request Sent to Admin • Waiting for Approval ({pendingRemitShift.reopen_reason || 'Walk-in customer arrived'}) — {formatAuditDate(pendingRemitShift.reopen_requested_at)}
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <form onSubmit={handleRequestReopenShift} style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginTop: '8px' }}>
+                                            <input
+                                                type="text"
+                                                className="input-premium"
+                                                style={{ flex: '1 1 240px', padding: '8px 10px', fontSize: '0.82rem' }}
+                                                value={reopenReason}
+                                                onChange={(e) => setReopenReason(e.target.value)}
+                                                placeholder="Reason (e.g. Walk-in customer wants to buy headlight bulb)"
+                                            />
+                                            <button
+                                                type="submit"
+                                                disabled={requestingReopen}
+                                                className="btn-primary"
+                                                style={{ padding: '8px 16px', fontSize: '0.82rem', fontWeight: 800, background: '#f59e0b', borderColor: '#f59e0b', color: '#000', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                            >
+                                                <RefreshCw size={14} /> {requestingReopen ? 'Sending Request...' : 'Request Admin to Reopen Shift'}
+                                            </button>
+                                        </form>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            /* CASE C: NO ACTIVE OR PENDING SHIFT */
+                            <div className="glass-panel" style={{ padding: '36px 24px', maxWidth: '620px', margin: '30px auto', borderRadius: '14px', textAlign: 'center' }}>
+                                <div style={{ width: '56px', height: '56px', borderRadius: '14px', background: 'rgba(16, 185, 129, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto', color: 'var(--primary)' }}>
+                                    <Banknote size={28} />
+                                </div>
+                                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 8px 0' }}>
+                                    No Active Shift Assigned
+                                </h2>
+                                <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', margin: '0 0 20px 0', lineHeight: 1.5 }}>
+                                    Cashier shifts and starting change funds (panukli) are managed by Admin. Please request Admin to assign your shift float.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate('/pos')}
+                                    className="btn-primary"
+                                    style={{ padding: '10px 24px', fontSize: '0.88rem', fontWeight: 700 }}
+                                >
+                                    Open POS Register
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )
             )}
@@ -3024,6 +3332,12 @@ export const CashFloat = () => {
                                     <strong style={{ fontFamily: 'monospace', color: '#ea580c' }}>-{formatCurrency(viewShiftDetails.cash_refunds || 0)}</strong>
                                 </div>
                             )}
+                            {Number(viewShiftDetails.cash_drops) > 0 && (
+                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Mid-Shift Cash Drops (-):</span>
+                                    <strong style={{ fontFamily: 'monospace', color: '#3b82f6' }}>-{formatCurrency(viewShiftDetails.cash_drops || 0)}</strong>
+                                </div>
+                            )}
                             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0' }}>
                                 <span style={{ color: 'var(--text-muted)' }}>Petty Cash Expenses Out:</span>
                                 <strong style={{ fontFamily: 'monospace', color: '#dc2626' }}>-{formatCurrency(viewShiftDetails.petty_cash_expenses || 0)}</strong>
@@ -3033,8 +3347,10 @@ export const CashFloat = () => {
                                 <span style={{ fontFamily: 'monospace' }}>{formatCurrency(viewShiftDetails.expected_cash)}</span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
-                                <span>Actual Counted Cash:</span>
-                                <span style={{ fontFamily: 'monospace', color: '#3b82f6' }}>{formatCurrency(viewShiftDetails.actual_cash)}</span>
+                                <span>{viewShiftDetails.status === 'PENDING_REMIT' ? 'Submitted Remit Count:' : 'Actual Counted Cash:'}</span>
+                                <span style={{ fontFamily: 'monospace', color: '#3b82f6' }}>
+                                    {formatCurrency(viewShiftDetails.actual_cash ?? viewShiftDetails.blind_count_entered ?? 0)}
+                                </span>
                             </div>
                             <div style={{
                                 borderTop: '1px dashed var(--border)',
@@ -3102,6 +3418,7 @@ export const CashFloat = () => {
                     <div className="glass-panel" style={{ width: '100%', maxWidth: '440px', borderRadius: '14px', padding: '24px', position: 'relative' }}>
                         <button
                             type="button"
+                            aria-label="Close modal"
                             onClick={() => setShowCashDropModal(false)}
                             style={{ position: 'absolute', right: '16px', top: '16px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
                         >
@@ -3136,7 +3453,7 @@ export const CashFloat = () => {
                                     required
                                     autoFocus
                                 />
-                                {isAdmin && (
+                                {(isAdmin || cashDropShift.current_cash_balance !== undefined) && (
                                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
                                         Current drawer cash: {formatCurrency(cashDropShift.current_cash_balance || cashDropShift.active_cash_balance || 0)}
                                     </span>
@@ -3267,7 +3584,7 @@ export const CashFloat = () => {
                                     disabled={submittingForceClose}
                                     style={{ padding: '8px 20px', fontSize: '0.84rem', fontWeight: 800, background: '#dc2626', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
                                 >
-                                    {submittingForceClose ? 'Closing Shift...' : 'Force Time-Out &amp; Sign Off'}
+                                    {submittingForceClose ? 'Closing Shift...' : 'Force Time-Out & Sign Off'}
                                 </button>
                             </div>
                         </form>

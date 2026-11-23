@@ -17,7 +17,7 @@ router.post('/request-restock', roleMiddleware(['admin', 'cashier', 'staff']), r
 
 // Stock receiving & adjustments (Restricted to Administrators to prevent unauthorized stock-in / write-offs)
 router.post('/receive', adminOnly, inventoryController.receiveStock);
-router.post('/adjustments', roleMiddleware(['admin', 'staff']), inventoryController.recordAdjustment);
+router.post('/adjustments', roleMiddleware(['admin', 'staff', 'cashier']), inventoryController.recordAdjustment);
 
 // Stock receiving audit log & history (Accessible to Admin & Cashier/Staff for parcel inspection)
 router.get('/receiving-history', roleMiddleware(['admin', 'cashier', 'staff']), inventoryController.getReceivingHistory);

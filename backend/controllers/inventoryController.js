@@ -768,12 +768,12 @@ exports.recordAdjustment = async (req, res, next) => {
     const resolvedLossRef = (loss_reference_no || loss_reference || lossReferenceNo || '').trim();
     const qty = Number(quantity);
     const userId = req.user?.id || null;
-    const userRole = req.user?.role;
+    const userRole = (req.user?.role || '').toLowerCase();
 
-    // Enforce administrator role check to prevent unauthorized write-offs
-    if (!['admin', 'staff'].includes(userRole)) {
+    // Enforce administrator / staff / cashier role check for stock & damage adjustments
+    if (!['admin', 'staff', 'cashier'].includes(userRole)) {
         return res.status(403).json({
-            message: 'Forbidden: Stock adjustments require staff or administrator authorization'
+            message: 'Forbidden: Stock adjustments require staff, cashier, or administrator authorization'
         });
     }
 

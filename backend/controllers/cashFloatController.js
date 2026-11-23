@@ -103,7 +103,9 @@ async function ensureCashFloatsTableExists() {
             { col: 'bills_20', def: 'INT DEFAULT 0' },
             { col: 'coins_10', def: 'INT DEFAULT 0' },
             { col: 'coins_5', def: 'INT DEFAULT 0' },
-            { col: 'coins_1', def: 'INT DEFAULT 0' }
+            { col: 'coins_1', def: 'INT DEFAULT 0' },
+            { col: 'reopen_requested_at', def: 'DATETIME NULL' },
+            { col: 'reopen_reason', def: 'VARCHAR(255) NULL' }
         ];
         for (const item of missingCols) {
             if (!cfColNames.includes(item.col)) {
@@ -186,6 +188,8 @@ exports.getStaffList = async (req, res) => {
                 cf.assigned_at AS active_float_assigned_at,
                 cf.completed_at AS active_float_completed_at,
                 cf.assigned_by_username AS active_float_assigned_by,
+                cf.reopen_requested_at AS active_reopen_requested_at,
+                cf.reopen_reason AS active_reopen_reason,
                 last_cf.assigned_at AS last_shift_assigned_at,
                 last_cf.completed_at AS last_shift_completed_at,
                 last_cf.status AS last_shift_status
@@ -239,7 +243,9 @@ exports.getStaffList = async (req, res) => {
                 cf.notes AS active_notes,
                 cf.assigned_at AS active_float_assigned_at,
                 cf.completed_at AS active_float_completed_at,
-                cf.assigned_by_username AS active_float_assigned_by
+                cf.assigned_by_username AS active_float_assigned_by,
+                cf.reopen_requested_at AS active_reopen_requested_at,
+                cf.reopen_reason AS active_reopen_reason
             FROM cash_floats cf
             WHERE cf.status IN ('ACTIVE', 'PENDING_REMIT')
         `);
@@ -1022,8 +1028,10 @@ exports.getActiveShift = async (req, res) => {
         await ensureCashFloatsTableExists();
         await closePastDayActiveFloats();
         const currentUserId = req.user.id;
+        const isCallerAdmin = (req.user?.role || '').toLowerCase() === 'admin';
         const { staff_id } = req.query;
-        const targetStaffId = staff_id ? Number(staff_id) : currentUserId;
+        // Strict per-staff privacy: non-admin staff can NEVER view another staff member's shift
+        const targetStaffId = (isCallerAdmin && staff_id) ? Number(staff_id) : currentUserId;
 
         const [shifts] = await db.query(`
             SELECT 
@@ -1033,6 +1041,7 @@ exports.getActiveShift = async (req, res) => {
                 COALESCE(cf.current_cash_balance, cf.starting_cash, cf.total_amount, 0) AS current_cash_balance,
                 COALESCE(cf.expected_cash, cf.current_cash_balance, cf.starting_cash, 0) AS expected_cash,
                 COALESCE(cf.gcash_sales, 0) AS gcash_sales,
+                COALESCE(cf.cash_drops, 0) AS cash_drops,
                 COALESCE(cf.petty_cash_expenses, 0) AS petty_cash_expenses,
                 u.full_name AS staff_full_name,
                 u.role AS staff_role
@@ -1042,45 +1051,63 @@ exports.getActiveShift = async (req, res) => {
             ORDER BY cf.assigned_at DESC LIMIT 1
         `, [targetStaffId]);
 
+        const [pendingShifts] = await db.query(`
+            SELECT 
+                cf.*,
+                COALESCE(cf.shift_code, CONCAT('SHIFT-', LPAD(cf.id, 3, '0'))) AS shift_code,
+                COALESCE(cf.starting_cash, cf.total_amount, 0) AS starting_cash,
+                COALESCE(cf.current_cash_balance, cf.starting_cash, cf.total_amount, 0) AS current_cash_balance,
+                COALESCE(cf.expected_cash, cf.current_cash_balance, cf.starting_cash, 0) AS expected_cash,
+                COALESCE(cf.gcash_sales, 0) AS gcash_sales,
+                COALESCE(cf.cash_drops, 0) AS cash_drops,
+                COALESCE(cf.petty_cash_expenses, 0) AS petty_cash_expenses,
+                u.full_name AS staff_full_name,
+                u.role AS staff_role
+            FROM cash_floats cf
+            LEFT JOIN users u ON cf.staff_id = u.id
+            WHERE cf.staff_id = ? AND cf.status = 'PENDING_REMIT'
+            ORDER BY cf.assigned_at DESC LIMIT 1
+        `, [targetStaffId]);
+
+        let pendingRemitShift = null;
+        if (pendingShifts.length > 0) {
+            const pShift = pendingShifts[0];
+            const [pMovements] = await db.query(`
+                SELECT * FROM cash_movements
+                WHERE cash_float_id = ?
+                ORDER BY created_at DESC LIMIT 20
+            `, [pShift.id]);
+            pendingRemitShift = {
+                ...pShift,
+                movements: pMovements
+            };
+        }
+
         if (shifts.length === 0) {
             return res.json({
                 activeShift: null,
-                message: 'No active shift open. Register is currently closed.'
+                pendingRemitShift,
+                message: pendingRemitShift
+                    ? 'Preliminary remit submitted. Register is locked awaiting Admin sign-off or reopen.'
+                    : 'No active shift open. Register is currently closed.'
             });
         }
 
         const shift = shifts[0];
-        const isCallerAdmin = (req.user?.role || '').toLowerCase() === 'admin';
 
-        // Fetch recent movements during this shift
+        // Fetch recent movements during this shift (cash sales, cash drops, petty cash, refunds)
         const [movements] = await db.query(`
             SELECT * FROM cash_movements
             WHERE cash_float_id = ?
-            ORDER BY created_at DESC LIMIT 20
+            ORDER BY created_at DESC LIMIT 30
         `, [shift.id]);
-
-        // Redact running drawer totals and balance before/after for staff to preserve blind count
-        const sanitizedMovements = isCallerAdmin
-            ? movements
-            : movements.map(m => {
-                const { balance_before, balance_after, ...safeM } = m;
-                return safeM;
-            });
-
-        const safeShift = isCallerAdmin ? shift : {
-            ...shift,
-            current_cash_balance: null,
-            expected_cash: null,
-            cash_sales: null,
-            petty_cash_expenses: null,
-            cash_drops: null
-        };
 
         return res.json({
             activeShift: {
-                ...safeShift,
-                movements: sanitizedMovements
-            }
+                ...shift,
+                movements
+            },
+            pendingRemitShift
         });
     } catch (err) {
         console.error('Error fetching active shift tracker:', err);
@@ -1214,6 +1241,18 @@ exports.closeShiftBlindCount = async (req, res) => {
 
         const currentShift = records[0];
 
+        if (!isAdmin) {
+            if (Number(currentShift.staff_id) !== Number(staffId)) {
+                return res.status(403).json({ message: 'You can only remit your own active shift.' });
+            }
+            if (currentShift.status === 'PENDING_REMIT') {
+                return res.status(400).json({ message: 'Remit already submitted and awaiting Admin sign-off. Request Admin to reopen if a customer arrived.' });
+            }
+            if (currentShift.status !== 'ACTIVE') {
+                return res.status(400).json({ message: 'This shift is already closed.' });
+            }
+        }
+
         // Calculate denomination count if provided
         const denomTotal = (Number(bills_1000) * 1000) +
                            (Number(bills_500) * 500) +
@@ -1282,7 +1321,9 @@ exports.closeShiftBlindCount = async (req, res) => {
             { col: 'bills_20', def: 'INT DEFAULT 0' },
             { col: 'coins_10', def: 'INT DEFAULT 0' },
             { col: 'coins_5', def: 'INT DEFAULT 0' },
-            { col: 'coins_1', def: 'INT DEFAULT 0' }
+            { col: 'coins_1', def: 'INT DEFAULT 0' },
+            { col: 'reopen_requested_at', def: 'DATETIME NULL' },
+            { col: 'reopen_reason', def: 'VARCHAR(255) NULL' }
         ];
         for (const item of missingCloseCols) {
             if (!cfCloseColNames.includes(item.col)) {
@@ -1630,6 +1671,8 @@ exports.reopenShift = async (req, res) => {
                 blind_count_entered = NULL,
                 shortage_overage = NULL,
                 admin_signed_off = 0,
+                reopen_requested_at = NULL,
+                reopen_reason = NULL,
                 reconciliation_notes = CONCAT(COALESCE(reconciliation_notes, ''), ' | Reopened by Admin')
             WHERE id = ?
         `, [shift.id]);
@@ -1645,6 +1688,51 @@ exports.reopenShift = async (req, res) => {
 };
 
 /**
+ * POST /api/cash-float/:id/request-reopen
+ * Allows the owning staff/cashier whose shift is in PENDING_REMIT to request Admin
+ * to unlock/reopen their register when a walk-in customer arrives after remit.
+ * Does NOT reopen the shift or unlock POS until Admin approves.
+ */
+exports.requestReopenShift = async (req, res) => {
+    try {
+        await ensureCashFloatsTableExists();
+        const shiftId = req.params.id;
+        const currentUserId = req.user.id;
+        const reason = (req.body?.reason || '').trim() || 'Walk-in customer arrived after remit';
+
+        const [records] = await db.query('SELECT * FROM cash_floats WHERE id = ? LIMIT 1', [shiftId]);
+        if (records.length === 0) {
+            return res.status(404).json({ message: 'Shift not found.' });
+        }
+
+        const shift = records[0];
+        if (Number(shift.staff_id) !== Number(currentUserId)) {
+            return res.status(403).json({ message: 'You can only request a reopen for your own remitted shift.' });
+        }
+        if (shift.status !== 'PENDING_REMIT' || shift.admin_signed_off) {
+            return res.status(400).json({
+                message: shift.status === 'ACTIVE'
+                    ? 'Your shift is already active.'
+                    : 'This shift has already been signed off by Admin and cannot be reopened.'
+            });
+        }
+
+        await db.query(
+            'UPDATE cash_floats SET reopen_requested_at = NOW(), reopen_reason = ? WHERE id = ?',
+            [reason.slice(0, 250), shift.id]
+        );
+
+        return res.json({
+            success: true,
+            message: 'Reopen request sent to Admin. Please wait for Admin to unlock your register.'
+        });
+    } catch (err) {
+        console.error('Error requesting shift reopen:', err);
+        return res.status(500).json({ message: 'Failed to submit reopen request.' });
+    }
+};
+
+/**
  * POST /api/cash-float/:id/cash-drop
  * Deducts mid-day cash remittance from expected drawer balance before closing count.
  */
@@ -1652,7 +1740,8 @@ exports.logCashDrop = async (req, res) => {
     try {
         await ensureCashFloatsTableExists();
         const shiftId = req.params.id;
-        const { amount, notes, admin_pin } = req.body;
+        const isCallerAdmin = (req.user?.role || '').toLowerCase() === 'admin';
+        const { amount, notes } = req.body;
         const dropAmount = Number(amount);
 
         if (!dropAmount || dropAmount <= 0) {
@@ -1667,6 +1756,15 @@ exports.logCashDrop = async (req, res) => {
             return res.status(404).json({ message: 'Active shift not found.' });
         }
         const shift = records[0];
+
+        if (!isCallerAdmin) {
+            if (Number(shift.staff_id) !== Number(req.user.id)) {
+                return res.status(403).json({ message: 'You can only log a mid-shift remit on your own active shift.' });
+            }
+            if (shift.status !== 'ACTIVE') {
+                return res.status(400).json({ message: 'Shift is already remitted. Request Admin to reopen before doing any drawer transaction.' });
+            }
+        }
         const currentBalance = Number(shift.current_cash_balance || shift.starting_cash || 0);
 
         if (dropAmount > currentBalance) {

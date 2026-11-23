@@ -25,6 +25,7 @@ router.post('/assign', adminOnly, cashFloatController.assignCashFloat);
 router.post('/:id/sign-off', adminOnly, cashFloatController.adminSignOff);
 router.post('/:id/cancel', adminOnly, cashFloatController.cancelShift);
 router.post('/:id/reopen', adminOnly, cashFloatController.reopenShift);
+router.post('/:id/request-reopen', cashFloatController.requestReopenShift);
 router.post('/:id/cash-drop', cashFloatController.logCashDrop);
 router.get('/:id', adminOnly, cashFloatController.getCashFloatById);
 router.put('/:id', adminOnly, cashFloatController.updateCashFloat);

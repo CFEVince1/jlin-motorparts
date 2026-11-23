@@ -951,6 +951,10 @@ const POS = ({ defaultTab }) => {
 
     const handleConfirmProcessSwap = async () => {
         if (!replacementMode) return;
+        if (shiftStatus === 'PENDING_REMIT') {
+            toast.error('POS Locked: Preliminary remit already submitted. Go to Shifts & Cash Drawer to request Admin to reopen your shift.');
+            return;
+        }
         if (replacementTopUpDue > 0 && swapPaymentMethod === 'Cash') {
             const tenderedNum = Number(swapTendered) || replacementTopUpDue;
             if (tenderedNum < replacementTopUpDue) {
@@ -1036,6 +1040,10 @@ const POS = ({ defaultTab }) => {
 
     // Held Transactions Handlers
     const handleOpenHoldModal = () => {
+        if (shiftStatus === 'PENDING_REMIT') {
+            toast.error('POS Locked: Preliminary remit already submitted. Request Admin to reopen your shift before holding or punching sales.');
+            return;
+        }
         if (cart.length === 0) {
             toast.error('Cart is empty. Nothing to hold.');
             return;
@@ -1260,6 +1268,10 @@ const POS = ({ defaultTab }) => {
     // 2. Process payment from CheckoutModal
     const [submittingPayment, setSubmittingPayment] = useState(false);
     const processPayment = async ({ paymentMethod: method, tenderedAmount: amount, changeDue: change, gcashReference: gcashRef, cashAmount, gcashAmount }) => {
+        if (shiftStatus === 'PENDING_REMIT') {
+            toast.error('POS Locked: Preliminary remit already submitted. Request Admin to reopen your shift first.');
+            return;
+        }
         if (isStaffWithoutFloat && (method === 'Cash' || method === 'Split')) {
             toast.error('Cannot complete sale: Cash drawer is ₱0.00. Admin must assign your shift starting cash float (panukli) in Shifts & Cash Drawer before cash sales can be processed.');
             return;
@@ -1642,17 +1654,35 @@ const POS = ({ defaultTab }) => {
                         <div style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '6px',
+                            gap: '8px',
                             background: 'rgba(245, 158, 11, 0.15)',
                             border: '1px solid rgba(245, 158, 11, 0.35)',
                             borderRadius: '8px',
-                            padding: '6px 14px',
-                            fontSize: '0.78rem',
+                            padding: '5px 12px',
+                            fontSize: '0.76rem',
                             color: '#f59e0b',
                             fontWeight: 700
                         }}>
                             <Lock size={14} />
-                            <span>Drawer Locked: Preliminary closing count submitted • Awaiting Admin verification</span>
+                            <span>Remit Submitted (POS Locked)</span>
+                            {!isAdmin && (
+                                <button
+                                    type="button"
+                                    onClick={() => navigate('/shifts')}
+                                    style={{
+                                        background: '#f59e0b',
+                                        color: '#000',
+                                        border: 'none',
+                                        borderRadius: '5px',
+                                        padding: '2px 8px',
+                                        fontSize: '0.70rem',
+                                        fontWeight: 800,
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Request Reopen
+                                </button>
+                            )}
                         </div>
                     ) : (
                         <div style={{
@@ -2883,10 +2913,10 @@ const POS = ({ defaultTab }) => {
                             </button>
                         </div>
 
-                        {/* Retail / Puhunan / Margin Snapshot */}
+                        {/* Retail / Puhunan / Margin Snapshot (Admin sees cost & profit; Staff only sees Retail) */}
                         <div style={{
                             display: 'grid',
-                            gridTemplateColumns: 'repeat(3, 1fr)',
+                            gridTemplateColumns: isAdmin ? 'repeat(3, 1fr)' : '1fr',
                             gap: '4px',
                             padding: '6px 8px',
                             background: 'var(--surface)',
@@ -2895,17 +2925,21 @@ const POS = ({ defaultTab }) => {
                             textAlign: 'center'
                         }}>
                             <div>
-                                <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>Retail</div>
+                                <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>Retail Subtotal</div>
                                 <strong style={{ fontSize: '0.78rem' }}>{formatCurrency(cartGrossSubtotal)}</strong>
                             </div>
-                            <div>
-                                <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>Puhunan</div>
-                                <strong style={{ fontSize: '0.78rem' }}>{formatCurrency(cartTotalCost)}</strong>
-                            </div>
-                            <div>
-                                <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>Profit</div>
-                                <strong style={{ fontSize: '0.78rem', color: '#10b981' }}>{formatCurrency(cartGrossSubtotal - cartTotalCost)}</strong>
-                            </div>
+                            {isAdmin && (
+                                <>
+                                    <div>
+                                        <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>Puhunan</div>
+                                        <strong style={{ fontSize: '0.78rem' }}>{formatCurrency(cartTotalCost)}</strong>
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>Profit</div>
+                                        <strong style={{ fontSize: '0.78rem', color: '#10b981' }}>{formatCurrency(cartGrossSubtotal - cartTotalCost)}</strong>
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         {/* Type Switch & Value Input */}
@@ -2979,15 +3013,24 @@ const POS = ({ defaultTab }) => {
                                     border: `1px solid ${isBelowCost ? 'rgba(239, 68, 68, 0.35)' : 'rgba(16, 185, 129, 0.25)'}`,
                                     fontSize: '0.72rem'
                                 }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span>Remaining Profit Margin:</span>
-                                        <strong style={{ color: isBelowCost ? '#ef4444' : '#10b981', fontFamily: 'monospace' }}>
-                                            {formatCurrency(remainingMargin)}
-                                        </strong>
-                                    </div>
+                                    {isAdmin ? (
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span>Remaining Profit Margin:</span>
+                                            <strong style={{ color: isBelowCost ? '#ef4444' : '#10b981', fontFamily: 'monospace' }}>
+                                                {formatCurrency(remainingMargin)}
+                                            </strong>
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span>New Payable Total:</span>
+                                            <strong style={{ color: isBelowCost ? '#ef4444' : '#10b981', fontFamily: 'monospace' }}>
+                                                {formatCurrency(Math.max(0, cartGrossSubtotal - discAmt))}
+                                            </strong>
+                                        </div>
+                                    )}
                                     {isBelowCost && (
                                         <div style={{ color: '#ef4444', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.68rem' }}>
-                                            <AlertCircle size={11} /> Discount exceeds profit margin (below unit puhunan)!
+                                            <AlertCircle size={11} /> {isAdmin ? 'Discount exceeds profit margin (below unit puhunan)!' : 'Discount exceeds allowable maximum limit.'}
                                         </div>
                                     )}
                                 </div>

@@ -148,6 +148,85 @@ const Inventory = () => {
   });
   const [quickLookupSearch, setQuickLookupSearch] = useState('');
 
+  // Staff Broken / Damaged Shelf Item Report Modal State
+  const [damageReportItem, setDamageReportItem] = useState(null);
+  const [damageReportQty, setDamageReportQty] = useState(1);
+  const [damageReportSerialId, setDamageReportSerialId] = useState('');
+  const [damageReportReason, setDamageReportReason] = useState('Broken / Shattered on Shelf (e.g. bulb/glass)');
+  const [damageReportNotes, setDamageReportNotes] = useState('');
+  const [damageReportRequestRestock, setDamageReportRequestRestock] = useState(true);
+  const [submittingDamageReport, setSubmittingDamageReport] = useState(false);
+
+  const DAMAGE_PRESET_REASONS = [
+    'Broken / Shattered on Shelf (e.g. bulb/glass)',
+    'Factory Defect Discovered in Shop',
+    'Damaged During Handling / Testing',
+    'Damaged Packaging / Unsellable'
+  ];
+
+  const handleOpenDamageReport = (product) => {
+    const availSerials = (product.serials || []).filter(s => (s.status === 'available' || !s.status) && Number(s.quantity || 0) > 0);
+    setDamageReportItem(product);
+    setDamageReportQty(1);
+    setDamageReportSerialId(availSerials.length > 0 ? String(availSerials[0].id) : '');
+    setDamageReportReason(DAMAGE_PRESET_REASONS[0]);
+    setDamageReportNotes('');
+    setDamageReportRequestRestock(true);
+  };
+
+  const handleSubmitDamageReport = async (e) => {
+    e.preventDefault();
+    if (!damageReportItem) return;
+    const availStock = Number(damageReportItem.stock ?? damageReportItem.current_stock ?? 0);
+    const qty = parseInt(damageReportQty, 10) || 0;
+    if (qty <= 0 || qty > availStock) {
+      return toast.error(`Quantity must be between 1 and ${availStock}`);
+    }
+    if (damageReportItem.is_serialized && !damageReportSerialId) {
+      return toast.error('Please select the damaged serial unit/lot.');
+    }
+    const cleanReason = `${damageReportReason}${damageReportNotes.trim() ? ` - ${damageReportNotes.trim()}` : ''}`;
+
+    setSubmittingDamageReport(true);
+    try {
+      await api.post('/inventory/adjustments', {
+        item_id: damageReportItem.id,
+        transaction_type: 'DAMAGE',
+        quantity: qty,
+        ...(damageReportItem.is_serialized && damageReportSerialId ? { serial_id: Number(damageReportSerialId) } : {}),
+        reference_no: `DMG-STAFF-${Date.now().toString().slice(-6)}`,
+        remarks: `Staff Shelf Report (${user?.username || 'staff'}): ${cleanReason}`
+      });
+
+      if (damageReportRequestRestock) {
+        try {
+          await api.post('/inventory/request-restock', {
+            product_id: damageReportItem.id,
+            requested_qty: Math.max(qty, 5),
+            priority: 'HIGH',
+            note: `Replacement needed: ${qty} broken unit(s) reported by @${user?.username || 'staff'} (${cleanReason})`
+          });
+        } catch (restockErr) {
+          console.warn('Broken item logged, restock alert notice:', restockErr.message);
+        }
+      }
+
+      toast.success(
+        damageReportRequestRestock
+          ? `Reported ${qty} broken unit(s) & alerted Admin to restock ${damageReportItem.product_name || damageReportItem.name}.`
+          : `Reported ${qty} broken unit(s) for ${damageReportItem.product_name || damageReportItem.name}.`
+      );
+      setDamageReportItem(null);
+      fetchInventory();
+      notifyInventoryChange('adjustment');
+    } catch (err) {
+      console.error('Failed to report broken item:', err);
+      toast.error(err.response?.data?.message || 'Failed to report damaged item');
+    } finally {
+      setSubmittingDamageReport(false);
+    }
+  };
+
   const fetchMovements = useCallback(async (page = 1, limit = movementsLimit, silent = false) => {
     if (!silent) setLoadingMovements(true);
     try {
@@ -1238,7 +1317,7 @@ const Inventory = () => {
                   <th style={{ minWidth: '160px' }}>Default FB Supplier</th>
                   <th style={{ textAlign: 'right', minWidth: '110px' }}>{isAdmin ? 'RETAIL / COST' : 'RETAIL PRICE'}</th>
                   <th style={{ textAlign: 'center', minWidth: '130px' }}>Stock Status</th>
-                  {isAdmin && <th style={{ textAlign: 'center', minWidth: '110px', whiteSpace: 'nowrap' }}>Actions</th>}
+                  <th style={{ textAlign: 'center', minWidth: '115px', whiteSpace: 'nowrap' }}>{isAdmin ? 'Actions' : 'Report'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1495,12 +1574,41 @@ const Inventory = () => {
                             </div>
                           </td>
                         )}
+
+                        {/* 6b. Staff Report Broken / Damaged Item Action */}
+                        {!isAdmin && (
+                          <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                            <button
+                              type="button"
+                              disabled={currentStock <= 0}
+                              onClick={() => handleOpenDamageReport(p)}
+                              className="btn-secondary"
+                              style={{
+                                padding: '5px 10px',
+                                borderRadius: '6px',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                color: currentStock > 0 ? '#f59e0b' : 'var(--text-muted)',
+                                borderColor: currentStock > 0 ? 'rgba(245, 158, 11, 0.45)' : 'var(--border)',
+                                opacity: currentStock <= 0 ? 0.45 : 1,
+                                cursor: currentStock <= 0 ? 'not-allowed' : 'pointer'
+                              }}
+                              title={currentStock > 0 ? 'Report broken/damaged shelf unit and alert Admin for replacement' : 'No sellable stock available to report'}
+                            >
+                              <AlertTriangle size={13} />
+                              <span>Report Broken</span>
+                            </button>
+                          </td>
+                        )}
                       </tr>
 
                       {/* Expandable Serial Lots Breakdown */}
                       {p.is_serialized && expandedSerials.has(p.id) && (
                         <tr key={`${p.id}_serials_breakdown`} style={{ background: 'rgba(255, 255, 255, 0.02)' }}>
-                          <td colSpan={isAdmin ? 6 : 5} style={{ padding: '12px 18px 16px 28px' }}>
+                          <td colSpan={6} style={{ padding: '12px 18px 16px 28px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                               <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>
                                 Serial Lots Breakdown for {p.product_name || p.name}
@@ -2197,6 +2305,203 @@ const Inventory = () => {
           filterType={printFilterType}
           user={user}
         />
+      )}
+
+      {/* Staff Broken / Damaged Shelf Item Report Modal */}
+      {damageReportItem && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0, 0, 0, 0.72)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 99999,
+          padding: '20px'
+        }}>
+          <div className="glass-panel" style={{
+            width: '100%',
+            maxWidth: '460px',
+            borderRadius: '14px',
+            padding: '22px',
+            position: 'relative',
+            border: '1.5px solid rgba(245, 158, 11, 0.5)'
+          }}>
+            <button
+              type="button"
+              aria-label="Close modal"
+              onClick={() => setDamageReportItem(null)}
+              style={{
+                position: 'absolute',
+                right: '14px',
+                top: '14px',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer'
+              }}
+            >
+              <X size={20} />
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                background: 'rgba(245, 158, 11, 0.16)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#f59e0b'
+              }}>
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.08rem', fontWeight: 800 }}>
+                  Report Broken / Damaged Part
+                </h3>
+                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                  Quarantines damaged units out of sellable stock
+                </div>
+              </div>
+            </div>
+
+            <div style={{
+              background: 'var(--surface-hover)',
+              borderRadius: '10px',
+              padding: '10px 14px',
+              margin: '12px 0 16px 0',
+              border: '1px solid var(--border)',
+              fontSize: '0.82rem'
+            }}>
+              <div style={{ fontWeight: 800, color: 'var(--text-main)' }}>
+                {damageReportItem.product_name || damageReportItem.name}
+              </div>
+              <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '3px', display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontFamily: 'monospace' }}>Part #: {damageReportItem.part_number || damageReportItem.sku}</span>
+                <span>Available Stock: <strong>{Number(damageReportItem.stock ?? damageReportItem.current_stock ?? 0)}</strong></span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmitDamageReport} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {damageReportItem.is_serialized && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                    Damaged Serial Unit / Lot *
+                  </label>
+                  <select
+                    className="input-premium"
+                    style={{ width: '100%' }}
+                    value={damageReportSerialId}
+                    onChange={(e) => setDamageReportSerialId(e.target.value)}
+                    required
+                  >
+                    <option value="">Select serial number...</option>
+                    {(damageReportItem.serials || [])
+                      .filter(s => (s.status === 'available' || !s.status) && Number(s.quantity || 0) > 0)
+                      .map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.serial_number} (Avail: {s.quantity})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                  Quantity Broken / Unsellable *
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max={Number(damageReportItem.stock ?? damageReportItem.current_stock ?? 1)}
+                  className="input-premium"
+                  style={{ width: '100%', fontWeight: 800 }}
+                  value={damageReportQty}
+                  onChange={(e) => setDamageReportQty(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                  Reason *
+                </label>
+                <select
+                  className="input-premium"
+                  style={{ width: '100%' }}
+                  value={damageReportReason}
+                  onChange={(e) => setDamageReportReason(e.target.value)}
+                >
+                  {DAMAGE_PRESET_REASONS.map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                  Additional Details (Optional)
+                </label>
+                <input
+                  type="text"
+                  className="input-premium"
+                  style={{ width: '100%' }}
+                  placeholder="e.g. Glass cracked inside box when inspected"
+                  value={damageReportNotes}
+                  onChange={(e) => setDamageReportNotes(e.target.value)}
+                />
+              </div>
+
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '0.80rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                padding: '8px 10px',
+                borderRadius: '8px',
+                background: 'rgba(16, 185, 129, 0.08)',
+                border: '1px solid rgba(16, 185, 129, 0.25)'
+              }}>
+                <input
+                  type="checkbox"
+                  checked={damageReportRequestRestock}
+                  onChange={(e) => setDamageReportRequestRestock(e.target.checked)}
+                />
+                <span>Also Alert Admin to Replace / Restock Item</span>
+              </label>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setDamageReportItem(null)}
+                  className="btn-secondary"
+                  style={{ padding: '8px 16px', fontSize: '0.84rem' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingDamageReport}
+                  className="btn-primary"
+                  style={{
+                    padding: '8px 18px',
+                    fontSize: '0.84rem',
+                    fontWeight: 800,
+                    background: '#d97706',
+                    borderColor: '#d97706'
+                  }}
+                >
+                  {submittingDamageReport ? 'Submitting Report...' : 'Submit Broken Item Report'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -633,6 +633,7 @@ exports.getBestSelling = async (req, res) => {
                 COALESCE(NULLIF(si.brand, ''), p.brand) AS brand,
                 si.size,
                 p.category,
+                COALESCE(p.stock, p.current_stock, 0) AS current_stock,
                 COALESCE(cd.compatibility_display, '') AS compatibility_display,
                 SUM(si.quantity) AS total_sold,
                 SUM(si.subtotal) AS total_revenue,
@@ -649,6 +650,8 @@ exports.getBestSelling = async (req, res) => {
                 COALESCE(NULLIF(si.brand, ''), p.brand),
                 si.size,
                 p.category,
+                p.stock,
+                p.current_stock,
                 cd.compatibility_display
             ORDER BY total_sold DESC
             LIMIT ?

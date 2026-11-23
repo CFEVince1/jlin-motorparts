@@ -744,6 +744,18 @@ async function ensureSchema() {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
       `);
       console.log('[Schema] Verified cash_floats table.');
+      try {
+        const [cfCols] = await db.query("SHOW COLUMNS FROM cash_floats");
+        const cfColNames = cfCols.map(c => c.Field);
+        if (!cfColNames.includes('reopen_requested_at')) {
+          await db.query("ALTER TABLE cash_floats ADD COLUMN reopen_requested_at DATETIME NULL");
+        }
+        if (!cfColNames.includes('reopen_reason')) {
+          await db.query("ALTER TABLE cash_floats ADD COLUMN reopen_reason VARCHAR(255) NULL");
+        }
+      } catch (cfColErr) {
+        console.warn('[Schema] Failed to check/add cash_floats reopen columns:', cfColErr.message);
+      }
     } catch (cfErr) {
       console.warn('[Schema] Failed to verify cash_floats table:', cfErr.message);
     }
