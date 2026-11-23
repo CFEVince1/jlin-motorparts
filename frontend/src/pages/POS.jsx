@@ -3247,7 +3247,7 @@ const POS = ({ defaultTab }) => {
                             </div>
                             {calculatedDiscount > 0 && (
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '0.8rem', color: '#10b981', fontWeight: 600 }}>
-                                    <span>Less: OTP Discount:</span>
+                                    <span>Less: Cart Discount:</span>
                                     <span style={{ fontFamily: 'monospace' }}>-{formatCurrency(calculatedDiscount)}</span>
                                 </div>
                             )}
@@ -3363,7 +3363,7 @@ const POS = ({ defaultTab }) => {
                             {/* Discount / Bawas Line */}
                             {calculatedDiscount > 0 && (
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '0.8rem', color: '#10b981', fontWeight: 600 }}>
-                                    <span>Less: OTP Discount:</span>
+                                    <span>Less: Cart Discount:</span>
                                     <span style={{ fontFamily: 'monospace' }}>-{formatCurrency(calculatedDiscount)}</span>
                                 </div>
                             )}

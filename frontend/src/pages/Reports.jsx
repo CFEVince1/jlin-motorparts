@@ -611,7 +611,7 @@ export const Reports = () => {
 
                                                     {/* 3. Net Units Sold */}
                                                     <td style={{ padding: '10px 8px', textAlign: 'center', fontWeight: 700 }}>
-                                                        {p.total_qty_sold} units
+                                                        {p.total_qty_sold} {Number(p.total_qty_sold) === 1 ? 'unit' : 'units'}
                                                     </td>
 
                                                     {/* 4. Net Revenue */}
@@ -744,7 +744,7 @@ export const Reports = () => {
 
                                                 {/* 3. Txns Count */}
                                                 <td style={{ padding: '10px 8px', textAlign: 'center', fontWeight: 600 }}>
-                                                    {s.txns_count} txns
+                                                    {s.txns_count} {Number(s.txns_count) === 1 ? 'txn' : 'txns'}
                                                 </td>
 
                                                 {/* 4. Gross Sales */}

@@ -237,7 +237,7 @@ const Sidebar = ({
                                 ) : null
                             )}
                             {!isCollapsed && link.path === '/users' && onlineStaffCount > 0 && (
-                                <span style={{ marginLeft: 'auto', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', fontSize: '0.68rem', fontWeight: 700, padding: '1px 6px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '3px' }} title={`${onlineStaffCount} users online`}>
+                                <span style={{ marginLeft: 'auto', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', fontSize: '0.68rem', fontWeight: 700, padding: '1px 6px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '3px' }} title={`${onlineStaffCount} ${onlineStaffCount === 1 ? 'user' : 'users'} online`}>
                                     <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span>
                                     {onlineStaffCount}
                                 </span>

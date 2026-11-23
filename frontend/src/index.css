@@ -473,9 +473,9 @@ tr:hover td {
 .desktop-collapse-btn {
   position: absolute;
   top: 14px;
-  right: -11px;
-  width: 22px;
-  height: 22px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background-color: var(--surface);
   border: 1px solid var(--border);
@@ -1025,6 +1025,12 @@ tr:hover td {
     flex-direction: column;
     height: 100vh;
     flex-shrink: 0;
+  }
+  .sidebar-wrapper.desktop-collapsed .sidebar {
+    width: 68px !important;
+  }
+  .sidebar-wrapper.desktop-expanded .sidebar {
+    width: 252px;
   }
 
   .mobile-close-btn {
@@ -1701,7 +1707,7 @@ tr:hover td {
 
 /* Mobile / Tablet Floating Sticky Cart Shortcut */
 .mobile-cart-float-bar {
-  display: none;
+  display: none !important;
 }
 @media (max-width: 859px) {
   .mobile-cart-float-bar {
@@ -1714,13 +1720,16 @@ tr:hover td {
     color: #ffffff;
     padding: 12px 18px;
     border-radius: 12px;
-    display: flex;
+    display: flex !important;
     align-items: center;
     justify-content: space-between;
     box-shadow: 0 10px 25px rgba(16, 185, 129, 0.45);
     cursor: pointer;
     font-size: 0.95rem;
     font-weight: 600;
+  }
+  #pos-cart-section {
+    padding-bottom: 84px !important;
   }
 }
 

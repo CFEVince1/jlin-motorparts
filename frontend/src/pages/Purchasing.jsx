@@ -1269,7 +1269,11 @@ Please confirm the returned items with your rider. Thank you! - JLIN Moto Parts`
               }}
               style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', padding: '8px 16px', fontWeight: 600 }}
             >
-              <Plus size={16} /> {isIntakeExpanded && (activeTab === 'receive' || activeTab === 'receive_orders') ? '✕ Close Receiving Gate' : '+ Receive Truck Delivery'}
+              {isIntakeExpanded && (activeTab === 'receive' || activeTab === 'receive_orders') ? (
+                <><X size={16} /> Close Receiving Gate</>
+              ) : (
+                <><Plus size={16} /> Receive Truck Delivery</>
+              )}
             </button>
           )}
         </div>

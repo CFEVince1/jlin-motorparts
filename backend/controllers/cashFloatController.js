@@ -348,8 +348,13 @@ exports.getCashFloats = async (req, res) => {
         }
 
         if (status && status !== 'ALL') {
-            conditions.push('cf.status = ?');
-            params.push(status.toUpperCase());
+            const upperStatus = status.toUpperCase();
+            if (upperStatus === 'COMPLETED') {
+                conditions.push("(cf.status IN ('COMPLETED', 'RETURNED') OR cf.admin_signed_off = 1)");
+            } else {
+                conditions.push('cf.status = ?');
+                params.push(upperStatus);
+            }
         }
 
         if (date && date.trim()) {

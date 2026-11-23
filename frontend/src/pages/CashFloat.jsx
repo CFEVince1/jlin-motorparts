@@ -2752,7 +2752,7 @@ export const CashFloat = () => {
                                                 gap: '6px'
                                             }}
                                         >
-                                            <Lock size={15} /> Submit End-of-Shift Remit
+                                            <Lock size={15} /> Submit Remit to Admin
                                         </button>
                                     </div>
                                 </div>

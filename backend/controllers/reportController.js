@@ -983,7 +983,8 @@ exports.getSalesNetProfitReport = async (req, res) => {
         // 1. Gross Revenue, Transactions, and Cash vs. GCash Breakdown
         const [salesRows] = await db.query(`
             SELECT 
-                COALESCE(SUM(s.total_amount), 0) AS gross_revenue,
+                COALESCE(SUM(COALESCE(NULLIF(s.subtotal_amount, 0), s.total_amount + COALESCE(s.discount_amount, 0))), 0) AS gross_revenue,
+                COALESCE(SUM(s.total_amount), 0) AS net_sales_collected,
                 COALESCE(SUM(s.discount_amount), 0) AS total_discounts,
                 COUNT(s.id) AS total_transactions,
                 COALESCE(SUM(CASE WHEN LOWER(s.payment_method) = 'cash' THEN s.total_amount ELSE 0 END), 0) AS cash_revenue,
@@ -995,6 +996,7 @@ exports.getSalesNetProfitReport = async (req, res) => {
         `, salesParams);
 
         const grossRevenue = Number(salesRows[0]?.gross_revenue || 0);
+        const netSalesCollected = Number(salesRows[0]?.net_sales_collected || 0);
         const totalDiscounts = Number(salesRows[0]?.total_discounts || 0);
         const totalTransactions = Number(salesRows[0]?.total_transactions || 0);
         const cashRevenue = Number(salesRows[0]?.cash_revenue || 0);
@@ -1062,8 +1064,8 @@ exports.getSalesNetProfitReport = async (req, res) => {
         const combinedShopLosses = shopReturnLosses + shrinkageLosses;
         const totalOperatingExpenses = storeOperatingExpenses + shippingCosts;
 
-        // Core Accounting Metrics (Specification 9 Formula)
-        const netRetailSales = Math.max(0, grossRevenue - salesReversals - discounts);
+        // Core Accounting Metrics (s.total_amount is already net of discounts; do NOT double-subtract)
+        const netRetailSales = Math.max(0, netSalesCollected - salesReversals);
         const activeCOGS = Math.max(0, issuedCOGS - optionBCogsRemoved);
         const grossMargin = netRetailSales - activeCOGS;
         const trueNetProfit = grossMargin - combinedShopLosses - totalOperatingExpenses;

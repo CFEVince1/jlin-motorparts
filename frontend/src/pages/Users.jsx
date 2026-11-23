@@ -633,24 +633,28 @@ const Users = () => {
                                                             >
                                                                 <Edit2 size={12} /> Edit
                                                             </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleDeleteUser(u)}
-                                                                style={{
-                                                                    background: 'rgba(239, 68, 68, 0.12)',
-                                                                    color: '#ef4444',
-                                                                    border: '1px solid rgba(239, 68, 68, 0.25)',
-                                                                    borderRadius: '6px',
-                                                                    padding: '4px 8px',
-                                                                    fontSize: '0.74rem',
-                                                                    cursor: 'pointer',
-                                                                    display: 'inline-flex',
-                                                                    alignItems: 'center',
-                                                                    gap: '4px'
-                                                                }}
-                                                            >
-                                                                <Trash2 size={12} />
-                                                            </button>
+                                                            {u.id !== user?.id && (
+                                                                <button
+                                                                    type="button"
+                                                                    aria-label={`Delete ${u.username}`}
+                                                                    title={`Delete ${u.username}`}
+                                                                    onClick={() => handleDeleteUser(u)}
+                                                                    style={{
+                                                                        background: 'rgba(239, 68, 68, 0.12)',
+                                                                        color: '#ef4444',
+                                                                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                                                                        borderRadius: '6px',
+                                                                        padding: '4px 8px',
+                                                                        fontSize: '0.74rem',
+                                                                        cursor: 'pointer',
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '4px'
+                                                                    }}
+                                                                >
+                                                                    <Trash2 size={12} />
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -798,7 +802,10 @@ const Users = () => {
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
                                 <button
                                     type="button"
-                                    onClick={() => handleTabChange('staff')}
+                                    onClick={() => {
+                                        setEditingUser(null);
+                                        handleTabChange('staff');
+                                    }}
                                     className="btn-secondary"
                                     style={{ padding: '8px 18px', fontSize: '0.86rem' }}
                                 >

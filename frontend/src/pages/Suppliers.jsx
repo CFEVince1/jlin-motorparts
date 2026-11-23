@@ -12,7 +12,8 @@ import {
   UserCheck,
   UserX,
   Truck,
-  ExternalLink
+  ExternalLink,
+  X
 } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -154,7 +155,7 @@ export const Suppliers = ({ asTab = false, onDirectReceive, onSupplierCreated: p
               onClick={() => setIsAddSupplierOpen(!isAddSupplierOpen)}
               style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', padding: '8px 16px', fontWeight: 600 }}
             >
-              <Plus size={16} /> {isAddSupplierOpen ? '✕ Close Form' : 'Register Supplier'}
+              {isAddSupplierOpen ? <><X size={16} /> Close Form</> : <><Plus size={16} /> Register Supplier</>}
             </button>
           </div>
         </div>
@@ -210,7 +211,7 @@ export const Suppliers = ({ asTab = false, onDirectReceive, onSupplierCreated: p
             onClick={() => setIsAddSupplierOpen(!isAddSupplierOpen)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', padding: '8px 16px', fontWeight: 600 }}
           >
-            <Plus size={16} /> {isAddSupplierOpen ? '✕ Close Form' : '+ Register Supplier'}
+            {isAddSupplierOpen ? <><X size={16} /> Close Form</> : <><Plus size={16} /> Register Supplier</>}
           </button>
         </div>
 

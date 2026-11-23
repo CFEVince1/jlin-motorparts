@@ -11,29 +11,51 @@ import { formatCurrency, formatAuditDate } from '../utils/formatters';
  * - Dedicated print stylesheet isolating #thermal-receipt and hiding screen UI.
  */
 export const ReceiptPrint = ({
-  orderNumber,
-  date = new Date(),
-  cashier = 'Cashier',
-  customerName = '',
-  customerAddress = '',
-  items = [],
-  totalAmount = 0,
-  subtotal = 0,
-  discount = 0,
-  discountAmount = 0,
-  paymentMethod = 'CASH',
-  amountTendered = 0,
-  changeDue = 0,
-  gcashReference = '',
-  cashAmount = null,
-  gcashAmount = null,
-  vatableAmount = null,
-  vatAmount = null,
-  taxAmount = null,
-  vatExemptAmount = 0,
-  zeroRatedAmount = 0,
+  sale = null,
+  orderNumber: propOrderNumber,
+  date: propDate,
+  cashier: propCashier,
+  customerName: propCustomerName,
+  customerAddress: propCustomerAddress,
+  items: propItems,
+  totalAmount: propTotalAmount,
+  subtotal: propSubtotal,
+  discount: propDiscount = 0,
+  discountAmount: propDiscountAmount,
+  paymentMethod: propPaymentMethod,
+  amountTendered: propAmountTendered,
+  changeDue: propChangeDue,
+  gcashReference: propGcashReference,
+  cashAmount: propCashAmount = null,
+  gcashAmount: propGcashAmount = null,
+  vatableAmount: propVatableAmount = null,
+  vatAmount: propVatAmount = null,
+  taxAmount: propTaxAmount = null,
+  vatExemptAmount: propVatExemptAmount = 0,
+  zeroRatedAmount: propZeroRatedAmount = 0,
   width = '80mm', // '58mm' or '80mm'
 }) => {
+  const orderNumber = propOrderNumber ?? (sale ? (sale.order_number || (sale.id ? `SO-${sale.id}` : undefined)) : undefined);
+  const date = propDate ?? (sale ? (sale.sale_date || sale.created_at || new Date()) : new Date());
+  const cashier = propCashier ?? (sale ? (sale.cashier || sale.cashier_username || 'Cashier') : 'Cashier');
+  const customerName = propCustomerName ?? (sale?.customer_name || '');
+  const customerAddress = propCustomerAddress ?? (sale?.customer_address || '');
+  const items = propItems ?? (Array.isArray(sale?.items) ? sale.items : []);
+  const totalAmount = propTotalAmount ?? (sale ? Number(sale.total_amount || 0) : 0);
+  const subtotal = propSubtotal ?? (sale ? Number(sale.subtotal_amount || sale.total_amount || 0) : 0);
+  const discount = propDiscount;
+  const discountAmount = propDiscountAmount ?? (sale ? Number(sale.discount_amount || 0) : 0);
+  const paymentMethod = propPaymentMethod ?? (sale ? (sale.payment_method || 'CASH') : 'CASH');
+  const amountTendered = propAmountTendered ?? (sale ? Number(sale.tendered_amount ?? sale.total_amount ?? 0) : 0);
+  const changeDue = propChangeDue ?? (sale ? Number(sale.change_due || 0) : 0);
+  const gcashReference = propGcashReference ?? (sale ? (sale.payment_reference || sale.gcash_reference_no || '') : '');
+  const cashAmount = propCashAmount ?? (sale?.cash_amount ?? null);
+  const gcashAmount = propGcashAmount ?? (sale?.gcash_amount ?? null);
+  const vatableAmount = propVatableAmount ?? (sale?.vatable_amount ?? null);
+  const vatAmount = propVatAmount ?? (sale?.vat_amount ?? null);
+  const taxAmount = propTaxAmount ?? (sale?.tax_amount ?? null);
+  const vatExemptAmount = propVatExemptAmount || (sale ? Number(sale.vat_exempt_amount || 0) : 0);
+  const zeroRatedAmount = propZeroRatedAmount || (sale ? Number(sale.zero_rated_amount || 0) : 0);
   const is58mm = width === '58mm';
   const containerWidth = is58mm ? '54mm' : '76mm';
   const fontSize = is58mm ? '10px' : '11px';

@@ -364,8 +364,8 @@ export const CheckoutModal = ({
                     borderTop: '1px dashed rgba(5, 150, 105, 0.25)',
                     paddingTop: '3px'
                   }}>
-                    <span>VATable: <strong style={{ color: 'var(--text-main)' }}>{formatCurrency(tax.vatableSales)}</strong></span>
-                    <span>12% PH VAT: <strong style={{ color: 'var(--primary)' }}>{formatCurrency(tax.vatAmount)}</strong></span>
+                    <span>Non-VAT Retail Sale</span>
+                    <span>Cash / GCash / Split</span>
                   </div>
                 </div>
               );

@@ -1272,7 +1272,7 @@ export default function Dashboard() {
                 >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                         <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                            Transactions {dateRange.periodTitle}
+                            {dateRange.periodTitle} Transactions
                         </span>
                         <div style={{
                             width: '32px',
