@@ -1026,17 +1026,17 @@ const Inventory = () => {
 
       {/* Main Catalog & Inventory Panel */}
       <div className="glass-panel" style={{ padding: '20px', width: '100%' }}>
-        {/* Filter Controls Row */}
+        {/* Filter Controls Row (Responsive Auto-Fit Flat Grid) */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(200px, 1.8fr) minmax(140px, 1.1fr) minmax(140px, 1.1fr) minmax(120px, 0.9fr) minmax(160px, 1.3fr) minmax(130px, 1fr) minmax(130px, 1fr)',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))',
           gap: '10px',
           alignItems: 'center',
           width: '100%',
           marginBottom: '14px'
         }}>
           {/* Search Box */}
-          <div style={{ position: 'relative', width: '100%' }}>
+          <div style={{ position: 'relative', width: '100%', gridColumn: 'span 2 / auto', minWidth: 0 }}>
             <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input
               type="text"
@@ -1704,7 +1704,7 @@ const Inventory = () => {
                 value={pageSize}
                 onChange={(e) => handlePageSizeChange(e.target.value)}
                 className="input-premium"
-                style={{ padding: '2px 8px', fontSize: '0.75rem', width: 'auto', cursor: 'pointer' }}
+                style={{ padding: '2px 8px', fontSize: '0.75rem', width: 'auto', height: '32px', cursor: 'pointer' }}
                 title="Products per page"
               >
                 <option value={10}>10 / page</option>
@@ -2037,11 +2037,11 @@ const Inventory = () => {
             </div>
 
             {/* Movements Table */}
-            <div className="table-container" style={{ marginTop: '16px', overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border)' }}>
+            <div className="table-container" style={{ marginTop: '16px', width: '100%', maxWidth: '100%', overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border)' }}>
               {loadingMovements ? (
                 <Spinner text="Loading stock movements..." />
               ) : (
-                <table style={{ width: '100%', minWidth: '1000px' }}>
+                <table style={{ width: '100%' }}>
                   <thead>
                     <tr>
                       <th style={{ minWidth: '155px', padding: '10px 14px' }}>Date & Time</th>

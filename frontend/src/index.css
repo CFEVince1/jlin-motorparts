@@ -202,11 +202,35 @@ textarea.input-premium {
 
 select.input-premium {
   cursor: pointer;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 
 select.input-premium option {
   background-color: var(--surface);
   color: var(--text-main);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Native Date Picker Theme Normalization */
@@ -1733,15 +1757,14 @@ tr:hover td {
   }
 }
 
-/* POS Rounded Border Product Cards */
+/* POS Rounded Border Product Cards (Flat Design + Clean Border Highlight) */
 .pos-product-card {
-  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 .pos-product-card:hover {
-  transform: translateY(-2px);
   border-color: var(--primary) !important;
-  box-shadow: 0 6px 16px rgba(22, 163, 74, 0.12) !important;
+  background-color: var(--surface-hover) !important;
 }
 .pos-product-card:active {
-  transform: translateY(0px) scale(0.99);
+  transform: scale(0.995);
 }

@@ -291,6 +291,7 @@ export const CheckoutModal = ({
           </div>
           <button
             type="button"
+            aria-label="Close payment modal"
             onClick={handleClose}
             disabled={loading}
             style={{

@@ -1777,9 +1777,11 @@ const POS = ({ defaultTab }) => {
                     {/* Main Content: 2 Responsive Columns (Hold Form on left, Queue on right) */}
                     <div style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
                         gap: '18px',
-                        alignItems: 'start'
+                        alignItems: 'start',
+                        width: '100%',
+                        boxSizing: 'border-box'
                     }}>
                         {/* COLUMN 1: HOLD ACTIVE CART FORM */}
                         <div style={{
@@ -2450,7 +2452,7 @@ const POS = ({ defaultTab }) => {
                                 value={pageSize}
                                 onChange={(e) => handlePageSizeChange(e.target.value)}
                                 className="input-premium"
-                                style={{ padding: '2px 8px', fontSize: '0.75rem', width: 'auto', cursor: 'pointer' }}
+                                style={{ padding: '2px 8px', fontSize: '0.75rem', width: 'auto', height: '32px', cursor: 'pointer' }}
                                 title="Products per page"
                             >
                                 <option value={10}>10 / page</option>
