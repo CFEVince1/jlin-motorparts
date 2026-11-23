@@ -165,6 +165,7 @@ export default function PrintInventoryModal({
             </div>
 
             <button
+              aria-label="Close print inventory modal"
               onClick={onClose}
               style={{
                 background: 'none',

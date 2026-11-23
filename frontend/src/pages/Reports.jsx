@@ -1409,6 +1409,7 @@ export const Reports = () => {
                                     </button>
                                     <button
                                         type="button"
+                                        aria-label="Close print preview modal"
                                         onClick={() => setPrintModalState({ isOpen: false, title: '', type: '' })}
                                         style={{
                                             background: '#e5e7eb',

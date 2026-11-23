@@ -2044,13 +2044,13 @@ const Inventory = () => {
                 <table style={{ width: '100%' }}>
                   <thead>
                     <tr>
-                      <th style={{ minWidth: '155px', padding: '10px 14px' }}>Date & Time</th>
-                      <th style={{ minWidth: '110px' }}>Reference #</th>
-                      <th style={{ minWidth: '240px' }}>Product & Brand</th>
-                      <th style={{ minWidth: '95px', textAlign: 'center' }}>Movement Type</th>
-                      <th style={{ minWidth: '145px', textAlign: 'center' }}>Stock Change</th>
-                      <th style={{ minWidth: '200px' }}>Remarks / Reason</th>
-                      <th style={{ minWidth: '85px', textAlign: 'center', paddingRight: '14px', whiteSpace: 'nowrap' }}>Action</th>
+                      <th style={{ minWidth: '135px', padding: '10px 12px' }}>Date & Time</th>
+                      <th style={{ minWidth: '95px' }}>Reference #</th>
+                      <th style={{ minWidth: '200px' }}>Product & Brand</th>
+                      <th style={{ minWidth: '85px', textAlign: 'center' }}>Movement Type</th>
+                      <th style={{ minWidth: '120px', textAlign: 'center' }}>Stock Change</th>
+                      <th style={{ minWidth: '165px' }}>Remarks / Reason</th>
+                      <th style={{ minWidth: '75px', textAlign: 'center', paddingRight: '12px', whiteSpace: 'nowrap' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>

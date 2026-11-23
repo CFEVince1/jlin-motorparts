@@ -1032,12 +1032,12 @@ exports.getSalesNetProfitReport = async (req, res) => {
         const shippingCosts = Number(shippingRows[0]?.total_shipping_fee || 0);
         const discounts = totalDiscounts; // Retail transaction discounts accounted for accurately
 
-        // 4.1 Store Operating Expenses (Rent, Electricity, Courier, Packaging, Supplies)
+        // 4.1 Store Operating Expenses (Rent, Electricity, Courier, Packaging, Supplies) + Drawer Petty Cash
         const expParams = [];
         const expDateCondition = buildReportDateCondition('e', 'expense_date', timeframe, startDate, endDate, expParams);
         const [expRows] = await db.query(`
             SELECT 
-                COALESCE(SUM(e.amount), 0) AS total_operating_expenses,
+                COALESCE(SUM(CASE WHEN e.notes IS NULL OR e.notes NOT LIKE 'Drawer Petty Cash (%' THEN e.amount ELSE 0 END), 0) AS total_operating_expenses,
                 COALESCE(SUM(CASE WHEN e.category = 'Shop Rent' THEN e.amount ELSE 0 END), 0) AS rent_expenses,
                 COALESCE(SUM(CASE WHEN e.category LIKE '%Electricity%' OR e.category LIKE '%Utilities%' THEN e.amount ELSE 0 END), 0) AS electricity_expenses,
                 COALESCE(SUM(CASE WHEN e.category LIKE '%Shipping%' OR e.category LIKE '%Courier%' THEN e.amount ELSE 0 END), 0) AS courier_expenses,
@@ -1047,7 +1047,16 @@ exports.getSalesNetProfitReport = async (req, res) => {
             FROM store_operating_expenses e
             WHERE ${expDateCondition}
         `, expParams);
-        const storeOperatingExpenses = Number(expRows[0]?.total_operating_expenses || 0);
+
+        const pettyParams = [];
+        const pettyDateCondition = buildReportDateCondition('cm', 'created_at', timeframe, startDate, endDate, pettyParams);
+        const [pettyRows] = await db.query(`
+            SELECT COALESCE(SUM(cm.amount), 0) AS petty_cash_out
+            FROM cash_movements cm
+            WHERE ${pettyDateCondition} AND cm.movement_type = 'PETTY_CASH_EXPENSE'
+        `, pettyParams);
+        const pettyCashExpenses = Number(pettyRows[0]?.petty_cash_out || 0);
+        const storeOperatingExpenses = Number(expRows[0]?.total_operating_expenses || 0) + pettyCashExpenses;
 
         // 4.2 Negative Stock Adjustments (Damaged on shelf / Shrinkage / Inventory Losses)
         const adjParams = [];
@@ -2684,9 +2693,10 @@ exports.getExpensesAndCashFlowReport = async (req, res) => {
             ORDER BY total_amount DESC
         `, expParams);
 
-        const totalOperatingExpenses = expenses.reduce((acc, x) => acc + Number(x.amount || 0), 0);
-        const drawerOperatingExpenses = expenses.filter(x => x.payment_source === 'cash_drawer').reduce((acc, x) => acc + Number(x.amount || 0), 0);
-        const gcashOperatingExpenses = expenses.filter(x => x.payment_source === 'gcash_bank').reduce((acc, x) => acc + Number(x.amount || 0), 0);
+        const nonMirroredExpenses = expenses.filter(x => !String(x.notes || '').startsWith('Drawer Petty Cash ('));
+        const totalOperatingExpenses = nonMirroredExpenses.reduce((acc, x) => acc + Number(x.amount || 0), 0);
+        const drawerOperatingExpenses = nonMirroredExpenses.filter(x => x.payment_source === 'cash_drawer').reduce((acc, x) => acc + Number(x.amount || 0), 0);
+        const gcashOperatingExpenses = nonMirroredExpenses.filter(x => x.payment_source === 'gcash_bank').reduce((acc, x) => acc + Number(x.amount || 0), 0);
 
         // 3. Sales Cash In (Drawer Cash vs GCash Wallet)
         const [salesFlow] = await db.query(`

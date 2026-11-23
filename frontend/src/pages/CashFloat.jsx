@@ -3321,6 +3321,7 @@ export const CashFloat = () => {
                     <div className="glass-panel" style={{ width: '100%', maxWidth: '500px', borderRadius: '14px', padding: '24px', position: 'relative' }}>
                         <button
                             type="button"
+                            aria-label="Close shift slip modal"
                             onClick={() => setViewShiftDetails(null)}
                             style={{ position: 'absolute', right: '16px', top: '16px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
                         >
