@@ -1743,28 +1743,6 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                                                         <ArrowLeftRight size={12} /> Replace
                                                                     </button>
                                                                 )}
-
-                                                                {!isVoid && (
-                                                                    !isVoidLocked ? (
-                                                                        <button
-                                                                            onClick={() => handleOpenVoid(t)}
-                                                                            className="btn-secondary"
-                                                                            style={{ padding: '3px 7px', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)', whiteSpace: 'nowrap' }}
-                                                                            title="Void Sale (Active Shift)"
-                                                                        >
-                                                                            <Ban size={12} /> Void
-                                                                        </button>
-                                                                    ) : (
-                                                                        <button
-                                                                            disabled
-                                                                            className="btn-secondary"
-                                                                            style={{ padding: '3px 7px', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: 'var(--text-muted)', borderColor: 'var(--border)', opacity: 0.45, cursor: 'not-allowed', whiteSpace: 'nowrap' }}
-                                                                            title="Void locked: This transaction belongs to a closed shift. Use Replace for historical order adjustments."
-                                                                        >
-                                                                            <Lock size={11} /> Void
-                                                                        </button>
-                                                                    )
-                                                                )}
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -1988,29 +1966,35 @@ const Transactions = ({ embedded = false, defaultTab, onStartReplacement }) => {
                                     <ArrowLeftRight size={16} /> Replace Item
                                 </button>
                             )}
-                            {receiptDetails.status !== 'VOIDED' && (
-                                <button
-                                    type="button"
-                                    className="no-print"
-                                    style={{
-                                        padding: '10px 18px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '6px',
-                                        background: '#dc2626',
-                                        color: '#ffffff',
-                                        border: 'none',
-                                        borderRadius: '6px',
-                                        fontWeight: 600,
-                                        cursor: 'pointer'
-                                    }}
-                                    onClick={() => handleOpenVoid(receiptDetails)}
-                                    title="Void Sale and restore all items into inventory stock"
-                                >
-                                    <Ban size={16} /> Void Sale
-                                </button>
-                            )}
+                            {receiptDetails.status !== 'VOIDED' && (() => {
+                                const receiptVoidLocked = selectedTransaction?.can_void === false || (!selectedTransaction?.is_active_shift && !selectedTransaction?.can_void);
+                                return (
+                                    <button
+                                        type="button"
+                                        disabled={receiptVoidLocked}
+                                        className="no-print"
+                                        style={{
+                                            padding: '10px 18px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '6px',
+                                            background: receiptVoidLocked ? '#9ca3af' : '#dc2626',
+                                            color: '#ffffff',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            fontWeight: 600,
+                                            cursor: receiptVoidLocked ? 'not-allowed' : 'pointer',
+                                            opacity: receiptVoidLocked ? 0.6 : 1
+                                        }}
+                                        onClick={() => !receiptVoidLocked && handleOpenVoid(receiptDetails)}
+                                        title={receiptVoidLocked ? 'Void locked: This transaction belongs to a closed shift. Use Replace Item for historical order adjustments.' : 'Void Sale and restore all items into inventory stock'}
+                                    >
+                                        {receiptVoidLocked ? <Lock size={16} /> : <Ban size={16} />}
+                                        {receiptVoidLocked ? 'Void Locked' : 'Void Sale'}
+                                    </button>
+                                );
+                            })()}
                             <button className="btn-secondary no-print" style={{ flex: 1, padding: '10px 14px' }} onClick={closeReceipt}>
                                 Close
                             </button>
