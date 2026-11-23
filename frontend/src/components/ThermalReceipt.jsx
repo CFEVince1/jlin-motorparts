@@ -56,9 +56,9 @@ export const ThermalReceipt = ({
       <div style={{ textAlign: 'center', paddingBottom: '8px', borderBottom: '1px dashed #000000' }}>
         <h2 style={{ fontSize: '14px', fontWeight: 'bold', margin: '0 0 2px 0', letterSpacing: '-0.025em', textTransform: 'uppercase' }}>JLIN MOTORCYCLE PARTS</h2>
         <p style={{ fontSize: '10px', margin: '2px 0' }}>Calasiao, Pangasinan</p>
-        <p style={{ fontSize: '9px', fontWeight: 'bold', margin: '2px 0', letterSpacing: '0.4px' }}>VAT REG. TIN: 432-876-109-000</p>
+        <p style={{ fontSize: '9px', fontWeight: 'bold', margin: '2px 0', letterSpacing: '0.4px' }}>NON-VAT REG. TIN: 432-876-109-000</p>
         <p style={{ fontSize: '9px', fontWeight: 600, textTransform: 'uppercase', margin: '2px 0' }}>Official Sales Invoice</p>
-        <p style={{ fontSize: '8px', color: '#555555', fontStyle: 'italic', margin: '1px 0' }}>(Prices are 12% VAT-Inclusive)</p>
+        <p style={{ fontSize: '8px', color: '#555555', fontStyle: 'italic', margin: '1px 0' }}>(Non-VAT Retail Sale)</p>
       </div>
 
       {/* Meta Info */}
@@ -148,7 +148,7 @@ export const ThermalReceipt = ({
           <span>{formatCurrency(displayTotal)}</span>
         </div>
 
-        {/* Philippine 12% VAT Breakdown */}
+        {/* Non-VAT Retail Summary */}
         <div style={{
           margin: '5px 0',
           padding: '4px 0',
@@ -157,24 +157,13 @@ export const ThermalReceipt = ({
           fontSize: '9.5px',
           color: '#111111'
         }}>
-          <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#222222', marginBottom: '2px', textTransform: 'uppercase' }}>
-            Tax Breakdown (12% PH VAT):
-          </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1px' }}>
-            <span>VATable Sales:</span>
-            <span>{formatCurrency(computedVatable)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1px' }}>
-            <span style={{ fontWeight: 'bold' }}>12% VAT Amount:</span>
-            <span style={{ fontWeight: 'bold' }}>{formatCurrency(computedVat)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1px', color: '#555555' }}>
-            <span>VAT-Exempt Sales:</span>
-            <span>{formatCurrency(vatExemptAmount || 0)}</span>
+            <span>Non-VAT Sales:</span>
+            <span>{formatCurrency(numTotal)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', color: '#555555' }}>
-            <span>Zero-Rated Sales:</span>
-            <span>{formatCurrency(zeroRatedAmount || 0)}</span>
+            <span>VAT Amount:</span>
+            <span>{formatCurrency(0)}</span>
           </div>
         </div>
 

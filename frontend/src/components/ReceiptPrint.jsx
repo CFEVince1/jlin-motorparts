@@ -135,13 +135,13 @@ export const ReceiptPrint = ({
         </h2>
         <div style={{ fontSize: is58mm ? '9px' : '10px', margin: '1px 0' }}>Calasiao, Pangasinan</div>
         <div style={{ fontSize: is58mm ? '8.5px' : '9.5px', margin: '1px 0', fontWeight: 'bold', letterSpacing: '0.5px' }}>
-          VAT REG. TIN: 432-876-109-000
+          NON-VAT REG. TIN: 432-876-109-000
         </div>
         <div style={{ fontSize: is58mm ? '8px' : '9px', margin: '1px 0', textTransform: 'uppercase', fontWeight: 600 }}>
           Official Sales Invoice
         </div>
         <div style={{ fontSize: is58mm ? '7.5px' : '8.5px', color: '#444444', fontStyle: 'italic', margin: '1px 0' }}>
-          (Prices are 12% VAT-Inclusive)
+          (Non-VAT Retail Sale)
         </div>
       </div>
 
@@ -233,7 +233,7 @@ export const ReceiptPrint = ({
           <span style={{ fontFamily: 'monospace' }}>{formatCurrency(totalAmount)}</span>
         </div>
 
-        {/* Philippine 12% VAT Breakdown */}
+        {/* Non-VAT Retail Summary */}
         <div style={{
           margin: '5px 0',
           padding: '4px 0',
@@ -242,24 +242,13 @@ export const ReceiptPrint = ({
           fontSize: is58mm ? '8.5px' : '9.5px',
           color: '#111111'
         }}>
-          <div style={{ fontSize: is58mm ? '8px' : '9px', fontWeight: 'bold', color: '#333333', marginBottom: '2px', textTransform: 'uppercase' }}>
-            Tax Breakdown (12% PH VAT):
-          </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1px' }}>
-            <span>VATable Sales:</span>
-            <span style={{ fontFamily: 'monospace' }}>{formatCurrency(computedVatable)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1px' }}>
-            <span style={{ fontWeight: 'bold' }}>12% VAT Amount:</span>
-            <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{formatCurrency(computedVat)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1px', color: '#555555' }}>
-            <span>VAT-Exempt Sales:</span>
-            <span style={{ fontFamily: 'monospace' }}>{formatCurrency(vatExemptAmount || 0)}</span>
+            <span>Non-VAT Sales:</span>
+            <span style={{ fontFamily: 'monospace' }}>{formatCurrency(numTotal)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', color: '#555555' }}>
-            <span>Zero-Rated Sales:</span>
-            <span style={{ fontFamily: 'monospace' }}>{formatCurrency(zeroRatedAmount || 0)}</span>
+            <span>VAT Amount:</span>
+            <span style={{ fontFamily: 'monospace' }}>{formatCurrency(0)}</span>
           </div>
         </div>
 
