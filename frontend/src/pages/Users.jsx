@@ -733,7 +733,7 @@ const Users = () => {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '4px' }}>
-                                        {editingUser ? 'New Password (Optional):' : 'Password *: *'}
+                                        {editingUser ? 'New Password (Optional):' : 'Password *:'}
                                     </label>
                                     <div style={{ position: 'relative' }}>
                                         <input

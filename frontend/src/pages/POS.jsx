@@ -203,7 +203,12 @@ const POS = ({ defaultTab }) => {
         if (Array.isArray(products)) {
             products.forEach(p => {
                 const raw = (p.category || '').trim();
-                if (raw && !list.some(existing => existing.toLowerCase() === raw.toLowerCase())) {
+                const rawLower = raw.toLowerCase();
+                const coveredByStandard = list.some(existing =>
+                    existing.toLowerCase() === rawLower ||
+                    (CATEGORY_SYNONYMS[existing] && CATEGORY_SYNONYMS[existing].includes(rawLower))
+                );
+                if (raw && !coveredByStandard) {
                     list.push(raw);
                 }
             });
