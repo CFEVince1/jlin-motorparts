@@ -1010,7 +1010,7 @@ exports.openShift = async (req, res) => {
             balanceBefore: 0.00,
             balanceAfter: numStartingCash,
             referenceId: shiftCode,
-            notes: `Shift opened with starting cash fund: ₱${numStartingCash.toFixed(2)}`
+            notes: `Shift opened with starting cash fund: ₱${numStartingCash.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         });
 
         const [newShiftRows] = await db.query('SELECT * FROM cash_floats WHERE id = ?', [newShiftId]);

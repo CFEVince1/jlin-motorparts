@@ -32,6 +32,7 @@ const Users = () => {
     // Modals & Form
     const [editingUser, setEditingUser] = useState(null);
     const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     // Form state
     const [userForm, setUserForm] = useState({
@@ -105,6 +106,7 @@ const Users = () => {
             is_active: 1
         });
         setShowPassword(false);
+        setShowConfirmPassword(false);
         handleTabChange('add_staff');
     };
 
@@ -119,6 +121,7 @@ const Users = () => {
             is_active: u.is_active !== undefined ? u.is_active : 1
         });
         setShowPassword(false);
+        setShowConfirmPassword(false);
         handleTabChange('add_staff');
     };
 
@@ -256,22 +259,6 @@ const Users = () => {
                     <h1 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0, fontSize: '1.65rem', fontWeight: 800 }}>
                         <UsersIcon size={28} color="var(--primary)" /> Staff & Audit Log
                     </h1>
-                </div>
-
-                <div style={{ display: 'flex', gap: '10px' }}>
-                    {activeTab !== 'audit' && (
-                        <button
-                            type="button"
-                            onClick={() => {
-                                handleOpenAddModal();
-                                handleTabChange('add_staff');
-                            }}
-                            className="btn-primary"
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '9px 18px', fontWeight: 700 }}
-                        >
-                            <UserPlus size={16} /> + Add New Staff Account
-                        </button>
-                    )}
                 </div>
             </div>
 
@@ -760,6 +747,7 @@ const Users = () => {
                                         />
                                         <button
                                             type="button"
+                                            aria-label={showPassword ? 'Hide password' : 'Show password'}
                                             onClick={() => setShowPassword(!showPassword)}
                                             style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
                                         >
@@ -772,15 +760,25 @@ const Users = () => {
                                     <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '4px' }}>
                                         Confirm Password:
                                     </label>
-                                    <input
-                                        type={showPassword ? 'text' : 'password'}
-                                        className="input-premium"
-                                        placeholder="Repeat password"
-                                        value={userForm.confirmPassword}
-                                        onChange={(e) => setUserForm({ ...userForm, confirmPassword: e.target.value })}
-                                        style={{ width: '100%', padding: '8px 12px', fontSize: '0.88rem' }}
-                                        required={!!userForm.password}
-                                    />
+                                    <div style={{ position: 'relative' }}>
+                                        <input
+                                            type={showConfirmPassword ? 'text' : 'password'}
+                                            className="input-premium"
+                                            placeholder="Repeat password"
+                                            value={userForm.confirmPassword}
+                                            onChange={(e) => setUserForm({ ...userForm, confirmPassword: e.target.value })}
+                                            style={{ width: '100%', padding: '8px 34px 8px 12px', fontSize: '0.88rem' }}
+                                            required={!!userForm.password}
+                                        />
+                                        <button
+                                            type="button"
+                                            aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                            style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                                        >
+                                            {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 

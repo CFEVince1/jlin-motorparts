@@ -707,7 +707,11 @@ const POS = ({ defaultTab }) => {
     };
 
     const removeFromCart = (cartKey) => {
-        setCart(currentCart => currentCart.filter(item => (item.cart_key || String(item.product_id)) !== String(cartKey)));
+        const nextCart = cart.filter(item => (item.cart_key || String(item.product_id)) !== String(cartKey));
+        setCart(nextCart);
+        if (nextCart.length === 0) {
+            setShowDiscountRequestModal(false);
+        }
     };
 
     // Held Transactions State (Persisted in localStorage)
@@ -2850,7 +2854,7 @@ const POS = ({ defaultTab }) => {
                     )}
                 </div>
                 {/* Current Order In-Line Discount Panel (No Glass Panel Modal, No Price Override) */}
-                {!showDiscountRequestModal ? (
+                {(!showDiscountRequestModal || cart.length === 0) ? (
                     <div style={{
                         padding: '8px 12px',
                         background: 'var(--surface-hover)',

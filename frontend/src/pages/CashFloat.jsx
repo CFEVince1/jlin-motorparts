@@ -2657,7 +2657,7 @@ export const CashFloat = () => {
                     })()}
                 </div>
                 ) : (
-                    <div style={{ paddingTop: '10px', maxWidth: '820px', margin: '0 auto' }}>
+                    <div style={{ paddingTop: '10px', maxWidth: '940px', margin: '0 auto' }}>
                         {activeShift ? (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                                 {/* CASE A: STAFF HAS ACTIVE SHIFT */}
@@ -2716,12 +2716,12 @@ export const CashFloat = () => {
                                     </div>
 
                                     {/* Staff Actions */}
-                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                         <button
                                             type="button"
                                             onClick={() => navigate('/pos')}
                                             className="btn-primary"
-                                            style={{ padding: '10px 18px', fontSize: '0.86rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                            style={{ padding: '9px 14px', fontSize: '0.82rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
                                         >
                                             Open POS Register
                                         </button>
@@ -2732,10 +2732,10 @@ export const CashFloat = () => {
                                                 setShowExpenseModal(true);
                                             }}
                                             className="btn-secondary"
-                                            style={{ padding: '10px 18px', fontSize: '0.86rem', fontWeight: 700, color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.45)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                            style={{ padding: '9px 14px', fontSize: '0.82rem', fontWeight: 700, color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.45)', display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
                                             title="Record cash taken from drawer for urgent shop repairs/supplies (e.g. broken shop bulb)"
                                         >
-                                            <MinusCircle size={16} /> Petty Cash / Shop Expense
+                                            <MinusCircle size={15} /> Petty Cash / Shop Expense
                                         </button>
                                         <button
                                             type="button"
@@ -2746,9 +2746,9 @@ export const CashFloat = () => {
                                                 setShowCashDropModal(true);
                                             }}
                                             className="btn-secondary"
-                                            style={{ padding: '10px 18px', fontSize: '0.86rem', fontWeight: 700, color: '#3b82f6', borderColor: 'rgba(59, 130, 246, 0.45)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                            style={{ padding: '9px 14px', fontSize: '0.82rem', fontWeight: 700, color: '#3b82f6', borderColor: 'rgba(59, 130, 246, 0.45)', display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
                                         >
-                                            <Coins size={16} /> Mid-Shift Remit (Cash Drop)
+                                            <Coins size={15} /> Mid-Shift Remit (Cash Drop)
                                         </button>
                                         <button
                                             type="button"
@@ -2761,8 +2761,8 @@ export const CashFloat = () => {
                                                 setShowCloseShiftModal(true);
                                             }}
                                             style={{
-                                                padding: '10px 18px',
-                                                fontSize: '0.86rem',
+                                                padding: '9px 14px',
+                                                fontSize: '0.82rem',
                                                 fontWeight: 700,
                                                 background: '#d97706',
                                                 color: '#ffffff',
@@ -2771,10 +2771,11 @@ export const CashFloat = () => {
                                                 cursor: 'pointer',
                                                 display: 'inline-flex',
                                                 alignItems: 'center',
-                                                gap: '6px'
+                                                gap: '6px',
+                                                whiteSpace: 'nowrap'
                                             }}
                                         >
-                                            <Lock size={15} /> Submit Remit to Admin
+                                            <Lock size={14} /> Submit Remit to Admin
                                         </button>
                                     </div>
                                 </div>
@@ -2811,7 +2812,7 @@ export const CashFloat = () => {
                                                                 {isDrop ? 'Mid-Shift Remit (Cash Drop)' : isExpense ? 'Petty Cash Out (Shop Expense)' : m.movement_type.replace(/_/g, ' ')}
                                                             </div>
                                                             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                                                {m.notes || m.reference_id || 'Shift transaction'} • {formatAuditDate(m.created_at)}
+                                                                {String(m.notes || m.reference_id || 'Shift transaction').replace(/₱(\d+)(\.\d{2})?/g, (_, d, dec) => '₱' + Number(d).toLocaleString('en-US') + (dec || ''))} • {formatAuditDate(m.created_at)}
                                                             </div>
                                                         </div>
                                                         <div style={{ fontFamily: 'monospace', fontWeight: 800, color: isOut ? '#ef4444' : 'var(--text-main)', whiteSpace: 'nowrap' }}>
